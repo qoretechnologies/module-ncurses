@@ -6,6 +6,8 @@
 
 %modern
 
+%include "test/TestHarness.qc"
+
 %exec-class NcursesBaseTest
 
 class NcursesBaseTest inherits Test {

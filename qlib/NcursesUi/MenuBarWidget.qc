@@ -397,8 +397,8 @@ public class NcursesUi::MenuBarWidget inherits NcursesUi::Widget {
 
     private nothing closeDropdown() {
         if (active_dropdown) {
-            # pop from modal stack
-            if (app) {
+            # pop from modal stack only if our dropdown is on top
+            if (app && app.getDispatcher().topModal() == active_dropdown) {
                 app.popModal();
             }
             active_dropdown.destroyPanel();

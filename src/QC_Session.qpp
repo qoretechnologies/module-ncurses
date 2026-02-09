@@ -5,19 +5,23 @@
 
     Copyright (C) 2003 - 2026 Qore Technologies, s.r.o.
 
-    This library is free software; you can redistribute it and/or
-    modify it under the terms of the GNU Lesser General Public
-    License as published by the Free Software Foundation; either
-    version 2.1 of the License, or (at your option) any later version.
+    Permission is hereby granted, free of charge, to any person obtaining a
+    copy of this software and associated documentation files (the "Software"),
+    to deal in the Software without restriction, including without limitation
+    the rights to use, copy, modify, merge, publish, distribute, sublicense,
+    and/or sell copies of the Software, and to permit persons to whom the
+    Software is furnished to do so, subject to the following conditions:
 
-    This library is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-    Lesser General Public License for more details.
+    The above copyright notice and this permission notice shall be included in
+    all copies or substantial portions of the Software.
 
-    You should have received a copy of the GNU Lesser General Public
-    License along with this library; if not, write to the Free Software
-    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+    DEALINGS IN THE SOFTWARE.
 */
 
 #include "ncurses-internal.h"
@@ -369,7 +373,7 @@ Session::constructor(*hash opts) {
         if (!v.isNothing() && v.getType() == NT_OBJECT) {
             QoreObject* obj = v.get<QoreObject>();
             TryPrivateDataRefHolder<NcursesTestTerminal> t(obj, CID_TESTTERMINAL, xsink);
-            if (!xsink && t) {
+            if (!*xsink && t) {
                 tterm_holder = t.release();
             }
         }
@@ -385,12 +389,12 @@ Session::constructor(*hash opts) {
 
     if (tterm_holder) {
         tterm_holder->ensureOpen(xsink);
-        if (xsink) {
+        if (*xsink) {
             delete s;
             return;
         }
         setenv("TERM", tterm_holder->term.c_str(), 1);
-        FILE* in = fdopen(tterm_holder->slave_fd, "r");
+        FILE* in = fdopen(dup(tterm_holder->slave_fd), "r");
         FILE* out = fdopen(dup(tterm_holder->slave_fd), "w");
         if (!in || !out) {
             if (in) { fclose(in); }
@@ -521,7 +525,7 @@ nothing Session::setMouse(bool enabled) {
 */
 nothing Session::redirectStdout(File[File] file) {
     ReferenceHolder<File> f(file, xsink);
-    if (xsink && *xsink) {
+    if (*xsink) {
         return nothing();
     }
     if (qore_check_io_interrupt(xsink, "redirecting stdout")) {
@@ -556,7 +560,7 @@ nothing Session::redirectStdout(File[File] file) {
 */
 nothing Session::redirectStderr(File[File] file) {
     ReferenceHolder<File> f(file, xsink);
-    if (xsink && *xsink) {
+    if (*xsink) {
         return nothing();
     }
     if (qore_check_io_interrupt(xsink, "redirecting stderr")) {
@@ -638,7 +642,7 @@ Window Session::screen() {
 list<string> Session::snapshot(*int y, *int rows, *int cols) {
     session->checkOpen(xsink);
     if (*xsink) {
-        return nothing;
+        return nothing();
     }
     size_t argc = args ? args->size() : 0;
     while (argc > 0 && args->retrieveEntry(argc - 1).isNothing()) {
@@ -669,7 +673,7 @@ list<string> Session::snapshot(*int y, *int rows, *int cols) {
     int width = max_cols;
     ReferenceHolder<QoreListNode> out(new QoreListNode(autoTypeInfo), xsink);
     if (*xsink) {
-        return nothing;
+        return nothing();
     }
     std::string buf;
     buf.resize(width + 1);
@@ -678,7 +682,7 @@ list<string> Session::snapshot(*int y, *int rows, *int cols) {
         buf[width] = 0;
         out->push(new QoreStringNode(buf.c_str(), QCS_UTF8), xsink);
         if (*xsink) {
-            return nothing;
+            return nothing();
         }
     }
     return out.release();
@@ -735,6 +739,75 @@ int Session::setEscDelay(int ms) {
     return 0;
 #endif
 #endif
+}
+
+//! Returns the maximum number of colors supported by the terminal
+/**
+    @return the number of colors the terminal supports (typically 8, 256, or more)
+
+    @since %ncurses 2.1
+*/
+int Session::maxColors() {
+    session->checkOpen(xsink);
+    if (*xsink) {
+        return 0;
+    }
+    NcursesCallGuard guard(session);
+    return COLORS;
+}
+
+//! Returns true if the terminal supports color redefinition
+/**
+    When true, @ref initColor() can be used to redefine color slots with custom RGB values.
+
+    @return true if the terminal supports redefining colors
+
+    @since %ncurses 2.1
+*/
+bool Session::canChangeColor() {
+    session->checkOpen(xsink);
+    if (*xsink) {
+        return false;
+    }
+    NcursesCallGuard guard(session);
+    return can_change_color();
+}
+
+//! Redefines a color slot with custom RGB values
+/**
+    @param color the color number to redefine (0 to @ref maxColors() - 1)
+    @param r red component (0-1000)
+    @param g green component (0-1000)
+    @param b blue component (0-1000)
+
+    @throw NCURSES-ERROR if the terminal does not support color redefinition or the color number is out of range
+
+    @note The terminal must support color redefinition (@ref canChangeColor() returns true)
+
+    @since %ncurses 2.1
+*/
+nothing Session::initColor(int color, int r, int g, int b) {
+    session->checkOpen(xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    NcursesCallGuard guard(session);
+    if (!can_change_color()) {
+        xsink->raiseException("NCURSES-ERROR", "terminal does not support color redefinition");
+        return nothing();
+    }
+    if (color < 0 || color >= COLORS) {
+        xsink->raiseException("NCURSES-ERROR", "color number %d out of range (0-%d)", (int)color, COLORS - 1);
+        return nothing();
+    }
+    if (r < 0 || r > 1000 || g < 0 || g > 1000 || b < 0 || b > 1000) {
+        xsink->raiseException("NCURSES-ERROR", "RGB values must be in range 0-1000");
+        return nothing();
+    }
+    if (init_color(color, r, g, b) != OK) {
+        xsink->raiseException("NCURSES-ERROR", "init_color() failed for color %d", (int)color);
+    }
+    return nothing();
 }
 
 //! Flushes pending input
@@ -997,7 +1070,6 @@ nothing Session::injectEvents(list<hash<InputEvent>> events) {
             continue;
         }
         QoreHashNode* h = v.get<QoreHashNode>();
-        ReferenceHolder<QoreHashNode> holder(h, xsink);
         int type = NC_INPUT_CHAR;
         bool type_set = false;
         QoreValue vtype = h->getKeyValue("type");
@@ -1088,7 +1160,6 @@ nothing Session::injectEvents(list<hash<InputEvent>> events) {
         if (*xsink) {
             return nothing();
         }
-        holder.release();
     }
     return nothing();
 }

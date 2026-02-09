@@ -10,7 +10,7 @@ This module is a complete redesign with a clean, high-level API. It is not backw
 
 - Qore 2.3 (development branch)
 - ncurses (with panel support)
-- CMake 3.5+ (Alpine CI uses CMake 4)
+- CMake 3.21+ (Alpine CI uses CMake 4)
 
 ## Build
 
@@ -93,8 +93,8 @@ The `NcursesUi` helper module provides reusable widgets for pop-up menus and bro
 ```qore
 %requires NcursesUi
 
-NcursesUi::PopupPane popup();
-NcursesUi::MenuWidget menu();
+NcursesUi::PanelWidget popup();
+NcursesUi::MenuBarWidget menu();
 ```
 
 These widgets are used by `qrepl` to provide mouse-driven menus, a reflection browser, and a filesystem browser.
@@ -116,4 +116,4 @@ Doxygen documentation is generated from the QPP sources and `docs/mainpage.dox.t
 
 ## License
 
-LGPL 2.1.
+MIT.

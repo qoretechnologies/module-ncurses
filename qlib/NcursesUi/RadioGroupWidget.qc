@@ -65,6 +65,9 @@ public class NcursesUi::RadioGroupWidget inherits NcursesUi::Widget {
         @since ncurses 2.0
     */
     string getSelectedOption() {
+        if (options.empty()) {
+            return "";
+        }
         return options[selected_index];
     }
 

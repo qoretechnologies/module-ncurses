@@ -283,6 +283,9 @@ public class NcursesUi::DialogWidget inherits NcursesUi::PanelWidget {
         } else if (ev.type == Ncurses::InputType::Char) {
             int code = ord(ev.ch ?? "");
             if (code == 0x0a) {
+                if (buttons.empty()) {
+                    return <NcursesUi::EventResult>{"handled": True};
+                }
                 pressButton();
                 return <NcursesUi::EventResult>{"handled": True, "action": "button",
                     "data": {"index": focused_button, "label": buttons[focused_button]}};
@@ -294,6 +297,9 @@ public class NcursesUi::DialogWidget inherits NcursesUi::PanelWidget {
                 return <NcursesUi::EventResult>{"handled": True, "action": "dismiss"};
             } else if (code == 0x09) {
                 # Tab - next button
+                if (buttons.empty()) {
+                    return <NcursesUi::EventResult>{"handled": True};
+                }
                 focused_button = (focused_button + 1) % buttons.size();
                 markDirty();
                 return <NcursesUi::EventResult>{"handled": True};
@@ -314,6 +320,9 @@ public class NcursesUi::DialogWidget inherits NcursesUi::PanelWidget {
                 return <NcursesUi::EventResult>{"handled": True};
             } else if (name == "KEY_BTAB") {
                 # Shift+Tab - previous button
+                if (buttons.empty()) {
+                    return <NcursesUi::EventResult>{"handled": True};
+                }
                 focused_button = (focused_button - 1 + buttons.size()) % buttons.size();
                 markDirty();
                 return <NcursesUi::EventResult>{"handled": True};

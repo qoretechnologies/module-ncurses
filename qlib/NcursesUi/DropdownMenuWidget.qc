@@ -369,6 +369,9 @@ public class NcursesUi::DropdownMenuWidget inherits NcursesUi::PanelWidget {
     }
 
     private nothing moveHighlight(int dir) {
+        if (menu_items.empty()) {
+            return;
+        }
         int start = highlight_index;
         int idx = highlight_index;
         do {

@@ -312,7 +312,7 @@ class NcursesTest inherits Test {
             Ncurses::Window w = s.screen();
             try {
                 w.readEvent(100, 0);
-                assertTrue(False);
+                fail("Expected NCURSES-ERROR exception");
             } catch (hash<ExceptionInfo> ex) {
                 assertEq("NCURSES-ERROR", ex.err);
             }

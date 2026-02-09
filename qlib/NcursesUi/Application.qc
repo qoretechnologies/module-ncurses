@@ -208,26 +208,31 @@ public class NcursesUi::Application {
         running = True;
         Ncurses::Window screen = session.screen();
 
-        while (running) {
-            # draw
-            drawAll();
+        try {
+            while (running) {
+                # draw
+                drawAll();
 
-            # read event
-            *hash<Ncurses::InputEvent> ev = screen.readEvent(read_timeout_ms, poll_ms);
+                # read event
+                *hash<Ncurses::InputEvent> ev = screen.readEvent(read_timeout_ms, poll_ms);
 
-            # dispatch
-            if (ev) {
-                if (ev.type == Ncurses::InputType::Resize) {
-                    handleResize();
-                } else {
-                    dispatcher.dispatch(root, ev);
+                # dispatch
+                if (ev) {
+                    if (ev.type == Ncurses::InputType::Resize) {
+                        handleResize();
+                    } else {
+                        dispatcher.dispatch(root, ev);
+                    }
+                }
+
+                # tick callbacks
+                foreach code cb in (tick_callbacks) {
+                    cb();
                 }
             }
-
-            # tick callbacks
-            foreach code cb in (tick_callbacks) {
-                cb();
-            }
+        } catch (hash<ExceptionInfo> ex) {
+            close();
+            rethrow;
         }
     }
 

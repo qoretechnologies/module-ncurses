@@ -25,7 +25,6 @@
 %requires qore >= 2.0
 %requires ncurses
 %requires NcursesReplUi
-%requires QUnit
 
 %modern
 

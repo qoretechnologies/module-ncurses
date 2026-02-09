@@ -6,6 +6,8 @@
 
 %modern
 
+%include "test/TestHarness.qc"
+
 %exec-class NcursesScrollTest
 
 class NcursesScrollTest inherits Test {
@@ -116,7 +118,7 @@ class NcursesScrollTest inherits Test {
     testLineListContentAnsiWidth() {
         NcursesUi::LineListContent llc();
         # ANSI codes should not count toward width
-        llc.appendLine("\033[31mRed\033[0m");
+        llc.appendLine(chr(0x1b) + "[31mRed" + chr(0x1b) + "[0m");
         # visible text is "Red" = 3 chars
         assertEq(3, llc.totalCols());
 
@@ -510,10 +512,11 @@ class NcursesScrollTest inherits Test {
 
     testLeftRightScroll() {
         NcursesUi::ScrollableWidget sw();
-        sw.setFrame(NcursesUi::Geometry::makeRect(0, 0, 10, 40));
+        sw.setFrame(NcursesUi::Geometry::makeRect(0, 0, 10, 20));
 
         NcursesUi::LineListContent llc();
-        llc.appendLine("Short");
+        # content wider than viewport (50 chars > 20 cols)
+        llc.appendLine(strmul("X", 50));
         sw.setContent(llc);
 
         sw.scrollTo(NcursesUi::ScrollDirection::Right, 5);
@@ -525,6 +528,11 @@ class NcursesScrollTest inherits Test {
         # clamp to 0
         sw.scrollTo(NcursesUi::ScrollDirection::Left, 100);
         assertEq(0, sw.getScrollX());
+
+        # clamp right scroll to maxScrollX
+        sw.scrollTo(NcursesUi::ScrollDirection::Right, 1000);
+        assertTrue(sw.getScrollX() <= 50);
+        assertTrue(sw.getScrollX() > 0);
     }
 
     testUnhandledEvent() {

@@ -9,6 +9,8 @@
 %define NO_QORE_REPL
 %endtry
 
+%include "test/TestHarness.qc"
+
 %exec-class NcursesQreplTest
 
 /** Tests for qrepl application scenarios.
@@ -835,16 +837,16 @@ class NcursesQreplTest inherits QUnit::Test {
         int tick_count = 0;
         app.addTickCallback(sub () {
             ++tick_count;
+            # quit after first tick to exit the run loop
+            app.quit();
         });
 
-        # process some events to trigger tick
-        hash<Ncurses::InputEvent> ev();
-        ev.type = Ncurses::InputType::Char;
-        ev.ch = "a";
-        app.processEvent(ev);
+        # inject an event so readEvent returns immediately, then ticks fire
+        th.injectChar("a");
+        app.run();
 
-        # tick should have been called at least once from processEvent
-        assertTrue(tick_count >= 0);
+        # tick should have been called at least once from the run loop
+        assertTrue(tick_count > 0, "tick callback should have been called at least once");
     }
 
     /** Test multi-line output content. */
@@ -1848,6 +1850,7 @@ class NcursesQreplTest inherits QUnit::Test {
     testRealPipeCaptureThread() {
         hash<PipeInfo> pipe = File::getPipe();
         Mutex mutex();
+        Condition cond();
         list<string> pending = ();
         string tail = "";
         bool eval_done = False;
@@ -1886,6 +1889,7 @@ class NcursesQreplTest inherits QUnit::Test {
                             eval_done = False;
                             latch.dec();
                         }
+                        cond.broadcast();
                     }
                 } catch (hash<ExceptionInfo> ex) {
                     if (ex.err == "FILE-READ-TIMEOUT") {
@@ -1915,19 +1919,12 @@ class NcursesQreplTest inherits QUnit::Test {
         eval_done = True;
         mutex.unlock();
 
-        # wait for capture to process (newline-terminated: captured on read, no latch needed)
-        # but eval_done stays True since tail is empty — just wait briefly
-        int attempts = 0;
-        while (attempts < 50) {
-            mutex.lock();
-            int sz = pending.size();
-            mutex.unlock();
-            if (sz > 0) {
-                break;
-            }
-            usleep(20000);
-            ++attempts;
+        # wait for capture to process using condition variable
+        mutex.lock();
+        while (pending.size() == 0) {
+            cond.wait(mutex, 5000);
         }
+        mutex.unlock();
 
         running = False;
         pipe.write.close();

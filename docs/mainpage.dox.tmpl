@@ -148,7 +148,8 @@ NcursesUi::StatusBarWidget bar();
 bar.setSegments(({"text": "Ready", "style": {"fg": Ncurses::Color::Cyan}}));
 layout.addChild(bar, NcursesUi::SizePolicy::Fixed);
 
-app.run(root);
+app.setRoot(root);
+app.run();
     @endcode
 
     @subsection ncurses_ui_panels Panel Widgets and Modal Dialogs

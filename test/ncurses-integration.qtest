@@ -7,6 +7,8 @@
 
 %modern
 
+%include "test/TestHarness.qc"
+
 %exec-class NcursesIntegrationTest
 
 class NcursesIntegrationTest inherits Test {
@@ -753,8 +755,8 @@ class NcursesIntegrationTest inherits Test {
         sw.setFrame(NcursesUi::Geometry::makeRect(0, 0, 10, 40));
 
         NcursesUi::LineListContent content();
-        content.appendLine("\033[31mRed text\033[0m");
-        content.appendLine("\033[32mGreen text\033[0m");
+        content.appendLine(chr(0x1b) + "[31mRed text" + chr(0x1b) + "[0m");
+        content.appendLine(chr(0x1b) + "[32mGreen text" + chr(0x1b) + "[0m");
         content.appendLine("Plain text");
         sw.setContent(content);
 
@@ -839,8 +841,8 @@ class NcursesIntegrationTest inherits Test {
         sb.draw(th.session().screen());  # should not crash
 
         th.session().doupdate();
-        # if we get here, no crashes
-        assertTrue(True);
+        # verify session is still open after drawing empty widgets
+        assertTrue(th.session().isOpen(), "session still open after drawing empty widgets");
     }
 
     testMultiWidgetEventRouting() {

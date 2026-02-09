@@ -152,7 +152,8 @@ public class NcursesUi::ScrollableWidget inherits NcursesUi::Widget {
         } else if (dir == NcursesUi::ScrollDirection::Left) {
             scrollX = max(0, scrollX - amount);
         } else if (dir == NcursesUi::ScrollDirection::Right) {
-            scrollX = scrollX + amount;
+            int maxX = maxScrollX();
+            scrollX = max(0, min(maxX, scrollX + amount));
         }
         markDirty();
     }
@@ -253,6 +254,18 @@ public class NcursesUi::ScrollableWidget inherits NcursesUi::Widget {
             }
         }
         return <NcursesUi::EventResult>{"handled": False};
+    }
+
+    private int maxScrollX() {
+        if (!content) {
+            return 0;
+        }
+        hash<NcursesUi::Rect> cr = contentRect();
+        int visible_cols = cr.cols;
+        if (show_scrollbar && content.totalRows() > cr.rows) {
+            visible_cols = max(1, visible_cols - 1);
+        }
+        return max(0, content.totalCols() - visible_cols);
     }
 
     private int maxScrollY() {

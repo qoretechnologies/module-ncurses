@@ -129,14 +129,19 @@ public class NcursesUi::FileBrowserWidget inherits NcursesUi::PanelWidget {
         @since ncurses 2.0
     */
     nothing navigateTo(string dir) {
-        if (is_dir(dir)) {
-            dir_history += current_dir;
-            current_dir = realpath(dir);
-            updateTitle();
-            clearPreview();
-            focused_pane = 0;
-            refreshListing();
-            updateStatusText();
+        try {
+            string resolved = realpath(dir);
+            if (is_dir(resolved)) {
+                dir_history += current_dir;
+                current_dir = resolved;
+                updateTitle();
+                clearPreview();
+                focused_pane = 0;
+                refreshListing();
+                updateStatusText();
+            }
+        } catch () {
+            # path vanished between check and navigation — ignore
         }
     }
 
