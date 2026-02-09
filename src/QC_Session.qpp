@@ -1,0 +1,1094 @@
+/* -*- mode: c++; indent-tabs-mode: nil -*- */
+/*
+    Qore ncurses module
+
+
+    Copyright (C) 2003 - 2026 Qore Technologies, s.r.o.
+
+    This library is free software; you can redistribute it and/or
+    modify it under the terms of the GNU Lesser General Public
+    License as published by the Free Software Foundation; either
+    version 2.1 of the License, or (at your option) any later version.
+
+    This library is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    Lesser General Public License for more details.
+
+    You should have received a copy of the GNU Lesser General Public
+    License along with this library; if not, write to the Free Software
+    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+*/
+
+#include "ncurses-internal.h"
+
+//! Cursor visibility enum
+/** Cursor visibility modes.
+
+    @since %ncurses 2.0
+*/
+enum Qore::Ncurses::CursorVisibility : int {
+    Hidden = 0,
+    Normal = 1,
+    VeryVisible = 2
+};
+
+//! Input event type enum
+/** Input event types produced by @ref Qore::Ncurses::Window::readEvent() "Window::readEvent()".
+
+    @since %ncurses 2.0
+*/
+enum Qore::Ncurses::InputType : int {
+    None = 0,
+    Char = 1,
+    Key = 2,
+    Mouse = 3,
+    Resize = 4,
+    Alt = 5
+};
+
+//! Color enum
+/** Basic ncurses colors.
+
+    @since %ncurses 2.0
+*/
+enum Qore::Ncurses::Color : int {
+    Default = -1,
+    Black = COLOR_BLACK,
+    Red = COLOR_RED,
+    Green = COLOR_GREEN,
+    Yellow = COLOR_YELLOW,
+    Blue = COLOR_BLUE,
+    Magenta = COLOR_MAGENTA,
+    Cyan = COLOR_CYAN,
+    White = COLOR_WHITE
+};
+
+//! Text attribute enum
+/** Text attributes used with @ref Ncurses::Style.
+
+    @since %ncurses 2.0
+*/
+enum Qore::Ncurses::Attr : int {
+    NormalAttr = A_NORMAL,
+    Standout = A_STANDOUT,
+    Underline = A_UNDERLINE,
+    Reverse = A_REVERSE,
+    Blink = A_BLINK,
+    Dim = A_DIM,
+    Bold = A_BOLD
+};
+
+//! Text wrapping mode enum
+/** Controls how text is wrapped when rendering in panels or windows.
+
+    @since %ncurses 2.0
+*/
+enum Qore::Ncurses::WrapMode : int {
+    //! No wrapping; text is clipped to the line width
+    None = 0,
+    //! Hard wrap at the line width
+    Hard = 1,
+    //! Word wrap when possible, otherwise hard wrap
+    Word = 2
+};
+
+//! Style hashdecl
+/** Style definition for text and backgrounds.
+
+    @since %ncurses 2.0
+*/
+hashdecl Qore::Ncurses::Style {
+    //! Foreground color (Ncurses::Color)
+    int fg;
+    //! Background color (Ncurses::Color)
+    int bg;
+    //! Bitwise attributes (Ncurses::Attr)
+    int attrs;
+}
+
+//! Size hashdecl
+/** Size hashdecl.
+
+    @since %ncurses 2.0
+*/
+hashdecl Qore::Ncurses::Size {
+    //! Number of rows
+    int rows;
+    //! Number of columns
+    int cols;
+}
+
+//! Position hashdecl
+/** Position hashdecl.
+
+    @since %ncurses 2.0
+*/
+hashdecl Qore::Ncurses::Position {
+    //! Row (y)
+    int y;
+    //! Column (x)
+    int x;
+}
+
+//! Mouse event hashdecl
+/** Mouse event information.
+
+    @since %ncurses 2.0
+*/
+hashdecl Qore::Ncurses::MouseEvent {
+    //! Column (x)
+    int x;
+    //! Row (y)
+    int y;
+    //! Button state mask
+    int button_state;
+}
+
+//! Input event hashdecl
+/** Input event information.
+
+    @since %ncurses 2.0
+*/
+hashdecl Qore::Ncurses::InputEvent {
+    //! Ncurses::InputType
+    int type;
+    //! Key code for key events
+    int code;
+    //! Character for char events
+    string ch;
+    //! Human-readable name for key events
+    string name;
+    //! Mouse event details (if type == Ncurses::InputType::Mouse)
+    hash<MouseEvent> mouse;
+}
+/** @defgroup ncurses_constants Ncurses Constants
+    Key and mouse constants for the Ncurses module.
+*/
+///@{
+namespace Qore::Ncurses;
+
+#ifndef BUTTON5_PRESSED
+#define BUTTON5_PRESSED 0
+#define BUTTON5_RELEASED 0
+#define BUTTON5_CLICKED 0
+#define BUTTON5_DOUBLE_CLICKED 0
+#define BUTTON5_TRIPLE_CLICKED 0
+#endif
+
+//! Key code for arrow up
+const KEY_UP = KEY_UP;
+//! Key code for arrow down
+const KEY_DOWN = KEY_DOWN;
+//! Key code for arrow left
+const KEY_LEFT = KEY_LEFT;
+//! Key code for arrow right
+const KEY_RIGHT = KEY_RIGHT;
+//! Key code for Home
+const KEY_HOME = KEY_HOME;
+//! Key code for End
+const KEY_END = KEY_END;
+//! Key code for Page Down
+const KEY_NPAGE = KEY_NPAGE;
+//! Key code for Page Up
+const KEY_PPAGE = KEY_PPAGE;
+//! Key code for Enter
+const KEY_ENTER = KEY_ENTER;
+//! Key code for Backspace
+const KEY_BACKSPACE = KEY_BACKSPACE;
+//! Key code for Delete
+const KEY_DC = KEY_DC;
+//! Key code for Insert
+const KEY_IC = KEY_IC;
+//! Key code for Resize
+const KEY_RESIZE = KEY_RESIZE;
+//! Key code for Mouse
+const KEY_MOUSE = KEY_MOUSE;
+
+//! Mouse button flags
+const BUTTON1_PRESSED = BUTTON1_PRESSED;
+//! Mouse button flags
+const BUTTON1_RELEASED = BUTTON1_RELEASED;
+//! Mouse button flags
+const BUTTON1_CLICKED = BUTTON1_CLICKED;
+//! Mouse button flags
+const BUTTON1_DOUBLE_CLICKED = BUTTON1_DOUBLE_CLICKED;
+//! Mouse button flags
+const BUTTON1_TRIPLE_CLICKED = BUTTON1_TRIPLE_CLICKED;
+//! Mouse button flags
+const BUTTON2_PRESSED = BUTTON2_PRESSED;
+//! Mouse button flags
+const BUTTON2_RELEASED = BUTTON2_RELEASED;
+//! Mouse button flags
+const BUTTON2_CLICKED = BUTTON2_CLICKED;
+//! Mouse button flags
+const BUTTON2_DOUBLE_CLICKED = BUTTON2_DOUBLE_CLICKED;
+//! Mouse button flags
+const BUTTON2_TRIPLE_CLICKED = BUTTON2_TRIPLE_CLICKED;
+//! Mouse button flags
+const BUTTON3_PRESSED = BUTTON3_PRESSED;
+//! Mouse button flags
+const BUTTON3_RELEASED = BUTTON3_RELEASED;
+//! Mouse button flags
+const BUTTON3_CLICKED = BUTTON3_CLICKED;
+//! Mouse button flags
+const BUTTON3_DOUBLE_CLICKED = BUTTON3_DOUBLE_CLICKED;
+//! Mouse button flags
+const BUTTON3_TRIPLE_CLICKED = BUTTON3_TRIPLE_CLICKED;
+//! Mouse button flags
+const BUTTON4_PRESSED = BUTTON4_PRESSED;
+//! Mouse button flags
+const BUTTON4_RELEASED = BUTTON4_RELEASED;
+//! Mouse button flags
+const BUTTON4_CLICKED = BUTTON4_CLICKED;
+//! Mouse button flags
+const BUTTON4_DOUBLE_CLICKED = BUTTON4_DOUBLE_CLICKED;
+//! Mouse button flags
+const BUTTON4_TRIPLE_CLICKED = BUTTON4_TRIPLE_CLICKED;
+//! Mouse button flags
+const BUTTON5_PRESSED = BUTTON5_PRESSED;
+//! Mouse button flags
+const BUTTON5_RELEASED = BUTTON5_RELEASED;
+//! Mouse button flags
+const BUTTON5_CLICKED = BUTTON5_CLICKED;
+//! Mouse button flags
+const BUTTON5_DOUBLE_CLICKED = BUTTON5_DOUBLE_CLICKED;
+//! Mouse button flags
+const BUTTON5_TRIPLE_CLICKED = BUTTON5_TRIPLE_CLICKED;
+//! Mouse button flags
+const BUTTON_SHIFT = BUTTON_SHIFT;
+//! Mouse button flags
+const BUTTON_CTRL = BUTTON_CTRL;
+//! Mouse button flags
+const BUTTON_ALT = BUTTON_ALT;
+///@}
+
+//! Ncurses session
+/** Manages a ncurses screen session.
+
+    A Session owns the terminal state for the lifetime of the ncurses UI.
+    Create a Session, obtain the screen Window, draw content, read events,
+    and close when done.
+
+    @par Example:
+    @code{.py}
+%modern
+%requires ncurses
+
+# create a session (initializes the terminal)
+Ncurses::Session s();
+Ncurses::Window w = s.screen();
+
+w.clear();
+w.drawText(1, 2, "Hello!", {"fg": Ncurses::Color::Cyan, "attrs": Ncurses::Attr::Bold});
+w.refresh();
+
+# wait for a keypress
+w.readEvent();
+
+# close the session (restores the terminal)
+s.close();
+    @endcode
+
+    @since %ncurses 2.0
+*/
+qclass Session [dom=TERMINAL_IO; arg=NcursesSession* session; ns=Qore::Ncurses];
+
+// ---------------------------------------------
+// Session implementation
+// ---------------------------------------------
+
+//! Creates a new session
+/**
+    @param opts optional hash of options:
+    - \c echo (bool, default false)
+    - \c raw (bool, default false)
+    - \c cbreak (bool, default true)
+    - \c keypad (bool, default true)
+    - \c mouse (bool, default true)
+    - \c use_colors (bool, default true)
+    - \c use_default_colors (bool, default true)
+    - \c cursor (int, default 0)
+    - \c esc_delay (int, default no change) to set the ESC sequence delay in milliseconds
+    - \c test_terminal (TestTerminal) for automated tests
+    - \c use_tty (bool, default false) to use a dedicated TTY device for ncurses I/O
+    - \c tty_path (string, default "/dev/tty") path to the TTY device when \c use_tty is true
+    - \c unbuffered_stdio (bool, default true when \c use_tty is true) to disable stdio buffering on
+      stdout/stderr when using a dedicated TTY (useful for output capture)
+
+    @since %ncurses 2.0
+*/
+Session::constructor(*hash opts) {
+    NcursesSession* s = new NcursesSession();
+
+    bool echo_on = false;
+    bool raw_on = false;
+    bool cbreak_on = true;
+    bool keypad_on = true;
+    bool mouse_on = true;
+    bool colors_on = true;
+    bool default_colors_on = true;
+    int cursor = 0;
+    int esc_delay = -1;
+    bool use_tty = false;
+    bool unbuffered_stdio = false;
+    bool unbuffered_stdio_set = false;
+    std::string tty_path = "/dev/tty";
+
+    ReferenceHolder<NcursesTestTerminal> tterm_holder(nullptr, xsink);
+    if (opts) {
+        QoreValue v;
+        v = opts->getKeyValue("echo");
+        if (!v.isNothing()) { echo_on = v.getAsBool(); }
+        v = opts->getKeyValue("raw");
+        if (!v.isNothing()) { raw_on = v.getAsBool(); }
+        v = opts->getKeyValue("cbreak");
+        if (!v.isNothing()) { cbreak_on = v.getAsBool(); }
+        v = opts->getKeyValue("keypad");
+        if (!v.isNothing()) { keypad_on = v.getAsBool(); }
+        v = opts->getKeyValue("mouse");
+        if (!v.isNothing()) { mouse_on = v.getAsBool(); }
+        v = opts->getKeyValue("use_colors");
+        if (!v.isNothing()) { colors_on = v.getAsBool(); }
+        v = opts->getKeyValue("use_default_colors");
+        if (!v.isNothing()) { default_colors_on = v.getAsBool(); }
+        v = opts->getKeyValue("cursor");
+        if (!v.isNothing()) { cursor = v.getAsBigInt(); }
+        v = opts->getKeyValue("esc_delay");
+        if (!v.isNothing()) { esc_delay = v.getAsBigInt(); }
+        v = opts->getKeyValue("use_tty");
+        if (!v.isNothing()) { use_tty = v.getAsBool(); }
+        v = opts->getKeyValue("tty_path");
+        if (!v.isNothing()) { tty_path = v.get<QoreStringNode>()->c_str(); }
+        v = opts->getKeyValue("unbuffered_stdio");
+        if (!v.isNothing()) {
+            unbuffered_stdio = v.getAsBool();
+            unbuffered_stdio_set = true;
+        }
+        v = opts->getKeyValue("test_terminal");
+        if (!v.isNothing() && v.getType() == NT_OBJECT) {
+            QoreObject* obj = v.get<QoreObject>();
+            TryPrivateDataRefHolder<NcursesTestTerminal> t(obj, CID_TESTTERMINAL, xsink);
+            if (!xsink && t) {
+                tterm_holder = t.release();
+            }
+        }
+    }
+
+    if (use_tty && !unbuffered_stdio_set) {
+        unbuffered_stdio = true;
+    } else if (!use_tty) {
+        unbuffered_stdio = false;
+    }
+
+    AutoLocker al(ncurses_lock);
+
+    if (tterm_holder) {
+        tterm_holder->ensureOpen(xsink);
+        if (xsink) {
+            delete s;
+            return;
+        }
+        setenv("TERM", tterm_holder->term.c_str(), 1);
+        FILE* in = fdopen(tterm_holder->slave_fd, "r");
+        FILE* out = fdopen(dup(tterm_holder->slave_fd), "w");
+        if (!in || !out) {
+            if (in) { fclose(in); }
+            if (out) { fclose(out); }
+            delete s;
+            xsink->raiseException("NCURSES-ERROR", "failed to open test terminal streams");
+            return;
+        }
+        s->in_file = in;
+        s->out_file = out;
+        s->screen = newterm(nullptr, out, in);
+        if (!s->screen) {
+            delete s;
+            xsink->raiseException("NCURSES-ERROR", "newterm() failed");
+            return;
+        }
+        s->is_default = false;
+        set_term(s->screen);
+        s->stdwin = stdscr;
+    } else if (use_tty) {
+        // check sandbox filesystem access before opening TTY device
+        QoreSandboxManagerHelper smh;
+        if (smh) {
+            if (!smh->checkFilesystemAccess(tty_path.c_str(), QSEC_READ | QSEC_WRITE, xsink)) {
+                delete s;
+                return;
+            }
+        }
+        FILE* in = fopen(tty_path.c_str(), "r");
+        FILE* out = fopen(tty_path.c_str(), "w");
+        if (!in || !out) {
+            if (in) { fclose(in); }
+            if (out) { fclose(out); }
+            delete s;
+            xsink->raiseException("NCURSES-ERROR", "failed to open tty device '%s'", tty_path.c_str());
+            return;
+        }
+        s->in_file = in;
+        s->out_file = out;
+        s->screen = newterm(nullptr, out, in);
+        if (!s->screen) {
+            delete s;
+            xsink->raiseException("NCURSES-ERROR", "newterm() failed");
+            return;
+        }
+        s->is_default = false;
+        set_term(s->screen);
+        s->stdwin = stdscr;
+    } else {
+        s->screen = newterm(nullptr, stdout, stdin);
+        if (!s->screen) {
+            delete s;
+            xsink->raiseException("NCURSES-ERROR", "newterm() failed");
+            return;
+        }
+        s->is_default = true;
+        set_term(s->screen);
+        s->stdwin = stdscr;
+    }
+
+    if (use_tty && unbuffered_stdio) {
+        setvbuf(stdout, nullptr, _IONBF, 0);
+        setvbuf(stderr, nullptr, _IONBF, 0);
+    }
+
+    if (!s->stdwin) {
+        delete s;
+        xsink->raiseException("NCURSES-ERROR", "failed to initialize ncurses");
+        return;
+    }
+
+    if (cbreak_on) { cbreak(); }
+    if (raw_on) { raw(); }
+    if (!echo_on) { noecho(); }
+    keypad(s->stdwin, keypad_on ? TRUE : FALSE);
+
+    if (mouse_on) {
+        mousemask(ALL_MOUSE_EVENTS, nullptr);
+    }
+
+    if (colors_on && has_colors()) {
+        start_color();
+        s->colors_enabled = true;
+        if (default_colors_on) {
+            use_default_colors();
+            s->use_default_colors = true;
+        }
+    }
+
+    if (cursor >= 0) {
+        curs_set(cursor);
+    }
+    if (esc_delay >= 0) {
+#ifdef NCURSES_VERSION
+        set_escdelay(esc_delay);
+#else
+#ifdef ESCDELAY
+        ESCDELAY = esc_delay;
+#endif
+#endif
+    }
+
+    self->setPrivate(CID_SESSION, s);
+
+}
+
+//! Enables or disables mouse event reporting
+/**
+    @param enabled true to enable mouse events, false to disable
+
+    @since %ncurses 2.0
+*/
+nothing Session::setMouse(bool enabled) {
+    session->checkOpen(xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    NcursesCallGuard guard(session);
+    mousemask(enabled ? ALL_MOUSE_EVENTS : 0, nullptr);
+    return nothing();
+}
+
+//! Redirects the C stdout stream to the given file
+/**
+    @param file target file
+
+    @since %ncurses 2.0
+*/
+nothing Session::redirectStdout(File[File] file) {
+    ReferenceHolder<File> f(file, xsink);
+    if (xsink && *xsink) {
+        return nothing();
+    }
+    if (qore_check_io_interrupt(xsink, "redirecting stdout")) {
+        return nothing();
+    }
+    if (!file || !file->isOpen()) {
+        xsink->raiseException("NCURSES-ERROR", "cannot redirect stdout: file is not open");
+        return nothing();
+    }
+    int fd = file->getFD();
+    if (fd < 0) {
+        xsink->raiseException("NCURSES-ERROR", "cannot redirect stdout: invalid file descriptor");
+        return nothing();
+    }
+    // flush any buffered data to the current (old) target before redirecting
+    fflush(stdout);
+    if (dup2(fd, STDOUT_FILENO) < 0) {
+        xsink->raiseErrnoException("NCURSES-ERROR", errno, "dup2() failed redirecting stdout");
+        return nothing();
+    }
+    // set unbuffered mode; fflush above ensures this takes effect even if
+    // prior I/O occurred on stdout (setvbuf requires empty buffer on glibc)
+    setvbuf(stdout, nullptr, _IONBF, 0);
+    return nothing();
+}
+
+//! Redirects the C stderr stream to the given file
+/**
+    @param file target file
+
+    @since %ncurses 2.0
+*/
+nothing Session::redirectStderr(File[File] file) {
+    ReferenceHolder<File> f(file, xsink);
+    if (xsink && *xsink) {
+        return nothing();
+    }
+    if (qore_check_io_interrupt(xsink, "redirecting stderr")) {
+        return nothing();
+    }
+    if (!file || !file->isOpen()) {
+        xsink->raiseException("NCURSES-ERROR", "cannot redirect stderr: file is not open");
+        return nothing();
+    }
+    int fd = file->getFD();
+    if (fd < 0) {
+        xsink->raiseException("NCURSES-ERROR", "cannot redirect stderr: invalid file descriptor");
+        return nothing();
+    }
+    // flush any buffered data to the current (old) target before redirecting
+    fflush(stderr);
+    if (dup2(fd, STDERR_FILENO) < 0) {
+        xsink->raiseErrnoException("NCURSES-ERROR", errno, "dup2() failed redirecting stderr");
+        return nothing();
+    }
+    // set unbuffered mode; fflush above ensures this takes effect
+    setvbuf(stderr, nullptr, _IONBF, 0);
+    return nothing();
+}
+
+//! Flushes any buffered C stdio data on stdout and stderr
+/** This ensures that output written via C's \c printf() / \c fputs() (used
+    internally by Qore's \c print() builtin) is flushed to the underlying
+    file descriptor.  Call this after evaluating user code to ensure all
+    output reaches the capture pipe.
+
+    @since %ncurses 2.0
+*/
+nothing Session::flushStdio() {
+    fflush(stdout);
+    fflush(stderr);
+    return nothing();
+}
+
+//! Closes the session
+/**
+    @since %ncurses 2.0
+*/
+nothing Session::close() {
+    session->close(xsink);
+}
+
+//! Returns true if the session is open
+/**
+    @since %ncurses 2.0
+*/
+bool Session::isOpen() {
+    return session && !session->closed;
+}
+
+//! Returns the screen window
+/**
+    @since %ncurses 2.0
+*/
+Window Session::screen() {
+    session->checkOpen(xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    QoreObject* obj = new QoreObject(QC_WINDOW, getProgram(), new NcursesWindow(session, session->stdwin, false));
+    return obj;
+}
+
+//! Returns a snapshot of the screen contents
+/**
+    @param y start row (default 0)
+    @param rows number of rows (default full screen)
+    @param cols number of columns (default full screen)
+
+    @return list of strings (one per row)
+
+    @since %ncurses 2.1
+*/
+list<string> Session::snapshot(*int y, *int rows, *int cols) {
+    session->checkOpen(xsink);
+    if (*xsink) {
+        return nothing;
+    }
+    size_t argc = args ? args->size() : 0;
+    while (argc > 0 && args->retrieveEntry(argc - 1).isNothing()) {
+        --argc;
+    }
+
+    int start_y = argc > 0 ? y : 0;
+    int max_rows = argc > 1 ? rows : -1;
+    int max_cols = argc > 2 ? cols : -1;
+
+    NcursesCallGuard guard(session);
+    int total_rows = 0;
+    int total_cols = 0;
+    getmaxyx(session->stdwin, total_rows, total_cols);
+    if (max_rows < 0 || max_rows > total_rows) {
+        max_rows = total_rows;
+    }
+    if (max_cols < 0 || max_cols > total_cols) {
+        max_cols = total_cols;
+    }
+    if (start_y < 0) {
+        start_y = 0;
+    }
+    if (start_y >= total_rows || max_rows <= 0 || max_cols <= 0) {
+        return new QoreListNode(autoTypeInfo);
+    }
+    int end_row = std::min(total_rows, start_y + max_rows);
+    int width = max_cols;
+    ReferenceHolder<QoreListNode> out(new QoreListNode(autoTypeInfo), xsink);
+    if (*xsink) {
+        return nothing;
+    }
+    std::string buf;
+    buf.resize(width + 1);
+    for (int row = start_y; row < end_row; ++row) {
+        mvwinnstr(session->stdwin, row, 0, &buf[0], width);
+        buf[width] = 0;
+        out->push(new QoreStringNode(buf.c_str(), QCS_UTF8), xsink);
+        if (*xsink) {
+            return nothing;
+        }
+    }
+    return out.release();
+}
+
+//! Returns true if colors are enabled
+/**
+    @since %ncurses 2.0
+*/
+bool Session::supportsColor() {
+    return session && session->colors_enabled;
+}
+
+//! Sets cursor visibility
+/**
+    @param visibility one of @ref CursorVisibility values
+
+    @since %ncurses 2.0
+*/
+nothing Session::setCursor(int visibility) {
+    session->checkOpen(xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    NcursesCallGuard guard(session);
+    curs_set(visibility);
+    return nothing();
+}
+
+//! Sets the escape sequence delay
+/**
+    @param ms delay in milliseconds (values < 0 are treated as 0)
+    @return previous delay value if available, otherwise 0
+
+    @since %ncurses 2.0
+*/
+int Session::setEscDelay(int ms) {
+    session->checkOpen(xsink);
+    if (*xsink) {
+        return 0;
+    }
+    if (ms < 0) {
+        ms = 0;
+    }
+    NcursesCallGuard guard(session);
+#ifdef NCURSES_VERSION
+    return set_escdelay(ms);
+#else
+#ifdef ESCDELAY
+    int old = ESCDELAY;
+    ESCDELAY = ms;
+    return old;
+#else
+    return 0;
+#endif
+#endif
+}
+
+//! Flushes pending input
+/**
+    @since %ncurses 2.0
+*/
+nothing Session::flushInput() {
+    session->checkOpen(xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    NcursesCallGuard guard(session);
+    flushinp();
+    return nothing();
+}
+
+//! Queues panel updates
+/**
+    @since %ncurses 2.0
+*/
+nothing Session::updatePanels() {
+    session->checkOpen(xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    NcursesCallGuard guard(session);
+    update_panels();
+    return nothing();
+}
+
+//! Flushes the virtual screen to the terminal
+/**
+    Applies the most recent cursor position set with @ref Ncurses::Window::moveCursor
+    or @ref Ncurses::Window::restoreCursor before updating the terminal.
+
+    @since %ncurses 2.0
+*/
+nothing Session::doupdate() {
+    session->checkOpen(xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    NcursesCallGuard guard(session);
+    if (session->cursor_set && session->cursor_win) {
+        wmove(session->cursor_win, session->cursor_y, session->cursor_x);
+        wnoutrefresh(session->cursor_win);
+    }
+    doupdate();
+    return nothing();
+}
+
+//! Emits a terminal beep
+/**
+    @since %ncurses 2.0
+*/
+nothing Session::beep() {
+    session->checkOpen(xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    NcursesCallGuard guard(session);
+    ::beep();
+    return nothing();
+}
+
+//! Flashes the terminal
+/**
+    @since %ncurses 2.0
+*/
+nothing Session::flash() {
+    session->checkOpen(xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    NcursesCallGuard guard(session);
+    ::flash();
+    return nothing();
+}
+
+//! Executes a callback with the ncurses lock held
+/**
+    @param cb callable (closure or call reference)
+    @param cb_args optional list of arguments
+
+    @return the callback result
+
+    @since %ncurses 2.0
+*/
+auto Session::withLock(code cb, *list cb_args) {
+    session->checkOpen(xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    NcursesCallGuard guard(session);
+    ReferenceHolder<ResolvedCallReferenceNode> holder(cb->refRefSelf(), xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    QoreListNode* arg_list = cb_args ? const_cast<QoreListNode*>(cb_args) : nullptr;
+    return holder->execValue(arg_list, xsink);
+}
+
+//! Injects input into the ncurses input queue
+/**
+    @param data input characters to inject
+
+    @since %ncurses 2.0
+*/
+nothing Session::injectInput(string data) {
+    session->checkOpen(xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    NcursesCallGuard guard(session);
+    if (!data || !data->size()) {
+        return nothing();
+    }
+    const char* buf = data->c_str();
+    size_t len = data->size();
+    for (size_t i = 0; i < len; ++i) {
+        ungetch((unsigned char)buf[len - 1 - i]);
+    }
+    return nothing();
+}
+
+//! Injects a single input event into the ncurses input queue
+/**
+    @param ev input event hash (type + payload)
+    - type (int) one of @ref InputType values
+    - code (int) for Key or Char events
+    - ch (string) for Char events
+    - mouse (hash) for Mouse events with keys: x, y, button_state
+
+    @since %ncurses 2.1
+*/
+nothing Session::injectEvent(hash<InputEvent> ev) {
+    session->checkOpen(xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    if (!ev) {
+        return nothing();
+    }
+    int type = NC_INPUT_CHAR;
+    bool type_set = false;
+    QoreValue vtype = ev->getKeyValue("type");
+    if (!vtype.isNothing()) {
+        type = vtype.getAsBigInt();
+        type_set = true;
+    }
+
+    QoreValue vcode = ev->getKeyValue("code");
+    QoreValue vch = ev->getKeyValue("ch");
+    QoreValue vmouse = ev->getKeyValue("mouse");
+
+    if (!type_set) {
+        if (!vmouse.isNothing()) {
+            type = NC_INPUT_MOUSE;
+        } else if (!vcode.isNothing() && vcode.getAsBigInt() >= KEY_MIN) {
+            type = NC_INPUT_KEY;
+        } else {
+            type = NC_INPUT_CHAR;
+        }
+    }
+
+    NcursesCallGuard guard(session);
+    if (type == NC_INPUT_CHAR) {
+        if (!vch.isNothing()) {
+            QoreStringNode* s = vch.get<QoreStringNode>();
+            if (!s || !s->size()) {
+                return nothing();
+            }
+            const char* buf = s->c_str();
+            size_t len = s->size();
+            for (size_t i = 0; i < len; ++i) {
+                ungetch((unsigned char)buf[len - 1 - i]);
+            }
+            return nothing();
+        }
+        if (vcode.isNothing()) {
+            xsink->raiseException("NCURSES-ERROR", "injectEvent(): missing 'ch' or 'code' for Char event");
+            return nothing();
+        }
+        int code = vcode.getAsBigInt();
+        ungetch(code);
+        return nothing();
+    } else if (type == NC_INPUT_KEY) {
+        if (vcode.isNothing()) {
+            xsink->raiseException("NCURSES-ERROR", "injectEvent(): missing 'code' for Key event");
+            return nothing();
+        }
+        int code = vcode.getAsBigInt();
+        ungetch(code);
+        return nothing();
+    } else if (type == NC_INPUT_MOUSE) {
+        if (vmouse.isNothing() || vmouse.getType() != NT_HASH) {
+            xsink->raiseException("NCURSES-ERROR", "injectEvent(): missing 'mouse' hash for Mouse event");
+            return nothing();
+        }
+        QoreHashNode* mh = vmouse.get<QoreHashNode>();
+        int mx = 0;
+        int my = 0;
+        int bs = 0;
+        QoreValue vx = mh->getKeyValue("x");
+        QoreValue vy = mh->getKeyValue("y");
+        QoreValue vbs = mh->getKeyValue("button_state");
+        if (!vx.isNothing()) { mx = vx.getAsBigInt(); }
+        if (!vy.isNothing()) { my = vy.getAsBigInt(); }
+        if (!vbs.isNothing()) { bs = vbs.getAsBigInt(); }
+        MEVENT me = {};
+        me.x = mx;
+        me.y = my;
+        me.bstate = (mmask_t)bs;
+        ungetmouse(&me);
+        ungetch(KEY_MOUSE);
+        return nothing();
+    } else if (type == NC_INPUT_RESIZE) {
+        ungetch(KEY_RESIZE);
+        return nothing();
+    } else if (type == NC_INPUT_ALT) {
+        if (vch.isNothing()) {
+            xsink->raiseException("NCURSES-ERROR", "injectEvent(): missing 'ch' for Alt event");
+            return nothing();
+        }
+        QoreStringNode* s = vch.get<QoreStringNode>();
+        if (!s || !s->size()) {
+            xsink->raiseException("NCURSES-ERROR", "injectEvent(): empty 'ch' for Alt event");
+            return nothing();
+        }
+        // ungetch is LIFO: push the char first, then ESC
+        ungetch((unsigned char)s->c_str()[0]);
+        ungetch(27);
+        return nothing();
+    }
+
+    xsink->raiseException("NCURSES-ERROR", "injectEvent(): unsupported event type %d", type);
+    return nothing();
+}
+
+//! Injects a list of input events into the ncurses input queue
+/**
+    @param events list of @ref InputEvent hashes
+
+    @since %ncurses 2.1
+*/
+nothing Session::injectEvents(list<hash<InputEvent>> events) {
+    session->checkOpen(xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    if (!events) {
+        return nothing();
+    }
+    size_t count = events->size();
+    NcursesCallGuard guard(session);
+    for (size_t i = 0; i < count; ++i) {
+        size_t idx = count - 1 - i;
+        QoreValue v = events->retrieveEntry(idx);
+        if (v.isNothing() || v.getType() != NT_HASH) {
+            continue;
+        }
+        QoreHashNode* h = v.get<QoreHashNode>();
+        ReferenceHolder<QoreHashNode> holder(h, xsink);
+        int type = NC_INPUT_CHAR;
+        bool type_set = false;
+        QoreValue vtype = h->getKeyValue("type");
+        if (!vtype.isNothing()) {
+            type = vtype.getAsBigInt();
+            type_set = true;
+        }
+
+        QoreValue vcode = h->getKeyValue("code");
+        QoreValue vch = h->getKeyValue("ch");
+        QoreValue vmouse = h->getKeyValue("mouse");
+
+        if (!type_set) {
+            if (!vmouse.isNothing()) {
+                type = NC_INPUT_MOUSE;
+            } else if (!vcode.isNothing() && vcode.getAsBigInt() >= KEY_MIN) {
+                type = NC_INPUT_KEY;
+            } else {
+                type = NC_INPUT_CHAR;
+            }
+        }
+
+        if (type == NC_INPUT_CHAR) {
+            if (!vch.isNothing()) {
+                QoreStringNode* s = vch.get<QoreStringNode>();
+                if (!s || !s->size()) {
+                    continue;
+                }
+                const char* buf = s->c_str();
+                size_t len = s->size();
+                for (size_t i2 = 0; i2 < len; ++i2) {
+                    ungetch((unsigned char)buf[len - 1 - i2]);
+                }
+            } else if (vcode.isNothing()) {
+                xsink->raiseException("NCURSES-ERROR", "injectEvents(): missing 'ch' or 'code' for Char event");
+                return nothing();
+            } else {
+                int code = vcode.getAsBigInt();
+                ungetch(code);
+            }
+        } else if (type == NC_INPUT_KEY) {
+            if (vcode.isNothing()) {
+                xsink->raiseException("NCURSES-ERROR", "injectEvents(): missing 'code' for Key event");
+                return nothing();
+            }
+            int code = vcode.getAsBigInt();
+            ungetch(code);
+        } else if (type == NC_INPUT_MOUSE) {
+            if (vmouse.isNothing() || vmouse.getType() != NT_HASH) {
+                xsink->raiseException("NCURSES-ERROR", "injectEvents(): missing 'mouse' hash for Mouse event");
+                return nothing();
+            }
+            QoreHashNode* mh = vmouse.get<QoreHashNode>();
+            int mx = 0;
+            int my = 0;
+            int bs = 0;
+            QoreValue vx = mh->getKeyValue("x");
+            QoreValue vy = mh->getKeyValue("y");
+            QoreValue vbs = mh->getKeyValue("button_state");
+            if (!vx.isNothing()) { mx = vx.getAsBigInt(); }
+            if (!vy.isNothing()) { my = vy.getAsBigInt(); }
+            if (!vbs.isNothing()) { bs = vbs.getAsBigInt(); }
+            MEVENT me = {};
+            me.x = mx;
+            me.y = my;
+            me.bstate = (mmask_t)bs;
+            ungetmouse(&me);
+            ungetch(KEY_MOUSE);
+        } else if (type == NC_INPUT_RESIZE) {
+            ungetch(KEY_RESIZE);
+        } else if (type == NC_INPUT_ALT) {
+            if (vch.isNothing()) {
+                xsink->raiseException("NCURSES-ERROR", "injectEvents(): missing 'ch' for Alt event");
+                return nothing();
+            }
+            QoreStringNode* s2 = vch.get<QoreStringNode>();
+            if (!s2 || !s2->size()) {
+                xsink->raiseException("NCURSES-ERROR", "injectEvents(): empty 'ch' for Alt event");
+                return nothing();
+            }
+            // ungetch is LIFO: push the char first, then ESC
+            ungetch((unsigned char)s2->c_str()[0]);
+            ungetch(27);
+        } else {
+            xsink->raiseException("NCURSES-ERROR", "injectEvents(): unsupported event type %d", type);
+            return nothing();
+        }
+        if (*xsink) {
+            return nothing();
+        }
+        holder.release();
+    }
+    return nothing();
+}

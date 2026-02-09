@@ -1,0 +1,266 @@
+/** @mainpage Qore ncurses Module
+
+    @tableofcontents
+
+    @section ncursesintro ncurses Module Introduction
+
+    The \c ncurses module provides a modern, thread-safe terminal UI API for %Qore
+    based on the system ncurses library. The API focuses on clear, high-level
+    primitives rather than exposing the entire low-level curses surface.
+
+    The module has three layers:
+    - <b>C++ binary module</b> (\c ncurses): Session, Window, Panel, TestTerminal, and Ansi classes
+    - <b>@ref ncursesuiintro "NcursesUi" toolkit</b>: a complete widget tree with layouts, event
+      dispatch, and standard components (load with \c %%requires \c NcursesUi)
+    - <b>@ref ncursesrepluiintro "NcursesReplUi" helpers</b>: InputBuffer, History, LayoutCalc,
+      and ScrollCalc for building REPL-style UIs (load with \c %%requires \c NcursesReplUi)
+
+    This module is released under the LGPL 2.1 license.
+
+    To use the module in a %Qore script, use the \c %%requires directive:
+    @code %requires ncurses @endcode
+
+    @section ncurses_quickstart Quick Start
+
+    @par Example:
+    @code{.py}
+%modern
+%requires ncurses
+
+Ncurses::Session s();
+Ncurses::Window w = s.screen();
+
+w.clear();
+w.drawText(1, 2, "Hello, Ncurses!", {fg: Ncurses::Color::Cyan, attrs: Ncurses::Attr::Bold});
+w.refresh();
+
+w.readEvent();
+s.close();
+    @endcode
+
+    @section ncurses_threads Threading
+
+    All ncurses calls are serialized by a module-level recursive lock. Input
+    calls release the lock between polling cycles so other threads can draw
+    while one thread waits for input.
+
+    @section ncurses_mouse Mouse Support
+
+    Mouse input is supported through @ref Qore::Ncurses::Window::readEvent "Window::readEvent()".
+    When enabled (the default), mouse events are reported as input events with
+    \c type = \c InputType::Mouse and a \c mouse hash containing coordinates and
+    button state.
+
+    @section ncurses_styles Style System
+
+    All drawing methods accept an optional \c style hash with keys from the
+    @ref Qore::Ncurses::Style "Style" hashdecl:
+    - \c fg: foreground color from @ref Qore::Ncurses::Color "Color" enum (e.g. \c Color::Cyan)
+    - \c bg: background color from @ref Qore::Ncurses::Color "Color" enum (e.g. \c Color::Blue)
+    - \c attrs: bitwise combination of @ref Qore::Ncurses::Attr "Attr" enum values (e.g. \c Attr::Bold)
+
+    @par Style example:
+    @code{.py}
+# yellow bold text on a blue background
+hash<auto> style = {"fg": Ncurses::Color::Yellow, "bg": Ncurses::Color::Blue, "attrs": Ncurses::Attr::Bold};
+w.drawText(0, 0, "Styled text", style);
+
+# cyan text with default background
+w.drawText(1, 0, "Cyan text", {"fg": Ncurses::Color::Cyan});
+    @endcode
+
+    @section ncurses_ansi ANSI SGR Text
+
+    The module supports rendering text that contains ANSI SGR escape sequences
+    (e.g. output from compilers, test runners, or other tools). The
+    @ref Qore::Ncurses::Ansi "Ansi" class provides helpers for parsing and
+    measuring ANSI text, and the \c drawAnsi* family of Window methods render
+    it directly.
+
+    @par ANSI rendering example:
+    @code{.py}
+%modern
+%requires ncurses
+
+Ncurses::Session s();
+Ncurses::Window w = s.screen();
+w.clear();
+
+string esc = chr(27);
+string msg = esc + "[36mCyan title" + esc + "[0m " + esc + "[32mOK" + esc + "[0m";
+w.drawAnsiTextInsideLine(0, msg);
+w.refresh();
+
+w.readEvent();
+s.close();
+    @endcode
+
+    @par ANSI measurement:
+    @code{.py}
+# measure visible width (excludes escape sequences)
+int width = Ncurses::Ansi::visibleLength(msg);
+
+# strip ANSI codes entirely
+string plain = Ncurses::Ansi::strip(msg);
+    @endcode
+
+    @section ncurses_tools Tools
+
+    The module installs a full-screen ncurses REPL frontend backed by the
+    %QoreRepl module:
+    - \c qrepl — interactive Qore REPL with menus, file browser, output capture, scrollable
+      output, and an animated About dialog
+
+    @section ncurses_ui_widgets UI Widget Toolkit (NcursesUi)
+
+    The @ref ncursesuiintro "NcursesUi" module provides a complete terminal UI
+    toolkit built on the ncurses binary module. Load it with:
+    @code %requires NcursesUi @endcode
+
+    @subsection ncurses_ui_arch Architecture
+
+    The toolkit is organized around a <b>widget tree</b>:
+    - @ref NcursesUi::Widget "Widget" is the base class; each widget has a parent, children,
+      geometry (@ref NcursesUi::Rect "Rect"), and focus state
+    - @ref NcursesUi::BoxLayout "BoxLayout" and @ref NcursesUi::SplitLayout "SplitLayout"
+      manage child geometry automatically
+    - @ref NcursesUi::Application "Application" owns the Session, root widget, and event loop
+    - @ref NcursesUi::EventDispatcher "EventDispatcher" routes keyboard and mouse events
+      through the widget tree with a modal stack for popups
+
+    @subsection ncurses_ui_app Application Pattern
+
+    @par Minimal NcursesUi application:
+    @code{.py}
+%modern
+%requires ncurses
+%requires NcursesUi
+
+NcursesUi::Application app();
+NcursesUi::Widget root();
+
+# add a vertical box layout with two children
+NcursesUi::BoxLayout layout(NcursesUi::Orientation::Vertical);
+root.addChild(layout);
+
+# add widgets to the layout...
+NcursesUi::StatusBarWidget bar();
+bar.setSegments(({"text": "Ready", "style": {"fg": Ncurses::Color::Cyan}}));
+layout.addChild(bar, NcursesUi::SizePolicy::Fixed);
+
+app.run(root);
+    @endcode
+
+    @subsection ncurses_ui_panels Panel Widgets and Modal Dialogs
+
+    @ref NcursesUi::PanelWidget "PanelWidget" creates a floating overlay backed by an ncurses
+    Panel. @ref NcursesUi::DialogWidget "DialogWidget" extends it with a message and
+    configurable buttons. Push a panel as modal via
+    @ref NcursesUi::Application "Application::pushModal()" to capture all input until dismissed.
+
+    @subsection ncurses_ui_widgets_list Standard Widget Components
+
+    |!Widget|!Description
+    |@ref NcursesUi::ListWidget "ListWidget"|Selectable scrollable list with keyboard and mouse support
+    |@ref NcursesUi::TextInputWidget "TextInputWidget"|Single-line text input with cursor and optional history
+    |@ref NcursesUi::ScrollableWidget "ScrollableWidget"|Viewport wrapper with scrollbar rendering
+    |@ref NcursesUi::MenuBarWidget "MenuBarWidget"|Horizontal menu bar with dropdown support and Alt+key hotkeys
+    |@ref NcursesUi::DropdownMenuWidget "DropdownMenuWidget"|Popup menu for MenuBarWidget items
+    |@ref NcursesUi::StatusBarWidget "StatusBarWidget"|Status bar with styled left/right-aligned segments
+    |@ref NcursesUi::DialogWidget "DialogWidget"|Modal dialog with message and configurable buttons
+    |@ref NcursesUi::FileBrowserWidget "FileBrowserWidget"|Split-pane file system browser
+    |@ref NcursesUi::ComboBoxWidget "ComboBoxWidget"|Dropdown selector
+    |@ref NcursesUi::CheckboxWidget "CheckboxWidget"|Toggle checkbox
+    |@ref NcursesUi::RadioGroupWidget "RadioGroupWidget"|Mutually exclusive radio buttons
+    |@ref NcursesUi::TableWidget "TableWidget"|Column-based data table
+
+    For full documentation of each widget, see the @ref ncursesuiintro "NcursesUi module documentation".
+
+    @section ncurses_testing Automated Testing with TestTerminal
+
+    @ref Qore::Ncurses::TestTerminal "TestTerminal" creates a pseudo-terminal
+    (PTY) that can be passed to
+    @ref Qore::Ncurses::Session "Session" for fully automated, headless tests.
+    The @ref NcursesUi::TestHarness "TestHarness" wrapper class from
+    @ref ncursesuiintro "NcursesUi" simplifies creating a Session + Application
+    pair for widget testing.
+
+    @par TestTerminal example:
+    @code{.py}
+%modern
+%requires ncurses
+
+# create a 24x80 pseudo-terminal
+Ncurses::TestTerminal tt(24, 80);
+
+# create a session on the test terminal
+Ncurses::Session s({"test_terminal": tt});
+Ncurses::Window w = s.screen();
+
+# inject input and verify output
+s.injectEvent({"type": Ncurses::InputType::Char, "ch": "x"});
+auto ev = w.readEvent(100, 25);
+# ev.ch == "x"
+
+# read back screen contents
+list<string> rows = s.snapshot();
+# rows[0] contains whatever was drawn on row 0
+
+s.close();
+    @endcode
+
+    @par TestHarness example:
+    @code{.py}
+%modern
+%requires ncurses
+%requires NcursesUi
+
+NcursesUi::TestHarness th(24, 80);
+
+# create and test widgets using th.session() and th.app()
+NcursesUi::Widget root();
+th.app().run(root, sub () {
+    # test code runs here with the event loop active
+});
+
+th.close();
+    @endcode
+
+    @section ncurses_examples Examples
+
+    The source distribution includes:
+    - \c examples/dashboard.qr: lightweight ticking status dashboard demonstrating
+      Session, Window, drawText() with styles, and readEvent() polling
+    - \c examples/panels.qr: panel stacking and z-order toggling with Panel.top()
+    - \c examples/threaded_input.qr: multi-threaded terminal I/O with a background
+      reader thread and Mutex synchronization
+
+    @section ncurses_api API Overview
+
+    Helper classes:
+    |!Class|!Description
+    |@ref Qore::Ncurses::Session "Session"|Owns the terminal state and lifecycle
+    |@ref Qore::Ncurses::Window "Window"|Drawing and input on a surface
+    |@ref Qore::Ncurses::Panel "Panel"|Layered stacking for windows
+    |@ref Qore::Ncurses::TestTerminal "TestTerminal"|PTY-based helper for automated tests
+
+    Drawing helpers:
+    - @ref Qore::Ncurses::Window::drawTextClipped "Window::drawTextClipped()": clips to window bounds
+    - @ref Qore::Ncurses::Window::drawTextInside "Window::drawTextInside()": clips to the inner area of a boxed window
+    - @ref Qore::Ncurses::Window::drawTextInsideLine "Window::drawTextInsideLine()": clears and draws a line inside a box
+    - @ref Qore::Ncurses::Window::drawAnsiText "Window::drawAnsiText()": draws ANSI SGR colored text
+    - @ref Qore::Ncurses::Window::drawAnsiTextInside "Window::drawAnsiTextInside()": draws ANSI SGR text inside a box
+    - @ref Qore::Ncurses::Window::drawAnsiTextInsideLine "Window::drawAnsiTextInsideLine()": clears and draws ANSI SGR text
+    - @ref Qore::Ncurses::Window::clearInsideLine "Window::clearInsideLine()": clears a line inside a box
+
+    ANSI helpers:
+    - @ref Qore::Ncurses::Ansi "Ansi": parse, wrap, and measure ANSI SGR text
+
+    Refresh helpers:
+    - @ref Qore::Ncurses::Window::noutrefresh "Window::noutrefresh()": queue a window for refresh
+    - @ref Qore::Ncurses::Session::updatePanels "Session::updatePanels()": queue panel updates
+    - @ref Qore::Ncurses::Session::doupdate "Session::doupdate()": flush the virtual screen
+    - @ref Qore::Ncurses::Window::setLeaveOk "Window::setLeaveOk()": keep cursor position in other windows
+    - @ref Qore::Ncurses::Window::saveCursor "Window::saveCursor()": save the cursor position
+    - @ref Qore::Ncurses::Window::restoreCursor "Window::restoreCursor()": restore the cursor position
+*/

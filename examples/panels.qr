@@ -1,0 +1,56 @@
+#!/usr/bin/env qore
+
+# Panels example — demonstrates Panel stacking and z-order toggling.
+# Creates two overlapping panels and lets the user press 't' to toggle
+# which panel is on top. Shows Panel creation, box drawing, Panel.top(),
+# and the event loop.
+
+%requires ncurses
+
+%modern
+
+Ncurses::Session s();
+Ncurses::Window root = s.screen();
+root.clear();
+
+Ncurses::Panel p1(s, 7, 30, 2, 4);
+Ncurses::Window w1 = p1.window();
+w1.box({"fg": Ncurses::Color::Cyan});
+w1.drawText(1, 2, "Panel 1", {"fg": Ncurses::Color::Cyan, "attrs": Ncurses::Attr::Bold});
+
+Ncurses::Panel p2(s, 7, 30, 4, 10);
+Ncurses::Window w2 = p2.window();
+w2.box({"fg": Ncurses::Color::Yellow});
+w2.drawText(1, 2, "Panel 2", {"fg": Ncurses::Color::Yellow, "attrs": Ncurses::Attr::Bold});
+
+p1.show();
+p2.show();
+p2.top();
+p2.update();
+
+root.drawText(0, 2, "Press 't' to toggle top, 'q' to quit", {"fg": Ncurses::Color::White});
+root.refresh();
+
+bool top = True;
+while (True) {
+    auto ev = root.readEvent();
+    if (!exists ev) {
+        continue;
+    }
+    if (ev.type == Ncurses::InputType::Char) {
+        if (ev.ch == "q") {
+            break;
+        }
+        if (ev.ch == "t") {
+            if (top) {
+                p1.top();
+            } else {
+                p2.top();
+            }
+            top = !top;
+            p2.update();
+        }
+    }
+}
+
+s.close();

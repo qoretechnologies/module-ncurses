@@ -1,0 +1,58 @@
+#!/usr/bin/env qore
+
+# Threaded input example — demonstrates multi-threaded terminal I/O.
+# A background reader thread reads keyboard input via readEvent() with
+# a timeout, while the main thread updates the display with a tick counter
+# and the last key pressed. Uses Mutex for shared-state synchronization.
+
+%requires ncurses
+
+%modern
+
+our Ncurses::Session s();
+our Ncurses::Window w = s.screen();
+
+w.clear();
+w.box({"fg": Ncurses::Color::Blue});
+w.drawText(0, 2, " Threaded Input Demo ", {"fg": Ncurses::Color::Yellow, "attrs": Ncurses::Attr::Bold});
+w.drawText(2, 2, "Type keys; press 'q' to quit", {"fg": Ncurses::Color::White});
+w.refresh();
+
+our Mutex m();
+our bool stop = False;
+our string last = "";
+
+sub reader(Ncurses::Window rw) {
+    while (!stop) {
+        auto ev = rw.readEvent(100, 25);
+        if (!exists ev) {
+            continue;
+        }
+        if (ev.type == Ncurses::InputType::Char) {
+            {
+                m.lock();
+                on_exit m.unlock();
+                last = ev.ch;
+                if (ev.ch == "q") {
+                    stop = True;
+                }
+            }
+        }
+    }
+}
+
+background reader(w);
+
+int tick = 0;
+while (!stop) {
+    {
+        m.lock();
+        on_exit m.unlock();
+        w.drawText(4, 2, sprintf("Tick: %d", tick++), {"fg": Ncurses::Color::Cyan});
+        w.drawText(5, 2, sprintf("Last key: %s  ", last), {"fg": Ncurses::Color::Green});
+    }
+    w.refresh();
+    usleep(100000);
+}
+
+s.close();

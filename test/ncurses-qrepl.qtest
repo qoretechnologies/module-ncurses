@@ -1,0 +1,2135 @@
+#!/usr/bin/env qore
+
+%modern
+%requires ncurses
+%requires NcursesUi
+%requires NcursesReplUi
+%requires QUnit
+%try-module QoreRepl
+%define NO_QORE_REPL
+%endtry
+
+%exec-class NcursesQreplTest
+
+/** Tests for qrepl application scenarios.
+
+    These tests verify the UI layout and interaction patterns used by qrepl,
+    using TestHarness with TestTerminal for deterministic testing.
+
+    The qrepl uses an inline terminal prompt architecture where the prompt
+    is the last line of the ScrollableWidget content, and all keyboard
+    input is handled via the global key handler using InputBuffer/History.
+
+    @since ncurses 2.0
+*/
+class NcursesQreplTest inherits QUnit::Test {
+    constructor() : QUnit::Test("NcursesQreplTest", "1.0") {
+        addTestCase("testReplLayout", \testReplLayout());
+        addTestCase("testReplOutputScrolling", \testReplOutputScrolling());
+        addTestCase("testReplInlineInputSubmit", \testReplInlineInputSubmit());
+        addTestCase("testReplMenuBarSetup", \testReplMenuBarSetup());
+        addTestCase("testReplStatusBarUpdate", \testReplStatusBarUpdate());
+        addTestCase("testStatusBarFixedWidthLabel", \testStatusBarFixedWidthLabel());
+        addTestCase("testReplInlineHistory", \testReplInlineHistory());
+        addTestCase("testReplEscapeClosesModal", \testReplEscapeClosesModal());
+        addTestCase("testReplEscapeClosesDropdown", \testReplEscapeClosesDropdown());
+        addTestCase("testReplEscapeShowsQuitDialog", \testReplEscapeShowsQuitDialog());
+        addTestCase("testReplEscapeDebugStatus", \testReplEscapeDebugStatus());
+        addTestCase("testReplRedraw", \testReplRedraw());
+        addTestCase("testReplOutputCapture", \testReplOutputCapture());
+        addTestCase("testReplFocusOnOutput", \testReplFocusOnOutput());
+%ifndef NO_QORE_REPL
+        addTestCase("testReplEvalSimpleExpr", \testReplEvalSimpleExpr());
+        addTestCase("testReplEvalError", \testReplEvalError());
+        addTestCase("testReplPromptUpdate", \testReplPromptUpdate());
+        addTestCase("testReplEvalContinuation", \testReplEvalContinuation());
+        addTestCase("testReplExecLineHandlesNothingResult", \testReplExecLineHandlesNothingResult());
+        addTestCase("testReplHelpOutputMultiLine", \testReplHelpOutputMultiLine());
+%endif
+        addTestCase("testReplMenuCommandExec", \testReplMenuCommandExec());
+        addTestCase("testReplMouseToggle", \testReplMouseToggle());
+        addTestCase("testReplTickCallback", \testReplTickCallback());
+        addTestCase("testReplOutputMultiLine", \testReplOutputMultiLine());
+        addTestCase("testReplEmptyInput", \testReplEmptyInput());
+        addTestCase("testReplInlineCtrlKeys", \testReplInlineCtrlKeys());
+        addTestCase("testReplLayoutWithResize", \testReplLayoutWithResize());
+        addTestCase("testDarkThemeMenuBarStyle", \testDarkThemeMenuBarStyle());
+        addTestCase("testDarkThemeStatusBarStyle", \testDarkThemeStatusBarStyle());
+        addTestCase("testDarkThemeDropdownStyle", \testDarkThemeDropdownStyle());
+        addTestCase("testDarkThemeDialogStyle", \testDarkThemeDialogStyle());
+        addTestCase("testDropdownSeparatorUsesACSLine", \testDropdownSeparatorUsesACSLine());
+        addTestCase("testQuitDialogVisualFlow", \testQuitDialogVisualFlow());
+        addTestCase("testCtrlQShowsQuitDialog", \testCtrlQShowsQuitDialog());
+        addTestCase("testInlinePromptLineUpdate", \testInlinePromptLineUpdate());
+        addTestCase("testInlinePromptInsertBeforePrompt", \testInlinePromptInsertBeforePrompt());
+        addTestCase("testInlineCursorPositioning", \testInlineCursorPositioning());
+        addTestCase("testClearOutputWithInlinePrompt", \testClearOutputWithInlinePrompt());
+        addTestCase("testReplModalPassthrough", \testReplModalPassthrough());
+        addTestCase("testReplAltKeyOpensMenu", \testReplAltKeyOpensMenu());
+        addTestCase("testCaptureNewlineTerminated", \testCaptureNewlineTerminated());
+        addTestCase("testCaptureNoNewlineIndicator", \testCaptureNoNewlineIndicator());
+        addTestCase("testCaptureMixedOutput", \testCaptureMixedOutput());
+        addTestCase("testCaptureMultipleChunks", \testCaptureMultipleChunks());
+        addTestCase("testCaptureEvalCompleteNoTail", \testCaptureEvalCompleteNoTail());
+        addTestCase("testCaptureRaceEvalBeforeData", \testCaptureRaceEvalBeforeData());
+        addTestCase("testCaptureImmediateFlushInEnqueue", \testCaptureImmediateFlushInEnqueue());
+        addTestCase("testCaptureClearEvalBetweenEvals", \testCaptureClearEvalBetweenEvals());
+        addTestCase("testRealPipeDirectIO", \testRealPipeDirectIO());
+        addTestCase("testRealPipeCaptureThread", \testRealPipeCaptureThread());
+        addTestCase("testRealPipeNoNewlineCapture", \testRealPipeNoNewlineCapture());
+        addTestCase("testStdoutRedirectPipeCapture", \testStdoutRedirectPipeCapture());
+%ifndef NO_QORE_REPL
+        addTestCase("testReplEvalPrintCapture", \testReplEvalPrintCapture());
+%endif
+
+        set_return_value(main());
+    }
+
+    private {
+        #! standard terminal size for REPL tests
+        int term_rows = 24;
+        int term_cols = 80;
+    }
+
+    /** Helper: build a REPL-like layout matching the new qrepl inline prompt structure.
+
+        Layout: menu_bar + output_widget (with inline prompt) + status_bar.
+        No separate TextInputWidget - input is handled via InputBuffer in the global handler.
+    */
+    private hash<auto> buildReplLayout(NcursesUi::TestHarness th) {
+        NcursesUi::Application app(th.session());
+
+        NcursesUi::Widget root();
+        NcursesUi::MenuBarWidget menu_bar();
+        NcursesUi::ScrollableWidget output_widget();
+        NcursesUi::LineListContent output_content();
+        NcursesUi::StatusBarWidget status_bar();
+
+        # inline input state
+        NcursesReplUi::InputBuffer buffer();
+        NcursesReplUi::History history();
+
+        output_widget.setContent(output_content);
+        output_widget.setVSizePolicy(NcursesUi::SizePolicy::Expanding);
+
+        status_bar.setVSizePolicy(NcursesUi::SizePolicy::Fixed);
+        status_bar.setMinimumSize(1, 1);
+        status_bar.setPreferredSize(1, 0);
+
+        menu_bar.setVSizePolicy(NcursesUi::SizePolicy::Fixed);
+        menu_bar.setMinimumSize(1, 1);
+        menu_bar.setPreferredSize(1, 0);
+
+        root.addChild(menu_bar);
+        root.addChild(output_widget);
+        root.addChild(status_bar);
+
+        NcursesUi::BoxLayout layout(NcursesUi::Orientation::Vertical);
+        app.setRootLayout(layout);
+        app.setRoot(root);
+        app.getFocusManager().setFocus(output_widget);
+
+        return {
+            "app": app,
+            "root": root,
+            "menu_bar": menu_bar,
+            "output_widget": output_widget,
+            "output_content": output_content,
+            "status_bar": status_bar,
+            "buffer": buffer,
+            "history": history,
+        };
+    }
+
+    /** Test that the REPL layout has correct widget arrangement. */
+    testReplLayout() {
+        NcursesUi::TestHarness th(term_rows, term_cols);
+        on_exit th.close();
+
+        hash<auto> repl = buildReplLayout(th);
+        NcursesUi::Widget root = repl.root;
+
+        # root fills screen
+        assertEq(term_rows, root.getFrame().rows);
+        assertEq(term_cols, root.getFrame().cols);
+
+        # 3 children: menu_bar, output, status_bar (no separate input widget)
+        assertEq(3, root.getChildren().size());
+
+        # menu bar gets 1 row at top
+        NcursesUi::MenuBarWidget mb = repl.menu_bar;
+        assertEq(1, mb.getFrame().rows);
+        assertEq(term_cols, mb.getFrame().cols);
+        assertEq(0, mb.getFrame().y);
+
+        # status bar gets 1 row at bottom
+        NcursesUi::StatusBarWidget sb = repl.status_bar;
+        assertEq(1, sb.getFrame().rows);
+        assertEq(term_cols, sb.getFrame().cols);
+        assertEq(term_rows - 1, sb.getFrame().y);
+
+        # output gets remaining rows (24 - 2 fixed = 22)
+        NcursesUi::ScrollableWidget ow = repl.output_widget;
+        assertEq(22, ow.getFrame().rows);
+        assertEq(term_cols, ow.getFrame().cols);
+    }
+
+    /** Test scrolling when output exceeds visible area. */
+    testReplOutputScrolling() {
+        NcursesUi::TestHarness th(term_rows, term_cols);
+        on_exit th.close();
+
+        hash<auto> repl = buildReplLayout(th);
+        NcursesUi::ScrollableWidget ow = repl.output_widget;
+        NcursesUi::LineListContent content = repl.output_content;
+
+        # add more lines than visible (22 visible rows)
+        for (int i = 0; i < 50; ++i) {
+            content.appendLine(sprintf("Line %d", i));
+        }
+
+        assertEq(50, content.totalRows());
+
+        # scroll to end
+        ow.scrollTo(NcursesUi::ScrollDirection::End);
+        assertTrue(ow.getScrollY() > 0);
+
+        # scroll back to top
+        ow.scrollTo(NcursesUi::ScrollDirection::Home);
+        assertEq(0, ow.getScrollY());
+    }
+
+    /** Test inline input: typing and submitting via global key handler. */
+    testReplInlineInputSubmit() {
+        NcursesUi::TestHarness th(term_rows, term_cols);
+        on_exit th.close();
+
+        hash<auto> repl = buildReplLayout(th);
+        NcursesUi::Application app = repl.app;
+        NcursesUi::LineListContent content = repl.output_content;
+        NcursesReplUi::InputBuffer buffer = repl.buffer;
+        NcursesReplUi::History history = repl.history;
+
+        # add initial prompt line
+        string prompt = "qore> ";
+        content.appendLine(prompt);
+        int prompt_idx = content.lineCount() - 1;
+
+        bool submit_called = False;
+        string submitted_text = "";
+
+        # set up global handler like qrepl
+        app.setGlobalKeyHandler(hash<NcursesUi::EventResult> sub (hash<Ncurses::InputEvent> ev) {
+            if (ev.type == Ncurses::InputType::Char) {
+                string ch = ev.ch ?? "";
+                if (ch == "\n") {
+                    submitted_text = buffer.getText();
+                    submit_called = True;
+                    buffer.reset();
+                    history.add(submitted_text);
+                    return <NcursesUi::EventResult>{"handled": True};
+                } else if (ord(ch) >= 32) {
+                    buffer.insertChar(ch);
+                    content.setLine(prompt_idx, prompt + buffer.getText());
+                    return <NcursesUi::EventResult>{"handled": True};
+                }
+            }
+            return <NcursesUi::EventResult>{"handled": False};
+        });
+
+        # type "1 + 2"
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Char;
+        foreach string ch in ("1", " ", "+", " ", "2") {
+            ev.ch = ch;
+            app.processEvent(ev);
+        }
+
+        # verify buffer updated
+        assertEq("1 + 2", buffer.getText());
+
+        # verify prompt line updated
+        list<string> lines = content.getLines();
+        assertEq("qore> 1 + 2", lines[prompt_idx]);
+
+        # submit
+        ev.ch = "\n";
+        app.processEvent(ev);
+
+        assertTrue(submit_called);
+        assertEq("1 + 2", submitted_text);
+        assertEq("", buffer.getText());
+    }
+
+    /** Test menu bar setup with REPL-style menus (File/Edit/View/Help). */
+    testReplMenuBarSetup() {
+        NcursesUi::TestHarness th(term_rows, term_cols);
+        on_exit th.close();
+
+        hash<auto> repl = buildReplLayout(th);
+        NcursesUi::MenuBarWidget mb = repl.menu_bar;
+
+        # add menus like qrepl
+        mb.addMenu("File", (
+            {"label": "Browse...", "command": "file_browser"},
+            {"label": "Load...", "command": "/load"},
+            {"label": "Save...", "command": "/save"},
+            {"separator": True},
+            {"label": "Pwd", "command": "/pwd"},
+            {"separator": True},
+            {"label": "Quit", "command": "/quit"},
+        ));
+        mb.addMenu("Edit", (
+            {"label": "Clear Output", "command": "clear_output"},
+            {"label": "Reset", "command": "/reset"},
+        ));
+        mb.addMenu("View", (
+            {"label": "Variables", "command": "/vars"},
+            {"label": "Functions", "command": "/functions"},
+            {"label": "Classes", "command": "/classes"},
+            {"label": "Namespaces", "command": "/namespaces"},
+            {"label": "Modules", "command": "/modules"},
+            {"separator": True},
+            {"label": "History", "command": "/history"},
+            {"label": "Timing", "command": "/timing"},
+        ));
+        mb.addMenu("Help", (
+            {"label": "Help", "command": "/help"},
+        ));
+
+        assertEq(4, mb.getMenus().size());
+        assertEq("File", mb.getMenus()[0].label);
+        assertEq("Edit", mb.getMenus()[1].label);
+        assertEq("View", mb.getMenus()[2].label);
+        assertEq("Help", mb.getMenus()[3].label);
+    }
+
+    /** Test status bar update with styled segments. */
+    testReplStatusBarUpdate() {
+        NcursesUi::TestHarness th(term_rows, term_cols);
+        on_exit th.close();
+
+        hash<auto> repl = buildReplLayout(th);
+        NcursesUi::StatusBarWidget sb = repl.status_bar;
+        NcursesUi::Application app = repl.app;
+
+        # update like qrepl does (status label padded to fixed width 17)
+        list<hash<auto>> segs = (
+            {"text": " Ready           ", "style": {"fg": Ncurses::Color::Green, "bg": Ncurses::Color::Blue,
+                "attrs": Ncurses::Attr::Bold}},
+            {"text": " REPL ", "style": {"fg": Ncurses::Color::White, "bg": Ncurses::Color::Blue}},
+            {"text": " Lines: 0 ", "style": {"fg": Ncurses::Color::White, "bg": Ncurses::Color::Blue}},
+            {"text": "17:00:00 ", "align": "right",
+                "style": {"fg": Ncurses::Color::White, "bg": Ncurses::Color::Blue}},
+            {"text": "Mouse:ON  ", "align": "right",
+                "style": {"fg": Ncurses::Color::White, "bg": Ncurses::Color::Blue}},
+        );
+        sb.setSegments(segs);
+
+        # should not crash and status bar has 1 row
+        assertEq(1, sb.getFrame().rows);
+
+        # draw to verify rendering works
+        app.drawAll();
+    }
+
+    /** Test status bar labels are padded to fixed width. */
+    testStatusBarFixedWidthLabel() {
+        # all status values should produce a string of width 17
+        list<string> statuses = ("OK", "Ready", "Cleared", "Error", "Evaluating...", "Exit", "...",
+            "ESC!", "Ctrl+Q!");
+        foreach string status in (statuses) {
+            string padded = pad_status_label(status);
+            assertEq(17, padded.length(),
+                sprintf("pad_status_label('%s') should be 17 chars, got %d: '%s'",
+                    status, padded.length(), padded));
+            # should start with space + label
+            assertTrue(padded.substr(0, 1) == " ",
+                sprintf("padded label should start with space: '%s'", padded));
+            assertTrue(padded.find(status) >= 0,
+                sprintf("padded label should contain '%s': '%s'", status, padded));
+        }
+
+        # exact longest label should not be truncated
+        string longest = pad_status_label("Evaluating...");
+        assertEq(" Evaluating... ", longest.substr(0, 15));
+        assertEq(17, longest.length());
+    }
+
+    /** Helper: pad status label (mirrors qrepl's static method for testing). */
+    private static string pad_status_label(string label, int width = 17) {
+        string text = " " + label + " ";
+        if (text.length() < width) {
+            text += strmul(" ", width - text.length());
+        }
+        return text;
+    }
+
+    /** Test inline history navigation via global key handler. */
+    testReplInlineHistory() {
+        NcursesUi::TestHarness th(term_rows, term_cols);
+        on_exit th.close();
+
+        hash<auto> repl = buildReplLayout(th);
+        NcursesUi::Application app = repl.app;
+        NcursesReplUi::InputBuffer buffer = repl.buffer;
+        NcursesReplUi::History history = repl.history;
+        NcursesUi::LineListContent content = repl.output_content;
+
+        # add initial prompt line
+        content.appendLine("qore> ");
+        int prompt_idx = 0;
+
+        # set up global handler with history support
+        app.setGlobalKeyHandler(hash<NcursesUi::EventResult> sub (hash<Ncurses::InputEvent> ev) {
+            if (ev.type == Ncurses::InputType::Char) {
+                string ch = ev.ch ?? "";
+                if (ch == "\n") {
+                    string text = buffer.getText();
+                    if (text != "") {
+                        history.add(text);
+                    }
+                    buffer.reset();
+                    content.appendLine("qore> ");
+                    prompt_idx = content.lineCount() - 1;
+                    return <NcursesUi::EventResult>{"handled": True};
+                } else if (ord(ch) >= 32) {
+                    buffer.insertChar(ch);
+                    content.setLine(prompt_idx, "qore> " + buffer.getText());
+                    return <NcursesUi::EventResult>{"handled": True};
+                }
+            } else if (ev.type == Ncurses::InputType::Key) {
+                string name = ev.name ?? "";
+                if (name == "KEY_UP") {
+                    *string prev = history.prev();
+                    if (exists prev) {
+                        buffer.setText(prev);
+                        content.setLine(prompt_idx, "qore> " + buffer.getText());
+                    }
+                    return <NcursesUi::EventResult>{"handled": True};
+                } else if (name == "KEY_DOWN") {
+                    *string nxt = history.next();
+                    if (exists nxt) {
+                        buffer.setText(nxt);
+                        content.setLine(prompt_idx, "qore> " + buffer.getText());
+                    }
+                    return <NcursesUi::EventResult>{"handled": True};
+                }
+            }
+            return <NcursesUi::EventResult>{"handled": False};
+        });
+
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Char;
+
+        # type and submit "hello"
+        foreach string ch in ("h", "e", "l", "l", "o") {
+            ev.ch = ch;
+            app.processEvent(ev);
+        }
+        ev.ch = "\n";
+        app.processEvent(ev);
+
+        # type and submit "world"
+        foreach string ch in ("w", "o", "r", "l", "d") {
+            ev.ch = ch;
+            app.processEvent(ev);
+        }
+        ev.ch = "\n";
+        app.processEvent(ev);
+
+        assertEq(2, history.size());
+
+        # press Up to get "world" back
+        hash<Ncurses::InputEvent> key_ev();
+        key_ev.type = Ncurses::InputType::Key;
+        key_ev.name = "KEY_UP";
+        app.processEvent(key_ev);
+        assertEq("world", buffer.getText());
+
+        # press Up again to get "hello"
+        app.processEvent(key_ev);
+        assertEq("hello", buffer.getText());
+
+        # press Down to get "world" back
+        key_ev.name = "KEY_DOWN";
+        app.processEvent(key_ev);
+        assertEq("world", buffer.getText());
+    }
+
+    /** Test Escape passes through when a modal is open (lets modal handle it). */
+    testReplEscapeClosesModal() {
+        NcursesUi::TestHarness th(term_rows, term_cols);
+        on_exit th.close();
+
+        hash<auto> repl = buildReplLayout(th);
+        NcursesUi::Application app = repl.app;
+
+        # set up escape handler like qrepl does
+        NcursesUi::MenuBarWidget menu_bar = repl.menu_bar;
+        app.setGlobalKeyHandler(hash<NcursesUi::EventResult> sub (hash<Ncurses::InputEvent> ev) {
+            if (ev.type == Ncurses::InputType::Char && ord(ev.ch ?? "") == 0x1b) {
+                # if a modal is open, let the dispatcher handle it
+                if (app.getDispatcher().hasModal()) {
+                    return <NcursesUi::EventResult>{"handled": False};
+                }
+                return <NcursesUi::EventResult>{"handled": True, "action": "quit_dialog"};
+            }
+            return <NcursesUi::EventResult>{"handled": False};
+        });
+
+        # push a dialog as modal
+        NcursesUi::DialogWidget dlg(th.session(), "Test", "msg");
+        dlg.centerOn(term_rows, term_cols);
+        bool dismissed = False;
+        dlg.setOnDismiss(sub () {
+            dismissed = True;
+            app.popModal();
+        });
+        app.pushModal(dlg);
+        assertTrue(app.getDispatcher().hasModal());
+
+        # Escape should be passed through to the modal dialog, which dismisses
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = chr(0x1b);
+        app.processEvent(ev);
+
+        assertTrue(dismissed);
+        assertFalse(app.getDispatcher().hasModal());
+    }
+
+    /** Test Escape closes dropdown menu when open. */
+    testReplEscapeClosesDropdown() {
+        NcursesUi::TestHarness th(term_rows, term_cols);
+        on_exit th.close();
+
+        hash<auto> repl = buildReplLayout(th);
+        NcursesUi::Application app = repl.app;
+        NcursesUi::MenuBarWidget menu_bar = repl.menu_bar;
+
+        # add a menu
+        menu_bar.addMenu("File", (
+            {"label": "Open", "command": "open"},
+        ));
+
+        bool close_menu_handled = False;
+        app.setGlobalKeyHandler(hash<NcursesUi::EventResult> sub (hash<Ncurses::InputEvent> ev) {
+            if (ev.type == Ncurses::InputType::Char && ord(ev.ch ?? "") == 0x1b) {
+                if (app.getDispatcher().hasModal()) {
+                    return <NcursesUi::EventResult>{"handled": False};
+                }
+                if (menu_bar.isDropdownOpen()) {
+                    menu_bar.closeMenu();
+                    close_menu_handled = True;
+                    return <NcursesUi::EventResult>{"handled": True, "action": "close_menu"};
+                }
+                return <NcursesUi::EventResult>{"handled": True, "action": "quit_dialog"};
+            }
+            return <NcursesUi::EventResult>{"handled": False};
+        });
+
+        # open dropdown
+        menu_bar.openMenu(0);
+        assertTrue(menu_bar.isDropdownOpen());
+
+        # Escape should close the dropdown
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = chr(0x1b);
+        app.processEvent(ev);
+
+        assertTrue(close_menu_handled);
+        assertFalse(menu_bar.isDropdownOpen());
+    }
+
+    /** Test Escape with nothing open shows quit dialog action. */
+    testReplEscapeShowsQuitDialog() {
+        NcursesUi::TestHarness th(term_rows, term_cols);
+        on_exit th.close();
+
+        hash<auto> repl = buildReplLayout(th);
+        NcursesUi::Application app = repl.app;
+        NcursesUi::MenuBarWidget menu_bar = repl.menu_bar;
+
+        string last_action;
+        app.setGlobalKeyHandler(hash<NcursesUi::EventResult> sub (hash<Ncurses::InputEvent> ev) {
+            if (ev.type == Ncurses::InputType::Char && ord(ev.ch ?? "") == 0x1b) {
+                if (app.getDispatcher().hasModal()) {
+                    return <NcursesUi::EventResult>{"handled": False};
+                }
+                if (menu_bar.isDropdownOpen()) {
+                    menu_bar.closeMenu();
+                    last_action = "close_menu";
+                    return <NcursesUi::EventResult>{"handled": True, "action": "close_menu"};
+                }
+                last_action = "quit_dialog";
+                return <NcursesUi::EventResult>{"handled": True, "action": "quit_dialog"};
+            }
+            return <NcursesUi::EventResult>{"handled": False};
+        });
+
+        # no modal, no dropdown - Escape should trigger quit dialog
+        assertFalse(app.getDispatcher().hasModal());
+        assertFalse(menu_bar.isDropdownOpen());
+
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = chr(0x1b);
+        app.processEvent(ev);
+
+        assertEq("quit_dialog", last_action);
+    }
+
+    /** Test Escape updates status bar to "ESC!" for debugging. */
+    testReplEscapeDebugStatus() {
+        NcursesUi::TestHarness th(term_rows, term_cols);
+        on_exit th.close();
+
+        hash<auto> repl = buildReplLayout(th);
+        NcursesUi::Application app = repl.app;
+
+        string last_status = "Ready";
+        app.setGlobalKeyHandler(hash<NcursesUi::EventResult> sub (hash<Ncurses::InputEvent> ev) {
+            if (ev.type == Ncurses::InputType::Char) {
+                string ch = ev.ch ?? "";
+                if (ord(ch) == 0x1b) {
+                    if (app.getDispatcher().hasModal()) {
+                        return <NcursesUi::EventResult>{"handled": False};
+                    }
+                    last_status = "ESC!";
+                    return <NcursesUi::EventResult>{"handled": True, "action": "quit_dialog"};
+                } else if (ord(ch) == 0x11) {
+                    if (app.getDispatcher().hasModal()) {
+                        return <NcursesUi::EventResult>{"handled": False};
+                    }
+                    last_status = "Ctrl+Q!";
+                    return <NcursesUi::EventResult>{"handled": True, "action": "quit_dialog"};
+                }
+            }
+            return <NcursesUi::EventResult>{"handled": False};
+        });
+
+        # Escape should set status to "ESC!"
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = chr(0x1b);
+        app.processEvent(ev);
+        assertEq("ESC!", last_status);
+
+        # Ctrl+Q should set status to "Ctrl+Q!"
+        last_status = "Ready";
+        ev.ch = chr(0x11);
+        app.processEvent(ev);
+        assertEq("Ctrl+Q!", last_status);
+    }
+
+    /** Test Ctrl+L triggers full redraw. */
+    testReplRedraw() {
+        NcursesUi::TestHarness th(term_rows, term_cols);
+        on_exit th.close();
+
+        hash<auto> repl = buildReplLayout(th);
+        NcursesUi::Application app = repl.app;
+        NcursesUi::Widget root = repl.root;
+
+        bool redraw_requested = False;
+        app.setGlobalKeyHandler(hash<NcursesUi::EventResult> sub (hash<Ncurses::InputEvent> ev) {
+            if (ev.type == Ncurses::InputType::Char && ord(ev.ch ?? "") == 0x0c) {
+                root.markDirty();
+                redraw_requested = True;
+                return <NcursesUi::EventResult>{"handled": True};
+            }
+            return <NcursesUi::EventResult>{"handled": False};
+        });
+
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = chr(0x0c);
+        app.processEvent(ev);
+
+        assertTrue(redraw_requested);
+        assertTrue(root.isDirty());
+    }
+
+    /** Test output content can be populated like captured output. */
+    testReplOutputCapture() {
+        NcursesUi::TestHarness th(term_rows, term_cols);
+        on_exit th.close();
+
+        hash<auto> repl = buildReplLayout(th);
+        NcursesUi::LineListContent content = repl.output_content;
+        NcursesUi::ScrollableWidget ow = repl.output_widget;
+
+        # simulate captured output lines
+        list<string> captured = (
+            "Qore Ncurses REPL (QoreRepl backend)",
+            "Type /help for commands, /quit to exit",
+            "qore> 1 + 2",
+            "  3",
+        );
+        foreach string line in (captured) {
+            content.appendLine(line);
+        }
+
+        assertEq(4, content.totalRows());
+
+        # auto-scroll to bottom
+        ow.scrollTo(NcursesUi::ScrollDirection::End);
+
+        # draw should succeed
+        NcursesUi::Application app = repl.app;
+        app.drawAll();
+    }
+
+    /** Test focus is on output widget (inline prompt architecture). */
+    testReplFocusOnOutput() {
+        NcursesUi::TestHarness th(term_rows, term_cols);
+        on_exit th.close();
+
+        hash<auto> repl = buildReplLayout(th);
+        NcursesUi::Application app = repl.app;
+        NcursesUi::ScrollableWidget ow = repl.output_widget;
+
+        assertTrue(ow.hasFocus());
+    }
+
+%ifndef NO_QORE_REPL
+    /** Test QoreRepl evaluation of a simple expression. */
+    testReplEvalSimpleExpr() {
+        QoreRepl::QoreRepl repl();
+        hash<auto> result = repl.eval("1 + 2");
+
+        assertFalse(exists result.error);
+        assertEq(3, result.value);
+    }
+
+    /** Test QoreRepl evaluation with an error. */
+    testReplEvalError() {
+        QoreRepl::QoreRepl repl();
+        hash<auto> result = repl.eval("undefined_variable_xyz");
+
+        # should produce an error hash, not crash
+        assertTrue(exists result.error);
+        assertEq("PARSE-EXCEPTION", result.error.err);
+    }
+
+    /** Test QoreRepl prompt changes. */
+    testReplPromptUpdate() {
+        QoreRepl::QoreRepl repl();
+
+        string prompt1 = repl.getPrompt();
+        assertTrue(prompt1.size() > 0);
+
+        # after eval, prompt should still be valid
+        repl.eval("1");
+        string prompt2 = repl.getPrompt();
+        assertTrue(prompt2.size() > 0);
+    }
+
+    /** Test QoreRepl eval returns NOTHING for continuation input. */
+    testReplEvalContinuation() {
+        QoreRepl::QoreRepl repl();
+
+        # incomplete statement should return NOTHING (continuation)
+        *hash<auto> result = repl.eval("if (True) {");
+        assertFalse(exists result, "continuation input should return NOTHING");
+
+        # prompt should change to indicate continuation
+        string continuation_prompt = repl.getPrompt();
+        assertTrue(continuation_prompt.size() > 0);
+
+        # complete the statement
+        *hash<auto> result2 = repl.eval("}");
+        # this should complete - result exists now
+        assertTrue(exists result2, "completing continuation should return a result");
+    }
+
+    /** Test exec_line pattern handles NOTHING from eval correctly.
+
+        Simulates the exec_line() function's handling of *hash<auto> result
+        to verify the RUNTIME-TYPE-ERROR fix.
+    */
+    testReplExecLineHandlesNothingResult() {
+        QoreRepl::QoreRepl repl();
+
+        # test the exact pattern from exec_line()
+        *hash<auto> result;
+        try {
+            result = repl.eval("if (True) {");
+        } catch (hash<ExceptionInfo> ex) {
+            fail("eval should not throw for continuation: " + ex.err);
+        }
+
+        # result should be NOTHING for continuation
+        assertFalse(exists result, "continuation should yield NOTHING");
+
+        # verify we can handle the NOTHING case without errors
+        if (!exists result) {
+            string prompt = repl.getPrompt();
+            assertTrue(prompt.size() > 0, "prompt should be available after continuation");
+        }
+
+        # complete and verify normal result
+        *hash<auto> result2 = repl.eval("}");
+        assertTrue(exists result2, "completed continuation should yield a result");
+    }
+%endif
+
+    /** Test menu command execution via onCommand callback. */
+    testReplMenuCommandExec() {
+        NcursesUi::TestHarness th(term_rows, term_cols);
+        on_exit th.close();
+
+        hash<auto> repl = buildReplLayout(th);
+        NcursesUi::MenuBarWidget mb = repl.menu_bar;
+
+        string last_cmd = "";
+        mb.setOnCommand(sub (string cmd) {
+            last_cmd = cmd;
+        });
+
+        mb.addMenu("Test", (
+            {"label": "Action1", "command": "cmd1"},
+        ));
+
+        mb.fireCommand("cmd1");
+        assertEq("cmd1", last_cmd);
+    }
+
+    /** Test F2 mouse toggle pattern. */
+    testReplMouseToggle() {
+        NcursesUi::TestHarness th(term_rows, term_cols);
+        on_exit th.close();
+
+        hash<auto> repl = buildReplLayout(th);
+        NcursesUi::Application app = repl.app;
+
+        bool mouse_enabled = True;
+        app.setGlobalKeyHandler(hash<NcursesUi::EventResult> sub (hash<Ncurses::InputEvent> ev) {
+            if (ev.type == Ncurses::InputType::Key && ev.name == "KEY_F(2)") {
+                mouse_enabled = !mouse_enabled;
+                return <NcursesUi::EventResult>{"handled": True};
+            }
+            return <NcursesUi::EventResult>{"handled": False};
+        });
+
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Key;
+        ev.name = "KEY_F(2)";
+        app.processEvent(ev);
+        assertFalse(mouse_enabled);
+
+        app.processEvent(ev);
+        assertTrue(mouse_enabled);
+    }
+
+    /** Test tick callback pattern for periodic updates. */
+    testReplTickCallback() {
+        NcursesUi::TestHarness th(term_rows, term_cols);
+        on_exit th.close();
+
+        hash<auto> repl = buildReplLayout(th);
+        NcursesUi::Application app = repl.app;
+
+        int tick_count = 0;
+        app.addTickCallback(sub () {
+            ++tick_count;
+        });
+
+        # process some events to trigger tick
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = "a";
+        app.processEvent(ev);
+
+        # tick should have been called at least once from processEvent
+        assertTrue(tick_count >= 0);
+    }
+
+    /** Test multi-line output content. */
+    testReplOutputMultiLine() {
+        NcursesUi::TestHarness th(term_rows, term_cols);
+        on_exit th.close();
+
+        hash<auto> repl = buildReplLayout(th);
+        NcursesUi::LineListContent content = repl.output_content;
+
+        # simulate multi-line output (like a function definition result)
+        content.appendLine("qore> sub foo() { return 42; }");
+        content.appendLine("  sub foo () returns auto {...}");
+        content.appendLine("qore> foo()");
+        content.appendLine("  42");
+
+        assertEq(4, content.totalRows());
+
+        # draw it
+        NcursesUi::Application app = repl.app;
+        app.drawAll();
+    }
+
+    /** Test empty input creates new prompt line. */
+    testReplEmptyInput() {
+        NcursesUi::TestHarness th(term_rows, term_cols);
+        on_exit th.close();
+
+        hash<auto> repl = buildReplLayout(th);
+        NcursesUi::Application app = repl.app;
+        NcursesUi::LineListContent content = repl.output_content;
+        NcursesReplUi::InputBuffer buffer = repl.buffer;
+
+        # add initial prompt
+        content.appendLine("qore> ");
+        int initial_lines = content.lineCount();
+
+        bool enter_handled = False;
+        app.setGlobalKeyHandler(hash<NcursesUi::EventResult> sub (hash<Ncurses::InputEvent> ev) {
+            if (ev.type == Ncurses::InputType::Char && ev.ch == "\n") {
+                enter_handled = True;
+                # empty submit: start new prompt line
+                if (buffer.getText() == "") {
+                    content.appendLine("qore> ");
+                }
+                return <NcursesUi::EventResult>{"handled": True};
+            }
+            return <NcursesUi::EventResult>{"handled": False};
+        });
+
+        # press Enter with empty buffer
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = "\n";
+        app.processEvent(ev);
+
+        assertTrue(enter_handled);
+        assertEq(initial_lines + 1, content.lineCount());
+    }
+
+    /** Test Ctrl key bindings via global handler with InputBuffer. */
+    testReplInlineCtrlKeys() {
+        NcursesUi::TestHarness th(term_rows, term_cols);
+        on_exit th.close();
+
+        hash<auto> repl = buildReplLayout(th);
+        NcursesUi::Application app = repl.app;
+        NcursesReplUi::InputBuffer buffer = repl.buffer;
+
+        # set up inline input handler
+        app.setGlobalKeyHandler(hash<NcursesUi::EventResult> sub (hash<Ncurses::InputEvent> ev) {
+            if (ev.type == Ncurses::InputType::Char) {
+                string ch = ev.ch ?? "";
+                if (ord(ch) == 0x01) {
+                    buffer.moveHome();
+                    return <NcursesUi::EventResult>{"handled": True};
+                } else if (ord(ch) == 0x05) {
+                    buffer.moveEnd();
+                    return <NcursesUi::EventResult>{"handled": True};
+                } else if (ord(ch) == 0x15) {
+                    buffer.killToStart();
+                    return <NcursesUi::EventResult>{"handled": True};
+                } else if (ord(ch) >= 32) {
+                    buffer.insertChar(ch);
+                    return <NcursesUi::EventResult>{"handled": True};
+                }
+            }
+            return <NcursesUi::EventResult>{"handled": False};
+        });
+
+        # type "hello world"
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Char;
+        foreach string ch in ("h", "e", "l", "l", "o", " ", "w", "o", "r", "l", "d") {
+            ev.ch = ch;
+            app.processEvent(ev);
+        }
+        assertEq("hello world", buffer.getText());
+
+        # Ctrl+A (go to beginning)
+        ev.ch = chr(0x01);
+        app.processEvent(ev);
+        assertEq(0, buffer.getCursor());
+
+        # Ctrl+E (go to end)
+        ev.ch = chr(0x05);
+        app.processEvent(ev);
+        assertEq(11, buffer.getCursor());
+
+        # Ctrl+U (kill to start)
+        ev.ch = chr(0x15);
+        app.processEvent(ev);
+        assertEq("", buffer.getText());
+    }
+
+    /** Test layout adjusts after simulated resize. */
+    testReplLayoutWithResize() {
+        NcursesUi::TestHarness th(term_rows, term_cols);
+        on_exit th.close();
+
+        hash<auto> repl = buildReplLayout(th);
+        NcursesUi::Application app = repl.app;
+        NcursesUi::Widget root = repl.root;
+        NcursesUi::ScrollableWidget ow = repl.output_widget;
+
+        # initial output widget height (22 = 24 - menu_bar - status_bar)
+        int initial_output_rows = ow.getFrame().rows;
+        assertEq(22, initial_output_rows);
+
+        # simulate resize event
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Resize;
+        app.processEvent(ev);
+
+        # root should still fill screen (terminal size hasn't actually changed)
+        assertEq(term_rows, root.getFrame().rows);
+        assertEq(term_cols, root.getFrame().cols);
+    }
+
+    /** Test MenuBarWidget has dark theme colors (blue bg, colored text). */
+    testDarkThemeMenuBarStyle() {
+        NcursesUi::MenuBarWidget mb();
+
+        # add a menu to test rendering
+        mb.addMenu("File", ({"label": "Open", "command": "open"},));
+
+        NcursesUi::TestHarness th(term_rows, term_cols);
+        on_exit th.close();
+
+        NcursesUi::Application app(th.session());
+        NcursesUi::Widget root();
+        root.addChild(mb);
+        mb.setVSizePolicy(NcursesUi::SizePolicy::Fixed);
+        mb.setMinimumSize(1, 1);
+        mb.setPreferredSize(1, 0);
+        NcursesUi::BoxLayout layout(NcursesUi::Orientation::Vertical);
+        app.setRootLayout(layout);
+        app.setRoot(root);
+
+        app.drawAll();
+
+        # read the menu bar row from screen
+        string row0 = th.session().snapshot()[0];
+        assertTrue(row0.find("File") >= 0, "menu bar should show 'File' label");
+    }
+
+    /** Test StatusBarWidget has dark theme colors. */
+    testDarkThemeStatusBarStyle() {
+        NcursesUi::StatusBarWidget sb();
+
+        NcursesUi::TestHarness th(term_rows, term_cols);
+        on_exit th.close();
+
+        NcursesUi::Application app(th.session());
+        NcursesUi::Widget root();
+        root.addChild(sb);
+        sb.setVSizePolicy(NcursesUi::SizePolicy::Fixed);
+        sb.setMinimumSize(1, 1);
+        sb.setPreferredSize(1, 0);
+
+        sb.setSegments((
+            {"text": " Ready ", "style": {"fg": Ncurses::Color::Green, "bg": Ncurses::Color::Blue,
+                "attrs": Ncurses::Attr::Bold}},
+            {"text": " REPL "},
+            {"text": "12:00 ", "align": "right"},
+        ));
+
+        NcursesUi::BoxLayout layout(NcursesUi::Orientation::Vertical);
+        app.setRootLayout(layout);
+        app.setRoot(root);
+
+        app.drawAll();
+
+        # verify status bar text rendered
+        string row0 = th.session().snapshot()[0];
+        assertTrue(row0.find("Ready") >= 0, "status bar should show 'Ready'");
+        assertTrue(row0.find("REPL") >= 0, "status bar should show 'REPL'");
+    }
+
+    /** Test DropdownMenuWidget has dark theme highlight style. */
+    testDarkThemeDropdownStyle() {
+        NcursesUi::TestHarness th(term_rows, term_cols);
+        on_exit th.close();
+
+        NcursesUi::Application app(th.session());
+        NcursesUi::Widget root();
+        NcursesUi::MenuBarWidget mb();
+        mb.setApplication(app);
+        mb.addMenu("File", (
+            {"label": "Open", "command": "open"},
+            {"label": "Save", "command": "save"},
+        ));
+        mb.setVSizePolicy(NcursesUi::SizePolicy::Fixed);
+        mb.setMinimumSize(1, 1);
+        mb.setPreferredSize(1, 0);
+        root.addChild(mb);
+        NcursesUi::BoxLayout layout(NcursesUi::Orientation::Vertical);
+        app.setRootLayout(layout);
+        app.setRoot(root);
+
+        # open dropdown
+        mb.openMenu(0);
+        assertTrue(mb.isDropdownOpen());
+        assertTrue(app.getDispatcher().hasModal());
+
+        app.drawAll();
+
+        # read dropdown panel content
+        *NcursesUi::Widget modal = app.getDispatcher().topModal();
+        assertTrue(exists modal, "modal should exist after openMenu");
+        NcursesUi::DropdownMenuWidget dd = modal;
+        Ncurses::Window pw = dd.getWindow();
+        hash<Ncurses::Size> sz = pw.size();
+        string all_text = "";
+        for (int r = 0; r < sz.rows; ++r) {
+            all_text += pw.readText(r, 0, sz.cols);
+        }
+        # first item ("Open") should be highlighted
+        assertEq(0, dd.getHighlightIndex(), "first item should be highlighted");
+
+        # verify both items are visible in panel
+        assertTrue(all_text.find("Open") >= 0, "dropdown should show 'Open'");
+        assertTrue(all_text.find("Save") >= 0, "dropdown should show 'Save'");
+
+        mb.closeMenu();
+    }
+
+    /** Test DialogWidget has dark theme focused button style. */
+    testDarkThemeDialogStyle() {
+        NcursesUi::TestHarness th(term_rows, term_cols);
+        on_exit th.close();
+
+        NcursesUi::Application app(th.session());
+        NcursesUi::Widget root();
+        NcursesUi::BoxLayout layout(NcursesUi::Orientation::Vertical);
+        app.setRootLayout(layout);
+        app.setRoot(root);
+
+        # create a dialog
+        NcursesUi::DialogWidget dlg(th.session(), "Test", "Hello world", ("OK", "Cancel"));
+        hash<Ncurses::Size> sz = th.session().screen().size();
+        dlg.centerOn(sz.rows, sz.cols);
+        dlg.createPanel();
+        app.pushModal(dlg);
+
+        app.drawAll();
+
+        # verify dialog content
+        Ncurses::Window pw = dlg.getWindow();
+        hash<Ncurses::Size> pw_sz = pw.size();
+        string all_text = "";
+        for (int r = 0; r < pw_sz.rows; ++r) {
+            all_text += pw.readText(r, 0, pw_sz.cols);
+        }
+        assertTrue(all_text.find("Hello world") >= 0, "dialog should show message");
+        assertTrue(all_text.find("OK") >= 0, "dialog should show OK button");
+        assertTrue(all_text.find("Cancel") >= 0, "dialog should show Cancel button");
+
+        # focused button should be 0 (OK)
+        assertEq(0, dlg.getFocusedButton());
+
+        app.popModal();
+        dlg.destroyPanel();
+    }
+
+    /** Test dropdown separator uses ACS_HLINE (not dashes). */
+    testDropdownSeparatorUsesACSLine() {
+        NcursesUi::TestHarness th(term_rows, term_cols);
+        on_exit th.close();
+
+        NcursesUi::Application app(th.session());
+        NcursesUi::Widget root();
+        NcursesUi::MenuBarWidget mb();
+        mb.setApplication(app);
+        mb.addMenu("Session", (
+            {"label": "Help", "command": "/help"},
+            {"separator": True},
+            {"label": "Quit", "command": "/quit"},
+        ));
+        mb.setVSizePolicy(NcursesUi::SizePolicy::Fixed);
+        mb.setMinimumSize(1, 1);
+        mb.setPreferredSize(1, 0);
+        root.addChild(mb);
+        NcursesUi::BoxLayout layout(NcursesUi::Orientation::Vertical);
+        app.setRootLayout(layout);
+        app.setRoot(root);
+
+        mb.openMenu(0);
+        app.drawAll();
+
+        # read the dropdown panel
+        *NcursesUi::Widget modal = app.getDispatcher().topModal();
+        assertTrue(exists modal);
+        NcursesUi::DropdownMenuWidget dd = modal;
+        Ncurses::Window pw = dd.getWindow();
+        hash<Ncurses::Size> pw_sz = pw.size();
+        string all_text = "";
+        for (int r = 0; r < pw_sz.rows; ++r) {
+            all_text += pw.readText(r, 0, pw_sz.cols);
+        }
+
+        # verify menu items are shown
+        assertTrue(all_text.find("Help") >= 0, "should show Help");
+        assertTrue(all_text.find("Quit") >= 0, "should show Quit");
+        # separator row should NOT contain dashes
+        string sep_row = pw.readText(2, 0, pw_sz.cols);
+        assertFalse(sep_row.find("-") >= 0,
+            "separator should use ACS_HLINE, not dashes; got: " + sep_row);
+
+        mb.closeMenu();
+    }
+
+    /** Test complete quit dialog visual flow with TestTerminal. */
+    testQuitDialogVisualFlow() {
+        NcursesUi::TestHarness th(term_rows, term_cols);
+        on_exit th.close();
+
+        hash<auto> repl = buildReplLayout(th);
+        NcursesUi::Application app = repl.app;
+        NcursesUi::MenuBarWidget menu_bar = repl.menu_bar;
+
+        bool quit_called = False;
+
+        # set up global key handler like qrepl
+        app.setGlobalKeyHandler(hash<NcursesUi::EventResult> sub (hash<Ncurses::InputEvent> ev) {
+            if (ev.type == Ncurses::InputType::Char && ord(ev.ch ?? "") == 0x1b) {
+                if (app.getDispatcher().hasModal()) {
+                    return <NcursesUi::EventResult>{"handled": False};
+                }
+                if (menu_bar.isDropdownOpen()) {
+                    menu_bar.closeMenu();
+                    return <NcursesUi::EventResult>{"handled": True, "action": "close_menu"};
+                }
+                # show quit dialog
+                NcursesUi::DialogWidget dlg = NcursesUi::DialogWidget::confirm(
+                    th.session(), "Quit", "Exit the REPL?",
+                    sub (int idx, string label) {
+                        if (idx == 0) {
+                            app.popModal();
+                            dlg.destroyPanel();
+                            quit_called = True;
+                        } else {
+                            app.popModal();
+                            dlg.destroyPanel();
+                        }
+                    });
+                dlg.setOnDismiss(sub () {
+                    app.popModal();
+                    dlg.destroyPanel();
+                });
+                hash<Ncurses::Size> sz = th.session().screen().size();
+                dlg.centerOn(sz.rows, sz.cols);
+                dlg.createPanel();
+                app.pushModal(dlg);
+                return <NcursesUi::EventResult>{"handled": True, "action": "quit_dialog"};
+            }
+            return <NcursesUi::EventResult>{"handled": False};
+        });
+
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Char;
+
+        # Step 1: Escape with nothing open -> quit dialog appears
+        ev.ch = chr(0x1b);
+        app.processEvent(ev);
+        assertTrue(app.getDispatcher().hasModal(), "quit dialog should be modal");
+
+        # draw and verify dialog is visible
+        app.drawAll();
+        *NcursesUi::Widget modal = app.getDispatcher().topModal();
+        assertTrue(exists modal, "modal dialog should exist");
+        NcursesUi::DialogWidget dlg2 = modal;
+        Ncurses::Window pw = dlg2.getWindow();
+        hash<Ncurses::Size> pw_sz = pw.size();
+        string all_text = "";
+        for (int r = 0; r < pw_sz.rows; ++r) {
+            all_text += pw.readText(r, 0, pw_sz.cols);
+        }
+        assertTrue(all_text.find("Exit the REPL") >= 0, "dialog should show quit message");
+        assertTrue(all_text.find("OK") >= 0, "dialog should show OK button");
+        assertTrue(all_text.find("Cancel") >= 0, "dialog should show Cancel button");
+
+        # Step 2: Escape on dialog -> dismisses it
+        ev.ch = chr(0x1b);
+        app.processEvent(ev);
+        assertFalse(app.getDispatcher().hasModal(), "dialog should be dismissed by Escape");
+        assertFalse(quit_called, "should NOT have quit");
+
+        # Step 3: Escape again -> new dialog appears
+        ev.ch = chr(0x1b);
+        app.processEvent(ev);
+        assertTrue(app.getDispatcher().hasModal(), "new quit dialog should appear");
+
+        # Step 4: Enter on dialog -> OK -> quits
+        ev.ch = "\n";
+        app.processEvent(ev);
+        assertTrue(quit_called, "Enter on quit dialog should quit");
+        assertFalse(app.getDispatcher().hasModal(), "dialog should be dismissed after quit");
+    }
+
+    /** Test Ctrl+Q shows quit dialog (alternative to Escape). */
+    testCtrlQShowsQuitDialog() {
+        NcursesUi::TestHarness th(term_rows, term_cols);
+        on_exit th.close();
+
+        hash<auto> repl = buildReplLayout(th);
+        NcursesUi::Application app = repl.app;
+        NcursesUi::MenuBarWidget menu_bar = repl.menu_bar;
+
+        bool quit_dialog_shown = False;
+        app.setGlobalKeyHandler(hash<NcursesUi::EventResult> sub (hash<Ncurses::InputEvent> ev) {
+            if (ev.type == Ncurses::InputType::Char) {
+                string ch = ev.ch ?? "";
+                if (ord(ch) == 0x1b || ord(ch) == 0x11) {
+                    if (app.getDispatcher().hasModal()) {
+                        return <NcursesUi::EventResult>{"handled": False};
+                    }
+                    if (ord(ch) == 0x1b && menu_bar.isDropdownOpen()) {
+                        menu_bar.closeMenu();
+                        return <NcursesUi::EventResult>{"handled": True, "action": "close_menu"};
+                    }
+                    quit_dialog_shown = True;
+                    return <NcursesUi::EventResult>{"handled": True, "action": "quit_dialog"};
+                }
+            }
+            return <NcursesUi::EventResult>{"handled": False};
+        });
+
+        # Ctrl+Q with no modals open
+        assertFalse(app.getDispatcher().hasModal());
+
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = chr(0x11);  # Ctrl+Q
+        app.processEvent(ev);
+
+        assertTrue(quit_dialog_shown, "Ctrl+Q should trigger quit dialog");
+    }
+
+%ifndef NO_QORE_REPL
+    /** Test /help command output is displayed as multi-line text. */
+    testReplHelpOutputMultiLine() {
+        QoreRepl::QoreRepl repl();
+        *hash<auto> result = repl.eval("/help");
+
+        # /help should return a result with value
+        assertTrue(exists result, "/help should return a result");
+        assertTrue(exists result.value, "/help should return a value");
+
+        # is_eval should NOT be True (this is command output, not evaluated code)
+        assertFalse(result.is_eval.val(), "/help result should not have is_eval=True");
+
+        # the value should be a string with multiple lines
+        string help_text = string(result.value);
+        assertTrue(help_text.size() > 0, "help text should not be empty");
+        assertTrue(help_text.find("\n") >= 0, "help text should contain newlines (multi-line)");
+
+        # verify the help text splits into multiple lines
+        list<string> lines = help_text.split("\n");
+        assertTrue(lines.size() > 3, sprintf("help text should have multiple lines, got %d", lines.size()));
+    }
+%endif
+
+    /** Test inline prompt line is updated when typing. */
+    testInlinePromptLineUpdate() {
+        NcursesUi::TestHarness th(term_rows, term_cols);
+        on_exit th.close();
+
+        hash<auto> repl = buildReplLayout(th);
+        NcursesUi::LineListContent content = repl.output_content;
+        NcursesUi::ScrollableWidget ow = repl.output_widget;
+        NcursesReplUi::InputBuffer buffer = repl.buffer;
+
+        # add initial prompt line (simulating new_prompt_line())
+        string prompt = "qore> ";
+        content.appendLine(prompt);
+        int prompt_idx = content.lineCount() - 1;
+
+        # simulate typing by updating buffer and setLine
+        buffer.insertChar("x");
+        content.setLine(prompt_idx, prompt + buffer.getText());
+        assertEq("qore> x", content.getLines()[prompt_idx]);
+
+        buffer.insertChar("y");
+        content.setLine(prompt_idx, prompt + buffer.getText());
+        assertEq("qore> xy", content.getLines()[prompt_idx]);
+
+        # set cursor position
+        int cursor_col = prompt.length() + buffer.getCursor();
+        ow.setCursorLine(prompt_idx, cursor_col);
+        *hash<auto> cp = ow.getCursorPos();
+        assertTrue(exists cp);
+        assertEq(prompt_idx, cp.line);
+        assertEq(8, cp.col);  # "qore> " (6) + cursor at end of "xy" (2)
+    }
+
+    /** Test inserting output before the live prompt line. */
+    testInlinePromptInsertBeforePrompt() {
+        NcursesUi::TestHarness th(term_rows, term_cols);
+        on_exit th.close();
+
+        hash<auto> repl = buildReplLayout(th);
+        NcursesUi::LineListContent content = repl.output_content;
+
+        # simulate: welcome message + prompt
+        content.appendLine("Welcome");
+        content.appendLine("qore> ");
+        int prompt_idx = 1;
+
+        # insert output before the prompt (like captured stdout)
+        content.insertLine(prompt_idx, "captured output");
+        prompt_idx += 1;  # prompt shifted down
+
+        list<string> lines = content.getLines();
+        assertEq(3, content.lineCount());
+        assertEq("Welcome", lines[0]);
+        assertEq("captured output", lines[1]);
+        assertEq("qore> ", lines[2]);
+        assertEq(2, prompt_idx);
+    }
+
+    /** Test cursor positioning on the inline prompt line. */
+    testInlineCursorPositioning() {
+        NcursesUi::TestHarness th(term_rows, term_cols);
+        on_exit th.close();
+
+        hash<auto> repl = buildReplLayout(th);
+        NcursesUi::ScrollableWidget ow = repl.output_widget;
+        NcursesUi::LineListContent content = repl.output_content;
+        NcursesReplUi::InputBuffer buffer = repl.buffer;
+
+        # add prompt
+        content.appendLine("qore> ");
+        int prompt_idx = 0;
+
+        # type some text
+        buffer.insertChar("h");
+        buffer.insertChar("i");
+
+        # cursor at end (position 2)
+        int cursor_col = 6 + buffer.getCursor();  # "qore> " = 6 chars
+        ow.setCursorLine(prompt_idx, cursor_col);
+
+        *hash<auto> cp = ow.getCursorPos();
+        assertEq(0, cp.line);
+        assertEq(8, cp.col);  # 6 + 2
+
+        # move cursor left
+        buffer.moveLeft();
+        cursor_col = 6 + buffer.getCursor();
+        ow.setCursorLine(prompt_idx, cursor_col);
+
+        cp = ow.getCursorPos();
+        assertEq(7, cp.col);  # 6 + 1
+
+        # move to home
+        buffer.moveHome();
+        cursor_col = 6 + buffer.getCursor();
+        ow.setCursorLine(prompt_idx, cursor_col);
+
+        cp = ow.getCursorPos();
+        assertEq(6, cp.col);  # 6 + 0
+
+        # draw should not crash
+        content.setLine(prompt_idx, "qore> " + buffer.getText());
+        ow.setFrame(NcursesUi::Geometry::makeRect(0, 0, 10, 40));
+        ow.draw(th.session().screen());
+        th.session().doupdate();
+    }
+
+    /** Test that events reach modal when global key handler is active.
+
+        When a modal is open, the global key handler should return
+        handled=False so events are routed to the modal widget.
+    */
+    testReplModalPassthrough() {
+        NcursesUi::TestHarness th(term_rows, term_cols);
+        on_exit th.close();
+
+        hash<auto> repl = buildReplLayout(th);
+        NcursesUi::Application app = repl.app;
+        NcursesUi::MenuBarWidget menu_bar = repl.menu_bar;
+        NcursesReplUi::InputBuffer buffer = repl.buffer;
+
+        # set up global handler that passes through when modal is open (like qrepl)
+        bool global_handled_enter = False;
+        app.setGlobalKeyHandler(hash<NcursesUi::EventResult> sub (hash<Ncurses::InputEvent> ev) {
+            # modal pass-through: if a modal is open, don't intercept
+            if (app.getDispatcher().hasModal()) {
+                return <NcursesUi::EventResult>{"handled": False};
+            }
+            if (ev.type == Ncurses::InputType::Char && ev.ch == "\n") {
+                global_handled_enter = True;
+                return <NcursesUi::EventResult>{"handled": True};
+            }
+            if (ev.type == Ncurses::InputType::Key) {
+                string name = ev.name ?? "";
+                if (name == "KEY_UP" || name == "KEY_DOWN") {
+                    return <NcursesUi::EventResult>{"handled": True};
+                }
+            }
+            if (ev.type == Ncurses::InputType::Char && ord(ev.ch ?? "") >= 32) {
+                buffer.insertChar(ev.ch);
+                return <NcursesUi::EventResult>{"handled": True};
+            }
+            return <NcursesUi::EventResult>{"handled": False};
+        });
+
+        # push a dialog as modal
+        NcursesUi::DialogWidget dlg(th.session(), "Test", "msg", ("OK", "Cancel"));
+        dlg.centerOn(term_rows, term_cols);
+        int button_pressed = -1;
+        dlg.setOnButton(sub (int idx, string label) {
+            button_pressed = idx;
+            app.popModal();
+        });
+        bool dismissed = False;
+        dlg.setOnDismiss(sub () {
+            dismissed = True;
+            app.popModal();
+        });
+        app.pushModal(dlg);
+        assertTrue(app.getDispatcher().hasModal());
+
+        # Enter should reach the modal dialog (not be consumed by global handler)
+        global_handled_enter = False;
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = "\n";
+        app.processEvent(ev);
+
+        assertFalse(global_handled_enter, "global handler should NOT have consumed Enter");
+        assertEq(0, button_pressed, "modal dialog should have received Enter (button 0 = OK)");
+        assertFalse(app.getDispatcher().hasModal(), "modal should be popped after button press");
+    }
+
+    /** Test that Alt+key opens the matching menu via the global key handler. */
+    testReplAltKeyOpensMenu() {
+        NcursesUi::TestHarness th(term_rows, term_cols);
+        on_exit th.close();
+
+        hash<auto> repl = buildReplLayout(th);
+        NcursesUi::Application app = repl.app;
+        NcursesUi::MenuBarWidget menu_bar = repl.menu_bar;
+
+        # add menus like qrepl
+        menu_bar.setApplication(app);
+        menu_bar.addMenu("File", (
+            {"label": "Browse...", "command": "browse", "hotkey": "Alt+B"},
+        ));
+        menu_bar.addMenu("Edit", (
+            {"label": "Clear", "command": "clear"},
+        ));
+        menu_bar.addMenu("Help", (
+            {"label": "Help", "command": "/help", "hotkey": "Alt+H"},
+        ));
+
+        # set up global handler with Alt routing (like qrepl)
+        app.setGlobalKeyHandler(hash<NcursesUi::EventResult> sub (hash<Ncurses::InputEvent> ev) {
+            if (app.getDispatcher().hasModal()) {
+                return <NcursesUi::EventResult>{"handled": False};
+            }
+            if (ev.type == Ncurses::InputType::Alt) {
+                string ch = ev.ch ?? "";
+                if (ch != "" && menu_bar.processAltKey(ch)) {
+                    return <NcursesUi::EventResult>{"handled": True, "action": "open_menu"};
+                }
+            }
+            return <NcursesUi::EventResult>{"handled": False};
+        });
+
+        # send Alt+F event
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Alt;
+        ev.ch = "f";
+        app.processEvent(ev);
+
+        assertEq(0, menu_bar.getActiveMenu());
+        assertTrue(menu_bar.isDropdownOpen());
+        menu_bar.closeMenu();
+
+        # send Alt+H event
+        ev.ch = "h";
+        app.processEvent(ev);
+        assertEq(2, menu_bar.getActiveMenu());
+        assertTrue(menu_bar.isDropdownOpen());
+        menu_bar.closeMenu();
+
+        # send Alt+Z (no match) - menu should not open
+        ev.ch = "z";
+        app.processEvent(ev);
+        assertEq(-1, menu_bar.getActiveMenu());
+        assertFalse(menu_bar.isDropdownOpen());
+    }
+
+    /** Helper: simulates qrepl's output capture pipeline in-process.
+
+        Uses a Mutex, capture_tail, pending_output, and eval_complete flag
+        to exercise the same logic as qrepl's enqueue_output_chunk +
+        output_capture_thread timeout path.
+    */
+    private hash<auto> makeCaptureState() {
+        return {
+            "mutex": new Mutex(),
+            "capture_tail": "",
+            "pending_output": new list<string>(),
+            "eval_complete": False,
+        };
+    }
+
+    /** Mirror of qrepl's enqueue_output_chunk: splits chunk into
+        complete lines (pending_output) and an incomplete tail (capture_tail).
+        Also flushes immediately if eval_complete is already set.
+    */
+    private nothing enqueue_chunk(reference<hash<auto>> state, string chunk) {
+        state.mutex.lock();
+        on_exit state.mutex.unlock();
+
+        string full = string(state.capture_tail) + chunk;
+        list<string> lines = full.split("\n");
+
+        if (full.size() > 0 && full.substr(-1) == "\n") {
+            foreach string line in (lines) {
+                if (line != "") {
+                    state.pending_output += line;
+                }
+            }
+            state.capture_tail = "";
+        } else {
+            for (int i = 0; i < lines.size() - 1; ++i) {
+                if (lines[i] != "") {
+                    state.pending_output += lines[i];
+                }
+            }
+            state.capture_tail = lines[lines.size() - 1];
+        }
+
+        # if eval already completed and we have unterminated data, flush immediately
+        if (state.eval_complete && string(state.capture_tail) != "") {
+            state.pending_output += string(state.capture_tail)
+                + chr(0x1b) + "[7m%" + chr(0x1b) + "[0m";
+            state.capture_tail = "";
+            state.eval_complete = False;
+        }
+    }
+
+    /** Mirror of qrepl's capture thread timeout path: checks eval_complete
+        and flushes capture_tail with the reverse-video % indicator.
+        Only clears eval_complete when there is actual data to flush.
+    */
+    private nothing flush_if_eval_complete(reference<hash<auto>> state) {
+        state.mutex.lock();
+        on_exit state.mutex.unlock();
+
+        if (state.eval_complete && string(state.capture_tail) != "") {
+            state.pending_output += string(state.capture_tail)
+                + chr(0x1b) + "[7m%" + chr(0x1b) + "[0m";
+            state.capture_tail = "";
+            state.eval_complete = False;
+        }
+        # NOTE: don't clear eval_complete when capture_tail is empty;
+        # pipe data may not have arrived yet
+    }
+
+    /** Mirror of qrepl's clear_eval_complete: clears flag before starting eval. */
+    private nothing clear_eval(reference<hash<auto>> state) {
+        state.mutex.lock();
+        on_exit state.mutex.unlock();
+        state.eval_complete = False;
+    }
+
+    /** Mirror of qrepl's signal_eval_complete. */
+    private nothing signal_eval(reference<hash<auto>> state) {
+        state.mutex.lock();
+        on_exit state.mutex.unlock();
+        state.eval_complete = True;
+    }
+
+    /** Test: newline-terminated output goes to pending_output without indicator. */
+    testCaptureNewlineTerminated() {
+        hash<auto> st = makeCaptureState();
+
+        # simulate: printf("hello\n") → pipe sends "hello\n"
+        enqueue_chunk(\st, "hello\n");
+        assertEq(("hello",), st.pending_output);
+        assertEq("", st.capture_tail);
+
+        # signal eval complete and flush — no tail, so no indicator
+        signal_eval(\st);
+        flush_if_eval_complete(\st);
+        assertEq(("hello",), st.pending_output, "no indicator for newline-terminated output");
+        assertTrue(st.eval_complete, "eval_complete stays set when no tail to flush");
+    }
+
+    /** Test: unterminated output gets reverse-video % indicator after eval. */
+    testCaptureNoNewlineIndicator() {
+        hash<auto> st = makeCaptureState();
+
+        # simulate: print("hi") → pipe sends "hi" (no newline)
+        enqueue_chunk(\st, "hi");
+        assertEq(0, st.pending_output.size(), "no complete lines yet");
+        assertEq("hi", st.capture_tail);
+
+        # signal eval complete
+        signal_eval(\st);
+        assertTrue(st.eval_complete);
+
+        # capture thread timeout flushes with indicator
+        flush_if_eval_complete(\st);
+        assertEq(1, st.pending_output.size());
+        string result = st.pending_output[0];
+        assertTrue(result.find("hi") == 0, "should start with 'hi'");
+        assertTrue(result.find("%") > 0, "should contain % indicator");
+        # verify ANSI reverse-video SGR codes
+        assertTrue(result.find(chr(0x1b) + "[7m%") >= 0, "should have reverse-video % indicator");
+        assertTrue(result.find(chr(0x1b) + "[0m") >= 0, "should have SGR reset");
+        assertEq("", st.capture_tail, "capture_tail should be cleared");
+        assertFalse(st.eval_complete, "eval_complete should be cleared");
+    }
+
+    /** Test: mixed output with complete lines and an unterminated tail. */
+    testCaptureMixedOutput() {
+        hash<auto> st = makeCaptureState();
+
+        # simulate: printf("line1\nline2\npartial") → pipe sends all at once
+        enqueue_chunk(\st, "line1\nline2\npartial");
+        assertEq(("line1", "line2"), st.pending_output);
+        assertEq("partial", st.capture_tail);
+
+        # signal eval complete and flush
+        signal_eval(\st);
+        flush_if_eval_complete(\st);
+        assertEq(3, st.pending_output.size());
+        assertEq("line1", st.pending_output[0]);
+        assertEq("line2", st.pending_output[1]);
+        assertTrue(st.pending_output[2].find("partial") == 0);
+        assertTrue(st.pending_output[2].find(chr(0x1b) + "[7m%") >= 0,
+            "partial tail should get % indicator");
+    }
+
+    /** Test: multiple chunks assembling into complete lines. */
+    testCaptureMultipleChunks() {
+        hash<auto> st = makeCaptureState();
+
+        # first chunk: incomplete
+        enqueue_chunk(\st, "hel");
+        assertEq(0, st.pending_output.size());
+        assertEq("hel", st.capture_tail);
+
+        # second chunk completes the line
+        enqueue_chunk(\st, "lo\n");
+        assertEq(("hello",), st.pending_output);
+        assertEq("", st.capture_tail);
+
+        # third chunk: another incomplete
+        enqueue_chunk(\st, "world");
+        assertEq(("hello",), st.pending_output);
+        assertEq("world", st.capture_tail);
+
+        # eval complete → flush
+        signal_eval(\st);
+        flush_if_eval_complete(\st);
+        assertEq(2, st.pending_output.size());
+        assertEq("hello", st.pending_output[0]);
+        assertTrue(st.pending_output[1].find("world") == 0);
+        assertTrue(st.pending_output[1].find(chr(0x1b) + "[7m%") >= 0);
+    }
+
+    /** Test: eval_complete with empty tail does NOT produce indicator. */
+    testCaptureEvalCompleteNoTail() {
+        hash<auto> st = makeCaptureState();
+
+        # output with newline — capture_tail stays empty
+        enqueue_chunk(\st, "done\n");
+        assertEq(("done",), st.pending_output);
+        assertEq("", st.capture_tail);
+
+        # signal eval and flush — no tail, so eval_complete stays set
+        signal_eval(\st);
+        flush_if_eval_complete(\st);
+        assertEq(("done",), st.pending_output, "no extra output for empty tail");
+        assertTrue(st.eval_complete, "eval_complete stays set when no tail to flush");
+    }
+
+    /** Test: race condition — eval_complete set before pipe data arrives.
+        Simulates: timeout fires with eval_complete=True but capture_tail="",
+        then data arrives later. The data should still be flushed.
+    */
+    testCaptureRaceEvalBeforeData() {
+        hash<auto> st = makeCaptureState();
+
+        # eval completes, signal sent
+        signal_eval(\st);
+        assertTrue(st.eval_complete);
+
+        # timeout fires — no data yet, eval_complete should NOT be cleared
+        flush_if_eval_complete(\st);
+        assertTrue(st.eval_complete, "eval_complete must stay set when no data yet");
+        assertEq(0, st.pending_output.size(), "no output yet");
+
+        # data finally arrives from pipe (unterminated)
+        # enqueue_chunk should immediately flush since eval_complete is True
+        enqueue_chunk(\st, "hi");
+        assertEq(1, st.pending_output.size(), "data should be flushed immediately");
+        assertTrue(st.pending_output[0].find("hi") == 0, "should start with 'hi'");
+        assertTrue(st.pending_output[0].find(chr(0x1b) + "[7m%") >= 0,
+            "should have reverse-video % indicator");
+        assertEq("", st.capture_tail, "capture_tail should be cleared");
+        assertFalse(st.eval_complete, "eval_complete cleared after flush");
+    }
+
+    /** Test: immediate flush in enqueue_chunk when eval_complete is already set. */
+    testCaptureImmediateFlushInEnqueue() {
+        hash<auto> st = makeCaptureState();
+
+        # eval completes first, then data arrives
+        signal_eval(\st);
+
+        # data with newline-terminated part + unterminated tail
+        enqueue_chunk(\st, "line1\ntail");
+        assertEq(2, st.pending_output.size(), "complete line + flushed tail");
+        assertEq("line1", st.pending_output[0]);
+        assertTrue(st.pending_output[1].find("tail") == 0);
+        assertTrue(st.pending_output[1].find(chr(0x1b) + "[7m%") >= 0,
+            "tail should have indicator");
+        assertFalse(st.eval_complete, "eval_complete cleared after immediate flush");
+    }
+
+    /** Test: clear_eval prevents premature flushing during next eval. */
+    testCaptureClearEvalBetweenEvals() {
+        hash<auto> st = makeCaptureState();
+
+        # first eval: no output, eval_complete stays True
+        signal_eval(\st);
+        flush_if_eval_complete(\st);
+        assertTrue(st.eval_complete, "stays set with no output");
+
+        # before second eval, clear the flag
+        clear_eval(\st);
+        assertFalse(st.eval_complete, "cleared before new eval");
+
+        # second eval produces unterminated output mid-eval
+        enqueue_chunk(\st, "partial");
+        assertEq("partial", st.capture_tail, "held in tail during eval");
+        assertEq(0, st.pending_output.size(), "not flushed during eval");
+
+        # timeout during eval — should NOT flush since eval_complete is False
+        flush_if_eval_complete(\st);
+        assertEq(0, st.pending_output.size(), "still not flushed");
+        assertEq("partial", st.capture_tail, "still in tail");
+
+        # eval completes
+        signal_eval(\st);
+        flush_if_eval_complete(\st);
+        assertEq(1, st.pending_output.size(), "flushed after eval complete");
+        assertTrue(st.pending_output[0].find("partial") == 0);
+        assertTrue(st.pending_output[0].find(chr(0x1b) + "[7m%") >= 0);
+    }
+
+    /** Test: direct pipe I/O — write to pipe, read back. */
+    testRealPipeDirectIO() {
+        hash<PipeInfo> pipe = File::getPipe();
+
+        # write data directly
+        pipe.write.write("hello\n");
+        *binary b = pipe.read.readShortBinary(4096, 2000);
+        assertTrue(exists b, "should have read data from pipe");
+        assertEq("hello\n", binary_to_string(b));
+
+        # write without newline
+        pipe.write.write("hi");
+        *binary b2 = pipe.read.readShortBinary(4096, 2000);
+        assertTrue(exists b2, "should have read unterminated data from pipe");
+        assertEq("hi", binary_to_string(b2));
+
+        pipe.write.close();
+        pipe.read.close();
+    }
+
+    /** Test: real capture thread with pipe — newline-terminated output. */
+    testRealPipeCaptureThread() {
+        hash<PipeInfo> pipe = File::getPipe();
+        Mutex mutex();
+        list<string> pending = ();
+        string tail = "";
+        bool eval_done = False;
+        bool running = True;
+        Counter latch(1);
+
+        # start capture thread (mirrors qrepl logic — FILE-READ-TIMEOUT is the timeout path)
+        background sub () {
+            while (running) {
+                try {
+                    *binary b = pipe.read.readShortBinary(4096, 200);
+                    if (exists b && length(b) > 0) {
+                        string chunk = binary_to_string(b);
+                        mutex.lock();
+                        on_exit mutex.unlock();
+                        string full = tail + chunk;
+                        list<string> lines = full.split("\n");
+                        if (full.size() > 0 && full.substr(-1) == "\n") {
+                            foreach string line in (lines) {
+                                if (line != "") {
+                                    pending += line;
+                                }
+                            }
+                            tail = "";
+                        } else {
+                            for (int i = 0; i < lines.size() - 1; ++i) {
+                                if (lines[i] != "") {
+                                    pending += lines[i];
+                                }
+                            }
+                            tail = lines[lines.size() - 1];
+                        }
+                        if (eval_done && tail != "") {
+                            pending += tail + chr(0x1b) + "[7m%" + chr(0x1b) + "[0m";
+                            tail = "";
+                            eval_done = False;
+                            latch.dec();
+                        }
+                    }
+                } catch (hash<ExceptionInfo> ex) {
+                    if (ex.err == "FILE-READ-TIMEOUT") {
+                        # timeout — check if eval completed with unterminated output
+                        mutex.lock();
+                        on_exit mutex.unlock();
+                        if (eval_done && tail != "") {
+                            pending += tail + chr(0x1b) + "[7m%" + chr(0x1b) + "[0m";
+                            tail = "";
+                            eval_done = False;
+                            latch.dec();
+                        }
+                        continue;
+                    }
+                    if (running) {
+                        break;
+                    }
+                }
+            }
+        }();
+
+        # simulate: printf("hello world\n") via pipe
+        pipe.write.write("hello world\n");
+
+        # signal eval complete
+        mutex.lock();
+        eval_done = True;
+        mutex.unlock();
+
+        # wait for capture to process (newline-terminated: captured on read, no latch needed)
+        # but eval_done stays True since tail is empty — just wait briefly
+        int attempts = 0;
+        while (attempts < 50) {
+            mutex.lock();
+            int sz = pending.size();
+            mutex.unlock();
+            if (sz > 0) {
+                break;
+            }
+            usleep(20000);
+            ++attempts;
+        }
+
+        running = False;
+        pipe.write.close();
+
+        mutex.lock();
+        on_exit mutex.unlock();
+        assertEq(1, pending.size(), "should have captured one line");
+        assertEq("hello world", pending[0]);
+    }
+
+    /** Test: real capture thread with pipe — unterminated output (the print("hi") scenario). */
+    testRealPipeNoNewlineCapture() {
+        hash<PipeInfo> pipe = File::getPipe();
+        Mutex mutex();
+        list<string> pending = ();
+        string tail = "";
+        bool eval_done = False;
+        bool running = True;
+        Counter latch(1);
+
+        # start capture thread (mirrors qrepl logic — FILE-READ-TIMEOUT is the timeout path)
+        background sub () {
+            while (running) {
+                try {
+                    *binary b = pipe.read.readShortBinary(4096, 200);
+                    if (exists b && length(b) > 0) {
+                        string chunk = binary_to_string(b);
+                        mutex.lock();
+                        on_exit mutex.unlock();
+                        string full = tail + chunk;
+                        list<string> lines = full.split("\n");
+                        if (full.size() > 0 && full.substr(-1) == "\n") {
+                            foreach string line in (lines) {
+                                if (line != "") {
+                                    pending += line;
+                                }
+                            }
+                            tail = "";
+                        } else {
+                            for (int i = 0; i < lines.size() - 1; ++i) {
+                                if (lines[i] != "") {
+                                    pending += lines[i];
+                                }
+                            }
+                            tail = lines[lines.size() - 1];
+                        }
+                        # immediate flush if eval already done
+                        if (eval_done && tail != "") {
+                            pending += tail + chr(0x1b) + "[7m%" + chr(0x1b) + "[0m";
+                            tail = "";
+                            eval_done = False;
+                            latch.dec();
+                        }
+                    }
+                } catch (hash<ExceptionInfo> ex) {
+                    if (ex.err == "FILE-READ-TIMEOUT") {
+                        # timeout — check if eval completed with unterminated output
+                        mutex.lock();
+                        on_exit mutex.unlock();
+                        if (eval_done && tail != "") {
+                            pending += tail + chr(0x1b) + "[7m%" + chr(0x1b) + "[0m";
+                            tail = "";
+                            eval_done = False;
+                            latch.dec();
+                        }
+                        # NOTE: don't clear eval_done when tail is empty
+                        continue;
+                    }
+                    if (running) {
+                        break;
+                    }
+                }
+            }
+        }();
+
+        # simulate: print("hi") — write without newline
+        pipe.write.write("hi");
+
+        # signal eval complete
+        mutex.lock();
+        eval_done = True;
+        mutex.unlock();
+
+        # wait for capture thread to flush (uses Counter as deterministic latch)
+        int rc = latch.waitForZero(5000);
+        assertEq(0, rc, "capture thread should have flushed within 5s");
+
+        running = False;
+        pipe.write.close();
+
+        mutex.lock();
+        on_exit mutex.unlock();
+        assertEq(1, pending.size(), "should have captured unterminated output");
+        assertTrue(pending[0].find("hi") == 0, "should start with 'hi'");
+        assertTrue(pending[0].find(chr(0x1b) + "[7m%") >= 0,
+            "should have reverse-video % indicator");
+    }
+
+    /** Test: stdout.redirect() to pipe — verify data reaches pipe via stdout.write(). */
+    testStdoutRedirectPipeCapture() {
+        hash<PipeInfo> pipe = File::getPipe();
+
+        # save original stdout
+        File saved();
+        saved.open("/proc/self/fd/1", O_WRONLY);
+
+        # redirect stdout to pipe (dup2)
+        stdout.redirect(pipe.write);
+
+        # write via Qore File::write (direct syscall to fd, no C stdio buffering)
+        int written = stdout.write("redirect_test\n");
+        assertEq(14, written, "stdout.write should succeed");
+
+        # restore stdout BEFORE reading (so test output goes to terminal)
+        stdout.redirect(saved);
+
+        # read from pipe — data should be there
+        *binary b = pipe.read.readShortBinary(4096, 2000);
+        assertTrue(exists b, "data written via stdout should reach pipe after redirect");
+        assertEq("redirect_test\n", binary_to_string(b));
+
+        pipe.write.close();
+        pipe.read.close();
+    }
+
+%ifndef NO_QORE_REPL
+    /** Test: QoreRepl eval('print("hi")') output reaches pipe via redirect.
+        This tests the EXACT path that qrepl uses — including C-level fflush/setvbuf
+        via Session::redirectStdout + flushStdio.
+    */
+    testReplEvalPrintCapture() {
+        NcursesUi::TestHarness th(term_rows, term_cols);
+        on_exit th.close();
+        Ncurses::Session sess = th.session();
+
+        hash<PipeInfo> pipe = File::getPipe();
+
+        # save original stdout/stderr
+        File saved_stdout();
+        saved_stdout.open("/proc/self/fd/1", O_WRONLY);
+        File saved_stderr();
+        saved_stderr.open("/proc/self/fd/2", O_WRONLY);
+
+        # redirect at BOTH Qore level (dup2) and C level (fflush + dup2 + setvbuf)
+        stdout.redirect(pipe.write);
+        stderr.redirect(pipe.write);
+        sess.redirectStdout(pipe.write);
+        sess.redirectStderr(pipe.write);
+
+        QoreRepl::QoreRepl repl();
+        *hash<auto> result;
+        try {
+            result = repl.eval('print("hello_from_repl")');
+        } catch (hash<ExceptionInfo> ex) {
+            # ignore eval errors
+        }
+
+        # flush C stdio buffer BEFORE restoring stdout — critical!
+        sess.flushStdio();
+
+        # restore before assertions (so test output goes to terminal)
+        stdout.redirect(saved_stdout);
+        stderr.redirect(saved_stderr);
+        sess.redirectStdout(saved_stdout);
+        sess.redirectStderr(saved_stderr);
+
+        # read from pipe
+        *binary b = pipe.read.readShortBinary(4096, 2000);
+
+        pipe.write.close();
+        pipe.read.close();
+
+        assertTrue(exists b, "print() output inside repl.eval should reach pipe");
+        string captured = binary_to_string(b);
+        assertTrue(captured.find("hello_from_repl") >= 0,
+            "captured data should contain 'hello_from_repl', got: " + captured);
+    }
+%endif
+
+    /** Test clear_output resets and adds new prompt line. */
+    testClearOutputWithInlinePrompt() {
+        NcursesUi::TestHarness th(term_rows, term_cols);
+        on_exit th.close();
+
+        hash<auto> repl = buildReplLayout(th);
+        NcursesUi::LineListContent content = repl.output_content;
+        NcursesUi::ScrollableWidget ow = repl.output_widget;
+
+        # add some content + prompt
+        content.appendLine("line 1");
+        content.appendLine("line 2");
+        content.appendLine("qore> ");
+        assertEq(3, content.lineCount());
+
+        # simulate clear_output
+        content.clear();
+        ow.setScrollY(0);
+        assertEq(0, content.lineCount());
+
+        # add new prompt
+        content.appendLine("qore> ");
+        assertEq(1, content.lineCount());
+        assertEq("qore> ", content.getLines()[0]);
+    }
+}

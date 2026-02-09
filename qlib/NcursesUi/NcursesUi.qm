@@ -1,0 +1,344 @@
+# -*- mode: qore; indent-tabs-mode: nil -*-
+#! @file NcursesUi.qm Ncurses terminal UI toolkit
+
+/*  NcursesUi.qm Copyright 2026 Qore Technologies, s.r.o.
+
+    Permission is hereby granted, free of charge, to any person obtaining a
+    copy of this software and associated documentation files (the "Software"),
+    to deal in the Software without restriction, including without limitation
+    the rights to use, copy, modify, merge, publish, distribute, sublicense,
+    and/or sell copies of the Software, and to permit persons to whom the
+    Software is furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in
+    all copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+    DEALINGS IN THE SOFTWARE.
+*/
+
+%requires qore >= 2.0
+%requires ncurses
+%requires NcursesReplUi
+%requires QUnit
+
+%modern
+
+module NcursesUi {
+    version = "1.0";
+    desc = "Ncurses terminal UI toolkit";
+    author = "Qore Technologies, s.r.o.";
+    license = "MIT";
+}
+
+/** @mainpage NcursesUi Module
+
+    @tableofcontents
+
+    @section ncursesuiintro NcursesUi Module Introduction
+
+    The NcursesUi module provides a complete terminal UI toolkit built on the
+    ncurses binary module. It provides:
+
+    - A widget tree with parent-child relationships and focus management
+    - Layout managers (BoxLayout, SplitLayout)
+    - Scrollable content with scrollbar rendering
+    - Typed event dispatch with modal stack and mouse hit-testing
+    - Standard UI components (list, text input, dialog, menu bar, status bar,
+      file browser, combo box, checkbox, radio group, table)
+    - An Application class that encapsulates the event loop
+    - A TestHarness for deterministic testing with TestTerminal
+
+    To use the module:
+    @code
+%requires ncurses
+%requires NcursesUi
+    @endcode
+
+    @section ncursesui_arch Architecture
+
+    @subsection ncursesui_tree Widget Tree
+
+    Every UI element is a @ref NcursesUi::Widget "Widget". Widgets form a tree
+    via parent-child relationships. Each widget has:
+    - A geometry rectangle (@ref NcursesUi::Rect "Rect") describing its position and size
+    - A focus state (\c hasFocus() / \c setFocused())
+    - A dirty flag that propagates up to the root to trigger redraws
+    - An \c onEvent() method for handling input events
+
+    The root widget is passed to @ref NcursesUi::Application::run "Application::run()",
+    which manages the event loop and drawing.
+
+    @subsection ncursesui_layouts Layout Managers
+
+    Layout managers are widgets that automatically position and size their children:
+
+    - @ref NcursesUi::BoxLayout "BoxLayout": arranges children in a row (horizontal)
+      or column (vertical), distributing space based on each child's
+      @ref NcursesUi::SizePolicy "SizePolicy"
+    - @ref NcursesUi::SplitLayout "SplitLayout": divides space between exactly two
+      children using a ratio or fixed pixel offset
+
+    @par BoxLayout example:
+    @code{.py}
+NcursesUi::BoxLayout layout(NcursesUi::Orientation::Vertical);
+
+# top area expands to fill available space
+NcursesUi::ScrollableWidget output();
+layout.addChild(output, NcursesUi::SizePolicy::Expanding);
+
+# status bar has a fixed height of 1 row
+NcursesUi::StatusBarWidget bar();
+layout.addChild(bar, NcursesUi::SizePolicy::Fixed);
+    @endcode
+
+    @par SplitLayout example:
+    @code{.py}
+# 70/30 vertical split
+NcursesUi::SplitLayout split(NcursesUi::Orientation::Horizontal, 0.7);
+split.setFirst(left_widget);
+split.setSecond(right_widget);
+    @endcode
+
+    @subsection ncursesui_focus Focus Management
+
+    @ref NcursesUi::FocusManager "FocusManager" traverses the widget tree to
+    move focus between widgets. Widgets declare whether they accept focus via
+    \c setFocusable(). Tab / Shift+Tab cycle through focusable widgets using
+    the @ref NcursesUi::FocusDirection "FocusDirection" enum.
+
+    @subsection ncursesui_events Event Dispatch
+
+    @ref NcursesUi::EventDispatcher "EventDispatcher" routes input events:
+    - Keyboard events go to the focused widget (or the top modal if one is active)
+    - Mouse events are dispatched via hit-testing against widget geometries
+    - Global key handlers can be registered for application-wide shortcuts
+    - A modal stack captures all input for the topmost modal (used by dialogs
+      and dropdown menus)
+
+    @subsection ncursesui_panels Panels and Modals
+
+    @ref NcursesUi::PanelWidget "PanelWidget" wraps an ncurses Panel to create
+    a floating overlay. It manages its own window and draws independently of
+    the main widget tree. Push a PanelWidget as a modal via
+    @ref NcursesUi::Application "Application" to capture all input until dismissed.
+
+    @ref NcursesUi::DialogWidget "DialogWidget" extends PanelWidget to provide
+    a ready-made modal dialog with a message, configurable buttons, and
+    keyboard navigation (Tab between buttons, Enter to activate).
+
+    @par Dialog example:
+    @code{.py}
+NcursesUi::DialogWidget dlg("Confirm", "Are you sure?", ("Yes", "No"));
+# push as modal; the callback receives the button label
+app.pushModal(dlg, string sub (string action) {
+    if (action == "ok") {
+        # user clicked "Yes"
+    }
+    app.popModal();
+});
+    @endcode
+
+    @section ncursesui_widgets Standard Widgets
+
+    @subsection ncursesui_list ListWidget
+
+    @ref NcursesUi::ListWidget "ListWidget" displays a selectable, scrollable
+    list of items with keyboard (arrow keys, Enter) and mouse (click, wheel)
+    support. Extends ScrollableWidget.
+
+    @subsection ncursesui_textinput TextInputWidget
+
+    @ref NcursesUi::TextInputWidget "TextInputWidget" provides single-line
+    text editing with cursor movement, selection, and optional command history.
+
+    @subsection ncursesui_scrollable ScrollableWidget
+
+    @ref NcursesUi::ScrollableWidget "ScrollableWidget" wraps a
+    @ref NcursesUi::ScrollableContent "ScrollableContent" provider
+    (such as @ref NcursesUi::LineListContent "LineListContent") and manages
+    the viewport, scroll position, and scrollbar rendering.
+
+    @subsection ncursesui_menubar MenuBarWidget
+
+    @ref NcursesUi::MenuBarWidget "MenuBarWidget" renders a horizontal menu
+    bar. Each menu item can have an Alt+key hotkey (displayed with an underline
+    indicator). Clicking or pressing Alt+key opens a
+    @ref NcursesUi::DropdownMenuWidget "DropdownMenuWidget" popup.
+
+    @subsection ncursesui_statusbar StatusBarWidget
+
+    @ref NcursesUi::StatusBarWidget "StatusBarWidget" renders a single-row
+    status bar with styled segments. Segments can be left-aligned or
+    right-aligned.
+
+    @par StatusBarWidget example:
+    @code{.py}
+NcursesUi::StatusBarWidget bar();
+bar.setSegments((
+    {"text": " Ready ", "style": {"fg": Ncurses::Color::Cyan, "bg": Ncurses::Color::Blue}},
+    {"text": " Ln 1 ", "style": {"fg": Ncurses::Color::Yellow, "bg": Ncurses::Color::Blue}, "align": "right"},
+));
+    @endcode
+
+    @subsection ncursesui_dialog DialogWidget
+
+    @ref NcursesUi::DialogWidget "DialogWidget" provides modal dialogs with a
+    title, message, and configurable buttons. Supports keyboard navigation
+    (Tab to switch buttons, Enter to activate, Escape to cancel).
+
+    @subsection ncursesui_filebrowser FileBrowserWidget
+
+    @ref NcursesUi::FileBrowserWidget "FileBrowserWidget" provides a split-pane
+    file system browser with directory listing, file preview, and mouse/keyboard
+    navigation including click and scroll wheel support.
+
+    @subsection ncursesui_other Other Widgets
+
+    - @ref NcursesUi::ComboBoxWidget "ComboBoxWidget": dropdown selector
+    - @ref NcursesUi::CheckboxWidget "CheckboxWidget": toggle checkbox
+    - @ref NcursesUi::RadioGroupWidget "RadioGroupWidget": mutually exclusive radio buttons
+    - @ref NcursesUi::TableWidget "TableWidget": column-based data table
+
+    @section ncursesui_testing Testing with TestHarness
+
+    @ref NcursesUi::TestHarness "TestHarness" wraps a
+    @ref Qore::Ncurses::TestTerminal "TestTerminal" and Session to provide a
+    headless testing environment. It creates a PTY-backed session and
+    Application instance suitable for automated tests.
+
+    @par TestHarness example:
+    @code{.py}
+%modern
+%requires ncurses
+%requires NcursesUi
+%requires QUnit
+
+NcursesUi::TestHarness th(24, 80);
+NcursesUi::Widget root();
+
+# inject events, run the app, and verify widget state
+th.session().injectEvent({"type": Ncurses::InputType::Char, "ch": "x"});
+list<string> rows = th.session().snapshot();
+# verify rows contain expected content
+
+th.close();
+    @endcode
+
+    @section ncursesui_styling Style Conventions
+
+    The \c qrepl application demonstrates a consistent dark theme:
+    - Blue backgrounds with cyan, yellow, and white foreground text
+    - Menu bar: \c {"fg": Ncurses::Color::Cyan, "bg": Ncurses::Color::Blue}
+    - Status bar: same blue background with colored labels
+    - Dropdown highlight: \c {"fg": Ncurses::Color::Yellow, "bg": Ncurses::Color::Blue, "attrs": Ncurses::Attr::Bold}
+    - Dialog focused button: \c {"fg": Ncurses::Color::Yellow, "bg": Ncurses::Color::Blue, "attrs": Ncurses::Attr::Bold}
+
+    @since ncurses 2.0
+*/
+
+#! main namespace for the NcursesUi toolkit
+public namespace NcursesUi {
+
+/** Widget geometry rectangle.
+    @since ncurses 2.0
+*/
+public hashdecl Rect {
+    #! row position (y)
+    int y = 0;
+    #! column position (x)
+    int x = 0;
+    #! number of rows (height)
+    int rows = 0;
+    #! number of columns (width)
+    int cols = 0;
+}
+
+/** Padding/margin insets.
+    @since ncurses 2.0
+*/
+public hashdecl Insets {
+    #! top inset
+    int top = 0;
+    #! bottom inset
+    int bottom = 0;
+    #! left inset
+    int left = 0;
+    #! right inset
+    int right = 0;
+}
+
+/** Event handling result.
+    @since ncurses 2.0
+*/
+public hashdecl EventResult {
+    #! True if the event was consumed
+    bool handled = False;
+    #! optional action name (e.g. "ok", "cancel", "close", "select")
+    *string action;
+    #! optional associated data
+    *hash<auto> data;
+}
+
+/** Size policy for layout managers.
+    @since ncurses 2.0
+*/
+public enum SizePolicy : int {
+    #! widget has a fixed size that does not change
+    Fixed = 0,
+    #! widget can shrink but prefers its minimum size
+    Minimum = 1,
+    #! widget prefers its preferred size but can grow or shrink
+    Preferred = 2,
+    #! widget expands to fill available space
+    Expanding = 3,
+}
+
+/** Focus traversal direction.
+    @since ncurses 2.0
+*/
+public enum FocusDirection : int {
+    #! move to next focusable widget (Tab)
+    Next = 0,
+    #! move to previous focusable widget (Shift+Tab)
+    Previous = 1,
+}
+
+/** Layout orientation.
+    @since ncurses 2.0
+*/
+public enum Orientation : int {
+    #! horizontal layout (left to right)
+    Horizontal = 0,
+    #! vertical layout (top to bottom)
+    Vertical = 1,
+}
+
+/** Scroll direction.
+    @since ncurses 2.0
+*/
+public enum ScrollDirection : int {
+    #! scroll up by one line
+    Up = 0,
+    #! scroll down by one line
+    Down = 1,
+    #! scroll left by one column
+    Left = 2,
+    #! scroll right by one column
+    Right = 3,
+    #! scroll up by one page
+    PageUp = 4,
+    #! scroll down by one page
+    PageDown = 5,
+    #! scroll to the beginning
+    Home = 6,
+    #! scroll to the end
+    End = 7,
+}
+
+} # namespace NcursesUi

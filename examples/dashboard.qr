@@ -1,0 +1,31 @@
+#!/usr/bin/env qore
+
+# Dashboard example — demonstrates basic Session/Window usage with a ticking
+# status display. Shows drawText() with styles, readEvent() polling with
+# timeout, and clean session shutdown.
+
+%requires ncurses
+
+%modern
+
+Ncurses::Session s();
+Ncurses::Window w = s.screen();
+
+w.clear();
+w.box({"fg": Ncurses::Color::Blue, "attrs": Ncurses::Attr::Bold});
+w.drawText(0, 2, " Qore Ncurses Dashboard ", {"fg": Ncurses::Color::Yellow, "attrs": Ncurses::Attr::Bold});
+
+int tick = 0;
+while (True) {
+    w.drawText(2, 2, sprintf("Ticks: %d", tick++), {"fg": Ncurses::Color::Cyan});
+    w.drawText(3, 2, sprintf("Time:  %s", now().toString()), {"fg": Ncurses::Color::Green});
+    w.drawText(5, 2, "Press 'q' to quit", {"fg": Ncurses::Color::White});
+    w.refresh();
+
+    auto ev = w.readEvent(100, 25);
+    if (exists ev && ev.type == Ncurses::InputType::Char && ev.ch == "q") {
+        break;
+    }
+}
+
+s.close();

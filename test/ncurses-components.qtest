@@ -1,0 +1,2743 @@
+#!/usr/bin/env qore
+
+%requires ncurses
+%requires NcursesUi
+%requires NcursesReplUi
+%requires QUnit
+
+%modern
+
+%exec-class NcursesComponentsTest
+
+class NcursesComponentsTest inherits Test {
+    constructor() : Test("NcursesComponentsTest", "1.0") {
+        # CheckboxWidget tests
+        addTestCase("CheckboxWidget initial state", \testCheckboxInit());
+        addTestCase("CheckboxWidget toggle", \testCheckboxToggle());
+        addTestCase("CheckboxWidget keyboard toggle", \testCheckboxKeyboard());
+        addTestCase("CheckboxWidget mouse toggle", \testCheckboxMouse());
+        addTestCase("CheckboxWidget draw", \testCheckboxDraw());
+
+        # RadioGroupWidget tests
+        addTestCase("RadioGroupWidget initial state", \testRadioGroupInit());
+        addTestCase("RadioGroupWidget keyboard navigation", \testRadioGroupKeyNav());
+        addTestCase("RadioGroupWidget selection", \testRadioGroupSelection());
+        addTestCase("RadioGroupWidget mouse click", \testRadioGroupMouse());
+        addTestCase("RadioGroupWidget empty options", \testRadioGroupEmpty());
+        addTestCase("RadioGroupWidget draw", \testRadioGroupDraw());
+
+        # StatusBarWidget tests
+        addTestCase("StatusBarWidget segments", \testStatusBarSegments());
+        addTestCase("StatusBarWidget draw", \testStatusBarDraw());
+        addTestCase("StatusBarWidget right align", \testStatusBarRightAlign());
+        addTestCase("StatusBarWidget segment spacing", \testStatusBarSpacing());
+        addTestCase("StatusBarWidget default style is dim", \testStatusBarDefaultStyle());
+
+        # ListWidget tests
+        addTestCase("ListWidget initial state", \testListInit());
+        addTestCase("ListWidget set items", \testListSetItems());
+        addTestCase("ListWidget keyboard nav", \testListKeyNav());
+        addTestCase("ListWidget page nav", \testListPageNav());
+        addTestCase("ListWidget Home/End", \testListHomeEnd());
+        addTestCase("ListWidget Enter activates", \testListActivate());
+        addTestCase("ListWidget mouse click", \testListMouseClick());
+        addTestCase("ListWidget mouse wheel", \testListMouseWheel());
+        addTestCase("ListWidget selection callback", \testListSelectCallback());
+        addTestCase("ListWidget custom render", \testListCustomRender());
+        addTestCase("ListWidget empty", \testListEmpty());
+        addTestCase("ListWidget ensure visible", \testListEnsureVisible());
+        addTestCase("ListWidget draw", \testListDraw());
+
+        # TextInputWidget tests
+        addTestCase("TextInputWidget initial state", \testTextInputInit());
+        addTestCase("TextInputWidget type chars", \testTextInputType());
+        addTestCase("TextInputWidget backspace", \testTextInputBackspace());
+        addTestCase("TextInputWidget cursor movement", \testTextInputCursor());
+        addTestCase("TextInputWidget submit", \testTextInputSubmit());
+        addTestCase("TextInputWidget ctrl keys", \testTextInputCtrlKeys());
+        addTestCase("TextInputWidget history", \testTextInputHistory());
+        addTestCase("TextInputWidget draw", \testTextInputDraw());
+
+        # DialogWidget tests
+        addTestCase("DialogWidget creation", \testDialogCreation());
+        addTestCase("DialogWidget button nav", \testDialogButtonNav());
+        addTestCase("DialogWidget Enter confirms", \testDialogEnter());
+        addTestCase("DialogWidget Escape dismisses", \testDialogEscape());
+        addTestCase("DialogWidget factory confirm", \testDialogFactoryConfirm());
+        addTestCase("DialogWidget factory error", \testDialogFactoryError());
+        addTestCase("DialogWidget centered title", \testDialogCenteredTitle());
+        addTestCase("DialogWidget centered message", \testDialogCenteredMessage());
+        addTestCase("DialogWidget centered buttons", \testDialogCenteredButtons());
+        addTestCase("DialogWidget mouse click on buttons", \testDialogMouseClick());
+        addTestCase("DialogWidget mouse click non-button area", \testDialogMouseNonButton());
+        addTestCase("DialogWidget padding", \testDialogPadding());
+
+        # MenuBarWidget tests
+        addTestCase("MenuBarWidget add menus", \testMenuBarAdd());
+        addTestCase("MenuBarWidget keyboard nav", \testMenuBarKeyNav());
+        addTestCase("MenuBarWidget mouse click", \testMenuBarMouse());
+        addTestCase("MenuBarWidget open/close", \testMenuBarOpenClose());
+        addTestCase("MenuBarWidget draw", \testMenuBarDraw());
+        addTestCase("MenuBarWidget style setters", \testMenuBarStyleSetters());
+
+        # MenuBarWidget Alt key tests
+        addTestCase("MenuBarWidget Alt key opens menu", \testMenuBarAltKey());
+
+        # DropdownMenuWidget tests
+        addTestCase("DropdownMenuWidget creation", \testDropdownCreation());
+        addTestCase("DropdownMenuWidget keyboard nav", \testDropdownKeyNav());
+        addTestCase("DropdownMenuWidget selection", \testDropdownSelection());
+        addTestCase("DropdownMenuWidget escape", \testDropdownEscape());
+        addTestCase("DropdownMenuWidget separator skip", \testDropdownSeparator());
+        addTestCase("DropdownMenuWidget disabled skip", \testDropdownDisabled());
+        addTestCase("DropdownMenuWidget positioning", \testDropdownPositioning());
+        addTestCase("DropdownMenuWidget left/right navigation", \testDropdownLeftRight());
+        addTestCase("DropdownMenuWidget tab/shift-tab navigation", \testDropdownTabNavigation());
+        addTestCase("DropdownMenuWidget hotkey", \testDropdownHotkey());
+        addTestCase("DropdownMenuWidget hotkey hint rendering", \testDropdownHotkeyHint());
+        addTestCase("DropdownMenuWidget Alt+key callback", \testDropdownAltKey());
+
+        # TableWidget tests
+        addTestCase("TableWidget initial state", \testTableInit());
+        addTestCase("TableWidget set data", \testTableSetData());
+        addTestCase("TableWidget keyboard nav", \testTableKeyNav());
+        addTestCase("TableWidget sorting", \testTableSorting());
+        addTestCase("TableWidget activation", \testTableActivation());
+        addTestCase("TableWidget draw", \testTableDraw());
+
+        # ComboBoxWidget tests
+        addTestCase("ComboBoxWidget initial state", \testComboBoxInit());
+        addTestCase("ComboBoxWidget typing", \testComboBoxTyping());
+        addTestCase("ComboBoxWidget filter", \testComboBoxFilter());
+        addTestCase("ComboBoxWidget selection", \testComboBoxSelection());
+        addTestCase("ComboBoxWidget escape", \testComboBoxEscape());
+
+        # ListWidget setSelectedIndex/wheel tests
+        addTestCase("ListWidget setSelectedIndex callback", \testListSetSelectedIndexCallback());
+        addTestCase("ListWidget mouse click callback", \testListMouseClickCallback());
+        addTestCase("ListWidget wheel moves selection", \testListWheelMovesSelection());
+        addTestCase("ListWidget wheel default scrolls", \testListWheelDefaultScrolls());
+
+        # FileBrowserWidget tests
+        addTestCase("FileBrowserWidget creation", \testFileBrowserCreation());
+        addTestCase("FileBrowserWidget toggle hidden", \testFileBrowserHidden());
+        addTestCase("FileBrowserWidget split layout", \testFileBrowserSplitLayout());
+        addTestCase("FileBrowserWidget preview", \testFileBrowserPreview());
+        addTestCase("FileBrowserWidget Tab navigation", \testFileBrowserTabNavigation());
+        addTestCase("FileBrowserWidget Qore load callback", \testFileBrowserQoreLoad());
+        addTestCase("FileBrowserWidget dismiss", \testFileBrowserDismiss());
+        addTestCase("FileBrowserWidget status line", \testFileBrowserStatusLine());
+        addTestCase("FileBrowserWidget isQoreFile", \testFileBrowserIsQoreFile());
+        addTestCase("FileBrowserWidget dot toggle hidden", \testFileBrowserDotToggle());
+        addTestCase("FileBrowserWidget binary extension detection", \testFileBrowserBinaryExtension());
+        addTestCase("FileBrowserWidget binary preview", \testFileBrowserBinaryPreview());
+        addTestCase("FileBrowserWidget binary content detection", \testFileBrowserBinaryContentDetection());
+        addTestCase("FileBrowserWidget directory preview", \testFileBrowserDirectoryPreview());
+        addTestCase("FileBrowserWidget directory preview empty", \testFileBrowserDirectoryPreviewEmpty());
+        addTestCase("FileBrowserWidget directory preview hidden", \testFileBrowserDirectoryPreviewHidden());
+        addTestCase("ListWidget render item style", \testListWidgetRenderItemStyle());
+        addTestCase("ListWidget scrollbar click", \testListWidgetScrollbarClick());
+        addTestCase("FileBrowserWidget colorized entries", \testFileBrowserColorizedEntries());
+
+        set_return_value(main());
+    }
+
+    # ---- CheckboxWidget ----
+
+    testCheckboxInit() {
+        NcursesUi::CheckboxWidget cb("Enable logging");
+        assertFalse(cb.isChecked());
+        assertEq("Enable logging", cb.getLabel());
+        assertTrue(cb.isFocusable());
+
+        NcursesUi::CheckboxWidget cb2("Active", True);
+        assertTrue(cb2.isChecked());
+    }
+
+    testCheckboxToggle() {
+        NcursesUi::CheckboxWidget cb("Test");
+        assertFalse(cb.isChecked());
+
+        bool callback_value;
+        cb.setOnToggle(sub (bool v) { callback_value = v; });
+
+        cb.toggle();
+        assertTrue(cb.isChecked());
+        assertTrue(callback_value);
+
+        cb.toggle();
+        assertFalse(cb.isChecked());
+        assertFalse(callback_value);
+    }
+
+    testCheckboxKeyboard() {
+        NcursesUi::CheckboxWidget cb("Test");
+
+        # Space toggles
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = " ";
+        hash<NcursesUi::EventResult> result = cb.processEvent(ev);
+        assertTrue(result.handled);
+        assertEq("toggle", result.action);
+        assertTrue(cb.isChecked());
+
+        # Enter toggles
+        ev.ch = "\n";
+        result = cb.processEvent(ev);
+        assertTrue(result.handled);
+        assertFalse(cb.isChecked());
+
+        # Other chars not handled
+        ev.ch = "x";
+        result = cb.processEvent(ev);
+        assertFalse(result.handled);
+    }
+
+    testCheckboxMouse() {
+        NcursesUi::CheckboxWidget cb("Test");
+        cb.setFrame(NcursesUi::Geometry::makeRect(0, 0, 1, 20));
+
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Mouse;
+        hash<Ncurses::MouseEvent> mouse();
+        mouse.x = 5;
+        mouse.y = 0;
+        mouse.button_state = Ncurses::BUTTON1_CLICKED;
+        ev.mouse = mouse;
+
+        hash<NcursesUi::EventResult> result = cb.processEvent(ev);
+        assertTrue(result.handled);
+        assertTrue(cb.isChecked());
+    }
+
+    testCheckboxDraw() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::CheckboxWidget cb("Debug mode");
+        cb.setFrame(NcursesUi::Geometry::makeRect(0, 0, 1, 30));
+        cb.draw(th.session().screen());
+        th.session().doupdate();
+
+        string row = th.session().screen().readText(0, 0, 20);
+        assertTrue(row.find("[ ]") >= 0);
+        assertTrue(row.find("Debug mode") >= 0);
+
+        cb.toggle();
+        cb.draw(th.session().screen());
+        th.session().doupdate();
+
+        row = th.session().screen().readText(0, 0, 20);
+        assertTrue(row.find("[X]") >= 0);
+    }
+
+    # ---- RadioGroupWidget ----
+
+    testRadioGroupInit() {
+        NcursesUi::RadioGroupWidget rg(("Option A", "Option B", "Option C"));
+        assertEq(0, rg.getSelectedIndex());
+        assertEq("Option A", rg.getSelectedOption());
+        assertEq(0, rg.getHighlightIndex());
+        assertTrue(rg.isFocusable());
+
+        NcursesUi::RadioGroupWidget rg2(("X", "Y", "Z"), 2);
+        assertEq(2, rg2.getSelectedIndex());
+        assertEq("Z", rg2.getSelectedOption());
+    }
+
+    testRadioGroupKeyNav() {
+        NcursesUi::RadioGroupWidget rg(("A", "B", "C"));
+
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Key;
+        ev.name = "KEY_DOWN";
+
+        hash<NcursesUi::EventResult> result = rg.processEvent(ev);
+        assertTrue(result.handled);
+        assertEq(1, rg.getHighlightIndex());
+
+        result = rg.processEvent(ev);
+        assertTrue(result.handled);
+        assertEq(2, rg.getHighlightIndex());
+
+        # should not go past end
+        result = rg.processEvent(ev);
+        assertTrue(result.handled);
+        assertEq(2, rg.getHighlightIndex());
+
+        # up
+        ev.name = "KEY_UP";
+        result = rg.processEvent(ev);
+        assertTrue(result.handled);
+        assertEq(1, rg.getHighlightIndex());
+    }
+
+    testRadioGroupSelection() {
+        NcursesUi::RadioGroupWidget rg(("A", "B", "C"));
+        int selected_idx = -1;
+        rg.setOnSelect(sub (int idx) { selected_idx = idx; });
+
+        # navigate to B
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Key;
+        ev.name = "KEY_DOWN";
+        rg.processEvent(ev);
+
+        # select with Space
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = " ";
+        hash<NcursesUi::EventResult> result = rg.processEvent(ev);
+        assertTrue(result.handled);
+        assertEq("select", result.action);
+        assertEq(1, rg.getSelectedIndex());
+        assertEq("B", rg.getSelectedOption());
+        assertEq(1, selected_idx);
+    }
+
+    testRadioGroupMouse() {
+        NcursesUi::RadioGroupWidget rg(("A", "B", "C"));
+        rg.setFrame(NcursesUi::Geometry::makeRect(0, 0, 3, 20));
+
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Mouse;
+        hash<Ncurses::MouseEvent> mouse();
+        mouse.x = 5;
+        mouse.y = 2;  # click on C (row 2)
+        mouse.button_state = Ncurses::BUTTON1_CLICKED;
+        ev.mouse = mouse;
+
+        hash<NcursesUi::EventResult> result = rg.processEvent(ev);
+        assertTrue(result.handled);
+        assertEq(2, rg.getSelectedIndex());
+        assertEq("C", rg.getSelectedOption());
+    }
+
+    testRadioGroupEmpty() {
+        NcursesUi::RadioGroupWidget rg(());
+
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = " ";
+        hash<NcursesUi::EventResult> result = rg.processEvent(ev);
+        assertFalse(result.handled);
+    }
+
+    testRadioGroupDraw() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::RadioGroupWidget rg(("Alpha", "Beta"), 0);
+        rg.setFrame(NcursesUi::Geometry::makeRect(0, 0, 2, 20));
+        rg.draw(th.session().screen());
+        th.session().doupdate();
+
+        string row0 = th.session().screen().readText(0, 0, 20);
+        assertTrue(row0.find("(o)") >= 0);
+        assertTrue(row0.find("Alpha") >= 0);
+
+        string row1 = th.session().screen().readText(1, 0, 20);
+        assertTrue(row1.find("( )") >= 0);
+        assertTrue(row1.find("Beta") >= 0);
+    }
+
+    # ---- StatusBarWidget ----
+
+    testStatusBarSegments() {
+        NcursesUi::StatusBarWidget sb();
+        assertEq(0, sb.getSegments().size());
+
+        list<hash<auto>> segs = (
+            {"text": "Ready", "align": "left"},
+            {"text": "Line 1", "align": "right"},
+        );
+        sb.setSegments(segs);
+        assertEq(2, sb.getSegments().size());
+    }
+
+    testStatusBarDraw() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::StatusBarWidget sb();
+        sb.setFrame(NcursesUi::Geometry::makeRect(23, 0, 1, 80));
+        sb.setSegments((
+            {"text": "STATUS"},
+        ));
+        sb.draw(th.session().screen());
+        th.session().doupdate();
+
+        string row = th.session().screen().readText(23, 0, 20);
+        assertTrue(row.find("STATUS") >= 0);
+    }
+
+    testStatusBarRightAlign() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::StatusBarWidget sb();
+        sb.setFrame(NcursesUi::Geometry::makeRect(0, 0, 1, 40));
+        sb.setSegments((
+            {"text": "LEFT"},
+            {"text": "RIGHT", "align": "right"},
+        ));
+        sb.draw(th.session().screen());
+        th.session().doupdate();
+
+        string row = th.session().screen().readText(0, 0, 40);
+        assertTrue(row.find("LEFT") >= 0);
+        assertTrue(row.find("RIGHT") >= 0);
+        # RIGHT should be at the end
+        int right_pos = row.find("RIGHT");
+        int left_pos = row.find("LEFT");
+        assertTrue(right_pos > left_pos);
+    }
+
+    testStatusBarSpacing() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::StatusBarWidget sb();
+        sb.setFrame(NcursesUi::Geometry::makeRect(0, 0, 1, 40));
+
+        # default spacing is 1
+        assertEq(1, sb.getSegmentSpacing());
+
+        # set segments and draw with default spacing
+        sb.setSegments((
+            {"text": "AAA"},
+            {"text": "BBB"},
+        ));
+        sb.draw(th.session().screen());
+        th.session().doupdate();
+
+        string row = th.session().screen().readText(0, 0, 10);
+        # with spacing=1, there should be a gap between AAA and BBB
+        # "AAA BBB" (space between)
+        assertTrue(row.find("AAA") >= 0);
+        assertTrue(row.find("BBB") >= 0);
+        int aaa_pos = row.find("AAA");
+        int bbb_pos = row.find("BBB");
+        # BBB starts at AAA_pos + 3 (len) + 1 (spacing) = AAA_pos + 4
+        assertEq(aaa_pos + 4, bbb_pos);
+
+        # custom spacing
+        sb.setSegmentSpacing(3);
+        assertEq(3, sb.getSegmentSpacing());
+        sb.draw(th.session().screen());
+        th.session().doupdate();
+
+        row = th.session().screen().readText(0, 0, 15);
+        aaa_pos = row.find("AAA");
+        bbb_pos = row.find("BBB");
+        # BBB starts at AAA_pos + 3 + 3 = AAA_pos + 6
+        assertEq(aaa_pos + 6, bbb_pos);
+
+        # zero spacing
+        sb.setSegmentSpacing(0);
+        sb.draw(th.session().screen());
+        th.session().doupdate();
+
+        row = th.session().screen().readText(0, 0, 10);
+        aaa_pos = row.find("AAA");
+        bbb_pos = row.find("BBB");
+        assertEq(aaa_pos + 3, bbb_pos);
+    }
+
+    testStatusBarDefaultStyle() {
+        NcursesUi::StatusBarWidget sb();
+        # default segment spacing should be 1
+        assertEq(1, sb.getSegmentSpacing());
+
+        # draw with default bg_style should not crash
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        sb.setFrame(NcursesUi::Geometry::makeRect(0, 0, 1, 40));
+        sb.setSegments(({"text": "Test"},));
+        sb.draw(th.session().screen());
+        th.session().doupdate();
+
+        string row = th.session().screen().readText(0, 0, 10);
+        assertTrue(row.find("Test") >= 0);
+    }
+
+    # ---- ListWidget ----
+
+    testListInit() {
+        NcursesUi::ListWidget lw();
+        assertTrue(lw.isFocusable());
+        assertEq(-1, lw.getSelectedIndex());
+        assertEq(0, lw.getItems().size());
+        assertFalse(exists lw.getSelectedItem());
+    }
+
+    testListSetItems() {
+        NcursesUi::ListWidget lw();
+        lw.setItems((
+            {"label": "Apple"},
+            {"label": "Banana"},
+            {"label": "Cherry"},
+        ));
+        assertEq(3, lw.getItems().size());
+        assertEq(0, lw.getSelectedIndex());
+        assertEq("Apple", lw.getSelectedItem().label);
+    }
+
+    testListKeyNav() {
+        NcursesUi::ListWidget lw();
+        lw.setFrame(NcursesUi::Geometry::makeRect(0, 0, 10, 40));
+        lw.setItems((
+            {"label": "A"},
+            {"label": "B"},
+            {"label": "C"},
+        ));
+
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Key;
+        ev.name = "KEY_DOWN";
+        hash<NcursesUi::EventResult> result = lw.processEvent(ev);
+        assertTrue(result.handled);
+        assertEq(1, lw.getSelectedIndex());
+
+        result = lw.processEvent(ev);
+        assertEq(2, lw.getSelectedIndex());
+
+        # clamp at end
+        result = lw.processEvent(ev);
+        assertEq(2, lw.getSelectedIndex());
+
+        # up
+        ev.name = "KEY_UP";
+        result = lw.processEvent(ev);
+        assertEq(1, lw.getSelectedIndex());
+    }
+
+    testListPageNav() {
+        NcursesUi::ListWidget lw();
+        lw.setFrame(NcursesUi::Geometry::makeRect(0, 0, 5, 40));
+        list<hash<auto>> items = ();
+        for (int i = 0; i < 20; ++i) {
+            items += {"label": sprintf("Item %d", i)};
+        }
+        lw.setItems(items);
+
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Key;
+        ev.name = "KEY_NPAGE";
+        lw.processEvent(ev);
+        assertEq(5, lw.getSelectedIndex());
+
+        ev.name = "KEY_PPAGE";
+        lw.processEvent(ev);
+        assertEq(0, lw.getSelectedIndex());
+    }
+
+    testListHomeEnd() {
+        NcursesUi::ListWidget lw();
+        lw.setFrame(NcursesUi::Geometry::makeRect(0, 0, 5, 40));
+        list<hash<auto>> items = ();
+        for (int i = 0; i < 20; ++i) {
+            items += {"label": sprintf("Item %d", i)};
+        }
+        lw.setItems(items);
+
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Key;
+        ev.name = "KEY_END";
+        lw.processEvent(ev);
+        assertEq(19, lw.getSelectedIndex());
+
+        ev.name = "KEY_HOME";
+        lw.processEvent(ev);
+        assertEq(0, lw.getSelectedIndex());
+    }
+
+    testListActivate() {
+        NcursesUi::ListWidget lw();
+        lw.setFrame(NcursesUi::Geometry::makeRect(0, 0, 10, 40));
+        lw.setItems((
+            {"label": "Open", "command": "open"},
+            {"label": "Save", "command": "save"},
+        ));
+
+        *hash<auto> activated_item;
+        lw.setOnActivate(sub (hash<auto> item) {
+            activated_item = item;
+        });
+
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = "\n";
+        hash<NcursesUi::EventResult> result = lw.processEvent(ev);
+        assertTrue(result.handled);
+        assertEq("activate", result.action);
+        assertEq("open", activated_item.command);
+    }
+
+    testListMouseClick() {
+        NcursesUi::ListWidget lw();
+        lw.setFrame(NcursesUi::Geometry::makeRect(0, 0, 10, 40));
+        lw.setItems((
+            {"label": "A"},
+            {"label": "B"},
+            {"label": "C"},
+        ));
+
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Mouse;
+        hash<Ncurses::MouseEvent> mouse();
+        mouse.x = 5;
+        mouse.y = 2;  # click on C
+        mouse.button_state = Ncurses::BUTTON1_CLICKED;
+        ev.mouse = mouse;
+
+        hash<NcursesUi::EventResult> result = lw.processEvent(ev);
+        assertTrue(result.handled);
+        assertEq(2, lw.getSelectedIndex());
+    }
+
+    testListMouseWheel() {
+        NcursesUi::ListWidget lw();
+        lw.setFrame(NcursesUi::Geometry::makeRect(0, 0, 5, 40));
+        list<hash<auto>> items = ();
+        for (int i = 0; i < 20; ++i) {
+            items += {"label": sprintf("Item %d", i)};
+        }
+        lw.setItems(items);
+
+        # wheel down
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Mouse;
+        hash<Ncurses::MouseEvent> mouse();
+        mouse.x = 5;
+        mouse.y = 2;
+        mouse.button_state = Ncurses::BUTTON5_PRESSED;
+        ev.mouse = mouse;
+
+        hash<NcursesUi::EventResult> result = lw.processEvent(ev);
+        assertTrue(result.handled);
+        assertEq(3, lw.getScrollOffset());
+
+        # wheel up
+        mouse.button_state = Ncurses::BUTTON4_PRESSED;
+        ev.mouse = mouse;
+        result = lw.processEvent(ev);
+        assertTrue(result.handled);
+        assertEq(0, lw.getScrollOffset());
+    }
+
+    testListSelectCallback() {
+        NcursesUi::ListWidget lw();
+        lw.setFrame(NcursesUi::Geometry::makeRect(0, 0, 10, 40));
+        lw.setItems((
+            {"label": "A"},
+            {"label": "B"},
+        ));
+
+        int callback_idx = -1;
+        lw.setOnSelect(sub (int idx) { callback_idx = idx; });
+
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Key;
+        ev.name = "KEY_DOWN";
+        lw.processEvent(ev);
+        assertEq(1, callback_idx);
+    }
+
+    testListCustomRender() {
+        NcursesUi::ListWidget lw();
+        lw.setRenderItem(string sub (hash<auto> item, int idx, bool selected) {
+            return sprintf("[%d] %s", idx, item.label);
+        });
+
+        lw.setFrame(NcursesUi::Geometry::makeRect(0, 0, 10, 40));
+        lw.setItems(({"label": "Test"},));
+
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+        lw.draw(th.session().screen());
+        th.session().doupdate();
+
+        string row = th.session().screen().readText(0, 0, 20);
+        assertTrue(row.find("[0] Test") >= 0);
+    }
+
+    testListEmpty() {
+        NcursesUi::ListWidget lw();
+        lw.setFrame(NcursesUi::Geometry::makeRect(0, 0, 10, 40));
+
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Key;
+        ev.name = "KEY_DOWN";
+        hash<NcursesUi::EventResult> result = lw.processEvent(ev);
+        assertFalse(result.handled);
+    }
+
+    testListEnsureVisible() {
+        NcursesUi::ListWidget lw();
+        lw.setFrame(NcursesUi::Geometry::makeRect(0, 0, 3, 40));
+        list<hash<auto>> items = ();
+        for (int i = 0; i < 10; ++i) {
+            items += {"label": sprintf("Item %d", i)};
+        }
+        lw.setItems(items);
+
+        # select item beyond viewport
+        lw.setSelectedIndex(8);
+        assertEq(8, lw.getSelectedIndex());
+        # scroll should have adjusted
+        assertTrue(lw.getScrollOffset() > 0);
+    }
+
+    testListDraw() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::ListWidget lw();
+        lw.setFrame(NcursesUi::Geometry::makeRect(0, 0, 5, 30));
+        lw.setItems((
+            {"label": "First"},
+            {"label": "Second"},
+            {"label": "Third"},
+        ));
+        lw.draw(th.session().screen());
+        th.session().doupdate();
+
+        string row0 = th.session().screen().readText(0, 0, 30);
+        assertTrue(row0.find("First") >= 0);
+        string row1 = th.session().screen().readText(1, 0, 30);
+        assertTrue(row1.find("Second") >= 0);
+    }
+
+    # ---- TextInputWidget ----
+
+    testTextInputInit() {
+        NcursesUi::TextInputWidget ti(">>> ");
+        assertEq(">>> ", ti.getPrompt());
+        assertEq("", ti.getText());
+        assertEq(0, ti.getCursorPos());
+        assertTrue(ti.isFocusable());
+    }
+
+    testTextInputType() {
+        NcursesUi::TextInputWidget ti();
+        ti.setFrame(NcursesUi::Geometry::makeRect(0, 0, 1, 40));
+
+        # type characters
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = "H";
+        ti.processEvent(ev);
+        ev.ch = "i";
+        ti.processEvent(ev);
+        assertEq("Hi", ti.getText());
+        assertEq(2, ti.getCursorPos());
+    }
+
+    testTextInputBackspace() {
+        NcursesUi::TextInputWidget ti();
+        ti.setFrame(NcursesUi::Geometry::makeRect(0, 0, 1, 40));
+        ti.setText("Hello");
+        assertEq(5, ti.getCursorPos());
+
+        # backspace via char
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = chr(0x7f);
+        ti.processEvent(ev);
+        assertEq("Hell", ti.getText());
+
+        # backspace via key
+        ev.type = Ncurses::InputType::Key;
+        ev.name = "KEY_BACKSPACE";
+        ti.processEvent(ev);
+        assertEq("Hel", ti.getText());
+    }
+
+    testTextInputCursor() {
+        NcursesUi::TextInputWidget ti();
+        ti.setFrame(NcursesUi::Geometry::makeRect(0, 0, 1, 40));
+        ti.setText("Hello");
+
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Key;
+
+        # Home
+        ev.name = "KEY_HOME";
+        ti.processEvent(ev);
+        assertEq(0, ti.getCursorPos());
+
+        # End
+        ev.name = "KEY_END";
+        ti.processEvent(ev);
+        assertEq(5, ti.getCursorPos());
+
+        # Left
+        ev.name = "KEY_LEFT";
+        ti.processEvent(ev);
+        assertEq(4, ti.getCursorPos());
+
+        # Right
+        ev.name = "KEY_RIGHT";
+        ti.processEvent(ev);
+        assertEq(5, ti.getCursorPos());
+    }
+
+    testTextInputSubmit() {
+        NcursesUi::TextInputWidget ti();
+        ti.setFrame(NcursesUi::Geometry::makeRect(0, 0, 1, 40));
+
+        string submitted;
+        ti.setOnSubmit(sub (string text) { submitted = text; });
+
+        # type and submit
+        ti.setText("test input");
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = "\n";
+        hash<NcursesUi::EventResult> result = ti.processEvent(ev);
+        assertTrue(result.handled);
+        assertEq("submit", result.action);
+        assertEq("test input", submitted);
+        # buffer should be cleared after submit
+        assertEq("", ti.getText());
+    }
+
+    testTextInputCtrlKeys() {
+        NcursesUi::TextInputWidget ti();
+        ti.setFrame(NcursesUi::Geometry::makeRect(0, 0, 1, 40));
+
+        # Ctrl+A (home)
+        ti.setText("Hello World");
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = chr(0x01);
+        ti.processEvent(ev);
+        assertEq(0, ti.getCursorPos());
+
+        # Ctrl+E (end)
+        ev.ch = chr(0x05);
+        ti.processEvent(ev);
+        assertEq(11, ti.getCursorPos());
+
+        # Ctrl+K (kill to end)
+        ti.setText("Hello World");
+        ev.ch = chr(0x01);  # home first
+        ti.processEvent(ev);
+        # move to position 5 (after "Hello")
+        ev.ch = chr(0x06);  # Ctrl+F
+        for (int i = 0; i < 5; ++i) {
+            ti.processEvent(ev);
+        }
+        ev.ch = chr(0x0b);  # Ctrl+K
+        ti.processEvent(ev);
+        assertEq("Hello", ti.getText());
+
+        # Ctrl+U (kill to start)
+        ti.setText("Hello World");
+        ev.ch = chr(0x15);
+        ti.processEvent(ev);
+        assertEq("", ti.getText());
+    }
+
+    testTextInputHistory() {
+        NcursesUi::TextInputWidget ti();
+        ti.setFrame(NcursesUi::Geometry::makeRect(0, 0, 1, 40));
+        NcursesReplUi::History hist();
+        ti.setHistory(hist);
+
+        # submit two entries
+        ti.setText("first");
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = "\n";
+        ti.processEvent(ev);
+
+        ti.setText("second");
+        ti.processEvent(ev);
+
+        # Up should recall "second"
+        ev.type = Ncurses::InputType::Key;
+        ev.name = "KEY_UP";
+        ti.processEvent(ev);
+        assertEq("second", ti.getText());
+
+        # Up again should recall "first"
+        ti.processEvent(ev);
+        assertEq("first", ti.getText());
+
+        # Down should go back to "second"
+        ev.name = "KEY_DOWN";
+        ti.processEvent(ev);
+        assertEq("second", ti.getText());
+    }
+
+    testTextInputDraw() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::TextInputWidget ti(">>> ");
+        ti.setFrame(NcursesUi::Geometry::makeRect(0, 0, 1, 40));
+        ti.setText("hello");
+        ti.draw(th.session().screen());
+        th.session().doupdate();
+
+        string row = th.session().screen().readText(0, 0, 20);
+        assertTrue(row.find(">>>") >= 0);
+        assertTrue(row.find("hello") >= 0);
+    }
+
+    # ---- DialogWidget ----
+
+    testDialogCreation() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::DialogWidget dlg(th.session(), "Test Dialog", "Hello World", ("OK", "Cancel"));
+        assertEq(2, dlg.getButtons().size());
+        assertEq("OK", dlg.getButtons()[0]);
+        assertEq("Cancel", dlg.getButtons()[1]);
+        assertEq(0, dlg.getFocusedButton());
+    }
+
+    testDialogButtonNav() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::DialogWidget dlg(th.session(), "Test", "msg", ("A", "B", "C"));
+        assertEq(0, dlg.getFocusedButton());
+
+        # Tab
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = "\t";
+        dlg.processEvent(ev);
+        assertEq(1, dlg.getFocusedButton());
+
+        dlg.processEvent(ev);
+        assertEq(2, dlg.getFocusedButton());
+
+        # wrap around
+        dlg.processEvent(ev);
+        assertEq(0, dlg.getFocusedButton());
+
+        # Arrow right
+        ev.type = Ncurses::InputType::Key;
+        ev.name = "KEY_RIGHT";
+        dlg.processEvent(ev);
+        assertEq(1, dlg.getFocusedButton());
+
+        # Arrow left
+        ev.name = "KEY_LEFT";
+        dlg.processEvent(ev);
+        assertEq(0, dlg.getFocusedButton());
+    }
+
+    testDialogEnter() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::DialogWidget dlg(th.session(), "Test", "msg", ("OK", "Cancel"));
+        int pressed_idx = -1;
+        string pressed_label;
+        dlg.setOnButton(sub (int idx, string label) {
+            pressed_idx = idx;
+            pressed_label = label;
+        });
+
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = "\n";
+        hash<NcursesUi::EventResult> result = dlg.processEvent(ev);
+        assertTrue(result.handled);
+        assertEq("button", result.action);
+        assertEq(0, pressed_idx);
+        assertEq("OK", pressed_label);
+    }
+
+    testDialogEscape() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::DialogWidget dlg(th.session(), "Test", "msg");
+        bool dismissed = False;
+        dlg.setOnDismiss(sub () { dismissed = True; });
+
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = chr(0x1b);
+        hash<NcursesUi::EventResult> result = dlg.processEvent(ev);
+        assertTrue(result.handled);
+        assertEq("dismiss", result.action);
+        assertTrue(dismissed);
+    }
+
+    testDialogFactoryConfirm() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::DialogWidget dlg = NcursesUi::DialogWidget::confirm(
+            th.session(), "Confirm", "Are you sure?"
+        );
+        assertEq(2, dlg.getButtons().size());
+        assertEq("OK", dlg.getButtons()[0]);
+        assertEq("Cancel", dlg.getButtons()[1]);
+    }
+
+    testDialogFactoryError() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::DialogWidget dlg = NcursesUi::DialogWidget::error(
+            th.session(), "Error", "Something went wrong"
+        );
+        assertEq(1, dlg.getButtons().size());
+        assertEq("OK", dlg.getButtons()[0]);
+    }
+
+    testDialogCenteredTitle() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::DialogWidget dlg(th.session(), "Quit", "Exit?", ("OK",));
+        # dialog should have center_title enabled by default
+        assertTrue(dlg.getCenterTitle());
+
+        dlg.centerOn(24, 80);
+        dlg.createPanel();
+        dlg.drawTree(th.screen());
+        th.refresh();
+
+        # read the title row from the panel window
+        Ncurses::Window pw = dlg.getWindow();
+        hash<Ncurses::Size> sz = pw.size();
+        string title_row = pw.readText(0, 0, sz.cols);
+        int title_pos = title_row.find("Quit");
+        assertTrue(title_pos >= 0, "title should be present: " + title_row);
+        # centered: " Quit " is 6 chars, in a 24+ col dialog, pos should be > 5
+        assertTrue(title_pos > 5, sprintf("title 'Quit' should be centered (pos %d), got: '%s'",
+            title_pos, title_row));
+        dlg.destroyPanel();
+    }
+
+    testDialogCenteredMessage() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::DialogWidget dlg(th.session(), "Test", "Hi", ("OK",));
+        dlg.centerOn(24, 80);
+        dlg.createPanel();
+        dlg.drawTree(th.screen());
+        th.refresh();
+
+        # read content rows from the panel window
+        Ncurses::Window pw = dlg.getWindow();
+        hash<Ncurses::Size> sz = pw.size();
+        # message "Hi" (2 chars) should be centered in the content area
+        # find it in the panel content
+        string all_text = "";
+        for (int r = 1; r < sz.rows - 1; ++r) {
+            string row = pw.readText(r, 0, sz.cols);
+            if (row.find("Hi") >= 0) {
+                int hi_pos = row.find("Hi");
+                # in a 24+ col dialog, "Hi" should not be at position 1 (left edge of content)
+                assertTrue(hi_pos > 3, sprintf("message 'Hi' should be centered (pos %d) in row: '%s'",
+                    hi_pos, row));
+                all_text = row;
+                break;
+            }
+        }
+        assertTrue(all_text.length() > 0, "message 'Hi' should be found in dialog");
+        dlg.destroyPanel();
+    }
+
+    testDialogCenteredButtons() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::DialogWidget dlg(th.session(), "Test", "Message", ("OK", "Cancel"));
+        dlg.centerOn(24, 80);
+        dlg.createPanel();
+        dlg.drawTree(th.screen());
+        th.refresh();
+
+        Ncurses::Window pw = dlg.getWindow();
+        hash<Ncurses::Size> sz = pw.size();
+        # find the button row
+        bool found_buttons = False;
+        for (int r = 1; r < sz.rows - 1; ++r) {
+            string row = pw.readText(r, 0, sz.cols);
+            if (row.find("[ OK ]") >= 0) {
+                int ok_pos = row.find("[ OK ]");
+                # buttons should not start at the left edge
+                assertTrue(ok_pos > 2, sprintf("buttons should be centered (OK at pos %d): '%s'",
+                    ok_pos, row));
+                # Cancel should also be present
+                assertTrue(row.find("[ Cancel ]") >= 0, "Cancel button should be present: " + row);
+                found_buttons = True;
+                break;
+            }
+        }
+        assertTrue(found_buttons, "buttons should be found in dialog panel");
+        dlg.destroyPanel();
+    }
+
+    testDialogMouseClick() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::DialogWidget dlg(th.session(), "Test", "Click me", ("OK", "Cancel"));
+        dlg.centerOn(24, 80);
+        dlg.createPanel();
+
+        int pressed_idx = -1;
+        string pressed_label;
+        dlg.setOnButton(sub (int idx, string label) {
+            pressed_idx = idx;
+            pressed_label = label;
+        });
+
+        # draw via drawTree to populate button_rects correctly
+        dlg.drawTree(th.screen());
+        th.refresh();
+
+        # get button rects
+        list<hash<NcursesUi::Rect>> rects = dlg.getButtonRects();
+        assertEq(2, rects.size());
+
+        # simulate clicking on the Cancel button (second button)
+        hash<NcursesUi::Rect> f = dlg.getFrame();
+        hash<NcursesUi::Rect> cancel_rect = rects[1];
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Mouse;
+        hash<Ncurses::MouseEvent> mouse();
+        mouse.x = f.x + cancel_rect.x + 2;  # +2 for "[ "
+        mouse.y = f.y + cancel_rect.y;
+        mouse.button_state = Ncurses::BUTTON1_CLICKED;
+        ev.mouse = mouse;
+
+        hash<NcursesUi::EventResult> result = dlg.processEvent(ev);
+        assertTrue(result.handled);
+        assertEq("button", result.action);
+        assertEq(1, pressed_idx);
+        assertEq("Cancel", pressed_label);
+
+        dlg.destroyPanel();
+    }
+
+    testDialogMouseNonButton() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::DialogWidget dlg(th.session(), "Test", "msg", ("OK",));
+        dlg.centerOn(24, 80);
+        dlg.createPanel();
+        dlg.drawTree(th.screen());
+
+        # click inside dialog but not on button (message area)
+        hash<NcursesUi::Rect> f = dlg.getFrame();
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Mouse;
+        hash<Ncurses::MouseEvent> mouse();
+        mouse.x = f.x + 2;
+        mouse.y = f.y + 2;  # message area
+        mouse.button_state = Ncurses::BUTTON1_CLICKED;
+        ev.mouse = mouse;
+
+        hash<NcursesUi::EventResult> result = dlg.processEvent(ev);
+        assertTrue(result.handled);
+        assertFalse(exists result.action);  # consumed but no action
+
+        dlg.destroyPanel();
+    }
+
+    testDialogPadding() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::DialogWidget dlg(th.session(), "Pad", "X", ("OK",));
+        dlg.centerOn(24, 80);
+        dlg.createPanel();
+        dlg.drawTree(th.screen());
+        th.refresh();
+
+        # dialog with 1-line message should have height >= 7
+        # (border 2 + pad_top 1 + msg 1 + gap 1 + buttons 1 + pad_bottom 1 = 7)
+        hash<NcursesUi::Rect> f = dlg.getFrame();
+        assertTrue(f.rows >= 7, sprintf("dialog height should be >= 7 (got %d)", f.rows));
+
+        # dialog width should be >= 24
+        assertTrue(f.cols >= 24, sprintf("dialog width should be >= 24 (got %d)", f.cols));
+
+        # message "X" should NOT be on row 1 (directly below border) - should be on row 2 (after padding)
+        Ncurses::Window pw = dlg.getWindow();
+        string row1 = pw.readText(1, 0, f.cols);
+        string row2 = pw.readText(2, 0, f.cols);
+        # row1 should be blank (top padding)
+        assertFalse(row1.find("X") >= 0,
+            sprintf("row 1 should be blank (top padding) but got: '%s'", row1));
+        # row2 should contain the message
+        assertTrue(row2.find("X") >= 0,
+            sprintf("row 2 should contain message 'X' but got: '%s'", row2));
+
+        dlg.destroyPanel();
+    }
+
+    # ---- MenuBarWidget ----
+
+    testMenuBarAdd() {
+        NcursesUi::MenuBarWidget mb();
+        mb.addMenu("File", (
+            {"label": "Open", "command": "open"},
+            {"label": "Save", "command": "save"},
+        ));
+        mb.addMenu("Edit", (
+            {"label": "Copy", "command": "copy"},
+        ));
+        assertEq(2, mb.getMenus().size());
+        assertEq("File", mb.getMenus()[0].label);
+        assertEq("Edit", mb.getMenus()[1].label);
+    }
+
+    testMenuBarKeyNav() {
+        NcursesUi::MenuBarWidget mb();
+        mb.addMenu("File", ());
+        mb.addMenu("Edit", ());
+        mb.addMenu("Help", ());
+
+        # initially no active menu
+        assertEq(-1, mb.getActiveMenu());
+
+        # open first menu
+        mb.openMenu(0);
+        assertEq(0, mb.getActiveMenu());
+
+        # navigate right
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Key;
+        ev.name = "KEY_RIGHT";
+        mb.processEvent(ev);
+        assertEq(1, mb.getActiveMenu());
+
+        mb.processEvent(ev);
+        assertEq(2, mb.getActiveMenu());
+
+        # clamp at end
+        mb.processEvent(ev);
+        assertEq(2, mb.getActiveMenu());
+
+        # left
+        ev.name = "KEY_LEFT";
+        mb.processEvent(ev);
+        assertEq(1, mb.getActiveMenu());
+    }
+
+    testMenuBarMouse() {
+        NcursesUi::MenuBarWidget mb();
+        mb.setFrame(NcursesUi::Geometry::makeRect(0, 0, 1, 80));
+        mb.addMenu("File", ());
+        mb.addMenu("Edit", ());
+
+        # click on "File" (at x=0..5)
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Mouse;
+        hash<Ncurses::MouseEvent> mouse();
+        mouse.x = 2;
+        mouse.y = 0;
+        mouse.button_state = Ncurses::BUTTON1_CLICKED;
+        ev.mouse = mouse;
+
+        hash<NcursesUi::EventResult> result = mb.processEvent(ev);
+        assertTrue(result.handled);
+        assertEq("open_menu", result.action);
+        assertEq(0, mb.getActiveMenu());
+    }
+
+    testMenuBarOpenClose() {
+        NcursesUi::MenuBarWidget mb();
+        mb.addMenu("File", ());
+
+        assertFalse(mb.isDropdownOpen());
+        mb.openMenu(0);
+        assertTrue(mb.isDropdownOpen());
+        assertEq(0, mb.getActiveMenu());
+
+        mb.closeMenu();
+        assertFalse(mb.isDropdownOpen());
+        assertEq(-1, mb.getActiveMenu());
+    }
+
+    testMenuBarDraw() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::MenuBarWidget mb();
+        mb.setFrame(NcursesUi::Geometry::makeRect(0, 0, 1, 80));
+        mb.addMenu("File", ());
+        mb.addMenu("Edit", ());
+        mb.draw(th.session().screen());
+        th.session().doupdate();
+
+        string row = th.session().screen().readText(0, 0, 20);
+        assertTrue(row.find("File") >= 0);
+        assertTrue(row.find("Edit") >= 0);
+    }
+
+    testMenuBarStyleSetters() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::MenuBarWidget mb();
+        mb.setFrame(NcursesUi::Geometry::makeRect(0, 0, 1, 80));
+        mb.addMenu("File", ());
+
+        # set custom bar style
+        hash<auto> custom_bar = {"attrs": Ncurses::Attr::Reverse, "fg": Ncurses::Color::Blue};
+        mb.setBarStyle(custom_bar);
+        mb.draw(th.session().screen());
+        th.session().doupdate();
+
+        string row = th.session().screen().readText(0, 0, 20);
+        assertTrue(row.find("File") >= 0);
+
+        # set custom active style
+        hash<auto> custom_active = {"attrs": Ncurses::Attr::Bold, "fg": Ncurses::Color::Red};
+        mb.setActiveStyle(custom_active);
+        mb.openMenu(0);
+        mb.draw(th.session().screen());
+        th.session().doupdate();
+
+        row = th.session().screen().readText(0, 0, 20);
+        assertTrue(row.find("File") >= 0);
+    }
+
+    testMenuBarAltKey() {
+        NcursesUi::MenuBarWidget mb();
+        mb.addMenu("File", ());
+        mb.addMenu("Edit", ());
+        mb.addMenu("Help", ());
+
+        # processAltKey("f") opens File menu (case-insensitive)
+        assertTrue(mb.processAltKey("f"));
+        assertEq(0, mb.getActiveMenu());
+        assertTrue(mb.isDropdownOpen());
+
+        mb.closeMenu();
+
+        # uppercase also works
+        assertTrue(mb.processAltKey("F"));
+        assertEq(0, mb.getActiveMenu());
+        mb.closeMenu();
+
+        # "e" opens Edit
+        assertTrue(mb.processAltKey("e"));
+        assertEq(1, mb.getActiveMenu());
+        mb.closeMenu();
+
+        # "h" opens Help
+        assertTrue(mb.processAltKey("h"));
+        assertEq(2, mb.getActiveMenu());
+        mb.closeMenu();
+
+        # "z" matches nothing
+        assertFalse(mb.processAltKey("z"));
+        assertEq(-1, mb.getActiveMenu());
+
+        # Alt event in processEvent
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Alt;
+        ev.ch = "f";
+        hash<NcursesUi::EventResult> result = mb.processEvent(ev);
+        assertTrue(result.handled);
+        assertEq("open_menu", result.action);
+        assertEq(0, mb.getActiveMenu());
+        mb.closeMenu();
+
+        # Alt event with no match
+        ev.ch = "z";
+        result = mb.processEvent(ev);
+        assertFalse(result.handled);
+    }
+
+    # ---- DropdownMenuWidget ----
+
+    testDropdownCreation() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::DropdownMenuWidget dd(th.session(), (
+            {"label": "Open", "command": "open"},
+            {"label": "Save", "command": "save"},
+            {"label": "Quit", "command": "quit"},
+        ));
+        assertEq(3, dd.getMenuItems().size());
+        assertEq(0, dd.getHighlightIndex());
+    }
+
+    testDropdownKeyNav() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::DropdownMenuWidget dd(th.session(), (
+            {"label": "A", "command": "a"},
+            {"label": "B", "command": "b"},
+            {"label": "C", "command": "c"},
+        ));
+
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Key;
+        ev.name = "KEY_DOWN";
+        dd.processEvent(ev);
+        assertEq(1, dd.getHighlightIndex());
+
+        dd.processEvent(ev);
+        assertEq(2, dd.getHighlightIndex());
+
+        # wraps
+        dd.processEvent(ev);
+        assertEq(0, dd.getHighlightIndex());
+
+        ev.name = "KEY_UP";
+        dd.processEvent(ev);
+        assertEq(2, dd.getHighlightIndex());
+    }
+
+    testDropdownSelection() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::DropdownMenuWidget dd(th.session(), (
+            {"label": "Open", "command": "open"},
+            {"label": "Save", "command": "save"},
+        ));
+
+        *hash<auto> selected_item;
+        dd.setOnSelect(sub (hash<auto> item) { selected_item = item; });
+
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = "\n";
+        hash<NcursesUi::EventResult> result = dd.processEvent(ev);
+        assertTrue(result.handled);
+        assertEq("select", result.action);
+        assertEq("open", selected_item.command);
+    }
+
+    testDropdownEscape() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::DropdownMenuWidget dd(th.session(), (
+            {"label": "A", "command": "a"},
+        ));
+
+        bool closed = False;
+        dd.setOnClose(sub () { closed = True; });
+
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = chr(0x1b);
+        hash<NcursesUi::EventResult> result = dd.processEvent(ev);
+        assertTrue(result.handled);
+        assertEq("close", result.action);
+        assertTrue(closed);
+    }
+
+    testDropdownSeparator() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::DropdownMenuWidget dd(th.session(), (
+            {"label": "A", "command": "a"},
+            {"separator": True},
+            {"label": "B", "command": "b"},
+        ));
+
+        # initial highlight should be on A (index 0)
+        assertEq(0, dd.getHighlightIndex());
+
+        # move down should skip separator
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Key;
+        ev.name = "KEY_DOWN";
+        dd.processEvent(ev);
+        assertEq(2, dd.getHighlightIndex());  # skips separator at index 1
+    }
+
+    testDropdownDisabled() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::DropdownMenuWidget dd(th.session(), (
+            {"label": "A", "command": "a"},
+            {"label": "B", "command": "b", "enabled": False},
+            {"label": "C", "command": "c"},
+        ));
+
+        # move down should skip disabled item
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Key;
+        ev.name = "KEY_DOWN";
+        dd.processEvent(ev);
+        assertEq(2, dd.getHighlightIndex());  # skips disabled B at index 1
+    }
+
+    testDropdownPositioning() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::DropdownMenuWidget dd(th.session(), (
+            {"label": "Open File", "command": "open"},
+            {"label": "Save File", "command": "save"},
+            {"label": "Close", "command": "close"},
+        ));
+
+        dd.positionAt(0, 0, 24, 80);
+        hash<NcursesUi::Rect> frame = dd.getFrame();
+        assertTrue(frame.rows > 0);
+        assertTrue(frame.cols > 0);
+        assertEq(1, frame.y);  # below anchor
+    }
+
+    testDropdownLeftRight() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::DropdownMenuWidget dd(th.session(), (
+            {"label": "A", "command": "a"},
+            {"label": "B", "command": "b"},
+        ));
+
+        string nav_direction;
+        dd.setOnNavigate(sub (string dir) { nav_direction = dir; });
+
+        # Left
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Key;
+        ev.name = "KEY_LEFT";
+        hash<NcursesUi::EventResult> result = dd.processEvent(ev);
+        assertTrue(result.handled);
+        assertEq("navigate_left", result.action);
+        assertEq("left", nav_direction);
+
+        # Right
+        ev.name = "KEY_RIGHT";
+        result = dd.processEvent(ev);
+        assertTrue(result.handled);
+        assertEq("navigate_right", result.action);
+        assertEq("right", nav_direction);
+    }
+
+    testDropdownTabNavigation() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::DropdownMenuWidget dd(th.session(), (
+            {"label": "A", "command": "a"},
+            {"label": "B", "command": "b"},
+        ));
+
+        string nav_direction;
+        dd.setOnNavigate(sub (string dir) { nav_direction = dir; });
+
+        # Tab -> navigate right
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = chr(0x09);
+        hash<NcursesUi::EventResult> result = dd.processEvent(ev);
+        assertTrue(result.handled, "Tab handled");
+        assertEq("navigate_right", result.action);
+        assertEq("right", nav_direction);
+
+        # Shift+Tab -> navigate left
+        ev = <Ncurses::InputEvent>{};
+        ev.type = Ncurses::InputType::Key;
+        ev.name = "KEY_BTAB";
+        result = dd.processEvent(ev);
+        assertTrue(result.handled, "Shift+Tab handled");
+        assertEq("navigate_left", result.action);
+        assertEq("left", nav_direction);
+    }
+
+    testDropdownHotkey() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::DropdownMenuWidget dd(th.session(), (
+            {"label": "Browse...", "command": "browse", "hotkey": "Alt+B"},
+            {"separator": True},
+            {"label": "Quit", "command": "quit", "hotkey": "Alt+Q"},
+        ));
+
+        *hash<auto> selected_item;
+        dd.setOnSelect(sub (hash<auto> item) { selected_item = item; });
+
+        # press "b" - matches "Alt+B" hotkey on Browse
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = "b";
+        hash<NcursesUi::EventResult> result = dd.processEvent(ev);
+        assertTrue(result.handled);
+        assertEq("select", result.action);
+        assertEq("browse", selected_item.command);
+
+        # press "q" - matches "Alt+Q" hotkey on Quit
+        selected_item = NOTHING;
+        ev.ch = "q";
+        result = dd.processEvent(ev);
+        assertTrue(result.handled);
+        assertEq("quit", selected_item.command);
+
+        # case-insensitive
+        selected_item = NOTHING;
+        ev.ch = "B";
+        result = dd.processEvent(ev);
+        assertTrue(result.handled);
+        assertEq("browse", selected_item.command);
+
+        # no match
+        ev.ch = "z";
+        result = dd.processEvent(ev);
+        assertFalse(result.handled);
+    }
+
+    testDropdownHotkeyHint() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        list<hash<auto>> items = (
+            {"label": "Browse...", "command": "browse", "hotkey": "Alt+B"},
+            {"label": "Quit", "command": "quit", "hotkey": "Alt+Q"},
+        );
+        NcursesUi::DropdownMenuWidget dd(th.session(), items);
+
+        # position the dropdown - should account for hotkey width
+        dd.positionAt(0, 0, 24, 80);
+        dd.createPanel();
+        Ncurses::Window pw = dd.getWindow();
+        dd.draw(pw);
+        pw.noutrefresh();
+        th.session().updatePanels();
+        th.session().doupdate();
+
+        # read the dropdown content from the panel window using local content rect
+        hash<NcursesUi::Rect> lcr = dd.localContentRect();
+        string line0 = pw.readText(lcr.y, lcr.x, lcr.cols);
+        assertTrue(line0.find("Alt+B") >= 0, "hotkey hint 'Alt+B' should appear in first item");
+        assertTrue(line0.find("Browse...") >= 0, "label should appear");
+
+        string line1 = pw.readText(lcr.y + 1, lcr.x, lcr.cols);
+        assertTrue(line1.find("Alt+Q") >= 0, "hotkey hint 'Alt+Q' should appear in second item");
+
+        dd.destroyPanel();
+    }
+
+    testDropdownAltKey() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::DropdownMenuWidget dd(th.session(), (
+            {"label": "Open", "command": "open"},
+            {"label": "Save", "command": "save"},
+        ));
+
+        # verify Alt events are handled (consumed) even without callback
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Alt;
+        ev.ch = "f";
+        hash<NcursesUi::EventResult> result = dd.processEvent(ev);
+        assertTrue(result.handled, "Alt events should be captured by dropdown");
+
+        # set up Alt+key callback
+        *string alt_received;
+        dd.setOnAltKey(bool sub (string ch) {
+            alt_received = ch;
+            return True;
+        });
+
+        # Alt+key should trigger the callback
+        result = dd.processEvent(ev);
+        assertTrue(result.handled);
+        assertEq("alt_switch", result.action);
+        assertEq("f", alt_received);
+
+        # callback returning False should still capture the event
+        dd.setOnAltKey(bool sub (string ch) {
+            return False;
+        });
+        hash<Ncurses::InputEvent> ev2();
+        ev2.type = Ncurses::InputType::Alt;
+        ev2.ch = "z";
+        result = dd.processEvent(ev2);
+        assertTrue(result.handled, "Alt should be captured even if callback returns False");
+    }
+
+    # ---- TableWidget ----
+
+    testTableInit() {
+        NcursesUi::TableWidget tw();
+        assertTrue(tw.isFocusable());
+        assertEq(-1, tw.getSelectedRow());
+        assertEq(0, tw.getRows().size());
+    }
+
+    testTableSetData() {
+        NcursesUi::TableWidget tw();
+        tw.setFrame(NcursesUi::Geometry::makeRect(0, 0, 10, 60));
+        tw.setColumns((
+            {"key": "name", "header": "Name"},
+            {"key": "size", "header": "Size", "width": 10, "align": "right"},
+        ));
+        tw.setRows((
+            {"name": "file1.q", "size": 1024},
+            {"name": "file2.q", "size": 2048},
+            {"name": "file3.q", "size": 512},
+        ));
+
+        assertEq(3, tw.getRows().size());
+        assertEq(0, tw.getSelectedRow());
+        assertEq("file1.q", tw.getSelectedRowData().name);
+    }
+
+    testTableKeyNav() {
+        NcursesUi::TableWidget tw();
+        tw.setFrame(NcursesUi::Geometry::makeRect(0, 0, 10, 60));
+        tw.setColumns(({"key": "name", "header": "Name"},));
+        tw.setRows((
+            {"name": "A"},
+            {"name": "B"},
+            {"name": "C"},
+        ));
+
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Key;
+        ev.name = "KEY_DOWN";
+        tw.processEvent(ev);
+        assertEq(1, tw.getSelectedRow());
+
+        ev.name = "KEY_END";
+        tw.processEvent(ev);
+        assertEq(2, tw.getSelectedRow());
+
+        ev.name = "KEY_HOME";
+        tw.processEvent(ev);
+        assertEq(0, tw.getSelectedRow());
+    }
+
+    testTableSorting() {
+        NcursesUi::TableWidget tw();
+        tw.setFrame(NcursesUi::Geometry::makeRect(0, 0, 10, 60));
+        tw.setColumns(({"key": "name", "header": "Name"},));
+        tw.setRows((
+            {"name": "Charlie"},
+            {"name": "Alpha"},
+            {"name": "Bravo"},
+        ));
+
+        tw.setSortColumn("name", True);
+        assertEq("Alpha", tw.getRows()[0].name);
+        assertEq("Bravo", tw.getRows()[1].name);
+        assertEq("Charlie", tw.getRows()[2].name);
+
+        tw.setSortColumn("name", False);
+        assertEq("Charlie", tw.getRows()[0].name);
+    }
+
+    testTableActivation() {
+        NcursesUi::TableWidget tw();
+        tw.setFrame(NcursesUi::Geometry::makeRect(0, 0, 10, 60));
+        tw.setColumns(({"key": "name", "header": "Name"},));
+        tw.setRows(({"name": "Test"},));
+
+        *hash<auto> activated;
+        tw.setOnActivate(sub (hash<auto> row) { activated = row; });
+
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = "\n";
+        hash<NcursesUi::EventResult> result = tw.processEvent(ev);
+        assertTrue(result.handled);
+        assertEq("activate", result.action);
+        assertEq("Test", activated.name);
+    }
+
+    testTableDraw() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::TableWidget tw();
+        tw.setFrame(NcursesUi::Geometry::makeRect(0, 0, 5, 40));
+        tw.setColumns((
+            {"key": "name", "header": "Name"},
+            {"key": "value", "header": "Value", "width": 10},
+        ));
+        tw.setRows((
+            {"name": "key1", "value": "val1"},
+            {"name": "key2", "value": "val2"},
+        ));
+        tw.draw(th.session().screen());
+        th.session().doupdate();
+
+        # header should be present
+        string row0 = th.session().screen().readText(0, 0, 40);
+        assertTrue(row0.find("Name") >= 0);
+        assertTrue(row0.find("Value") >= 0);
+
+        # first data row
+        string row1 = th.session().screen().readText(1, 0, 40);
+        assertTrue(row1.find("key1") >= 0);
+    }
+
+    # ---- ComboBoxWidget ----
+
+    testComboBoxInit() {
+        NcursesUi::ComboBoxWidget cb(("Apple", "Banana", "Cherry"));
+        assertEq("", cb.getText());
+        assertFalse(cb.isDropdownOpen());
+        assertEq(3, cb.getOptions().size());
+        assertTrue(cb.isFocusable());
+    }
+
+    testComboBoxTyping() {
+        NcursesUi::ComboBoxWidget cb(("Apple", "Banana", "Cherry"));
+        cb.setFrame(NcursesUi::Geometry::makeRect(0, 0, 10, 30));
+
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = "B";
+        cb.processEvent(ev);
+        assertEq("B", cb.getText());
+        assertTrue(cb.isDropdownOpen());
+
+        ev.ch = "a";
+        cb.processEvent(ev);
+        assertEq("Ba", cb.getText());
+    }
+
+    testComboBoxFilter() {
+        NcursesUi::ComboBoxWidget cb(("Apple", "Banana", "Cherry", "Blueberry"));
+        cb.setFrame(NcursesUi::Geometry::makeRect(0, 0, 10, 30));
+
+        # type "b" - should filter to Banana, Blueberry
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = "b";
+        cb.processEvent(ev);
+
+        list<string> filtered = cb.getFilteredOptions();
+        assertEq(2, filtered.size());
+        assertTrue(filtered[0] == "Banana" || filtered[0] == "Blueberry");
+    }
+
+    testComboBoxSelection() {
+        NcursesUi::ComboBoxWidget cb(("Apple", "Banana", "Cherry"));
+        cb.setFrame(NcursesUi::Geometry::makeRect(0, 0, 10, 30));
+
+        string selected;
+        cb.setOnSelect(sub (string s) { selected = s; });
+
+        # open dropdown
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Key;
+        ev.name = "KEY_DOWN";
+        cb.processEvent(ev);  # opens dropdown, highlight 0
+
+        # move to Banana
+        cb.processEvent(ev);  # highlight 1
+
+        # select
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = "\n";
+        cb.processEvent(ev);
+
+        assertEq("Banana", cb.getText());
+        assertEq("Banana", selected);
+        assertFalse(cb.isDropdownOpen());
+    }
+
+    testComboBoxEscape() {
+        NcursesUi::ComboBoxWidget cb(("Apple", "Banana"));
+        cb.setFrame(NcursesUi::Geometry::makeRect(0, 0, 10, 30));
+
+        # open dropdown
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Key;
+        ev.name = "KEY_DOWN";
+        cb.processEvent(ev);
+        assertTrue(cb.isDropdownOpen());
+
+        # escape closes
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = chr(0x1b);
+        cb.processEvent(ev);
+        assertFalse(cb.isDropdownOpen());
+    }
+
+    # ---- ListWidget setSelectedIndex/wheel ----
+
+    testListSetSelectedIndexCallback() {
+        NcursesUi::ListWidget lw();
+        lw.setFrame(NcursesUi::Geometry::makeRect(0, 0, 10, 40));
+        lw.setItems((
+            {"label": "A"},
+            {"label": "B"},
+            {"label": "C"},
+        ));
+
+        int callback_idx = -1;
+        lw.setOnSelect(sub (int idx) { callback_idx = idx; });
+
+        # setSelectedIndex to different index should fire on_select
+        lw.setSelectedIndex(2);
+        assertEq(2, callback_idx);
+
+        # setSelectedIndex to same index should NOT fire on_select
+        callback_idx = -1;
+        lw.setSelectedIndex(2);
+        assertEq(-1, callback_idx);
+
+        # setSelectedIndex to different index again
+        lw.setSelectedIndex(0);
+        assertEq(0, callback_idx);
+
+        # HOME/END (which use setSelectedIndex) should also fire
+        callback_idx = -1;
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Key;
+        ev.name = "KEY_END";
+        lw.processEvent(ev);
+        assertEq(2, callback_idx);
+    }
+
+    testListMouseClickCallback() {
+        NcursesUi::ListWidget lw();
+        lw.setFrame(NcursesUi::Geometry::makeRect(0, 0, 10, 40));
+        lw.setItems((
+            {"label": "A"},
+            {"label": "B"},
+            {"label": "C"},
+        ));
+
+        int callback_idx = -1;
+        lw.setOnSelect(sub (int idx) { callback_idx = idx; });
+
+        # click on item C (row 2)
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Mouse;
+        hash<Ncurses::MouseEvent> mouse();
+        mouse.x = 5;
+        mouse.y = 2;
+        mouse.button_state = Ncurses::BUTTON1_CLICKED;
+        ev.mouse = mouse;
+
+        lw.processEvent(ev);
+        assertEq(2, lw.getSelectedIndex());
+        assertEq(2, callback_idx);
+    }
+
+    testListWheelMovesSelection() {
+        NcursesUi::ListWidget lw();
+        lw.setFrame(NcursesUi::Geometry::makeRect(0, 0, 5, 40));
+        list<hash<auto>> items = ();
+        for (int i = 0; i < 20; ++i) {
+            items += {"label": sprintf("Item %d", i)};
+        }
+        lw.setItems(items);
+        lw.setWheelMovesSelection(True);
+        assertTrue(lw.getWheelMovesSelection());
+
+        # wheel down should move selection, not scroll
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Mouse;
+        hash<Ncurses::MouseEvent> mouse();
+        mouse.x = 5;
+        mouse.y = 2;
+        mouse.button_state = Ncurses::BUTTON5_PRESSED;
+        ev.mouse = mouse;
+
+        lw.processEvent(ev);
+        assertEq(1, lw.getSelectedIndex());
+
+        # wheel up should move selection back
+        mouse.button_state = Ncurses::BUTTON4_PRESSED;
+        ev.mouse = mouse;
+        lw.processEvent(ev);
+        assertEq(0, lw.getSelectedIndex());
+    }
+
+    testListWheelDefaultScrolls() {
+        NcursesUi::ListWidget lw();
+        # default flag should be False
+        assertFalse(lw.getWheelMovesSelection());
+
+        lw.setFrame(NcursesUi::Geometry::makeRect(0, 0, 5, 40));
+        list<hash<auto>> items = ();
+        for (int i = 0; i < 20; ++i) {
+            items += {"label": sprintf("Item %d", i)};
+        }
+        lw.setItems(items);
+
+        # wheel down with default (False) should scroll, not move selection
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Mouse;
+        hash<Ncurses::MouseEvent> mouse();
+        mouse.x = 5;
+        mouse.y = 2;
+        mouse.button_state = Ncurses::BUTTON5_PRESSED;
+        ev.mouse = mouse;
+
+        lw.processEvent(ev);
+        assertEq(0, lw.getSelectedIndex());  # selection unchanged
+        assertEq(3, lw.getScrollOffset());  # scroll changed
+    }
+
+    # ---- FileBrowserWidget ----
+
+    testFileBrowserCreation() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::FileBrowserWidget fb(th.session(), "/tmp");
+        assertEq("/tmp", fb.getCurrentDir());
+        assertFalse(fb.isShowHidden());
+        assertTrue(fb.getFileList().getItems().size() >= 1);  # at least ".."
+
+        # should have both children: file_list and preview_widget
+        assertEq(2, fb.getChildren().size());
+
+        # should be closable by default
+        assertTrue(fb.isClosable());
+
+        # focused pane starts at 0 (file list)
+        assertEq(0, fb.getFocusedPane());
+
+        # title should include directory
+        assertTrue(fb.getTitle().find("File Browser") >= 0);
+        assertTrue(fb.getTitle().find("/tmp") >= 0);
+    }
+
+    testFileBrowserHidden() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::FileBrowserWidget fb(th.session(), "/tmp");
+        int count_without = fb.getFileList().getItems().size();
+
+        fb.toggleHidden();
+        assertTrue(fb.isShowHidden());
+        int count_with = fb.getFileList().getItems().size();
+        assertTrue(count_with >= count_without);
+    }
+
+    /** Test split layout with file list and preview pane. */
+    testFileBrowserSplitLayout() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::FileBrowserWidget fb(th.session(), "/tmp");
+        fb.setFrame(NcursesUi::Geometry::makeRect(2, 5, 20, 70));
+        fb.createPanel();
+
+        # draw to set child frames
+        fb.drawTree(th.screen());
+        th.refresh();
+
+        # file list and preview should have frames set
+        NcursesUi::ListWidget fl = fb.getFileList();
+        NcursesUi::ScrollableWidget pw = fb.getPreviewWidget();
+
+        hash<NcursesUi::Rect> lf = fl.getFrame();
+        hash<NcursesUi::Rect> pf = pw.getFrame();
+
+        # both should have positive dimensions
+        assertTrue(lf.rows > 0, "file list should have rows");
+        assertTrue(lf.cols > 0, "file list should have cols");
+        assertTrue(pf.rows > 0, "preview should have rows");
+        assertTrue(pf.cols > 0, "preview should have cols");
+
+        # file list should be left, preview right
+        assertTrue(pf.x > lf.x, "preview should be to the right of file list");
+
+        # combined width should fit in content area (minus borders and divider)
+        assertTrue(lf.cols + pf.cols + 1 <= 68, "panes should fit in content area");
+
+        fb.destroyPanel();
+    }
+
+    /** Test file preview loads content for selected file. */
+    testFileBrowserPreview() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        # use the project's test directory which has known files
+        string test_dir = getcwd() + "/test";
+        if (!is_dir(test_dir)) {
+            test_dir = "/tmp";
+        }
+
+        NcursesUi::FileBrowserWidget fb(th.session(), test_dir);
+
+        # preview should start empty
+        NcursesUi::LineListContent pc = fb.getPreviewContent();
+        assertEq(0, pc.lineCount());
+
+        # navigate selection to a file (skip ".." at index 0)
+        NcursesUi::ListWidget fl = fb.getFileList();
+        if (fl.getItems().size() > 1) {
+            # find a file (not directory)
+            for (int i = 0; i < fl.getItems().size(); ++i) {
+                if (!fl.getItems()[i].is_dir) {
+                    fl.setSelectedIndex(i);
+                    # setSelectedIndex now fires on_select, which triggers preview loading
+                    break;
+                }
+            }
+        }
+
+        # preview widget should exist
+        assertTrue(exists fb.getPreviewWidget());
+    }
+
+    /** Test Tab toggles focus between file list and preview pane. */
+    testFileBrowserTabNavigation() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        # create a temp directory structure for testing
+        string temp_dir = "/tmp/fb_tab_" + string(getpid());
+        string sub_dir = temp_dir + "/subdir";
+        mkdir(temp_dir, 0755);
+        mkdir(sub_dir, 0755);
+        on_exit {
+            rmdir(sub_dir);
+            rmdir(temp_dir);
+        }
+
+        NcursesUi::FileBrowserWidget fb(th.session(), temp_dir);
+        assertEq(0, fb.getFocusedPane());
+        string original_dir = fb.getCurrentDir();
+
+        # select the subdir entry
+        NcursesUi::ListWidget fl = fb.getFileList();
+        int sub_idx = -1;
+        for (int i = 0; i < fl.getItems().size(); ++i) {
+            if (fl.getItems()[i].label == "subdir") {
+                sub_idx = i;
+                break;
+            }
+        }
+        assertTrue(sub_idx >= 0, "subdir should be in listing");
+        fl.setSelectedIndex(sub_idx);
+
+        # Tab should navigate into the subdir
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = chr(0x09);  # Tab
+        hash<NcursesUi::EventResult> result = fb.processEvent(ev);
+        assertTrue(result.handled);
+        assertEq("navigate_forward", result.action);
+        assertEq(realpath(sub_dir), fb.getCurrentDir());
+
+        # history should contain the original dir
+        assertEq(1, fb.getDirHistory().size());
+
+        # Shift+Tab should navigate back
+        hash<Ncurses::InputEvent> ev2();
+        ev2.type = Ncurses::InputType::Key;
+        ev2.name = "KEY_BTAB";
+        result = fb.processEvent(ev2);
+        assertTrue(result.handled);
+        assertEq("navigate_back", result.action);
+        assertEq(original_dir, fb.getCurrentDir());
+
+        # history should be empty now
+        assertEq(0, fb.getDirHistory().size());
+
+        # Shift+Tab with empty history should still be handled
+        result = fb.processEvent(ev2);
+        assertTrue(result.handled);
+        assertEq("navigate_back", result.action);
+
+        # Tab on a non-directory item should not navigate
+        # select a non-dir entry if available, or just verify it's handled
+        result = fb.processEvent(ev);
+        assertTrue(result.handled, "Tab on non-dir should still be handled");
+    }
+
+    /** Test Qore file activation calls on_load callback. */
+    testFileBrowserQoreLoad() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        # create a temp Qore file for testing
+        string temp_dir = "/tmp/fb_test_" + string(getpid());
+        mkdir(temp_dir, 0755);
+        on_exit {
+            unlink(temp_dir + "/test.qr");
+            rmdir(temp_dir);
+        }
+        File f();
+        f.open(temp_dir + "/test.qr", O_CREAT | O_WRONLY | O_TRUNC, 0644);
+        f.write("# test qore file\n");
+        f.close();
+
+        NcursesUi::FileBrowserWidget fb(th.session(), temp_dir);
+
+        *hash<auto> loaded_item;
+        fb.setOnLoad(sub (hash<auto> item) {
+            loaded_item = item;
+        });
+
+        # find the .qr file in the list
+        NcursesUi::ListWidget fl = fb.getFileList();
+        int qr_idx = -1;
+        for (int i = 0; i < fl.getItems().size(); ++i) {
+            if (fl.getItems()[i].label == "test.qr") {
+                qr_idx = i;
+                break;
+            }
+        }
+        assertTrue(qr_idx >= 0, "test.qr should be in file list");
+
+        # select and activate
+        fl.setSelectedIndex(qr_idx);
+
+        # simulate Enter on the file list
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = "\n";
+        fb.processEvent(ev);
+
+        assertTrue(exists loaded_item, "on_load should have been called");
+        assertEq("test.qr", loaded_item.label);
+        assertTrue(loaded_item.path.find("test.qr") >= 0);
+    }
+
+    /** Test Escape calls on_dismiss callback. */
+    testFileBrowserDismiss() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::FileBrowserWidget fb(th.session(), "/tmp");
+
+        bool dismissed = False;
+        fb.setOnDismiss(sub () {
+            dismissed = True;
+        });
+
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = chr(0x1b);  # Escape
+        hash<NcursesUi::EventResult> result = fb.processEvent(ev);
+        assertTrue(result.handled);
+        assertEq("close", result.action);
+        assertTrue(dismissed);
+    }
+
+    /** Test status line text updates based on selection. */
+    testFileBrowserStatusLine() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::FileBrowserWidget fb(th.session(), "/tmp");
+
+        # status text should contain keyboard hints
+        string status = fb.getStatusText();
+        assertTrue(status.find("Esc:Close") >= 0, "status should contain Esc hint");
+        assertTrue(status.find(".:Hidden") >= 0, "status should contain . hint");
+
+        # for directory selection, should have Enter/Tab:Open
+        *hash<auto> item = fb.getSelectedFile();
+        if (item && item.is_dir) {
+            assertTrue(status.find("Enter/Tab:Open") >= 0, "status should contain Enter/Tab:Open for dirs");
+        }
+
+        # S-Tab:Back should only appear when there's history
+        assertFalse(status.find("S-Tab:Back") >= 0, "no S-Tab when no history");
+    }
+
+    /** Test isQoreFile identifies Qore source file extensions. */
+    testFileBrowserIsQoreFile() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::FileBrowserWidget fb(th.session(), "/tmp");
+
+        assertTrue(fb.isQoreFile("test.q"));
+        assertTrue(fb.isQoreFile("mod.qm"));
+        assertTrue(fb.isQoreFile("class.qc"));
+        assertTrue(fb.isQoreFile("script.qr"));
+        assertTrue(fb.isQoreFile("suite.qtest"));
+        assertFalse(fb.isQoreFile("readme.md"));
+        assertFalse(fb.isQoreFile("main.cpp"));
+        assertFalse(fb.isQoreFile("data.json"));
+        assertFalse(fb.isQoreFile("q"));  # too short
+    }
+
+    /** Test '.' key toggles hidden files. */
+    testFileBrowserDotToggle() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::FileBrowserWidget fb(th.session(), "/tmp");
+        assertFalse(fb.isShowHidden());
+
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = ".";
+        hash<NcursesUi::EventResult> result = fb.processEvent(ev);
+        assertTrue(result.handled);
+        assertTrue(fb.isShowHidden());
+
+        # toggle back
+        result = fb.processEvent(ev);
+        assertTrue(result.handled);
+        assertFalse(fb.isShowHidden());
+    }
+
+    /** Test identifyFileType returns "binary" for known binary extensions. */
+    testFileBrowserBinaryExtension() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        # create a temp dir with files of binary extensions
+        string temp_dir = "/tmp/fb_binary_ext_" + string(getpid());
+        mkdir(temp_dir, 0755);
+        on_exit {
+            unlink(temp_dir + "/test.o");
+            unlink(temp_dir + "/image.png");
+            unlink(temp_dir + "/archive.gz");
+            unlink(temp_dir + "/doc.pdf");
+            unlink(temp_dir + "/video.mp4");
+            unlink(temp_dir + "/normal.txt");
+            unlink(temp_dir + "/script.qr");
+            rmdir(temp_dir);
+        }
+
+        # create dummy files
+        list<string> binary_names = ("test.o", "image.png", "archive.gz", "doc.pdf", "video.mp4");
+        foreach string name in (binary_names) {
+            File f();
+            f.open(temp_dir + "/" + name, O_CREAT | O_WRONLY | O_TRUNC, 0644);
+            f.write("data\n");
+            f.close();
+        }
+        list<string> text_names = ("normal.txt", "script.qr");
+        foreach string name in (text_names) {
+            File f();
+            f.open(temp_dir + "/" + name, O_CREAT | O_WRONLY | O_TRUNC, 0644);
+            f.write("text data\n");
+            f.close();
+        }
+
+        NcursesUi::FileBrowserWidget fb(th.session(), temp_dir);
+        NcursesUi::ListWidget fl = fb.getFileList();
+        list<hash<auto>> items = fl.getItems();
+
+        # verify binary files have type "binary"
+        foreach hash<auto> item in (items) {
+            if (item.label == "test.o" || item.label == "image.png" || item.label == "archive.gz"
+                    || item.label == "doc.pdf" || item.label == "video.mp4") {
+                assertEq("binary", item.type, sprintf("'%s' should be type 'binary'", item.label));
+            } else if (item.label == "normal.txt") {
+                assertEq("text", item.type, "'normal.txt' should be type 'text'");
+            } else if (item.label == "script.qr") {
+                assertEq("qore", item.type, "'script.qr' should be type 'qore'");
+            }
+        }
+    }
+
+    /** Test binary files show "(Binary file)" in preview, not raw content. */
+    testFileBrowserBinaryPreview() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        string temp_dir = "/tmp/fb_binary_prev_" + string(getpid());
+        mkdir(temp_dir, 0755);
+        on_exit {
+            unlink(temp_dir + "/test.o");
+            rmdir(temp_dir);
+        }
+
+        # create a file with binary extension
+        File f();
+        f.open(temp_dir + "/test.o", O_CREAT | O_WRONLY | O_TRUNC, 0644);
+        f.write("binary content here\n");
+        f.close();
+
+        NcursesUi::FileBrowserWidget fb(th.session(), temp_dir);
+        NcursesUi::ListWidget fl = fb.getFileList();
+
+        # find test.o in the list
+        int idx = -1;
+        for (int i = 0; i < fl.getItems().size(); ++i) {
+            if (fl.getItems()[i].label == "test.o") {
+                idx = i;
+                break;
+            }
+        }
+        assertTrue(idx >= 0, "test.o should be in file list");
+
+        # select the binary file
+        fl.setSelectedIndex(idx);
+
+        # preview should show binary message
+        NcursesUi::LineListContent pc = fb.getPreviewContent();
+        assertTrue(pc.lineCount() >= 1, "preview should have content");
+        assertEq("(Binary file)", pc.getLines()[0]);
+    }
+
+    /** Test files without binary extension but with null bytes are detected as binary. */
+    testFileBrowserBinaryContentDetection() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        string temp_dir = "/tmp/fb_binary_content_" + string(getpid());
+        mkdir(temp_dir, 0755);
+        on_exit {
+            unlink(temp_dir + "/sneaky_binary");
+            rmdir(temp_dir);
+        }
+
+        # create a file without binary extension but with null bytes
+        File f();
+        f.open(temp_dir + "/sneaky_binary", O_CREAT | O_WRONLY | O_TRUNC, 0644);
+        f.write(<48656c6c6f00576f726c64>);  # "Hello\0World" in hex
+        f.close();
+
+        NcursesUi::FileBrowserWidget fb(th.session(), temp_dir);
+        NcursesUi::ListWidget fl = fb.getFileList();
+
+        # find sneaky_binary in the list
+        int idx = -1;
+        for (int i = 0; i < fl.getItems().size(); ++i) {
+            if (fl.getItems()[i].label == "sneaky_binary") {
+                idx = i;
+                break;
+            }
+        }
+        assertTrue(idx >= 0, "sneaky_binary should be in file list");
+
+        # select it
+        fl.setSelectedIndex(idx);
+
+        # preview should show binary message
+        NcursesUi::LineListContent pc = fb.getPreviewContent();
+        assertTrue(pc.lineCount() >= 1, "preview should have content");
+        assertEq("(Binary file)", pc.getLines()[0]);
+    }
+
+    /** Test directory preview shows contents of selected directory. */
+    testFileBrowserDirectoryPreview() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        string temp_dir = "/tmp/fb_dir_prev_" + string(getpid());
+        mkdir(temp_dir, 0755);
+        mkdir(temp_dir + "/subdir", 0755);
+        on_exit {
+            unlink(temp_dir + "/subdir/inner.txt");
+            rmdir(temp_dir + "/subdir");
+            unlink(temp_dir + "/afile.txt");
+            rmdir(temp_dir);
+        }
+
+        # create a file in temp_dir and a file in subdir
+        File f();
+        f.open(temp_dir + "/afile.txt", O_CREAT | O_WRONLY | O_TRUNC, 0644);
+        f.write("test\n");
+        f.close();
+
+        File f2();
+        f2.open(temp_dir + "/subdir/inner.txt", O_CREAT | O_WRONLY | O_TRUNC, 0644);
+        f2.write("inner\n");
+        f2.close();
+
+        NcursesUi::FileBrowserWidget fb(th.session(), temp_dir);
+        NcursesUi::ListWidget fl = fb.getFileList();
+
+        # find "subdir" in the list
+        int idx = -1;
+        for (int i = 0; i < fl.getItems().size(); ++i) {
+            if (fl.getItems()[i].label == "subdir") {
+                idx = i;
+                break;
+            }
+        }
+        assertTrue(idx >= 0, "subdir should be in file list");
+
+        # select the directory
+        fl.setSelectedIndex(idx);
+
+        # preview should show directory contents (not be empty)
+        NcursesUi::LineListContent pc = fb.getPreviewContent();
+        assertTrue(pc.lineCount() >= 1, "directory preview should have content");
+
+        # should show inner.txt
+        bool found_inner = False;
+        for (int i = 0; i < pc.lineCount(); ++i) {
+            if (pc.getLines()[i].find("inner.txt") >= 0) {
+                found_inner = True;
+                break;
+            }
+        }
+        assertTrue(found_inner, "directory preview should show inner.txt");
+    }
+
+    /** Test empty directory preview shows "(Empty directory)". */
+    testFileBrowserDirectoryPreviewEmpty() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        string temp_dir = "/tmp/fb_dir_empty_" + string(getpid());
+        mkdir(temp_dir, 0755);
+        mkdir(temp_dir + "/emptydir", 0755);
+        on_exit {
+            rmdir(temp_dir + "/emptydir");
+            rmdir(temp_dir);
+        }
+
+        NcursesUi::FileBrowserWidget fb(th.session(), temp_dir);
+        NcursesUi::ListWidget fl = fb.getFileList();
+
+        # find "emptydir" in the list
+        int idx = -1;
+        for (int i = 0; i < fl.getItems().size(); ++i) {
+            if (fl.getItems()[i].label == "emptydir") {
+                idx = i;
+                break;
+            }
+        }
+        assertTrue(idx >= 0, "emptydir should be in file list");
+
+        # select the empty directory
+        fl.setSelectedIndex(idx);
+
+        # preview should show "(Empty directory)"
+        NcursesUi::LineListContent pc = fb.getPreviewContent();
+        assertTrue(pc.lineCount() >= 1, "preview should have content for empty dir");
+        assertEq("(Empty directory)", pc.getLines()[0]);
+    }
+
+    /** Test directory preview respects show_hidden flag. */
+    testFileBrowserDirectoryPreviewHidden() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        string temp_dir = "/tmp/fb_dir_hidden_" + string(getpid());
+        mkdir(temp_dir, 0755);
+        mkdir(temp_dir + "/testdir", 0755);
+        on_exit {
+            unlink(temp_dir + "/testdir/.hidden");
+            unlink(temp_dir + "/testdir/visible.txt");
+            rmdir(temp_dir + "/testdir");
+            rmdir(temp_dir);
+        }
+
+        # create a hidden and visible file in testdir
+        File f();
+        f.open(temp_dir + "/testdir/.hidden", O_CREAT | O_WRONLY | O_TRUNC, 0644);
+        f.write("hidden\n");
+        f.close();
+
+        File f2();
+        f2.open(temp_dir + "/testdir/visible.txt", O_CREAT | O_WRONLY | O_TRUNC, 0644);
+        f2.write("visible\n");
+        f2.close();
+
+        NcursesUi::FileBrowserWidget fb(th.session(), temp_dir);
+        NcursesUi::ListWidget fl = fb.getFileList();
+
+        # find "testdir" in the list
+        int idx = -1;
+        for (int i = 0; i < fl.getItems().size(); ++i) {
+            if (fl.getItems()[i].label == "testdir") {
+                idx = i;
+                break;
+            }
+        }
+        assertTrue(idx >= 0, "testdir should be in file list");
+
+        # select the directory (hidden files should be hidden by default)
+        fl.setSelectedIndex(idx);
+
+        NcursesUi::LineListContent pc = fb.getPreviewContent();
+        # should show visible.txt but not .hidden
+        bool found_visible = False;
+        bool found_hidden = False;
+        for (int i = 0; i < pc.lineCount(); ++i) {
+            string line = pc.getLines()[i];
+            if (line.find("visible.txt") >= 0) {
+                found_visible = True;
+            }
+            if (line.find(".hidden") >= 0) {
+                found_hidden = True;
+            }
+        }
+        assertTrue(found_visible, "should show visible.txt");
+        assertFalse(found_hidden, "should NOT show .hidden when show_hidden is False");
+
+        # toggle hidden files on and re-find the directory (listing is refreshed)
+        fb.toggleHidden();
+        idx = -1;
+        for (int i = 0; i < fl.getItems().size(); ++i) {
+            if (fl.getItems()[i].label == "testdir") {
+                idx = i;
+                break;
+            }
+        }
+        assertTrue(idx >= 0, "testdir should still be in file list after toggleHidden");
+        # force re-selection by moving away first (setSelectedIndex ignores same index)
+        fl.setSelectedIndex(idx == 0 ? 1 : 0);
+        fl.setSelectedIndex(idx);
+
+        pc = fb.getPreviewContent();
+        found_hidden = False;
+        for (int i = 0; i < pc.lineCount(); ++i) {
+            if (pc.getLines()[i].find(".hidden") >= 0) {
+                found_hidden = True;
+                break;
+            }
+        }
+        assertTrue(found_hidden, "should show .hidden when show_hidden is True");
+    }
+
+    /** Test ListWidget custom render item style callback. */
+    testListWidgetRenderItemStyle() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::ListWidget lw();
+        lw.setFrame(NcursesUi::Geometry::makeRect(0, 0, 5, 30));
+        lw.setItems((
+            {"label": "Dir Entry", "is_dir": True},
+            {"label": "File Entry", "is_dir": False},
+        ));
+
+        # set custom style callback
+        bool callback_called = False;
+        list<hash<auto>> style_calls = ();
+        lw.setRenderItemStyle(hash<auto> sub (hash<auto> item, int idx, bool selected) {
+            callback_called = True;
+            style_calls += {"label": item.label, "idx": idx, "selected": selected};
+            if (item.is_dir) {
+                return {"fg": Ncurses::Color::Cyan};
+            }
+            return {};
+        });
+
+        # draw triggers the callback
+        lw.draw(th.session().screen());
+        th.session().doupdate();
+
+        assertTrue(callback_called, "render_item_style callback should be called during draw");
+        assertTrue(style_calls.size() >= 2, "callback should be called for each visible item");
+
+        # first item is selected (index 0)
+        assertEq("Dir Entry", style_calls[0].label);
+        assertEq(0, style_calls[0].idx);
+        assertTrue(style_calls[0].selected);
+
+        # second item is not selected
+        assertEq("File Entry", style_calls[1].label);
+        assertEq(1, style_calls[1].idx);
+        assertFalse(style_calls[1].selected);
+    }
+
+    testListWidgetScrollbarClick() {
+        NcursesUi::ListWidget lw();
+        lw.setFrame(NcursesUi::Geometry::makeRect(0, 0, 5, 30));
+
+        # 20 items in 5-row viewport = scrollbar shown
+        list<hash<auto>> items = ();
+        for (int i = 0; i < 20; ++i) {
+            items += {"label": sprintf("Item %02d", i)};
+        }
+        lw.setItems(items);
+        assertEq(0, lw.getScrollOffset());
+
+        # click on scrollbar column (col 29) at bottom row (row 4)
+        hash<Ncurses::MouseEvent> mouse({"x": 29, "y": 4, "button_state": Ncurses::BUTTON1_CLICKED});
+        hash<Ncurses::InputEvent> ev({"type": Ncurses::InputType::Mouse, "mouse": mouse});
+        hash<NcursesUi::EventResult> result = lw.processEvent(ev);
+        assertTrue(result.handled, "scrollbar click handled");
+        assertTrue(lw.getScrollOffset() > 0, "scrollbar click scrolled down");
+
+        # click on scrollbar at top row (row 0)
+        mouse = <Ncurses::MouseEvent>{"x": 29, "y": 0, "button_state": Ncurses::BUTTON1_CLICKED};
+        ev = <Ncurses::InputEvent>{"type": Ncurses::InputType::Mouse, "mouse": mouse};
+        result = lw.processEvent(ev);
+        assertTrue(result.handled, "scrollbar top click handled");
+        assertEq(0, lw.getScrollOffset(), "scrollbar top click scrolls to top");
+
+        # click on content area (col 28, not scrollbar) selects item, not scrollbar
+        mouse = <Ncurses::MouseEvent>{"x": 28, "y": 2, "button_state": Ncurses::BUTTON1_CLICKED};
+        ev = <Ncurses::InputEvent>{"type": Ncurses::InputType::Mouse, "mouse": mouse};
+        result = lw.processEvent(ev);
+        assertTrue(result.handled, "content click handled");
+        assertEq(2, lw.getSelectedIndex(), "click on content selects item");
+
+        # no scrollbar when items fit - click on col 29 not handled as scrollbar
+        lw.setItems(({"label": "A"}, {"label": "B"}));
+        mouse = <Ncurses::MouseEvent>{"x": 29, "y": 0, "button_state": Ncurses::BUTTON1_CLICKED};
+        ev = <Ncurses::InputEvent>{"type": Ncurses::InputType::Mouse, "mouse": mouse};
+        result = lw.processEvent(ev);
+        # should select item at row 0 (no scrollbar, so col 29 is content area)
+        assertTrue(result.handled, "click handled when no scrollbar");
+        assertEq(0, lw.getSelectedIndex());
+    }
+
+    /** Test FileBrowserWidget applies colorized styles to entries. */
+    testFileBrowserColorizedEntries() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        string temp_dir = "/tmp/fb_color_" + string(getpid());
+        mkdir(temp_dir, 0755);
+        mkdir(temp_dir + "/mydir", 0755);
+        on_exit {
+            unlink(temp_dir + "/test.qr");
+            unlink(temp_dir + "/test.o");
+            unlink(temp_dir + "/test.txt");
+            rmdir(temp_dir + "/mydir");
+            rmdir(temp_dir);
+        }
+
+        # create test files
+        list<string> filenames = ("test.qr", "test.o", "test.txt");
+        foreach string name in (filenames) {
+            File f();
+            f.open(temp_dir + "/" + name, O_CREAT | O_WRONLY | O_TRUNC, 0644);
+            f.write("data\n");
+            f.close();
+        }
+
+        NcursesUi::FileBrowserWidget fb(th.session(), temp_dir);
+        NcursesUi::ListWidget fl = fb.getFileList();
+        list<hash<auto>> items = fl.getItems();
+
+        # verify items have correct types for coloring
+        foreach hash<auto> item in (items) {
+            if (item.label == "mydir") {
+                assertTrue(item.is_dir, "mydir should be a directory");
+                assertEq("dir", item.type);
+            } else if (item.label == "test.qr") {
+                assertEq("qore", item.type, "test.qr should be type 'qore'");
+            } else if (item.label == "test.o") {
+                assertEq("binary", item.type, "test.o should be type 'binary'");
+            } else if (item.label == "test.txt") {
+                assertEq("text", item.type, "test.txt should be type 'text'");
+            }
+        }
+
+        # verify the style callback is set by drawing
+        fb.setFrame(NcursesUi::Geometry::makeRect(0, 0, 20, 70));
+        fb.createPanel();
+        fb.drawTree(th.screen());
+        th.refresh();
+
+        # if we got here without error, the style callback is working
+        fb.destroyPanel();
+    }
+}

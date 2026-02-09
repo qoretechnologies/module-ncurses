@@ -1,0 +1,455 @@
+#!/usr/bin/env qore
+
+%requires ncurses
+%requires QUnit
+%requires Util
+
+%modern
+
+%exec-class NcursesTest
+
+class NcursesTest inherits Test {
+    constructor() : Test("NcursesTest", "2.0") {
+        addTestCase("session open/close", \testSessionLifecycle());
+        addTestCase("window draw and read", \testDrawAndRead());
+        addTestCase("drawTextInside respects borders", \testDrawTextInside());
+        addTestCase("drawTextInsideLine clears", \testDrawTextInsideLine());
+        addTestCase("drawAnsiTextInsideLine renders", \testDrawAnsiTextInsideLine());
+        addTestCase("input event (char)", \testInputChar());
+        addTestCase("readLines snapshot", \testReadLinesSnapshot());
+        addTestCase("session snapshot", \testSessionSnapshot());
+        addTestCase("injectEvent key", \testInjectEventKey());
+        addTestCase("injectEvent mouse", \testInjectEventMouse());
+        addTestCase("injectEvents list order", \testInjectEventsList());
+        addTestCase("withLock executes", \testWithLock());
+        addTestCase("readEvent timeout", \testReadTimeout());
+        addTestCase("readEvent invalid poll", \testReadInvalidPoll());
+        addTestCase("noutrefresh and doupdate", \testNoutrefreshDoupdate());
+        addTestCase("session use_tty unbuffered", \testUseTty());
+        addTestCase("injectEvent Alt", \testInjectEventAlt());
+        addTestCase("readEvent bare Esc", \testReadEventBareEsc());
+
+        set_return_value(main());
+    }
+
+    private Ncurses::Session makeSession(Ncurses::TestTerminal tt) {
+        return new Ncurses::Session({
+            "test_terminal": tt,
+            "echo": False,
+            "raw": True,
+            "cbreak": False,
+            "keypad": True,
+            "mouse": False,
+            "use_colors": True,
+            "use_default_colors": True,
+            "cursor": 0
+        });
+    }
+
+    testSessionLifecycle() {
+        Ncurses::TestTerminal tt = new Ncurses::TestTerminal(24, 80, "xterm-256color");
+        tt.open();
+        Ncurses::Session s = makeSession(tt);
+        assertTrue(s.isOpen());
+        s.close();
+        assertFalse(s.isOpen());
+    }
+
+    testDrawAndRead() {
+        Ncurses::TestTerminal tt = new Ncurses::TestTerminal(24, 80, "xterm-256color");
+        tt.open();
+        Ncurses::Session s = makeSession(tt);
+        try {
+            Ncurses::Window w = s.screen();
+            w.clear();
+            w.drawText(1, 2, "abc", {"fg": Ncurses::Color::Cyan});
+            w.refresh();
+            string val = w.readText(1, 2, 3);
+            assertEq("abc", val);
+        } catch (hash<ExceptionInfo> ex) {
+            s.close();
+            rethrow;
+        }
+        s.close();
+    }
+
+    testInputChar() {
+        Ncurses::TestTerminal tt = new Ncurses::TestTerminal(24, 80, "xterm-256color");
+        tt.open();
+        Ncurses::Session s = makeSession(tt);
+        try {
+            Ncurses::Window w = s.screen();
+            s.injectInput("x");
+            auto ev = w.readEvent(500, 25);
+            assertTrue(exists ev);
+            assertEq(Ncurses::InputType::Char, ev.type);
+            assertEq("x", ev.ch);
+        } catch (hash<ExceptionInfo> ex) {
+            s.close();
+            rethrow;
+        }
+        s.close();
+    }
+
+    testReadLinesSnapshot() {
+        Ncurses::TestTerminal tt = new Ncurses::TestTerminal(6, 20, "xterm-256color");
+        tt.open();
+        Ncurses::Session s = makeSession(tt);
+        try {
+            Ncurses::Window w = s.screen();
+            w.clear();
+            w.drawText(0, 0, "HELLO", {});
+            w.drawText(1, 0, "WORLD", {});
+            w.refresh();
+            list<string> lines = w.readLines(0, 2, 10);
+            assertEq(2, lines.size());
+            assertEq("HELLO     ", lines[0]);
+            assertEq("WORLD     ", lines[1]);
+        } catch (hash<ExceptionInfo> ex) {
+            s.close();
+            rethrow;
+        }
+        s.close();
+    }
+
+    testSessionSnapshot() {
+        Ncurses::TestTerminal tt = new Ncurses::TestTerminal(6, 20, "xterm-256color");
+        tt.open();
+        Ncurses::Session s = makeSession(tt);
+        try {
+            Ncurses::Window w = s.screen();
+            w.clear();
+            w.drawText(0, 0, "HELLO", {});
+            w.drawText(1, 0, "WORLD", {});
+            w.refresh();
+            list<string> lines = s.snapshot(0, 2, 10);
+            assertEq(2, lines.size());
+            assertEq("HELLO     ", lines[0]);
+            assertEq("WORLD     ", lines[1]);
+        } catch (hash<ExceptionInfo> ex) {
+            s.close();
+            rethrow;
+        }
+        s.close();
+    }
+
+    testInjectEventKey() {
+        Ncurses::TestTerminal tt = new Ncurses::TestTerminal(24, 80, "xterm-256color");
+        tt.open();
+        Ncurses::Session s = makeSession(tt);
+        try {
+            Ncurses::Window w = s.screen();
+            hash<Ncurses::InputEvent> ev_in();
+            ev_in{"type"} = Ncurses::InputType::Key;
+            ev_in{"code"} = Ncurses::KEY_UP;
+            s.injectEvent(ev_in);
+            auto ev = w.readEvent(500, 25);
+            assertTrue(exists ev);
+            assertEq(Ncurses::InputType::Key, ev.type);
+            assertEq(Ncurses::KEY_UP, ev.code);
+        } catch (hash<ExceptionInfo> ex) {
+            s.close();
+            rethrow;
+        }
+        s.close();
+    }
+
+    testInjectEventMouse() {
+        Ncurses::TestTerminal tt = new Ncurses::TestTerminal(24, 80, "xterm-256color");
+        tt.open();
+        Ncurses::Session s = makeSession(tt);
+        try {
+            s.setMouse(True);
+            Ncurses::Window w = s.screen();
+            hash<Ncurses::MouseEvent> mouse_ev();
+            mouse_ev{"x"} = 5;
+            mouse_ev{"y"} = 6;
+            mouse_ev{"button_state"} = Ncurses::BUTTON1_CLICKED;
+            hash<Ncurses::InputEvent> ev_in();
+            ev_in{"type"} = Ncurses::InputType::Mouse;
+            ev_in{"mouse"} = mouse_ev;
+            s.injectEvent(ev_in);
+            auto ev = w.readEvent(500, 25);
+            assertTrue(exists ev);
+            assertEq(Ncurses::InputType::Mouse, ev.type);
+            assertEq(5, ev.mouse.x);
+            assertEq(6, ev.mouse.y);
+            assertTrue((ev.mouse.button_state & Ncurses::BUTTON1_CLICKED) != 0);
+        } catch (hash<ExceptionInfo> ex) {
+            s.close();
+            rethrow;
+        }
+        s.close();
+    }
+
+    testInjectEventsList() {
+        Ncurses::TestTerminal tt = new Ncurses::TestTerminal(24, 80, "xterm-256color");
+        tt.open();
+        Ncurses::Session s = makeSession(tt);
+        try {
+            Ncurses::Window w = s.screen();
+            hash<Ncurses::InputEvent> ev_a();
+            ev_a{"type"} = Ncurses::InputType::Char;
+            ev_a{"ch"} = "a";
+            hash<Ncurses::InputEvent> ev_b();
+            ev_b{"type"} = Ncurses::InputType::Char;
+            ev_b{"ch"} = "b";
+            list<hash<Ncurses::InputEvent>> events = (ev_a, ev_b);
+            s.injectEvents(events);
+            auto ev1 = w.readEvent(500, 25);
+            auto ev2 = w.readEvent(500, 25);
+            assertTrue(exists ev1);
+            assertTrue(exists ev2);
+            assertEq("a", ev1.ch);
+            assertEq("b", ev2.ch);
+        } catch (hash<ExceptionInfo> ex) {
+            s.close();
+            rethrow;
+        }
+        s.close();
+    }
+
+    testDrawTextInsideLine() {
+        Ncurses::TestTerminal tt = new Ncurses::TestTerminal(6, 20, "xterm-256color");
+        tt.open();
+        Ncurses::Session s = makeSession(tt);
+        try {
+            Ncurses::Window w = s.screen();
+            w.clear();
+            w.box({"fg": Ncurses::Color::Blue});
+            w.drawTextInsideLine(0, "abcdef");
+            w.drawTextInsideLine(0, "x");
+            w.refresh();
+            string first = w.readText(1, 1, 1);
+            string second = w.readText(1, 2, 1);
+            assertEq("x", first);
+            assertEq(" ", second);
+        } catch (hash<ExceptionInfo> ex) {
+            s.close();
+            rethrow;
+        }
+        s.close();
+    }
+
+    testDrawAnsiTextInsideLine() {
+        Ncurses::TestTerminal tt = new Ncurses::TestTerminal(6, 20, "xterm-256color");
+        tt.open();
+        Ncurses::Session s = makeSession(tt);
+        try {
+            Ncurses::Window w = s.screen();
+            w.clear();
+            w.box({"fg": Ncurses::Color::Blue});
+            string esc = chr(27);
+            w.drawAnsiTextInsideLine(0, esc + "[31mRED" + esc + "[0m");
+            w.refresh();
+            string val = w.readText(1, 1, 3);
+            assertEq("RED", val);
+        } catch (hash<ExceptionInfo> ex) {
+            s.close();
+            rethrow;
+        }
+        s.close();
+    }
+
+    testDrawTextInside() {
+        Ncurses::TestTerminal tt = new Ncurses::TestTerminal(10, 20, "xterm-256color");
+        tt.open();
+        Ncurses::Session s = makeSession(tt);
+        try {
+            Ncurses::Window w = s.screen();
+            w.clear();
+            w.box({"fg": Ncurses::Color::Blue});
+            w.drawTextInside(0, 0, "X");
+            w.refresh();
+            string inside = w.readText(1, 1, 1);
+            string left_border = w.readText(1, 0, 1);
+            string right_border = w.readText(1, 19, 1);
+            assertEq("X", inside);
+            assertTrue(left_border != "X");
+            assertTrue(right_border != "X");
+        } catch (hash<ExceptionInfo> ex) {
+            s.close();
+            rethrow;
+        }
+        s.close();
+    }
+
+    testWithLock() {
+        Ncurses::TestTerminal tt = new Ncurses::TestTerminal(24, 80, "xterm-256color");
+        tt.open();
+        Ncurses::Session s = makeSession(tt);
+        try {
+            int called = 0;
+            s.withLock(sub () { called++; });
+            assertEq(1, called);
+        } catch (hash<ExceptionInfo> ex) {
+            s.close();
+            rethrow;
+        }
+        s.close();
+    }
+
+    testReadTimeout() {
+        Ncurses::TestTerminal tt = new Ncurses::TestTerminal(24, 80, "xterm-256color");
+        tt.open();
+        Ncurses::Session s = makeSession(tt);
+        try {
+            Ncurses::Window w = s.screen();
+            auto ev = w.readEvent(50, 25);
+            assertFalse(exists ev);
+        } catch (hash<ExceptionInfo> ex) {
+            s.close();
+            rethrow;
+        }
+        s.close();
+    }
+
+    testReadInvalidPoll() {
+        Ncurses::TestTerminal tt = new Ncurses::TestTerminal(24, 80, "xterm-256color");
+        tt.open();
+        Ncurses::Session s = makeSession(tt);
+        try {
+            Ncurses::Window w = s.screen();
+            try {
+                w.readEvent(100, 0);
+                assertTrue(False);
+            } catch (hash<ExceptionInfo> ex) {
+                assertEq("NCURSES-ERROR", ex.err);
+            }
+        } catch (hash<ExceptionInfo> ex) {
+            s.close();
+            rethrow;
+        }
+        s.close();
+    }
+
+    testNoutrefreshDoupdate() {
+        Ncurses::TestTerminal tt = new Ncurses::TestTerminal(10, 20, "xterm-256color");
+        tt.open();
+        Ncurses::Session s = makeSession(tt);
+        try {
+            Ncurses::Window w = s.screen();
+            w.clear();
+            w.drawTextInside(0, 0, "x");
+            w.noutrefresh();
+            s.updatePanels();
+            s.doupdate();
+        } catch (hash<ExceptionInfo> ex) {
+            s.close();
+            rethrow;
+        }
+        s.close();
+    }
+
+    testInjectEventAlt() {
+        Ncurses::TestTerminal tt = new Ncurses::TestTerminal(24, 80, "xterm-256color");
+        tt.open();
+        Ncurses::Session s = makeSession(tt);
+        try {
+            Ncurses::Window w = s.screen();
+            # inject Alt+f event
+            hash<Ncurses::InputEvent> ev_in();
+            ev_in{"type"} = Ncurses::InputType::Alt;
+            ev_in{"ch"} = "f";
+            s.injectEvent(ev_in);
+            auto ev = w.readEvent(500, 25);
+            assertTrue(exists ev);
+            assertEq(Ncurses::InputType::Alt, ev.type);
+            assertEq("f", ev.ch);
+
+            # test Alt+F (uppercase)
+            ev_in{"ch"} = "F";
+            s.injectEvent(ev_in);
+            ev = w.readEvent(500, 25);
+            assertTrue(exists ev);
+            assertEq(Ncurses::InputType::Alt, ev.type);
+            assertEq("F", ev.ch);
+
+            # test Alt injection via injectEvents
+            hash<Ncurses::InputEvent> ev_a();
+            ev_a{"type"} = Ncurses::InputType::Alt;
+            ev_a{"ch"} = "a";
+            hash<Ncurses::InputEvent> ev_b();
+            ev_b{"type"} = Ncurses::InputType::Alt;
+            ev_b{"ch"} = "b";
+            s.injectEvents((ev_a, ev_b));
+            auto ev1 = w.readEvent(500, 25);
+            auto ev2 = w.readEvent(500, 25);
+            assertTrue(exists ev1);
+            assertTrue(exists ev2);
+            assertEq(Ncurses::InputType::Alt, ev1.type);
+            assertEq("a", ev1.ch);
+            assertEq(Ncurses::InputType::Alt, ev2.type);
+            assertEq("b", ev2.ch);
+        } catch (hash<ExceptionInfo> ex) {
+            s.close();
+            rethrow;
+        }
+        s.close();
+    }
+
+    testReadEventBareEsc() {
+        Ncurses::TestTerminal tt = new Ncurses::TestTerminal(24, 80, "xterm-256color");
+        tt.open();
+        Ncurses::Session s = makeSession(tt);
+        try {
+            Ncurses::Window w = s.screen();
+            # inject bare ESC (no follow-up char)
+            hash<Ncurses::InputEvent> ev_in();
+            ev_in{"type"} = Ncurses::InputType::Char;
+            ev_in{"ch"} = chr(27);
+            s.injectEvent(ev_in);
+            auto ev = w.readEvent(500, 25);
+            assertTrue(exists ev);
+            assertEq(Ncurses::InputType::Char, ev.type);
+            assertEq(chr(27), ev.ch);
+        } catch (hash<ExceptionInfo> ex) {
+            s.close();
+            rethrow;
+        }
+        s.close();
+    }
+
+    testUseTty() {
+        Ncurses::TestTerminal tt = new Ncurses::TestTerminal(24, 80, "xterm-256color");
+        tt.open();
+        on_exit tt.close();
+        string tty_path = tt.getSlavePath();
+        setenv("TERM", "xterm-256color");
+        Ncurses::Session s = new Ncurses::Session({
+            "use_tty": True,
+            "tty_path": tty_path,
+            "unbuffered_stdio": True,
+            "echo": False,
+            "raw": True,
+            "cbreak": False,
+            "keypad": True,
+            "mouse": False
+        });
+        try {
+            assertTrue(s.isOpen());
+        } catch (hash<ExceptionInfo> ex) {
+            s.close();
+            rethrow;
+        }
+        s.close();
+
+        Ncurses::Session s2 = new Ncurses::Session({
+            "use_tty": True,
+            "tty_path": tty_path,
+            "unbuffered_stdio": False,
+            "echo": False,
+            "raw": True,
+            "cbreak": False,
+            "keypad": True,
+            "mouse": False
+        });
+        try {
+            assertTrue(s2.isOpen());
+        } catch (hash<ExceptionInfo> ex) {
+            s2.close();
+            rethrow;
+        }
+        s2.close();
+    }
+}

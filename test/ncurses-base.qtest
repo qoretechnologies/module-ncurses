@@ -1,0 +1,347 @@
+#!/usr/bin/env qore
+
+%requires ncurses
+%requires NcursesUi
+%requires QUnit
+
+%modern
+
+%exec-class NcursesBaseTest
+
+class NcursesBaseTest inherits Test {
+    constructor() : Test("NcursesBaseTest", "1.0") {
+        addTestCase("Rect construction", \testRectConstruction());
+        addTestCase("Insets construction", \testInsetsConstruction());
+        addTestCase("EventResult construction", \testEventResultConstruction());
+        addTestCase("enum values", \testEnumValues());
+        addTestCase("rectContains", \testRectContains());
+        addTestCase("makeRect", \testMakeRect());
+        addTestCase("makeInsets", \testMakeInsets());
+        addTestCase("rectInset", \testRectInset());
+        addTestCase("rectInset zero-size", \testRectInsetZero());
+        addTestCase("TestHarness lifecycle", \testHarnessLifecycle());
+        addTestCase("TestHarness assertTextAt", \testHarnessAssertTextAt());
+        addTestCase("TestHarness assertRowContains", \testHarnessAssertRowContains());
+        addTestCase("TestHarness assertRowEmpty", \testHarnessAssertRowEmpty());
+        addTestCase("TestHarness injectKey", \testHarnessInjectKey());
+        addTestCase("TestHarness injectChar", \testHarnessInjectChar());
+        addTestCase("TestHarness injectMouse", \testHarnessInjectMouse());
+        addTestCase("TestHarness injectWheelUp", \testHarnessInjectWheelUp());
+        addTestCase("TestHarness injectWheelDown", \testHarnessInjectWheelDown());
+        addTestCase("TestHarness injectResize", \testHarnessInjectResize());
+        addTestCase("TestHarness snapshot", \testHarnessSnapshot());
+        addTestCase("TestHarness custom opts", \testHarnessCustomOpts());
+        addTestCase("TestHarness injectAndReadKey", \testHarnessInjectAndReadKey());
+        addTestCase("TestHarness injectAndReadChar", \testHarnessInjectAndReadChar());
+        addTestCase("TestHarness refresh", \testHarnessRefresh());
+
+        set_return_value(main());
+    }
+
+    # ---- Core type tests ----
+
+    testRectConstruction() {
+        hash<NcursesUi::Rect> r = <NcursesUi::Rect>{
+            "y": 5,
+            "x": 10,
+            "rows": 20,
+            "cols": 40,
+        };
+        assertEq(5, r.y);
+        assertEq(10, r.x);
+        assertEq(20, r.rows);
+        assertEq(40, r.cols);
+
+        # default values
+        hash<NcursesUi::Rect> r2 = <NcursesUi::Rect>{};
+        assertEq(0, r2.y);
+        assertEq(0, r2.x);
+        assertEq(0, r2.rows);
+        assertEq(0, r2.cols);
+    }
+
+    testInsetsConstruction() {
+        hash<NcursesUi::Insets> i = <NcursesUi::Insets>{
+            "top": 1,
+            "bottom": 2,
+            "left": 3,
+            "right": 4,
+        };
+        assertEq(1, i.top);
+        assertEq(2, i.bottom);
+        assertEq(3, i.left);
+        assertEq(4, i.right);
+
+        # default values
+        hash<NcursesUi::Insets> i2 = <NcursesUi::Insets>{};
+        assertEq(0, i2.top);
+        assertEq(0, i2.bottom);
+        assertEq(0, i2.left);
+        assertEq(0, i2.right);
+    }
+
+    testEventResultConstruction() {
+        hash<NcursesUi::EventResult> ev = <NcursesUi::EventResult>{
+            "handled": True,
+            "action": "ok",
+            "data": {"key": "value"},
+        };
+        assertTrue(ev.handled);
+        assertEq("ok", ev.action);
+        assertEq("value", ev.data.key);
+
+        # default values
+        hash<NcursesUi::EventResult> ev2 = <NcursesUi::EventResult>{};
+        assertFalse(ev2.handled);
+        assertFalse(exists ev2.action);
+        assertFalse(exists ev2.data);
+    }
+
+    testEnumValues() {
+        # SizePolicy
+        assertEq(0, NcursesUi::SizePolicy::Fixed);
+        assertEq(1, NcursesUi::SizePolicy::Minimum);
+        assertEq(2, NcursesUi::SizePolicy::Preferred);
+        assertEq(3, NcursesUi::SizePolicy::Expanding);
+
+        # FocusDirection
+        assertEq(0, NcursesUi::FocusDirection::Next);
+        assertEq(1, NcursesUi::FocusDirection::Previous);
+
+        # Orientation
+        assertEq(0, NcursesUi::Orientation::Horizontal);
+        assertEq(1, NcursesUi::Orientation::Vertical);
+
+        # ScrollDirection
+        assertEq(0, NcursesUi::ScrollDirection::Up);
+        assertEq(1, NcursesUi::ScrollDirection::Down);
+        assertEq(2, NcursesUi::ScrollDirection::Left);
+        assertEq(3, NcursesUi::ScrollDirection::Right);
+        assertEq(4, NcursesUi::ScrollDirection::PageUp);
+        assertEq(5, NcursesUi::ScrollDirection::PageDown);
+        assertEq(6, NcursesUi::ScrollDirection::Home);
+        assertEq(7, NcursesUi::ScrollDirection::End);
+    }
+
+    # ---- Helper function tests ----
+
+    testRectContains() {
+        hash<NcursesUi::Rect> r = NcursesUi::Geometry::makeRect(10, 20, 5, 10);
+
+        # inside
+        assertTrue(NcursesUi::Geometry::rectContains(r, 10, 20));
+        assertTrue(NcursesUi::Geometry::rectContains(r, 12, 25));
+        assertTrue(NcursesUi::Geometry::rectContains(r, 14, 29));
+
+        # edges (exclusive end)
+        assertFalse(NcursesUi::Geometry::rectContains(r, 15, 20));  # one past bottom
+        assertFalse(NcursesUi::Geometry::rectContains(r, 10, 30));  # one past right
+        assertFalse(NcursesUi::Geometry::rectContains(r, 9, 20));   # one above top
+        assertFalse(NcursesUi::Geometry::rectContains(r, 10, 19));  # one left of left
+
+        # empty rect
+        hash<NcursesUi::Rect> empty = NcursesUi::Geometry::makeRect(0, 0, 0, 0);
+        assertFalse(NcursesUi::Geometry::rectContains(empty, 0, 0));
+    }
+
+    testMakeRect() {
+        hash<NcursesUi::Rect> r = NcursesUi::Geometry::makeRect(1, 2, 3, 4);
+        assertEq(1, r.y);
+        assertEq(2, r.x);
+        assertEq(3, r.rows);
+        assertEq(4, r.cols);
+    }
+
+    testMakeInsets() {
+        hash<NcursesUi::Insets> i = NcursesUi::Geometry::makeInsets(1, 2, 3, 4);
+        assertEq(1, i.top);
+        assertEq(2, i.bottom);
+        assertEq(3, i.left);
+        assertEq(4, i.right);
+    }
+
+    testRectInset() {
+        hash<NcursesUi::Rect> outer = NcursesUi::Geometry::makeRect(10, 20, 30, 40);
+        hash<NcursesUi::Insets> insets = NcursesUi::Geometry::makeInsets(2, 3, 4, 5);
+        hash<NcursesUi::Rect> inner = NcursesUi::Geometry::rectInset(outer, insets);
+
+        assertEq(12, inner.y);    # 10 + 2 (top)
+        assertEq(24, inner.x);    # 20 + 4 (left)
+        assertEq(25, inner.rows); # 30 - 2 - 3 (top+bottom)
+        assertEq(31, inner.cols); # 40 - 4 - 5 (left+right)
+    }
+
+    testRectInsetZero() {
+        # insets larger than rect should clamp to 0 size
+        hash<NcursesUi::Rect> r = NcursesUi::Geometry::makeRect(0, 0, 4, 4);
+        hash<NcursesUi::Insets> big = NcursesUi::Geometry::makeInsets(3, 3, 3, 3);
+        hash<NcursesUi::Rect> result = NcursesUi::Geometry::rectInset(r, big);
+        assertEq(0, result.rows);
+        assertEq(0, result.cols);
+    }
+
+    # ---- TestHarness tests ----
+
+    testHarnessLifecycle() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+        assertTrue(th.session().isOpen());
+        assertEq(24, th.rows());
+        assertEq(80, th.cols());
+    }
+
+    testHarnessAssertTextAt() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+        Ncurses::Window w = th.screen();
+        w.clear();
+        w.drawText(0, 0, "Hello", {});
+        w.drawText(2, 5, "World", {});
+        w.refresh();
+
+        th.assertTextAt(self, 0, 0, "Hello");
+        th.assertTextAt(self, 2, 5, "World");
+    }
+
+    testHarnessAssertRowContains() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+        Ncurses::Window w = th.screen();
+        w.clear();
+        w.drawText(0, 0, "Error: something failed", {});
+        w.refresh();
+
+        th.assertRowContains(self, 0, "Error:");
+        th.assertRowContains(self, 0, "something");
+        th.assertRowContains(self, 0, "Error.*failed");
+    }
+
+    testHarnessAssertRowEmpty() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+        Ncurses::Window w = th.screen();
+        w.clear();
+        w.drawText(0, 0, "Not empty", {});
+        w.refresh();
+
+        th.assertRowEmpty(self, 1);  # row 1 should be empty
+        th.assertRowEmpty(self, 23); # last row should be empty
+    }
+
+    testHarnessInjectKey() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+        th.injectKey(Ncurses::KEY_UP);
+        auto ev = th.readEvent();
+        assertTrue(exists ev);
+        assertEq(Ncurses::InputType::Key, ev.type);
+        assertEq(Ncurses::KEY_UP, ev.code);
+    }
+
+    testHarnessInjectChar() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+        th.injectChar("x");
+        auto ev = th.readEvent();
+        assertTrue(exists ev);
+        assertEq(Ncurses::InputType::Char, ev.type);
+        assertEq("x", ev.ch);
+    }
+
+    testHarnessInjectMouse() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+        th.injectMouse(10, 5, Ncurses::BUTTON1_CLICKED);
+        auto ev = th.readEvent();
+        assertTrue(exists ev);
+        assertEq(Ncurses::InputType::Mouse, ev.type);
+        assertEq(10, ev.mouse.x);
+        assertEq(5, ev.mouse.y);
+        assertTrue((ev.mouse.button_state & Ncurses::BUTTON1_CLICKED) != 0);
+    }
+
+    testHarnessInjectWheelUp() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+        th.injectWheelUp(5, 3);
+        auto ev = th.readEvent();
+        assertTrue(exists ev);
+        assertEq(Ncurses::InputType::Mouse, ev.type);
+        assertEq(5, ev.mouse.x);
+        assertEq(3, ev.mouse.y);
+        assertTrue((ev.mouse.button_state & Ncurses::BUTTON4_PRESSED) != 0);
+    }
+
+    testHarnessInjectWheelDown() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+        th.injectWheelDown(7, 2);
+        auto ev = th.readEvent();
+        assertTrue(exists ev);
+        assertEq(Ncurses::InputType::Mouse, ev.type);
+        assertEq(7, ev.mouse.x);
+        assertEq(2, ev.mouse.y);
+        assertTrue((ev.mouse.button_state & Ncurses::BUTTON5_PRESSED) != 0);
+    }
+
+    testHarnessInjectResize() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+        th.injectResize();
+        auto ev = th.readEvent();
+        assertTrue(exists ev);
+        assertEq(Ncurses::InputType::Resize, ev.type);
+    }
+
+    testHarnessSnapshot() {
+        NcursesUi::TestHarness th(10, 20);
+        on_exit th.close();
+        Ncurses::Window w = th.screen();
+        w.clear();
+        w.drawText(0, 0, "LINE1", {});
+        w.drawText(1, 0, "LINE2", {});
+        w.refresh();
+
+        list<string> lines = th.snapshot(0, 2, 10);
+        assertEq(2, lines.size());
+        assertEq("LINE1     ", lines[0]);
+        assertEq("LINE2     ", lines[1]);
+    }
+
+    testHarnessCustomOpts() {
+        # test that custom opts are merged with defaults
+        NcursesUi::TestHarness th(24, 80, {"cursor": 1});
+        on_exit th.close();
+        assertTrue(th.session().isOpen());
+    }
+
+    testHarnessInjectAndReadKey() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+        auto ev = th.injectAndReadKey(Ncurses::KEY_DOWN);
+        assertTrue(exists ev);
+        assertEq(Ncurses::InputType::Key, ev.type);
+        assertEq(Ncurses::KEY_DOWN, ev.code);
+    }
+
+    testHarnessInjectAndReadChar() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+        auto ev = th.injectAndReadChar("z");
+        assertTrue(exists ev);
+        assertEq(Ncurses::InputType::Char, ev.type);
+        assertEq("z", ev.ch);
+    }
+
+    testHarnessRefresh() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+        Ncurses::Window w = th.screen();
+        w.clear();
+        w.drawText(0, 0, "test", {});
+        w.noutrefresh();
+        th.refresh();
+        # after refresh, text should be readable from snapshot
+        th.assertTextAt(self, 0, 0, "test");
+    }
+}

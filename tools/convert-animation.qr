@@ -1,0 +1,73 @@
+#!/usr/bin/env qore
+
+# One-time conversion tool: reads version_animation_frames.h and outputs
+# a Qore constant declaration suitable for embedding in qrepl.
+#
+# Usage: qore tools/convert-animation.qr > anim_data.txt
+# Then paste the output into the qrepl QRepl class.
+#
+# Copyright 2026 Qore Technologies, s.r.o.
+
+%modern
+
+if (ARGV.size() < 1) {
+    printf("Usage: %s <path-to-version_animation_frames.h>\n", get_script_name());
+    printf("Example: %s ~/src/qore/git/qore/version_animation_frames.h\n", get_script_name());
+    exit(1);
+}
+
+string path = ARGV[0];
+string content = ReadOnlyFile::readTextFile(path);
+list<string> lines = content.split("\n");
+
+# parse frames
+list<auto> frames = ();
+list<string> current_frame = ();
+bool in_frame = False;
+
+foreach string line in (lines) {
+    if (line =~ /\{ \/\/ Frame/) {
+        in_frame = True;
+        current_frame = ();
+        continue;
+    }
+    if (in_frame && line =~ /^\s*\}/) {
+        push frames, current_frame;
+        in_frame = False;
+        continue;
+    }
+    if (in_frame) {
+        # extract string content between quotes
+        *list<string> matches = (line =~ x/\"(.*)\"/);
+        if (matches) {
+            current_frame += matches[0];
+        }
+    }
+}
+
+printf("    # Auto-generated from version_animation_frames.h — do not edit\n");
+printf("    const AnimFrameCount = %d;\n", frames.size());
+if (frames.size() > 0) {
+    printf("    const AnimFrameHeight = %d;\n", frames[0].size());
+    if (frames[0].size() > 0) {
+        printf("    const AnimFrameWidth = %d;\n", frames[0][0].size());
+    }
+}
+printf("    const AnimFrames = (\n");
+for (int f = 0; f < frames.size(); ++f) {
+    printf("        ( # Frame %d\n", f);
+    for (int r = 0; r < frames[f].size(); ++r) {
+        string escaped = frames[f][r];
+        # escape backslashes and quotes
+        escaped = regex_subst(escaped, "\\\\", "\\\\\\\\");
+        escaped = regex_subst(escaped, "\"", "\\\\\"");
+        string comma = (r < frames[f].size() - 1) ? "," : "";
+        printf("            \"%s\"%s\n", escaped, comma);
+    }
+    string comma = (f < frames.size() - 1) ? "," : "";
+    printf("        )%s\n", comma);
+}
+printf("    );\n");
+
+stderr.printf("Converted %d frames (%d lines each)\n", frames.size(),
+    frames.size() > 0 ? frames[0].size() : 0);

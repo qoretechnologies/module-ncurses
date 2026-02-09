@@ -1,0 +1,2034 @@
+#!/usr/bin/env qore
+
+%requires ncurses
+%requires NcursesUi
+%requires NcursesReplUi
+%requires QUnit
+
+%modern
+
+%exec-class NcursesIntegrationTest
+
+class NcursesIntegrationTest inherits Test {
+    constructor() : Test("NcursesIntegrationTest", "1.0") {
+        addTestCase("Full app lifecycle with widget tree", \testFullAppLifecycle());
+        addTestCase("Application with scrollable output", \testAppScrollableOutput());
+        addTestCase("Application with text input and submit", \testAppTextInputSubmit());
+        addTestCase("Application with list selection", \testAppListSelection());
+        addTestCase("Application with dialog modal", \testAppDialogModal());
+        addTestCase("Application layout with menu + output + input + status", \testReplLikeLayout());
+        addTestCase("Event routing: focus traversal + input", \testEventRoutingFocus());
+        addTestCase("Scrollable widget in layout", \testScrollableInLayout());
+        addTestCase("Checkbox and RadioGroup in form", \testFormWidgets());
+        addTestCase("Table with sorting and navigation", \testTableIntegration());
+        addTestCase("ComboBox typing and filtering", \testComboBoxIntegration());
+        addTestCase("MenuBar + dropdown workflow", \testMenuBarDropdownWorkflow());
+        addTestCase("MenuBar dropdown with Application", \testMenuBarDropdownWithApp());
+        addTestCase("MenuBar dropdown Left/Right navigation", \testMenuBarDropdownLeftRight());
+        addTestCase("Nested widget tree drawing", \testNestedWidgetTreeDrawing());
+        addTestCase("Resize event propagation", \testResizeEventPropagation());
+        addTestCase("Widget visibility toggle", \testWidgetVisibilityToggle());
+        addTestCase("StatusBar update cycle", \testStatusBarUpdateCycle());
+        addTestCase("LineListContent with ANSI colors", \testAnsiColorContent());
+        addTestCase("Scroll and draw combined", \testScrollAndDrawCombined());
+        addTestCase("Empty states don't crash", \testEmptyStates());
+        addTestCase("Multiple widgets handle different events", \testMultiWidgetEventRouting());
+        addTestCase("Modal widgets drawn in drawAll", \testModalDrawnInDrawAll());
+        addTestCase("EventDispatcher getModalStack", \testGetModalStack());
+        addTestCase("Dropdown panel renders menu item text", \testDropdownPanelRendersContent());
+        addTestCase("Dialog panel renders message and buttons", \testDialogPanelRendersContent());
+        addTestCase("FileBrowser panel renders directory listing", \testFileBrowserPanelRendersContent());
+        addTestCase("Full REPL layout renders all components", \testFullReplLayoutRendering());
+        addTestCase("Dropdown navigate and verify content updates", \testDropdownNavigationVisual());
+        addTestCase("Escape closes dropdown visually", \testEscapeClosesDropdownVisual());
+        addTestCase("Escape shows quit dialog visually", \testEscapeShowsQuitDialogVisual());
+        addTestCase("Stacked modals render in correct order", \testStackedModalsRender());
+        addTestCase("MenuBar renders multiple menu labels", \testMenuBarRendersLabels());
+        addTestCase("StatusBar renders spaced segments in app", \testStatusBarRendersInApp());
+        addTestCase("Table renders headers and rows visually", \testTableRendersVisually());
+        addTestCase("TextInput renders prompt and typed text", \testTextInputRendersVisually());
+        addTestCase("ListWidget renders selected item highlight", \testListRendersSelection());
+        addTestCase("CheckboxWidget renders toggle state in app", \testCheckboxRendersInApp());
+        addTestCase("Click outside dropdown closes it", \testClickOutsideDropdownCloses());
+        addTestCase("Click another menu switches dropdown", \testClickAnotherMenuSwitchesDropdown());
+        addTestCase("Escape closes dropdown via modal dispatch", \testEscapeClosesDropdownViaModal());
+        addTestCase("Dialog cursor on focused button not prompt", \testDialogCursorPosition());
+
+        set_return_value(main());
+    }
+
+    testFullAppLifecycle() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::Application app(th.session());
+        NcursesUi::Widget root();
+        NcursesUi::Widget child1();
+        NcursesUi::Widget child2();
+        root.addChild(child1);
+        root.addChild(child2);
+
+        NcursesUi::BoxLayout layout(NcursesUi::Orientation::Vertical);
+        app.setRootLayout(layout);
+        app.setRoot(root);
+
+        assertEq(24, root.getFrame().rows);
+        assertEq(80, root.getFrame().cols);
+        assertEq(12, child1.getFrame().rows);
+        assertEq(12, child2.getFrame().rows);
+
+        app.drawAll();
+        app.close();
+        assertFalse(app.isRunning());
+    }
+
+    testAppScrollableOutput() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::Application app(th.session());
+        NcursesUi::ScrollableWidget sw();
+        NcursesUi::LineListContent content();
+
+        for (int i = 0; i < 100; ++i) {
+            content.appendLine(sprintf("Output line %d", i));
+        }
+        sw.setContent(content);
+        app.setRoot(sw);
+
+        # draw and verify
+        app.drawAll();
+
+        # scroll down via event
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Key;
+        ev.name = "KEY_NPAGE";
+        hash<NcursesUi::EventResult> result = app.processEvent(ev);
+        assertTrue(result.handled);
+        assertTrue(sw.getScrollY() > 0);
+
+        # verify content after scroll
+        app.drawAll();
+        string row0 = th.session().screen().readText(0, 0, 40);
+        # should not show "Output line 0" anymore
+        assertFalse(row0.find("Output line 0") >= 0);
+    }
+
+    testAppTextInputSubmit() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::Application app(th.session());
+        NcursesUi::TextInputWidget ti(">>> ");
+        ti.setFocused(True);
+
+        string submitted;
+        ti.setOnSubmit(sub (string text) { submitted = text; });
+
+        app.setRoot(ti);
+        app.getFocusManager().setFocus(ti);
+
+        # type "hello"
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Char;
+        foreach string ch in (("h", "e", "l", "l", "o")) {
+            ev.ch = ch;
+            app.processEvent(ev);
+        }
+        assertEq("hello", ti.getText());
+
+        # submit
+        ev.ch = "\n";
+        app.processEvent(ev);
+        assertEq("hello", submitted);
+        assertEq("", ti.getText());
+    }
+
+    testAppListSelection() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::Application app(th.session());
+        NcursesUi::ListWidget lw();
+        lw.setItems((
+            {"label": "Apple"},
+            {"label": "Banana"},
+            {"label": "Cherry"},
+        ));
+
+        *hash<auto> activated;
+        lw.setOnActivate(sub (hash<auto> item) { activated = item; });
+
+        app.setRoot(lw);
+        app.getFocusManager().setFocus(lw);
+
+        # navigate down twice
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Key;
+        ev.name = "KEY_DOWN";
+        app.processEvent(ev);
+        app.processEvent(ev);
+        assertEq(2, lw.getSelectedIndex());
+        assertEq("Cherry", lw.getSelectedItem().label);
+
+        # activate
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = "\n";
+        app.processEvent(ev);
+        assertEq("Cherry", activated.label);
+    }
+
+    testAppDialogModal() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::Application app(th.session());
+        NcursesUi::Widget root();
+        app.setRoot(root);
+
+        NcursesUi::DialogWidget dlg(th.session(), "Confirm", "Are you sure?", ("Yes", "No"));
+        dlg.centerOn(24, 80);
+
+        int pressed_idx = -1;
+        dlg.setOnButton(sub (int idx, string label) { pressed_idx = idx; });
+
+        app.pushModal(dlg);
+
+        # Tab to "No" button, then Enter
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = "\t";
+        app.processEvent(ev);
+        assertEq(1, dlg.getFocusedButton());
+
+        ev.ch = "\n";
+        app.processEvent(ev);
+        assertEq(1, pressed_idx);
+
+        app.popModal();
+    }
+
+    testReplLikeLayout() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::Application app(th.session());
+        NcursesUi::Widget root();
+
+        # menu bar (fixed 1 row)
+        NcursesUi::MenuBarWidget menu();
+        menu.addMenu("File", ({"label": "Quit", "command": "quit"},));
+        menu.setVSizePolicy(NcursesUi::SizePolicy::Fixed);
+        menu.setPreferredSize(1, 0);
+
+        # output (expanding)
+        NcursesUi::ScrollableWidget output();
+        NcursesUi::LineListContent output_content();
+        output_content.appendLine("Welcome");
+        output.setContent(output_content);
+        output.setVSizePolicy(NcursesUi::SizePolicy::Expanding);
+
+        # input (fixed 1 row)
+        NcursesUi::TextInputWidget input_widget(">>> ");
+        input_widget.setVSizePolicy(NcursesUi::SizePolicy::Fixed);
+        input_widget.setPreferredSize(1, 0);
+
+        # status (fixed 1 row)
+        NcursesUi::StatusBarWidget status();
+        status.setSegments(({"text": "Ready"},));
+        status.setVSizePolicy(NcursesUi::SizePolicy::Fixed);
+        status.setPreferredSize(1, 0);
+
+        root.addChild(menu);
+        root.addChild(output);
+        root.addChild(input_widget);
+        root.addChild(status);
+
+        NcursesUi::BoxLayout layout(NcursesUi::Orientation::Vertical);
+        app.setRootLayout(layout);
+        app.setRoot(root);
+
+        # verify layout
+        assertEq(1, menu.getFrame().rows);
+        assertEq(1, input_widget.getFrame().rows);
+        assertEq(1, status.getFrame().rows);
+        # output gets remaining: 24 - 3 = 21 rows
+        assertEq(21, output.getFrame().rows);
+        assertEq(80, output.getFrame().cols);
+
+        # draw everything
+        app.drawAll();
+
+        # verify text appears
+        string menu_row = th.session().screen().readText(0, 0, 40);
+        assertTrue(menu_row.find("File") >= 0);
+    }
+
+    testEventRoutingFocus() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::Application app(th.session());
+        NcursesUi::Widget root();
+
+        NcursesUi::CheckboxWidget cb1("Option A");
+        NcursesUi::CheckboxWidget cb2("Option B");
+
+        root.addChild(cb1);
+        root.addChild(cb2);
+
+        NcursesUi::BoxLayout layout(NcursesUi::Orientation::Vertical);
+        app.setRootLayout(layout);
+        app.setRoot(root);
+
+        # Tab should focus cb1
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = "\t";
+        app.processEvent(ev);
+        assertTrue(app.getFocusManager().getCurrentFocus() == cb1);
+
+        # Tab to cb2
+        app.processEvent(ev);
+        assertTrue(app.getFocusManager().getCurrentFocus() == cb2);
+
+        # Space to toggle cb2
+        ev.ch = " ";
+        app.processEvent(ev);
+        assertTrue(cb2.isChecked());
+        assertFalse(cb1.isChecked());
+    }
+
+    testScrollableInLayout() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::Application app(th.session());
+        NcursesUi::Widget root();
+
+        NcursesUi::ScrollableWidget sw();
+        NcursesUi::LineListContent content();
+        for (int i = 0; i < 50; ++i) {
+            content.appendLine(sprintf("Line %02d", i));
+        }
+        sw.setContent(content);
+        sw.setVSizePolicy(NcursesUi::SizePolicy::Expanding);
+
+        NcursesUi::Widget footer();
+        footer.setVSizePolicy(NcursesUi::SizePolicy::Fixed);
+        footer.setPreferredSize(2, 0);
+
+        root.addChild(sw);
+        root.addChild(footer);
+
+        NcursesUi::BoxLayout layout(NcursesUi::Orientation::Vertical);
+        app.setRootLayout(layout);
+        app.setRoot(root);
+
+        # sw should get 22 rows (24 - 2)
+        assertEq(22, sw.getFrame().rows);
+
+        # scroll to end
+        sw.scrollTo(NcursesUi::ScrollDirection::End);
+        assertTrue(sw.getScrollY() > 0);
+
+        # draw
+        app.drawAll();
+
+        # first visible line should not be "Line 00"
+        string row0 = th.session().screen().readText(0, 0, 20);
+        assertFalse(row0.find("Line 00") >= 0);
+    }
+
+    testFormWidgets() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::Application app(th.session());
+        NcursesUi::Widget root();
+
+        NcursesUi::CheckboxWidget cb("Enable");
+        NcursesUi::RadioGroupWidget rg(("Low", "Medium", "High"), 1);
+
+        root.addChild(cb);
+        root.addChild(rg);
+
+        NcursesUi::BoxLayout layout(NcursesUi::Orientation::Vertical);
+        app.setRootLayout(layout);
+        app.setRoot(root);
+
+        # focus cb and toggle
+        app.getFocusManager().setFocus(cb);
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = " ";
+        app.processEvent(ev);
+        assertTrue(cb.isChecked());
+
+        # focus rg, navigate and select
+        app.getFocusManager().setFocus(rg);
+        ev.type = Ncurses::InputType::Key;
+        ev.name = "KEY_DOWN";
+        app.processEvent(ev);
+        assertEq(2, rg.getHighlightIndex());
+
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = " ";
+        app.processEvent(ev);
+        assertEq(2, rg.getSelectedIndex());
+        assertEq("High", rg.getSelectedOption());
+
+        # draw all
+        app.drawAll();
+    }
+
+    testTableIntegration() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::Application app(th.session());
+        NcursesUi::TableWidget tw();
+        tw.setColumns((
+            {"key": "name", "header": "Name"},
+            {"key": "type", "header": "Type", "width": 10},
+            {"key": "size", "header": "Size", "width": 10, "align": "right"},
+        ));
+        tw.setRows((
+            {"name": "alpha.q", "type": "qore", "size": 1024},
+            {"name": "beta.q", "type": "qore", "size": 512},
+            {"name": "gamma.cc", "type": "c++", "size": 8192},
+            {"name": "delta.py", "type": "python", "size": 2048},
+        ));
+
+        app.setRoot(tw);
+        app.getFocusManager().setFocus(tw);
+
+        # sort by name ascending
+        tw.setSortColumn("name", True);
+        assertEq("alpha.q", tw.getRows()[0].name);
+
+        # navigate and activate
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Key;
+        ev.name = "KEY_DOWN";
+        app.processEvent(ev);
+        app.processEvent(ev);
+
+        assertEq(2, tw.getSelectedRow());
+
+        app.drawAll();
+        string header = th.session().screen().readText(0, 0, 40);
+        assertTrue(header.find("Name") >= 0);
+    }
+
+    testComboBoxIntegration() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::Application app(th.session());
+        NcursesUi::ComboBoxWidget cb(("apple", "apricot", "banana", "blueberry", "cherry"));
+        app.setRoot(cb);
+        app.getFocusManager().setFocus(cb);
+
+        # type "ap" to filter to apple, apricot
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = "a";
+        app.processEvent(ev);
+        ev.ch = "p";
+        app.processEvent(ev);
+
+        assertEq("ap", cb.getText());
+        assertTrue(cb.isDropdownOpen());
+        # filtered should contain apple, apricot
+        list<string> filtered = cb.getFilteredOptions();
+        assertEq(2, filtered.size());
+
+        # select first option
+        ev.ch = "\n";
+        app.processEvent(ev);
+        assertEq("apple", cb.getText());
+        assertFalse(cb.isDropdownOpen());
+    }
+
+    testMenuBarDropdownWorkflow() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::Application app(th.session());
+        NcursesUi::Widget root();
+
+        NcursesUi::MenuBarWidget menu();
+        menu.addMenu("File", (
+            {"label": "Open", "command": "open"},
+            {"label": "Save", "command": "save"},
+        ));
+        menu.addMenu("Edit", (
+            {"label": "Copy", "command": "copy"},
+        ));
+
+        string fired_cmd;
+        menu.setOnCommand(sub (string cmd) { fired_cmd = cmd; });
+
+        root.addChild(menu);
+        app.setRoot(root);
+        app.getFocusManager().setFocus(menu);
+
+        # open File menu (without app, no dropdown panel)
+        menu.openMenu(0);
+        assertTrue(menu.isDropdownOpen());
+        assertEq(0, menu.getActiveMenu());
+
+        # navigate to Edit via menu bar processEvent (no modal)
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Key;
+        ev.name = "KEY_RIGHT";
+        menu.processEvent(ev);
+        assertEq(1, menu.getActiveMenu());
+
+        # fire command
+        menu.fireCommand("copy");
+        assertEq("copy", fired_cmd);
+        assertFalse(menu.isDropdownOpen());
+    }
+
+    testMenuBarDropdownWithApp() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::Application app(th.session());
+        NcursesUi::Widget root();
+
+        NcursesUi::MenuBarWidget menu();
+        menu.setApplication(app);
+        menu.setVSizePolicy(NcursesUi::SizePolicy::Fixed);
+        menu.setPreferredSize(1, 0);
+        menu.addMenu("File", (
+            {"label": "Open", "command": "open"},
+            {"label": "Save", "command": "save"},
+        ));
+        menu.addMenu("Edit", (
+            {"label": "Copy", "command": "copy"},
+        ));
+
+        string fired_cmd;
+        menu.setOnCommand(sub (string cmd) { fired_cmd = cmd; });
+
+        root.addChild(menu);
+        NcursesUi::BoxLayout layout(NcursesUi::Orientation::Vertical);
+        app.setRootLayout(layout);
+        app.setRoot(root);
+        app.getFocusManager().setFocus(menu);
+
+        # open File menu - should create dropdown panel as modal
+        menu.openMenu(0);
+        assertTrue(menu.isDropdownOpen());
+        assertEq(0, menu.getActiveMenu());
+        assertTrue(app.getDispatcher().hasModal());
+
+        # draw to verify no crash
+        app.drawAll();
+
+        # select first item via Enter (goes to modal dropdown)
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = "\n";
+        app.processEvent(ev);
+
+        # command should have fired
+        assertEq("open", fired_cmd);
+        assertFalse(menu.isDropdownOpen());
+        assertFalse(app.getDispatcher().hasModal());
+    }
+
+    testMenuBarDropdownLeftRight() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::Application app(th.session());
+        NcursesUi::Widget root();
+
+        NcursesUi::MenuBarWidget menu();
+        menu.setApplication(app);
+        menu.setVSizePolicy(NcursesUi::SizePolicy::Fixed);
+        menu.setPreferredSize(1, 0);
+        menu.addMenu("File", (
+            {"label": "Open", "command": "open"},
+        ));
+        menu.addMenu("Edit", (
+            {"label": "Copy", "command": "copy"},
+        ));
+        menu.addMenu("Help", (
+            {"label": "About", "command": "about"},
+        ));
+
+        string fired_cmd;
+        menu.setOnCommand(sub (string cmd) { fired_cmd = cmd; });
+
+        root.addChild(menu);
+        NcursesUi::BoxLayout layout(NcursesUi::Orientation::Vertical);
+        app.setRootLayout(layout);
+        app.setRoot(root);
+        app.getFocusManager().setFocus(menu);
+
+        # open File menu
+        menu.openMenu(0);
+        assertTrue(app.getDispatcher().hasModal());
+        assertEq(0, menu.getActiveMenu());
+
+        # Right arrow switches to Edit (goes through modal dropdown -> on_navigate)
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Key;
+        ev.name = "KEY_RIGHT";
+        app.processEvent(ev);
+        assertEq(1, menu.getActiveMenu());
+        assertTrue(menu.isDropdownOpen());
+        assertTrue(app.getDispatcher().hasModal());
+
+        # Right again to Help
+        app.processEvent(ev);
+        assertEq(2, menu.getActiveMenu());
+
+        # Right at end wraps to File
+        app.processEvent(ev);
+        assertEq(0, menu.getActiveMenu());
+
+        # Left wraps to Help
+        ev.name = "KEY_LEFT";
+        app.processEvent(ev);
+        assertEq(2, menu.getActiveMenu());
+
+        # Left to Edit
+        app.processEvent(ev);
+        assertEq(1, menu.getActiveMenu());
+
+        # Left to File
+        app.processEvent(ev);
+        assertEq(0, menu.getActiveMenu());
+
+        # Escape closes dropdown
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = chr(0x1b);
+        app.processEvent(ev);
+        assertFalse(menu.isDropdownOpen());
+        assertFalse(app.getDispatcher().hasModal());
+    }
+
+    testNestedWidgetTreeDrawing() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::Application app(th.session());
+        NcursesUi::Widget root();
+
+        # use direct children so BoxLayout assigns frames
+        NcursesUi::CheckboxWidget cb1("Top checkbox");
+        NcursesUi::CheckboxWidget cb2("Bottom checkbox");
+        root.addChild(cb1);
+        root.addChild(cb2);
+
+        NcursesUi::BoxLayout layout(NcursesUi::Orientation::Vertical);
+        app.setRootLayout(layout);
+        app.setRoot(root);
+
+        # both checkboxes should have frames from layout
+        assertTrue(cb1.getFrame().rows > 0);
+        assertTrue(cb2.getFrame().rows > 0);
+
+        app.drawAll();
+
+        # verify tree structure is intact
+        assertEq(2, root.getChildren().size());
+        assertTrue(exists cb1.getParent());
+        assertTrue(exists cb2.getParent());
+
+        # both should have been assigned space by vertical layout
+        assertEq(80, cb1.getFrame().cols);
+        assertEq(80, cb2.getFrame().cols);
+    }
+
+    testResizeEventPropagation() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::Application app(th.session());
+        NcursesUi::Widget root();
+        NcursesUi::Widget top();
+        NcursesUi::Widget bottom();
+        root.addChild(top);
+        root.addChild(bottom);
+
+        NcursesUi::BoxLayout layout(NcursesUi::Orientation::Vertical);
+        app.setRootLayout(layout);
+        app.setRoot(root);
+
+        # initial layout
+        assertEq(12, top.getFrame().rows);
+        assertEq(12, bottom.getFrame().rows);
+
+        # simulate resize
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Resize;
+        hash<NcursesUi::EventResult> result = app.processEvent(ev);
+        assertTrue(result.handled);
+
+        # root should still fill screen
+        assertEq(24, root.getFrame().rows);
+        assertEq(80, root.getFrame().cols);
+    }
+
+    testWidgetVisibilityToggle() {
+        NcursesUi::Widget root();
+        NcursesUi::Widget a();
+        NcursesUi::Widget b();
+        NcursesUi::Widget c();
+        a.setVSizePolicy(NcursesUi::SizePolicy::Expanding);
+        b.setVSizePolicy(NcursesUi::SizePolicy::Expanding);
+        c.setVSizePolicy(NcursesUi::SizePolicy::Expanding);
+
+        root.addChild(a);
+        root.addChild(b);
+        root.addChild(c);
+        root.setFrame(NcursesUi::Geometry::makeRect(0, 0, 30, 80));
+
+        NcursesUi::BoxLayout layout(NcursesUi::Orientation::Vertical);
+        layout.apply(root);
+
+        # 3 equal children = 10 each
+        assertEq(10, a.getFrame().rows);
+        assertEq(10, b.getFrame().rows);
+        assertEq(10, c.getFrame().rows);
+
+        # hide b, re-layout
+        b.setVisible(False);
+        layout.apply(root);
+
+        # now 2 children share 30 rows = 15 each
+        assertEq(15, a.getFrame().rows);
+        assertEq(15, c.getFrame().rows);
+
+        # show b again
+        b.setVisible(True);
+        layout.apply(root);
+        assertEq(10, a.getFrame().rows);
+    }
+
+    testStatusBarUpdateCycle() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::StatusBarWidget sb();
+        sb.setFrame(NcursesUi::Geometry::makeRect(23, 0, 1, 80));
+
+        # first update
+        sb.setSegments((
+            {"text": "Ready"},
+            {"text": "12:00:00", "align": "right"},
+        ));
+        sb.draw(th.session().screen());
+        th.session().doupdate();
+
+        string row = th.session().screen().readText(23, 0, 80);
+        assertTrue(row.find("Ready") >= 0);
+        assertTrue(row.find("12:00:00") >= 0);
+
+        # second update
+        sb.setSegments((
+            {"text": "Error", "style": {"fg": Ncurses::Color::Red, "attrs": Ncurses::Attr::Reverse}},
+            {"text": "12:00:01", "align": "right"},
+        ));
+        sb.draw(th.session().screen());
+        th.session().doupdate();
+
+        row = th.session().screen().readText(23, 0, 80);
+        assertTrue(row.find("Error") >= 0);
+        assertTrue(row.find("12:00:01") >= 0);
+    }
+
+    testAnsiColorContent() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::ScrollableWidget sw();
+        sw.setFrame(NcursesUi::Geometry::makeRect(0, 0, 10, 40));
+
+        NcursesUi::LineListContent content();
+        content.appendLine("\033[31mRed text\033[0m");
+        content.appendLine("\033[32mGreen text\033[0m");
+        content.appendLine("Plain text");
+        sw.setContent(content);
+
+        # width should be based on visible text, not ANSI codes
+        assertEq(10, content.totalCols());  # "Green text" or "Plain text" = 10
+        assertEq(3, content.totalRows());
+
+        # draw should not crash
+        sw.draw(th.session().screen());
+        th.session().doupdate();
+
+        string row2 = th.session().screen().readText(2, 0, 20);
+        assertTrue(row2.find("Plain text") >= 0);
+    }
+
+    testScrollAndDrawCombined() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::ScrollableWidget sw();
+        sw.setFrame(NcursesUi::Geometry::makeRect(0, 0, 5, 40));
+
+        NcursesUi::LineListContent content();
+        for (int i = 0; i < 20; ++i) {
+            content.appendLine(sprintf("Line %02d", i));
+        }
+        sw.setContent(content);
+
+        # draw initial
+        sw.draw(th.session().screen());
+        th.session().doupdate();
+        string row0 = th.session().screen().readText(0, 0, 20);
+        assertTrue(row0.find("Line 00") >= 0);
+
+        # scroll to middle
+        sw.setScrollY(10);
+        sw.draw(th.session().screen());
+        th.session().doupdate();
+        row0 = th.session().screen().readText(0, 0, 20);
+        assertTrue(row0.find("Line 10") >= 0);
+
+        # scroll to end
+        sw.scrollTo(NcursesUi::ScrollDirection::End);
+        sw.draw(th.session().screen());
+        th.session().doupdate();
+        row0 = th.session().screen().readText(0, 0, 20);
+        assertTrue(row0.find("Line 15") >= 0);
+    }
+
+    testEmptyStates() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        # empty list
+        NcursesUi::ListWidget lw();
+        lw.setFrame(NcursesUi::Geometry::makeRect(0, 0, 5, 40));
+        lw.draw(th.session().screen());  # should not crash
+
+        # empty scrollable
+        NcursesUi::ScrollableWidget sw();
+        sw.setFrame(NcursesUi::Geometry::makeRect(0, 0, 5, 40));
+        sw.draw(th.session().screen());  # should not crash
+
+        # empty table
+        NcursesUi::TableWidget tw();
+        tw.setFrame(NcursesUi::Geometry::makeRect(0, 0, 5, 40));
+        tw.draw(th.session().screen());  # should not crash
+
+        # empty combo
+        NcursesUi::ComboBoxWidget cb();
+        cb.setFrame(NcursesUi::Geometry::makeRect(0, 0, 5, 40));
+        cb.draw(th.session().screen());  # should not crash
+
+        # empty radio
+        NcursesUi::RadioGroupWidget rg(());
+        rg.setFrame(NcursesUi::Geometry::makeRect(0, 0, 5, 40));
+        rg.draw(th.session().screen());  # should not crash
+
+        # empty status
+        NcursesUi::StatusBarWidget sb();
+        sb.setFrame(NcursesUi::Geometry::makeRect(0, 0, 1, 40));
+        sb.draw(th.session().screen());  # should not crash
+
+        th.session().doupdate();
+        # if we get here, no crashes
+        assertTrue(True);
+    }
+
+    testMultiWidgetEventRouting() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::Application app(th.session());
+        NcursesUi::Widget root();
+
+        NcursesUi::TextInputWidget input_w(">>> ");
+        NcursesUi::ListWidget list_w();
+        list_w.setItems((
+            {"label": "Item A"},
+            {"label": "Item B"},
+        ));
+
+        root.addChild(input_w);
+        root.addChild(list_w);
+
+        NcursesUi::BoxLayout layout(NcursesUi::Orientation::Vertical);
+        app.setRootLayout(layout);
+        app.setRoot(root);
+
+        # focus input, type
+        app.getFocusManager().setFocus(input_w);
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = "x";
+        app.processEvent(ev);
+        assertEq("x", input_w.getText());
+        # list should not have changed
+        assertEq(0, list_w.getSelectedIndex());
+
+        # tab to list
+        ev.ch = "\t";
+        app.processEvent(ev);
+        assertTrue(app.getFocusManager().getCurrentFocus() == list_w);
+
+        # navigate list
+        ev.type = Ncurses::InputType::Key;
+        ev.name = "KEY_DOWN";
+        app.processEvent(ev);
+        assertEq(1, list_w.getSelectedIndex());
+        # input should not have changed
+        assertEq("x", input_w.getText());
+    }
+
+    /** Test that drawAll() draws modal widgets from the modal stack. */
+    testModalDrawnInDrawAll() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::Application app(th.session());
+        NcursesUi::Widget root();
+        app.setRoot(root);
+
+        # create a dialog and push as modal
+        NcursesUi::DialogWidget dlg(th.session(), "Test Modal", "Hello from modal", ("OK",));
+        dlg.centerOn(24, 80);
+        dlg.createPanel();
+        app.pushModal(dlg);
+
+        # drawAll should not crash and should draw the modal
+        app.drawAll();
+
+        # verify modal content appears in the dialog's panel window
+        *Ncurses::Window pw = dlg.getWindow();
+        assertTrue(exists pw);
+
+        # read from the panel window - content should be rendered
+        string content = pw.readText(0, 0, 30);
+        assertTrue(content.find("Test Modal") >= 0);
+
+        # clean up
+        app.popModal();
+        dlg.destroyPanel();
+    }
+
+    /** Test that a dropdown panel window contains actual menu item text after drawAll(). */
+    testDropdownPanelRendersContent() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::Application app(th.session());
+        NcursesUi::Widget root();
+
+        NcursesUi::MenuBarWidget menu();
+        menu.setApplication(app);
+        menu.setVSizePolicy(NcursesUi::SizePolicy::Fixed);
+        menu.setPreferredSize(1, 0);
+        menu.addMenu("File", (
+            {"label": "Open", "command": "open"},
+            {"label": "Save As", "command": "save_as"},
+            {"label": "Quit", "command": "quit"},
+        ));
+
+        root.addChild(menu);
+        NcursesUi::BoxLayout layout(NcursesUi::Orientation::Vertical);
+        app.setRootLayout(layout);
+        app.setRoot(root);
+        app.getFocusManager().setFocus(menu);
+
+        # open the File menu dropdown
+        menu.openMenu(0);
+        assertTrue(menu.isDropdownOpen());
+        assertTrue(app.getDispatcher().hasModal());
+
+        # draw everything (this is where the bug was: modal not drawn -> blank panel)
+        app.drawAll();
+
+        # get the dropdown's panel window and verify menu item text is rendered
+        list<NcursesUi::Widget> modals = app.getDispatcher().getModalStack();
+        assertEq(1, modals.size());
+        NcursesUi::DropdownMenuWidget dd = modals[0];
+        *Ncurses::Window pw = dd.getWindow();
+        assertTrue(exists pw);
+
+        # read the full panel window content
+        hash<Ncurses::Size> sz = pw.size();
+        string all_text = "";
+        for (int r = 0; r < sz.rows; ++r) {
+            all_text += pw.readText(r, 0, sz.cols);
+        }
+
+        # verify actual menu item labels appear in the panel (not blank)
+        assertTrue(all_text.find("Open") >= 0,
+            "dropdown panel should contain 'Open' but got: " + all_text);
+        assertTrue(all_text.find("Save As") >= 0,
+            "dropdown panel should contain 'Save As' but got: " + all_text);
+        assertTrue(all_text.find("Quit") >= 0,
+            "dropdown panel should contain 'Quit' but got: " + all_text);
+
+        # navigate down to "Save As" and verify highlight moves
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Key;
+        ev.name = "KEY_DOWN";
+        app.processEvent(ev);
+        assertEq(1, dd.getHighlightIndex());
+
+        # select via Enter and verify command fires
+        string fired_cmd;
+        menu.setOnCommand(sub (string cmd) { fired_cmd = cmd; });
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = "\n";
+        app.processEvent(ev);
+        assertEq("save_as", fired_cmd);
+        assertFalse(menu.isDropdownOpen());
+    }
+
+    /** Test that a dialog panel window renders message text and button labels. */
+    testDialogPanelRendersContent() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::Application app(th.session());
+        NcursesUi::Widget root();
+        app.setRoot(root);
+
+        # create a confirmation dialog
+        NcursesUi::DialogWidget dlg(th.session(), "Confirm Delete",
+            "Are you sure you want to delete this file?\nThis cannot be undone.",
+            ("Delete", "Cancel"));
+        dlg.centerOn(24, 80);
+        dlg.createPanel();
+        app.pushModal(dlg);
+
+        # draw
+        app.drawAll();
+
+        # read the dialog's panel window
+        *Ncurses::Window pw = dlg.getWindow();
+        assertTrue(exists pw);
+
+        hash<Ncurses::Size> sz = pw.size();
+        string all_text = "";
+        for (int r = 0; r < sz.rows; ++r) {
+            all_text += pw.readText(r, 0, sz.cols);
+        }
+
+        # verify title, message, and button labels
+        assertTrue(all_text.find("Confirm Delete") >= 0,
+            "dialog should contain title 'Confirm Delete' but got: " + all_text);
+        assertTrue(all_text.find("Are you sure") >= 0,
+            "dialog should contain message text but got: " + all_text);
+        assertTrue(all_text.find("cannot be undone") >= 0,
+            "dialog should contain second line but got: " + all_text);
+        assertTrue(all_text.find("Delete") >= 0,
+            "dialog should contain 'Delete' button but got: " + all_text);
+        assertTrue(all_text.find("Cancel") >= 0,
+            "dialog should contain 'Cancel' button but got: " + all_text);
+
+        # Tab to Cancel button, verify focus moves
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = "\t";
+        app.processEvent(ev);
+        assertEq(1, dlg.getFocusedButton());
+
+        # press Enter on Cancel
+        int pressed_idx = -1;
+        string pressed_label;
+        dlg.setOnButton(sub (int idx, string label) {
+            pressed_idx = idx;
+            pressed_label = label;
+        });
+        ev.ch = "\n";
+        app.processEvent(ev);
+        assertEq(1, pressed_idx);
+        assertEq("Cancel", pressed_label);
+
+        # clean up
+        app.popModal();
+        dlg.destroyPanel();
+    }
+
+    /** Test EventDispatcher getModalStack returns correct stack. */
+    testGetModalStack() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::Application app(th.session());
+        NcursesUi::Widget root();
+        app.setRoot(root);
+        NcursesUi::EventDispatcher disp = app.getDispatcher();
+
+        # empty initially
+        assertEq(0, disp.getModalStack().size());
+
+        # push a modal
+        NcursesUi::DialogWidget dlg1(th.session(), "Dlg1", "msg1");
+        dlg1.centerOn(24, 80);
+        app.pushModal(dlg1);
+        assertEq(1, disp.getModalStack().size());
+
+        # push another
+        NcursesUi::DialogWidget dlg2(th.session(), "Dlg2", "msg2");
+        dlg2.centerOn(24, 80);
+        app.pushModal(dlg2);
+        assertEq(2, disp.getModalStack().size());
+
+        # pop
+        app.popModal();
+        assertEq(1, disp.getModalStack().size());
+
+        app.popModal();
+        assertEq(0, disp.getModalStack().size());
+    }
+
+    /** Test that FileBrowser panel renders directory entries. */
+    testFileBrowserPanelRendersContent() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::Application app(th.session());
+        NcursesUi::Widget root();
+        app.setRoot(root);
+
+        # browse /tmp which always exists
+        NcursesUi::FileBrowserWidget fb(th.session(), "/tmp");
+        fb.setFrame(NcursesUi::Geometry::makeRect(0, 0, 20, 60));
+        fb.createPanel();
+        app.pushModal(fb);
+
+        app.drawAll();
+
+        # read the panel window
+        *Ncurses::Window pw = fb.getWindow();
+        assertTrue(exists pw);
+
+        hash<Ncurses::Size> sz = pw.size();
+        string all_text = "";
+        for (int r = 0; r < sz.rows; ++r) {
+            all_text += pw.readText(r, 0, sz.cols);
+        }
+
+        # should have ".." parent directory entry
+        assertTrue(all_text.find("..") >= 0,
+            "file browser should show '..' entry but got: " + all_text);
+        # should have "[DIR]" marker for ".."
+        assertTrue(all_text.find("[DIR]") >= 0,
+            "file browser should show '[DIR]' marker but got: " + all_text);
+
+        # clean up
+        app.popModal();
+        fb.destroyPanel();
+    }
+
+    /** Test full REPL-like layout renders all components visually. */
+    testFullReplLayoutRendering() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::Application app(th.session());
+        NcursesUi::Widget root();
+
+        # menu bar
+        NcursesUi::MenuBarWidget menu();
+        menu.addMenu("File", ({"label": "Quit", "command": "quit"},));
+        menu.addMenu("Help", ({"label": "About", "command": "about"},));
+        menu.setVSizePolicy(NcursesUi::SizePolicy::Fixed);
+        menu.setPreferredSize(1, 0);
+
+        # output area
+        NcursesUi::ScrollableWidget output();
+        NcursesUi::LineListContent output_content();
+        output_content.appendLine("Welcome to the REPL");
+        output_content.appendLine("Type expressions to evaluate");
+        output.setContent(output_content);
+        output.setVSizePolicy(NcursesUi::SizePolicy::Expanding);
+
+        # input
+        NcursesUi::TextInputWidget input_widget("qore> ");
+        input_widget.setVSizePolicy(NcursesUi::SizePolicy::Fixed);
+        input_widget.setPreferredSize(1, 0);
+
+        # status bar
+        NcursesUi::StatusBarWidget status();
+        status.setSegments((
+            {"text": "Ready"},
+            {"text": "Mouse:ON"},
+            {"text": "14:30:00", "align": "right"},
+        ));
+        status.setVSizePolicy(NcursesUi::SizePolicy::Fixed);
+        status.setPreferredSize(1, 0);
+
+        root.addChild(menu);
+        root.addChild(output);
+        root.addChild(input_widget);
+        root.addChild(status);
+
+        NcursesUi::BoxLayout layout(NcursesUi::Orientation::Vertical);
+        app.setRootLayout(layout);
+        app.setRoot(root);
+
+        app.drawAll();
+
+        Ncurses::Window scr = th.session().screen();
+
+        # verify menu bar renders with both labels
+        string menu_row = scr.readText(0, 0, 80);
+        assertTrue(menu_row.find("File") >= 0, "menu bar should show 'File'");
+        assertTrue(menu_row.find("Help") >= 0, "menu bar should show 'Help'");
+
+        # verify output area renders welcome text
+        string out_row1 = scr.readText(1, 0, 80);
+        assertTrue(out_row1.find("Welcome to the REPL") >= 0,
+            "output should show welcome text but got: " + out_row1);
+
+        # verify input prompt renders
+        string input_row = scr.readText(22, 0, 80);
+        assertTrue(input_row.find("qore>") >= 0,
+            "input should show prompt but got: " + input_row);
+
+        # verify status bar renders all segments with spacing
+        string status_row = scr.readText(23, 0, 80);
+        assertTrue(status_row.find("Ready") >= 0, "status bar should show 'Ready'");
+        assertTrue(status_row.find("Mouse:ON") >= 0, "status bar should show 'Mouse:ON'");
+        assertTrue(status_row.find("14:30:00") >= 0, "status bar should show time");
+
+        # verify spacing: "Ready" and "Mouse:ON" should not be adjacent
+        int ready_end = status_row.find("Ready") + 5;
+        int mouse_start = status_row.find("Mouse:ON");
+        assertTrue(mouse_start > ready_end,
+            sprintf("segments should have spacing: Ready ends at %d, Mouse:ON at %d",
+                ready_end, mouse_start));
+    }
+
+    /** Test dropdown navigation updates highlight visually. */
+    testDropdownNavigationVisual() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::Application app(th.session());
+        NcursesUi::Widget root();
+
+        NcursesUi::MenuBarWidget menu();
+        menu.setApplication(app);
+        menu.setVSizePolicy(NcursesUi::SizePolicy::Fixed);
+        menu.setPreferredSize(1, 0);
+        menu.addMenu("Actions", (
+            {"label": "Run", "command": "run"},
+            {"label": "Debug", "command": "debug"},
+            {"label": "Profile", "command": "profile"},
+        ));
+
+        root.addChild(menu);
+        NcursesUi::BoxLayout layout(NcursesUi::Orientation::Vertical);
+        app.setRootLayout(layout);
+        app.setRoot(root);
+        app.getFocusManager().setFocus(menu);
+
+        # open the menu
+        menu.openMenu(0);
+        app.drawAll();
+
+        # get dropdown reference
+        list<NcursesUi::Widget> modals = app.getDispatcher().getModalStack();
+        assertEq(1, modals.size());
+        NcursesUi::DropdownMenuWidget dd = modals[0];
+
+        # initial highlight should be on "Run" (index 0)
+        assertEq(0, dd.getHighlightIndex());
+
+        # verify all items rendered
+        *Ncurses::Window pw = dd.getWindow();
+        assertTrue(exists pw);
+        hash<Ncurses::Size> sz = pw.size();
+        string all_text = "";
+        for (int r = 0; r < sz.rows; ++r) {
+            all_text += pw.readText(r, 0, sz.cols);
+        }
+        assertTrue(all_text.find("Run") >= 0);
+        assertTrue(all_text.find("Debug") >= 0);
+        assertTrue(all_text.find("Profile") >= 0);
+
+        # navigate down twice to "Profile"
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Key;
+        ev.name = "KEY_DOWN";
+        app.processEvent(ev);
+        assertEq(1, dd.getHighlightIndex());
+        app.processEvent(ev);
+        assertEq(2, dd.getHighlightIndex());
+
+        # navigate back up to "Debug"
+        ev.name = "KEY_UP";
+        app.processEvent(ev);
+        assertEq(1, dd.getHighlightIndex());
+
+        # select "Debug" via Enter
+        string fired_cmd;
+        menu.setOnCommand(sub (string cmd) { fired_cmd = cmd; });
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = "\n";
+        app.processEvent(ev);
+        assertEq("debug", fired_cmd);
+        assertFalse(menu.isDropdownOpen());
+        assertFalse(app.getDispatcher().hasModal());
+    }
+
+    /** Test Escape closes dropdown and removes panel visually. */
+    testEscapeClosesDropdownVisual() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::Application app(th.session());
+        NcursesUi::Widget root();
+
+        NcursesUi::MenuBarWidget menu();
+        menu.setApplication(app);
+        menu.setVSizePolicy(NcursesUi::SizePolicy::Fixed);
+        menu.setPreferredSize(1, 0);
+        menu.addMenu("File", (
+            {"label": "Open", "command": "open"},
+        ));
+
+        root.addChild(menu);
+        NcursesUi::BoxLayout layout(NcursesUi::Orientation::Vertical);
+        app.setRootLayout(layout);
+        app.setRoot(root);
+
+        # open dropdown
+        menu.openMenu(0);
+        assertTrue(menu.isDropdownOpen());
+        assertTrue(app.getDispatcher().hasModal());
+
+        # draw - dropdown should appear
+        app.drawAll();
+
+        # verify dropdown content is rendered
+        list<NcursesUi::Widget> modals = app.getDispatcher().getModalStack();
+        NcursesUi::DropdownMenuWidget dd = modals[0];
+        *Ncurses::Window pw = dd.getWindow();
+        assertTrue(exists pw);
+
+        # Escape via the dropdown (modal dispatches to it)
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = chr(0x1b);
+        app.processEvent(ev);
+
+        # dropdown should be closed
+        assertFalse(menu.isDropdownOpen());
+        assertFalse(app.getDispatcher().hasModal());
+
+        # draw again - dropdown panel should be gone
+        app.drawAll();
+
+        # verify the screen area where dropdown was is now clear
+        # (just the menu bar at row 0, rest should be empty)
+        string row2 = th.session().screen().readText(2, 0, 20);
+        # should NOT contain "Open" on the screen anymore
+        assertFalse(row2.find("Open") >= 0,
+            "dropdown should be gone but row 2 still shows: " + row2);
+    }
+
+    /** Test Escape with no modal/dropdown shows quit dialog visually. */
+    testEscapeShowsQuitDialogVisual() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::Application app(th.session());
+        NcursesUi::Widget root();
+
+        NcursesUi::MenuBarWidget menu();
+        menu.setApplication(app);
+        menu.setVSizePolicy(NcursesUi::SizePolicy::Fixed);
+        menu.setPreferredSize(1, 0);
+
+        root.addChild(menu);
+        NcursesUi::BoxLayout layout(NcursesUi::Orientation::Vertical);
+        app.setRootLayout(layout);
+        app.setRoot(root);
+
+        # simulate the qrepl escape handler that shows a quit dialog
+        *NcursesUi::DialogWidget quit_dlg;
+        app.setGlobalKeyHandler(hash<NcursesUi::EventResult> sub (hash<Ncurses::InputEvent> ev) {
+            if (ev.type == Ncurses::InputType::Char && ord(ev.ch ?? "") == 0x1b) {
+                if (app.getDispatcher().hasModal()) {
+                    return <NcursesUi::EventResult>{"handled": False};
+                }
+                if (menu.isDropdownOpen()) {
+                    menu.closeMenu();
+                    return <NcursesUi::EventResult>{"handled": True};
+                }
+                # show quit dialog
+                quit_dlg = NcursesUi::DialogWidget::confirm(
+                    th.session(), "Quit", "Exit the REPL?",
+                    sub (int idx, string label) {
+                        if (idx == 0) {
+                            app.popModal();
+                            quit_dlg.destroyPanel();
+                            app.quit();
+                        } else {
+                            app.popModal();
+                            quit_dlg.destroyPanel();
+                        }
+                    });
+                quit_dlg.setOnDismiss(sub () {
+                    app.popModal();
+                    quit_dlg.destroyPanel();
+                });
+                quit_dlg.centerOn(24, 80);
+                quit_dlg.createPanel();
+                app.pushModal(quit_dlg);
+                return <NcursesUi::EventResult>{"handled": True};
+            }
+            return <NcursesUi::EventResult>{"handled": False};
+        });
+
+        # press Escape with nothing open
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = chr(0x1b);
+        app.processEvent(ev);
+
+        # quit dialog should be shown
+        assertTrue(app.getDispatcher().hasModal());
+        assertTrue(exists quit_dlg);
+
+        # draw and verify dialog content
+        app.drawAll();
+
+        *Ncurses::Window pw = quit_dlg.getWindow();
+        assertTrue(exists pw);
+        hash<Ncurses::Size> sz = pw.size();
+        string all_text = "";
+        for (int r = 0; r < sz.rows; ++r) {
+            all_text += pw.readText(r, 0, sz.cols);
+        }
+        assertTrue(all_text.find("Quit") >= 0,
+            "quit dialog should show title but got: " + all_text);
+        assertTrue(all_text.find("Exit the REPL") >= 0,
+            "quit dialog should show message but got: " + all_text);
+        assertTrue(all_text.find("OK") >= 0,
+            "quit dialog should show OK button but got: " + all_text);
+        assertTrue(all_text.find("Cancel") >= 0,
+            "quit dialog should show Cancel button but got: " + all_text);
+
+        # press Escape on the dialog to dismiss it
+        app.processEvent(ev);
+
+        # dialog should be gone (on_dismiss pops the modal)
+        # Note: DialogWidget returns action "dismiss" on Escape but doesn't auto-pop
+        # The global handler passes through to modal, which is the dialog
+        # Dialog's processEvent returns {handled: True, action: "dismiss"}
+        # We need to verify the dialog handled it
+        assertFalse(app.getDispatcher().hasModal());
+
+        # press Escape again - should show a new quit dialog
+        app.processEvent(ev);
+        assertTrue(app.getDispatcher().hasModal());
+
+        # this time press Enter on OK to quit
+        ev.ch = "\n";
+        app.processEvent(ev);
+        assertFalse(app.isRunning());
+    }
+
+    /** Test stacked modals render in correct order. */
+    testStackedModalsRender() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::Application app(th.session());
+        NcursesUi::Widget root();
+        app.setRoot(root);
+
+        # first dialog
+        NcursesUi::DialogWidget dlg1(th.session(), "First Dialog", "First message", ("OK",));
+        dlg1.centerOn(24, 80);
+        dlg1.createPanel();
+        app.pushModal(dlg1);
+
+        # second dialog (smaller, on top)
+        NcursesUi::DialogWidget dlg2(th.session(), "Second Dialog", "Second message", ("Yes", "No"));
+        dlg2.setFrame(NcursesUi::Geometry::makeRect(2, 2, 7, 30));
+        dlg2.createPanel();
+        app.pushModal(dlg2);
+
+        # draw everything
+        app.drawAll();
+
+        # both panel windows should have content
+        *Ncurses::Window pw1 = dlg1.getWindow();
+        *Ncurses::Window pw2 = dlg2.getWindow();
+        assertTrue(exists pw1);
+        assertTrue(exists pw2);
+
+        # verify first dialog content
+        hash<Ncurses::Size> sz1 = pw1.size();
+        string text1 = "";
+        for (int r = 0; r < sz1.rows; ++r) {
+            text1 += pw1.readText(r, 0, sz1.cols);
+        }
+        assertTrue(text1.find("First Dialog") >= 0);
+        assertTrue(text1.find("First message") >= 0);
+
+        # verify second dialog content
+        hash<Ncurses::Size> sz2 = pw2.size();
+        string text2 = "";
+        for (int r = 0; r < sz2.rows; ++r) {
+            text2 += pw2.readText(r, 0, sz2.cols);
+        }
+        assertTrue(text2.find("Second Dialog") >= 0);
+        assertTrue(text2.find("Second message") >= 0);
+        assertTrue(text2.find("Yes") >= 0);
+        assertTrue(text2.find("No") >= 0);
+
+        # events should go to the topmost modal (dlg2)
+        assertEq(2, app.getDispatcher().getModalStack().size());
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = "\t";
+        app.processEvent(ev);
+        # dlg2 should have button focus moved
+        assertEq(1, dlg2.getFocusedButton());
+        # dlg1 should be unchanged
+        assertEq(0, dlg1.getFocusedButton());
+
+        # clean up
+        app.popModal();
+        dlg2.destroyPanel();
+        app.popModal();
+        dlg1.destroyPanel();
+    }
+
+    /** Test MenuBar renders multiple menu labels at correct positions. */
+    testMenuBarRendersLabels() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::Application app(th.session());
+        NcursesUi::Widget root();
+
+        NcursesUi::MenuBarWidget menu();
+        menu.addMenu("File", ({"label": "New", "command": "new"},));
+        menu.addMenu("Edit", ({"label": "Copy", "command": "copy"},));
+        menu.addMenu("View", ({"label": "Zoom", "command": "zoom"},));
+        menu.setVSizePolicy(NcursesUi::SizePolicy::Fixed);
+        menu.setPreferredSize(1, 0);
+
+        root.addChild(menu);
+        NcursesUi::BoxLayout layout(NcursesUi::Orientation::Vertical);
+        app.setRootLayout(layout);
+        app.setRoot(root);
+
+        app.drawAll();
+
+        string menu_row = th.session().screen().readText(0, 0, 80);
+        assertTrue(menu_row.find("File") >= 0);
+        assertTrue(menu_row.find("Edit") >= 0);
+        assertTrue(menu_row.find("View") >= 0);
+
+        # verify order: File < Edit < View
+        int file_pos = menu_row.find("File");
+        int edit_pos = menu_row.find("Edit");
+        int view_pos = menu_row.find("View");
+        assertTrue(file_pos < edit_pos, "File should appear before Edit");
+        assertTrue(edit_pos < view_pos, "Edit should appear before View");
+    }
+
+    /** Test StatusBar renders spaced segments in a full app. */
+    testStatusBarRendersInApp() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::Application app(th.session());
+        NcursesUi::Widget root();
+
+        NcursesUi::StatusBarWidget sb();
+        sb.setSegments((
+            {"text": "Ready"},
+            {"text": "Ln 42"},
+            {"text": "Col 7"},
+            {"text": "UTF-8", "align": "right"},
+            {"text": "LF", "align": "right"},
+        ));
+        sb.setVSizePolicy(NcursesUi::SizePolicy::Fixed);
+        sb.setPreferredSize(1, 0);
+
+        root.addChild(sb);
+        NcursesUi::BoxLayout layout(NcursesUi::Orientation::Vertical);
+        app.setRootLayout(layout);
+        app.setRoot(root);
+
+        app.drawAll();
+
+        # status bar on first row since it's the only child
+        string row = th.session().screen().readText(0, 0, 80);
+        assertTrue(row.find("Ready") >= 0);
+        assertTrue(row.find("Ln 42") >= 0);
+        assertTrue(row.find("Col 7") >= 0);
+        assertTrue(row.find("UTF-8") >= 0);
+        assertTrue(row.find("LF") >= 0);
+
+        # verify left segments are spaced
+        int ready_end = row.find("Ready") + 5;
+        int ln_start = row.find("Ln 42");
+        assertTrue(ln_start > ready_end,
+            sprintf("Ready (end %d) should have spacing before Ln 42 (start %d)", ready_end, ln_start));
+
+        int ln_end = row.find("Ln 42") + 5;
+        int col_start = row.find("Col 7");
+        assertTrue(col_start > ln_end,
+            sprintf("Ln 42 (end %d) should have spacing before Col 7 (start %d)", ln_end, col_start));
+
+        # verify right segments are at the right end
+        int utf8_pos = row.find("UTF-8");
+        int lf_pos = row.find("LF");
+        assertTrue(utf8_pos < lf_pos, "UTF-8 should be left of LF");
+        assertTrue(lf_pos > 70, sprintf("LF should be near right edge but at %d", lf_pos));
+    }
+
+    /** Test TableWidget renders headers and data rows visually. */
+    testTableRendersVisually() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::Application app(th.session());
+        NcursesUi::TableWidget tw();
+        tw.setColumns((
+            {"key": "name", "header": "Name"},
+            {"key": "size", "header": "Size", "width": 10},
+        ));
+        tw.setRows((
+            {"name": "hello.q", "size": "1.2K"},
+            {"name": "world.q", "size": "3.4K"},
+        ));
+
+        app.setRoot(tw);
+        app.drawAll();
+
+        Ncurses::Window scr = th.session().screen();
+
+        # header row
+        string header = scr.readText(0, 0, 80);
+        assertTrue(header.find("Name") >= 0, "table should render 'Name' header");
+        assertTrue(header.find("Size") >= 0, "table should render 'Size' header");
+
+        # data rows
+        string row1 = scr.readText(1, 0, 80);
+        assertTrue(row1.find("hello.q") >= 0, "table should render first row");
+        string row2 = scr.readText(2, 0, 80);
+        assertTrue(row2.find("world.q") >= 0, "table should render second row");
+    }
+
+    /** Test TextInputWidget renders prompt and typed text in a full app. */
+    testTextInputRendersVisually() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::Application app(th.session());
+        NcursesUi::TextInputWidget ti(">>> ");
+        ti.setVSizePolicy(NcursesUi::SizePolicy::Fixed);
+        ti.setPreferredSize(1, 0);
+
+        NcursesUi::Widget root();
+        root.addChild(ti);
+        NcursesUi::BoxLayout layout(NcursesUi::Orientation::Vertical);
+        app.setRootLayout(layout);
+        app.setRoot(root);
+        app.getFocusManager().setFocus(ti);
+
+        # type some text
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Char;
+        foreach string ch in (("p", "r", "i", "n", "t", "(", "4", "2", ")")) {
+            ev.ch = ch;
+            app.processEvent(ev);
+        }
+
+        app.drawAll();
+
+        string row = th.session().screen().readText(0, 0, 40);
+        assertTrue(row.find(">>>") >= 0, "should show prompt but got: " + row);
+        assertTrue(row.find("print(42)") >= 0, "should show typed text but got: " + row);
+    }
+
+    /** Test ListWidget renders selected item with highlight. */
+    testListRendersSelection() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::Application app(th.session());
+        NcursesUi::ListWidget lw();
+        lw.setItems((
+            {"label": "Apple"},
+            {"label": "Banana"},
+            {"label": "Cherry"},
+            {"label": "Date"},
+        ));
+
+        app.setRoot(lw);
+        app.getFocusManager().setFocus(lw);
+
+        # move to "Cherry" (index 2)
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Key;
+        ev.name = "KEY_DOWN";
+        app.processEvent(ev);
+        app.processEvent(ev);
+        assertEq(2, lw.getSelectedIndex());
+
+        app.drawAll();
+
+        Ncurses::Window scr = th.session().screen();
+
+        # all items should be visible
+        string row0 = scr.readText(0, 0, 40);
+        assertTrue(row0.find("Apple") >= 0);
+        string row1 = scr.readText(1, 0, 40);
+        assertTrue(row1.find("Banana") >= 0);
+        string row2 = scr.readText(2, 0, 40);
+        assertTrue(row2.find("Cherry") >= 0);
+        string row3 = scr.readText(3, 0, 40);
+        assertTrue(row3.find("Date") >= 0);
+    }
+
+    /** Test CheckboxWidget renders toggle state in a full app. */
+    testCheckboxRendersInApp() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::Application app(th.session());
+        NcursesUi::Widget root();
+
+        NcursesUi::CheckboxWidget cb1("Enable Debug", False);
+        NcursesUi::CheckboxWidget cb2("Verbose Output", True);
+        cb1.setVSizePolicy(NcursesUi::SizePolicy::Fixed);
+        cb1.setPreferredSize(1, 0);
+        cb2.setVSizePolicy(NcursesUi::SizePolicy::Fixed);
+        cb2.setPreferredSize(1, 0);
+
+        root.addChild(cb1);
+        root.addChild(cb2);
+        NcursesUi::BoxLayout layout(NcursesUi::Orientation::Vertical);
+        app.setRootLayout(layout);
+        app.setRoot(root);
+
+        app.drawAll();
+
+        Ncurses::Window scr = th.session().screen();
+
+        string row0 = scr.readText(0, 0, 40);
+        assertTrue(row0.find("[ ]") >= 0, "unchecked should show [ ] but got: " + row0);
+        assertTrue(row0.find("Enable Debug") >= 0);
+
+        string row1 = scr.readText(1, 0, 40);
+        assertTrue(row1.find("[X]") >= 0, "checked should show [X] but got: " + row1);
+        assertTrue(row1.find("Verbose Output") >= 0);
+
+        # toggle cb1 via keyboard
+        app.getFocusManager().setFocus(cb1);
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = " ";
+        app.processEvent(ev);
+        assertTrue(cb1.isChecked());
+
+        app.drawAll();
+
+        row0 = scr.readText(0, 0, 40);
+        assertTrue(row0.find("[X]") >= 0, "toggled should show [X] but got: " + row0);
+    }
+
+    /** Test clicking outside a dropdown closes it. */
+    testClickOutsideDropdownCloses() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::Application app(th.session());
+        NcursesUi::Widget root();
+
+        NcursesUi::MenuBarWidget menu();
+        menu.setApplication(app);
+        menu.setVSizePolicy(NcursesUi::SizePolicy::Fixed);
+        menu.setPreferredSize(1, 0);
+        menu.addMenu("File", (
+            {"label": "Open", "command": "open"},
+        ));
+
+        root.addChild(menu);
+        NcursesUi::BoxLayout layout(NcursesUi::Orientation::Vertical);
+        app.setRootLayout(layout);
+        app.setRoot(root);
+
+        # open dropdown
+        menu.openMenu(0);
+        assertTrue(menu.isDropdownOpen());
+        assertTrue(app.getDispatcher().hasModal());
+
+        app.drawAll();
+
+        # click in empty area (row 10, col 40 - well outside dropdown)
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Mouse;
+        hash<Ncurses::MouseEvent> mouse();
+        mouse.y = 10;
+        mouse.x = 40;
+        mouse.button_state = Ncurses::BUTTON1_CLICKED;
+        ev.mouse = mouse;
+        app.processEvent(ev);
+
+        # dropdown should be closed
+        assertFalse(menu.isDropdownOpen(),
+            "clicking outside dropdown should close it");
+        assertFalse(app.getDispatcher().hasModal(),
+            "modal should be removed after click outside");
+    }
+
+    /** Test clicking another menu item while dropdown is open switches to that menu. */
+    testClickAnotherMenuSwitchesDropdown() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::Application app(th.session());
+        NcursesUi::Widget root();
+
+        NcursesUi::MenuBarWidget menu();
+        menu.setApplication(app);
+        menu.setVSizePolicy(NcursesUi::SizePolicy::Fixed);
+        menu.setPreferredSize(1, 0);
+        menu.addMenu("File", (
+            {"label": "Open", "command": "open"},
+        ));
+        menu.addMenu("Edit", (
+            {"label": "Copy", "command": "copy"},
+        ));
+        menu.addMenu("Help", (
+            {"label": "About", "command": "about"},
+        ));
+
+        string fired_cmd;
+        menu.setOnCommand(sub (string cmd) { fired_cmd = cmd; });
+
+        root.addChild(menu);
+        NcursesUi::BoxLayout layout(NcursesUi::Orientation::Vertical);
+        app.setRootLayout(layout);
+        app.setRoot(root);
+        app.getFocusManager().setFocus(menu);
+
+        # open File menu
+        menu.openMenu(0);
+        assertTrue(menu.isDropdownOpen());
+        assertEq(0, menu.getActiveMenu());
+        assertTrue(app.getDispatcher().hasModal());
+
+        app.drawAll();
+
+        # verify dropdown content shows "Open"
+        list<NcursesUi::Widget> modals = app.getDispatcher().getModalStack();
+        assertEq(1, modals.size());
+        NcursesUi::DropdownMenuWidget dd1 = modals[0];
+        *Ncurses::Window pw = dd1.getWindow();
+        assertTrue(exists pw);
+        hash<Ncurses::Size> sz = pw.size();
+        string dd1_text = "";
+        for (int r = 0; r < sz.rows; ++r) {
+            dd1_text += pw.readText(r, 0, sz.cols);
+        }
+        assertTrue(dd1_text.find("Open") >= 0, "File dropdown should show 'Open'");
+
+        # now click on "Edit" menu label (row 0, x = position of Edit label)
+        # "File" = " File " = 6 chars, "Edit" starts at x=6
+        int edit_x = menu.menuXPosition(1) + 1;  # +1 for the space before label
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Mouse;
+        hash<Ncurses::MouseEvent> mouse();
+        mouse.y = 0;
+        mouse.x = edit_x;
+        mouse.button_state = Ncurses::BUTTON1_CLICKED;
+        ev.mouse = mouse;
+        app.processEvent(ev);
+
+        # the File dropdown should close and Edit should open
+        assertTrue(menu.isDropdownOpen(),
+            "Edit dropdown should now be open");
+        assertEq(1, menu.getActiveMenu(),
+            "active menu should be Edit (index 1)");
+        assertTrue(app.getDispatcher().hasModal(),
+            "should have a modal for Edit dropdown");
+
+        # draw and verify the Edit dropdown content
+        app.drawAll();
+
+        modals = app.getDispatcher().getModalStack();
+        assertEq(1, modals.size());
+        NcursesUi::DropdownMenuWidget dd2 = modals[0];
+        pw = dd2.getWindow();
+        assertTrue(exists pw);
+        sz = pw.size();
+        string dd2_text = "";
+        for (int r = 0; r < sz.rows; ++r) {
+            dd2_text += pw.readText(r, 0, sz.cols);
+        }
+        assertTrue(dd2_text.find("Copy") >= 0,
+            "Edit dropdown should show 'Copy' but got: " + dd2_text);
+
+        # select the item
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = "\n";
+        app.processEvent(ev);
+        assertEq("copy", fired_cmd);
+        assertFalse(menu.isDropdownOpen());
+    }
+
+    /** Test Escape closes dropdown via modal event dispatch. */
+    testEscapeClosesDropdownViaModal() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::Application app(th.session());
+        NcursesUi::Widget root();
+
+        NcursesUi::MenuBarWidget menu();
+        menu.setApplication(app);
+        menu.setVSizePolicy(NcursesUi::SizePolicy::Fixed);
+        menu.setPreferredSize(1, 0);
+        menu.addMenu("File", (
+            {"label": "Open", "command": "open"},
+            {"label": "Save", "command": "save"},
+        ));
+
+        # set up a global key handler similar to qrepl
+        app.setGlobalKeyHandler(hash<NcursesUi::EventResult> sub (hash<Ncurses::InputEvent> ev) {
+            if (ev.type == Ncurses::InputType::Char && ord(ev.ch ?? "") == 0x1b) {
+                if (app.getDispatcher().hasModal()) {
+                    return <NcursesUi::EventResult>{"handled": False};
+                }
+                if (menu.isDropdownOpen()) {
+                    menu.closeMenu();
+                    return <NcursesUi::EventResult>{"handled": True};
+                }
+                return <NcursesUi::EventResult>{"handled": True, "action": "quit_dialog"};
+            }
+            return <NcursesUi::EventResult>{"handled": False};
+        });
+
+        root.addChild(menu);
+        NcursesUi::BoxLayout layout(NcursesUi::Orientation::Vertical);
+        app.setRootLayout(layout);
+        app.setRoot(root);
+
+        # open dropdown
+        menu.openMenu(0);
+        assertTrue(menu.isDropdownOpen());
+        assertTrue(app.getDispatcher().hasModal());
+
+        app.drawAll();
+
+        # verify dropdown content
+        list<NcursesUi::Widget> modals = app.getDispatcher().getModalStack();
+        NcursesUi::DropdownMenuWidget dd = modals[0];
+        *Ncurses::Window pw = dd.getWindow();
+        assertTrue(exists pw);
+
+        # press Escape
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = chr(0x1b);
+        app.processEvent(ev);
+
+        # dropdown should be closed
+        assertFalse(menu.isDropdownOpen(),
+            "Escape should close the dropdown");
+        assertFalse(app.getDispatcher().hasModal(),
+            "modal should be removed after Escape");
+
+        # draw and verify dropdown is gone
+        app.drawAll();
+
+        # the menu bar should still be visible
+        string menu_row = th.session().screen().readText(0, 0, 40);
+        assertTrue(menu_row.find("File") >= 0, "menu bar should still show");
+    }
+
+    /** Test that dialog cursor is on the focused button, not on the prompt line. */
+    testDialogCursorPosition() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::Application app(th.session());
+        NcursesUi::Widget root();
+
+        # REPL-like layout with input on row 22
+        NcursesUi::ScrollableWidget output();
+        NcursesUi::LineListContent content();
+        content.appendLine("Welcome");
+        output.setContent(content);
+        output.setVSizePolicy(NcursesUi::SizePolicy::Expanding);
+
+        NcursesUi::TextInputWidget input_w(">>> ");
+        input_w.setVSizePolicy(NcursesUi::SizePolicy::Fixed);
+        input_w.setPreferredSize(1, 0);
+
+        root.addChild(output);
+        root.addChild(input_w);
+
+        NcursesUi::BoxLayout layout(NcursesUi::Orientation::Vertical);
+        app.setRootLayout(layout);
+        app.setRoot(root);
+        app.getFocusManager().setFocus(input_w);
+
+        # draw initial state - cursor should be at the prompt
+        app.drawAll();
+        Ncurses::Window scr = th.session().screen();
+        hash<Ncurses::Position> pos1 = scr.cursor();
+        # input is on the last row (row 23)
+        assertEq(23, pos1.y);
+
+        # now show a dialog
+        NcursesUi::DialogWidget dlg(th.session(), "Quit", "Exit?", ("OK", "Cancel"));
+        dlg.centerOn(24, 80);
+        dlg.createPanel();
+        app.pushModal(dlg);
+
+        # draw with dialog - cursor should move to the dialog button
+        app.drawAll();
+        hash<Ncurses::Position> pos2 = scr.cursor();
+        # cursor should NOT be on the prompt row (23)
+        assertTrue(pos2.y != 23,
+            sprintf("cursor should be on dialog button (row %d), not on prompt row 23", pos2.y));
+
+        # cursor should be within the dialog frame
+        hash<NcursesUi::Rect> f = dlg.getFrame();
+        assertTrue(pos2.y >= f.y && pos2.y < f.y + f.rows,
+            sprintf("cursor row %d should be within dialog frame (y=%d, rows=%d)",
+                pos2.y, f.y, f.rows));
+        assertTrue(pos2.x >= f.x && pos2.x < f.x + f.cols,
+            sprintf("cursor col %d should be within dialog frame (x=%d, cols=%d)",
+                pos2.x, f.x, f.cols));
+
+        # Tab to Cancel button, redraw, verify cursor moves
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = "\t";
+        app.processEvent(ev);
+        assertEq(1, dlg.getFocusedButton());
+
+        app.drawAll();
+        hash<Ncurses::Position> pos3 = scr.cursor();
+        # cursor should have moved right (Cancel button is right of OK)
+        assertTrue(pos3.x > pos2.x,
+            sprintf("cursor should move right for Cancel (x=%d vs OK x=%d)", pos3.x, pos2.x));
+
+        # clean up
+        app.popModal();
+        dlg.destroyPanel();
+    }
+}

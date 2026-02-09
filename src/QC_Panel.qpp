@@ -1,0 +1,272 @@
+/* -*- mode: c++; indent-tabs-mode: nil -*- */
+/*
+    Qore ncurses module
+
+
+    Copyright (C) 2003 - 2026 Qore Technologies, s.r.o.
+
+    This library is free software; you can redistribute it and/or
+    modify it under the terms of the GNU Lesser General Public
+    License as published by the Free Software Foundation; either
+    version 2.1 of the License, or (at your option) any later version.
+
+    This library is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    Lesser General Public License for more details.
+
+    You should have received a copy of the GNU Lesser General Public
+    License along with this library; if not, write to the Free Software
+    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+*/
+
+#include "ncurses-internal.h"
+
+//! Ncurses panel
+/** Represents a panel layered above windows.
+
+    A Panel wraps a Window with z-order stacking managed by the ncurses panel
+    library. Use show(), hide(), and top() to control visibility and ordering,
+    and update() to flush changes to the terminal.
+
+    @par Example:
+    @code{.py}
+%modern
+%requires ncurses
+
+Ncurses::Session s();
+Ncurses::Window root = s.screen();
+root.clear();
+
+# create a panel with a new 7x30 window at (2, 4)
+Ncurses::Panel p(s, 7, 30, 2, 4);
+Ncurses::Window pw = p.window();
+pw.box({"fg": Ncurses::Color::Cyan});
+pw.drawTextInside(0, 0, "Panel content", {"fg": Ncurses::Color::White});
+
+p.show();
+p.top();
+p.update();
+
+root.readEvent();
+s.close();
+    @endcode
+
+    @since %ncurses 2.0
+*/
+qclass Panel [dom=TERMINAL_IO; arg=NcursesPanel* panel; ns=Qore::Ncurses];
+
+// ---------------------------------------------
+// Panel implementation
+// ---------------------------------------------
+
+//! Creates a panel from an existing window
+/**
+    @param window the window to wrap
+
+    @since %ncurses 2.0
+*/
+Panel::constructor(Qore::Ncurses::Window[NcursesWindow] window) {
+    ReferenceHolder<NcursesWindow> wh(window, xsink);
+    if (*xsink) {
+        return;
+    }
+    wh->checkOpen(xsink);
+    if (*xsink) {
+        return;
+    }
+    NcursesCallGuard guard(wh->session);
+    PANEL* p = new_panel(wh->win);
+    if (!p) {
+        xsink->raiseException("NCURSES-ERROR", "new_panel() failed");
+        return;
+    }
+    QoreObject* wobj = const_cast<QoreObject*>(obj_window);
+    self->setPrivate(CID_PANEL, new NcursesPanel(wh->session, p, wobj));
+}
+
+//! Creates a panel with a new window
+/**
+    @param session the session
+    @param rows height
+    @param cols width
+    @param y top row
+    @param x left column
+
+    @since %ncurses 2.0
+*/
+Panel::constructor(Qore::Ncurses::Session[NcursesSession] session, int rows, int cols, int y, int x) {
+    ReferenceHolder<NcursesSession> sh(session, xsink);
+    if (*xsink) {
+        return;
+    }
+    sh->checkOpen(xsink);
+    if (*xsink) {
+        return;
+    }
+    NcursesCallGuard guard(*sh);
+    WINDOW* w = newwin(rows, cols, y, x);
+    if (!w) {
+        xsink->raiseException("NCURSES-ERROR", "newwin() failed");
+        return;
+    }
+    PANEL* p = new_panel(w);
+    if (!p) {
+        delwin(w);
+        xsink->raiseException("NCURSES-ERROR", "new_panel() failed");
+        return;
+    }
+    QoreObject* wobj = new QoreObject(QC_WINDOW, getProgram(), new NcursesWindow(*sh, w, true));
+    self->setPrivate(CID_PANEL, new NcursesPanel(*sh, p, wobj));
+}
+
+//! Shows the panel
+/**
+    @since %ncurses 2.0
+*/
+nothing Panel::show() {
+    panel->checkOpen(xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    NcursesCallGuard guard(panel->session);
+    show_panel(panel->panel);
+    return nothing();
+}
+
+//! Hides the panel
+/**
+    @since %ncurses 2.0
+*/
+nothing Panel::hide() {
+    panel->checkOpen(xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    NcursesCallGuard guard(panel->session);
+    hide_panel(panel->panel);
+    return nothing();
+}
+
+//! Moves the panel to the top
+/**
+    @since %ncurses 2.0
+*/
+nothing Panel::top() {
+    panel->checkOpen(xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    NcursesCallGuard guard(panel->session);
+    top_panel(panel->panel);
+    return nothing();
+}
+
+//! Moves the panel to the bottom
+/**
+    @since %ncurses 2.0
+*/
+nothing Panel::bottom() {
+    panel->checkOpen(xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    NcursesCallGuard guard(panel->session);
+    bottom_panel(panel->panel);
+    return nothing();
+}
+
+//! Moves the panel
+/**
+    @param y top row
+    @param x left column
+
+    @since %ncurses 2.0
+*/
+nothing Panel::move(int y, int x) {
+    panel->checkOpen(xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    NcursesCallGuard guard(panel->session);
+    move_panel(panel->panel, y, x);
+    return nothing();
+}
+
+//! Updates panel stacking
+/**
+    @since %ncurses 2.0
+*/
+nothing Panel::update() {
+    panel->checkOpen(xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    NcursesCallGuard guard(panel->session);
+    update_panels();
+    doupdate();
+    return nothing();
+}
+
+//! Returns the panel's window
+/**
+    @since %ncurses 2.0
+*/
+Window Panel::window() {
+    panel->checkOpen(xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    if (!panel->window_obj) {
+        return nothing();
+    }
+    return panel->window_obj->refSelf();
+}
+
+//! Sets the wrap mode for the panel's window
+/**
+    @param mode wrap mode
+
+    @since %ncurses 2.0
+*/
+nothing Panel::setWrapMode(enum<WrapMode> mode) {
+    panel->checkOpen(xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    if (!panel->window_obj) {
+        return nothing();
+    }
+    PrivateDataRefHolder<NcursesWindow> wh(panel->window_obj, CID_WINDOW, xsink);
+    if (*xsink || !wh) {
+        return nothing();
+    }
+    int64 m = mode.getAsBigInt();
+    if (m < 0 || m > 2) {
+        xsink->raiseException("NCURSES-ERROR", "invalid wrap mode %d", (int)m);
+        return nothing();
+    }
+    wh->wrap_mode = (int)m;
+    return nothing();
+}
+
+//! Returns the wrap mode for the panel's window
+/**
+    @return @ref Qore::Ncurses::WrapMode "WrapMode" value
+
+    @since %ncurses 2.0
+*/
+enum<WrapMode> Panel::getWrapMode() [flags=CONSTANT] {
+    panel->checkOpen(xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    if (!panel->window_obj) {
+        return 1;
+    }
+    PrivateDataRefHolder<NcursesWindow> wh(panel->window_obj, CID_WINDOW, xsink);
+    if (*xsink || !wh) {
+        return 1;
+    }
+    return (int64)wh->wrap_mode;
+}

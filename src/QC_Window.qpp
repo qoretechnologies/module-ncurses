@@ -1,0 +1,1286 @@
+/* -*- mode: c++; indent-tabs-mode: nil -*- */
+/*
+    Qore ncurses module
+
+
+    Copyright (C) 2003 - 2026 Qore Technologies, s.r.o.
+
+    This library is free software; you can redistribute it and/or
+    modify it under the terms of the GNU Lesser General Public
+    License as published by the Free Software Foundation; either
+    version 2.1 of the License, or (at your option) any later version.
+
+    This library is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    Lesser General Public License for more details.
+
+    You should have received a copy of the GNU Lesser General Public
+    License along with this library; if not, write to the Free Software
+    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+*/
+
+#include "ncurses-internal.h"
+
+//! Ncurses window
+/** Represents a drawable window.
+
+    A Window is the primary drawing surface. Use drawText(), box(), and the
+    drawAnsi* methods to render content, and readEvent() to read input.
+
+    @par Example:
+    @code{.py}
+%modern
+%requires ncurses
+
+Ncurses::Session s();
+
+# create a 10x40 window at position (2, 5)
+Ncurses::Window w(s, 10, 40, 2, 5);
+w.box({"fg": Ncurses::Color::Blue});
+w.drawTextInside(0, 0, "Window title", {"fg": Ncurses::Color::Yellow, "attrs": Ncurses::Attr::Bold});
+w.refresh();
+
+w.readEvent();
+s.close();
+    @endcode
+
+    @since %ncurses 2.0
+*/
+qclass Window [dom=TERMINAL_IO; arg=NcursesWindow* win; ns=Qore::Ncurses];
+
+// ---------------------------------------------
+// Window implementation
+// ---------------------------------------------
+
+/**
+    @param session the session
+    @param rows window height
+    @param cols window width
+    @param y top position
+    @param x left position
+
+    @since %ncurses 2.0
+*/
+//! Creates a new window
+/**
+    @param session the session
+    @param rows window height
+    @param cols window width
+    @param y top position
+    @param x left position
+
+    @since %ncurses 2.0
+*/
+Window::constructor(Qore::Ncurses::Session[NcursesSession] session, int rows, int cols, int y, int x) {
+    ReferenceHolder<NcursesSession> sh(session, xsink);
+    if (*xsink) {
+        return;
+    }
+    sh->checkOpen(xsink);
+    if (*xsink) {
+        return;
+    }
+    NcursesCallGuard guard(*sh);
+    WINDOW* w = newwin(rows, cols, y, x);
+    if (!w) {
+        xsink->raiseException("NCURSES-ERROR", "newwin() failed");
+        return;
+    }
+    self->setPrivate(CID_WINDOW, new NcursesWindow(*sh, w, true));
+}
+
+//! Clears the window
+/**
+    @since %ncurses 2.0
+*/
+nothing Window::clear() {
+    win->checkOpen(xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    NcursesCallGuard guard(win->session);
+    wclear(win->win);
+    return nothing();
+}
+
+//! Erases the window contents
+/**
+    @since %ncurses 2.0
+*/
+nothing Window::erase() {
+    win->checkOpen(xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    NcursesCallGuard guard(win->session);
+    werase(win->win);
+    return nothing();
+}
+
+//! Refreshes the window
+/**
+    @since %ncurses 2.0
+*/
+nothing Window::refresh() {
+    win->checkOpen(xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    NcursesCallGuard guard(win->session);
+    wrefresh(win->win);
+    return nothing();
+}
+
+//! Queues the window for refresh
+/**
+    @since %ncurses 2.0
+*/
+nothing Window::noutrefresh() {
+    win->checkOpen(xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    NcursesCallGuard guard(win->session);
+    wnoutrefresh(win->win);
+    return nothing();
+}
+
+//! Moves the cursor
+/**
+    @param y row
+    @param x column
+
+    @since %ncurses 2.0
+*/
+nothing Window::moveCursor(int y, int x) {
+    win->checkOpen(xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    NcursesCallGuard guard(win->session);
+    wmove(win->win, y, x);
+    if (win->session && !win->leave_ok) {
+        win->session->cursor_win = win->win;
+        win->session->cursor_y = y;
+        win->session->cursor_x = x;
+        win->session->cursor_set = true;
+    }
+    return nothing();
+}
+
+//! Returns the current cursor position
+/**
+    @since %ncurses 2.0
+*/
+hash<Position> Window::cursor() {
+    win->checkOpen(xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    NcursesCallGuard guard(win->session);
+    int y = 0;
+    int x = 0;
+    getyx(win->win, y, x);
+    ReferenceHolder<QoreHashNode> h(new QoreHashNode(hashdeclPosition, xsink), xsink);
+    h->setKeyValue("y", y, xsink);
+    h->setKeyValue("x", x, xsink);
+    return h.release();
+}
+
+//! Returns the window size
+/**
+    @since %ncurses 2.0
+*/
+hash<Size> Window::size() {
+    win->checkOpen(xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    NcursesCallGuard guard(win->session);
+    int rows = 0;
+    int cols = 0;
+    getmaxyx(win->win, rows, cols);
+    ReferenceHolder<QoreHashNode> h(new QoreHashNode(hashdeclSize, xsink), xsink);
+    h->setKeyValue("rows", rows, xsink);
+    h->setKeyValue("cols", cols, xsink);
+    return h.release();
+}
+
+//! Returns the window position
+/**
+    @since %ncurses 2.0
+*/
+hash<Position> Window::position() {
+    win->checkOpen(xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    NcursesCallGuard guard(win->session);
+    int y = 0;
+    int x = 0;
+    getbegyx(win->win, y, x);
+    ReferenceHolder<QoreHashNode> h(new QoreHashNode(hashdeclPosition, xsink), xsink);
+    h->setKeyValue("y", y, xsink);
+    h->setKeyValue("x", x, xsink);
+    return h.release();
+}
+
+/**
+    @param y row
+    @param x column
+    @param text text to draw
+    @param style optional style hash
+
+    @since %ncurses 2.0
+*/
+//! Draws text at a position
+/**
+    @param y row
+    @param x column
+    @param text text to draw
+    @param style optional style hash
+
+    @since %ncurses 2.0
+*/
+nothing Window::drawText(int y, int x, string text, *hash style) {
+    win->checkOpen(xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    NcursesCallGuard guard(win->session);
+    int cy = 0;
+    int cx = 0;
+    getyx(win->win, cy, cx);
+    StyleSpec spec;
+    parseStyle(style, spec, xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    attr_t old_attr = 0;
+    short old_pair = 0;
+    applyStyle(win, spec, old_attr, old_pair, xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    mvwaddnstr(win->win, y, x, text->c_str(), text->size());
+    restoreStyle(win, old_attr, old_pair);
+    return nothing();
+}
+
+//! Draws text clipped to window bounds
+/**
+    @param y row
+    @param x column
+    @param text text to draw
+    @param style optional style hash
+
+    The text is clipped to the visible window region to prevent out-of-bounds
+    writes. If the text would start before column 0, the leading characters are
+    skipped.
+
+    @since %ncurses 2.0
+*/
+nothing Window::drawTextClipped(int y, int x, string text, *hash style) {
+    win->checkOpen(xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    if (!text || !text->size()) {
+        return nothing();
+    }
+    NcursesCallGuard guard(win->session);
+    int cy = 0;
+    int cx = 0;
+    getyx(win->win, cy, cx);
+    int rows = 0;
+    int cols = 0;
+    getmaxyx(win->win, rows, cols);
+    if (y < 0 || y >= rows || cols <= 0) {
+        return nothing();
+    }
+    int start = 0;
+    int col = x;
+    if (col < 0) {
+        start = -col;
+        col = 0;
+    }
+    if (col >= cols) {
+        return nothing();
+    }
+    int len = text->size();
+    if (start >= len) {
+        return nothing();
+    }
+    int maxlen = cols - col;
+    int n = len - start;
+    if (n > maxlen) {
+        n = maxlen;
+    }
+    StyleSpec spec;
+    parseStyle(style, spec, xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    attr_t old_attr = 0;
+    short old_pair = 0;
+    applyStyle(win, spec, old_attr, old_pair, xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    mvwaddnstr(win->win, y, col, text->c_str() + start, n);
+    restoreStyle(win, old_attr, old_pair);
+    return nothing();
+}
+
+//! Draws text clipped to the window's inner content area
+/**
+    @param y row inside the content area (0 = first row inside the border)
+    @param x column inside the content area (0 = first column inside the border)
+    @param text text to draw
+    @param style optional style hash
+
+    The text is clipped to the area inside a border (excluding rows/cols 0 and
+    max-1). This prevents accidental overwriting of box borders.
+
+    @since %ncurses 2.0
+*/
+nothing Window::drawTextInside(int y, int x, string text, *hash style) {
+    win->checkOpen(xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    if (!text || !text->size()) {
+        return nothing();
+    }
+    NcursesCallGuard guard(win->session);
+    int cy = 0;
+    int cx = 0;
+    getyx(win->win, cy, cx);
+    int rows = 0;
+    int cols = 0;
+    getmaxyx(win->win, rows, cols);
+    int inner_rows = rows - 2;
+    int inner_cols = cols - 2;
+    if (inner_rows <= 0 || inner_cols <= 0) {
+        return nothing();
+    }
+    if (y < 0 || y >= inner_rows) {
+        return nothing();
+    }
+    int start = 0;
+    int col = x;
+    if (col < 0) {
+        start = -col;
+        col = 0;
+    }
+    if (col >= inner_cols) {
+        return nothing();
+    }
+    int len = text->size();
+    if (start >= len) {
+        return nothing();
+    }
+    int maxlen = inner_cols - col;
+    int n = len - start;
+    if (n > maxlen) {
+        n = maxlen;
+    }
+    StyleSpec spec;
+    parseStyle(style, spec, xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    attr_t old_attr = 0;
+    short old_pair = 0;
+    applyStyle(win, spec, old_attr, old_pair, xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    mvwaddnstr(win->win, y + 1, col + 1, text->c_str() + start, n);
+    restoreStyle(win, old_attr, old_pair);
+    return nothing();
+}
+
+//! Clears a line inside the window border
+/**
+    @param y row inside the content area (0 = first row inside the border)
+    @param style optional style hash
+
+    @since %ncurses 2.0
+*/
+nothing Window::clearInsideLine(int y, *hash style) {
+    win->checkOpen(xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    NcursesCallGuard guard(win->session);
+    int rows = 0;
+    int cols = 0;
+    getmaxyx(win->win, rows, cols);
+    int inner_rows = rows - 2;
+    int inner_cols = cols - 2;
+    if (inner_rows <= 0 || inner_cols <= 0) {
+        return nothing();
+    }
+    if (y < 0 || y >= inner_rows) {
+        return nothing();
+    }
+    StyleSpec spec;
+    parseStyle(style, spec, xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    attr_t old_attr = 0;
+    short old_pair = 0;
+    applyStyle(win, spec, old_attr, old_pair, xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    mvwhline(win->win, y + 1, 1, ' ', inner_cols);
+    restoreStyle(win, old_attr, old_pair);
+    return nothing();
+}
+
+//! Draws text inside the window border and clears the rest of the line
+/**
+    @param y row inside the content area (0 = first row inside the border)
+    @param text text to draw
+    @param style optional style hash
+
+    The line is cleared before writing to ensure no old text remains.
+
+    @since %ncurses 2.0
+*/
+nothing Window::drawTextInsideLine(int y, string text, *hash style) {
+    win->checkOpen(xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    NcursesCallGuard guard(win->session);
+    int cy = 0;
+    int cx = 0;
+    getyx(win->win, cy, cx);
+    int rows = 0;
+    int cols = 0;
+    getmaxyx(win->win, rows, cols);
+    int inner_rows = rows - 2;
+    int inner_cols = cols - 2;
+    if (inner_rows <= 0 || inner_cols <= 0) {
+        return nothing();
+    }
+    if (y < 0 || y >= inner_rows) {
+        return nothing();
+    }
+    StyleSpec spec;
+    parseStyle(style, spec, xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    attr_t old_attr = 0;
+    short old_pair = 0;
+    applyStyle(win, spec, old_attr, old_pair, xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    mvwhline(win->win, y + 1, 1, ' ', inner_cols);
+    if (text && text->size()) {
+        int n = text->size();
+        if (n > inner_cols) {
+            n = inner_cols;
+        }
+        mvwaddnstr(win->win, y + 1, 1, text->c_str(), n);
+    }
+    restoreStyle(win, old_attr, old_pair);
+    return nothing();
+}
+
+//! Draws ANSI-colored text at a position
+/**
+    @param y row
+    @param x column
+    @param text text to draw (may contain ANSI SGR color codes)
+    @param style optional base style hash
+
+    @since %ncurses 2.0
+*/
+nothing Window::drawAnsiText(int y, int x, string text, *hash style) {
+    win->checkOpen(xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    NcursesCallGuard guard(win->session);
+    if (style) {
+        StyleSpec spec;
+        parseStyle(style, spec, xsink);
+        if (*xsink) {
+            return nothing();
+        }
+        attr_t old_attr = 0;
+        short old_pair = 0;
+        applyStyle(win, spec, old_attr, old_pair, xsink);
+        if (*xsink) {
+            return nothing();
+        }
+        drawAnsiText(win, y, x, false, false, text, xsink);
+        restoreStyle(win, old_attr, old_pair);
+    } else {
+        drawAnsiText(win, y, x, false, false, text, xsink);
+    }
+    return nothing();
+}
+
+//! Draws ANSI-colored text clipped to the window's inner content area
+/**
+    @param y row inside the content area (0 = first row inside the border)
+    @param x column inside the content area (0 = first column inside the border)
+    @param text text to draw (may contain ANSI SGR color codes)
+    @param style optional base style hash
+
+    @since %ncurses 2.0
+*/
+nothing Window::drawAnsiTextInside(int y, int x, string text, *hash style) {
+    win->checkOpen(xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    NcursesCallGuard guard(win->session);
+    if (style) {
+        StyleSpec spec;
+        parseStyle(style, spec, xsink);
+        if (*xsink) {
+            return nothing();
+        }
+        attr_t old_attr = 0;
+        short old_pair = 0;
+        applyStyle(win, spec, old_attr, old_pair, xsink);
+        if (*xsink) {
+            return nothing();
+        }
+        drawAnsiText(win, y, x, true, false, text, xsink);
+        restoreStyle(win, old_attr, old_pair);
+    } else {
+        drawAnsiText(win, y, x, true, false, text, xsink);
+    }
+    return nothing();
+}
+
+//! Draws ANSI-colored text inside the window border and clears the rest of the line
+/**
+    @param y row inside the content area (0 = first row inside the border)
+    @param text text to draw (may contain ANSI SGR color codes)
+    @param style optional base style hash
+
+    @since %ncurses 2.0
+*/
+nothing Window::drawAnsiTextInsideLine(int y, string text, *hash style) {
+    win->checkOpen(xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    NcursesCallGuard guard(win->session);
+    if (style) {
+        StyleSpec spec;
+        parseStyle(style, spec, xsink);
+        if (*xsink) {
+            return nothing();
+        }
+        attr_t old_attr = 0;
+        short old_pair = 0;
+        applyStyle(win, spec, old_attr, old_pair, xsink);
+        if (*xsink) {
+            return nothing();
+        }
+        drawAnsiText(win, y, 0, true, true, text, xsink);
+        restoreStyle(win, old_attr, old_pair);
+    } else {
+        drawAnsiText(win, y, 0, true, true, text, xsink);
+    }
+    return nothing();
+}
+
+//! Sets the wrap mode for this window
+/**
+    @param mode wrap mode
+
+    @since %ncurses 2.0
+*/
+nothing Window::setWrapMode(enum<WrapMode> mode) {
+    win->checkOpen(xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    int64 m = mode.getAsBigInt();
+    if (m < 0 || m > 2) {
+        xsink->raiseException("NCURSES-ERROR", "invalid wrap mode %d", (int)m);
+        return nothing();
+    }
+    win->wrap_mode = (int)m;
+    return nothing();
+}
+
+//! Returns the wrap mode for this window
+/**
+    @return @ref Qore::Ncurses::WrapMode "WrapMode" value
+
+    @since %ncurses 2.0
+*/
+enum<WrapMode> Window::getWrapMode() [flags=CONSTANT] {
+    win->checkOpen(xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    return (int64)win->wrap_mode;
+}
+
+//! Sets whether the cursor should be left in this window after refresh
+/**
+    @param on True to disable cursor positioning for this window
+
+    @since %ncurses 2.0
+*/
+nothing Window::setLeaveOk(bool on) {
+    win->checkOpen(xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    NcursesCallGuard guard(win->session);
+    leaveok(win->win, on ? TRUE : FALSE);
+    win->leave_ok = on;
+    if (on && win->session && win->session->cursor_win == win->win) {
+        win->session->cursor_win = nullptr;
+        win->session->cursor_set = false;
+    }
+    return nothing();
+}
+
+//! Saves the current cursor position
+/**
+    @return hash<@ref Position>
+
+    @since %ncurses 2.0
+*/
+hash<Position> Window::saveCursor() {
+    win->checkOpen(xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    NcursesCallGuard guard(win->session);
+    int y = 0;
+    int x = 0;
+    getyx(win->win, y, x);
+    ReferenceHolder<QoreHashNode> h(new QoreHashNode(hashdeclPosition, xsink), xsink);
+    h->setKeyValue("y", y, xsink);
+    h->setKeyValue("x", x, xsink);
+    return h.release();
+}
+
+//! Restores a previously saved cursor position
+/**
+    @param pos hash with keys \c y and \c x
+
+    @since %ncurses 2.0
+*/
+nothing Window::restoreCursor(hash pos) {
+    win->checkOpen(xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    NcursesCallGuard guard(win->session);
+    int y = pos ? pos->getKeyValue("y").getAsBigInt() : 0;
+    int x = pos ? pos->getKeyValue("x").getAsBigInt() : 0;
+    wmove(win->win, y, x);
+    if (win->session && !win->leave_ok) {
+        win->session->cursor_win = win->win;
+        win->session->cursor_y = y;
+        win->session->cursor_x = x;
+        win->session->cursor_set = true;
+    }
+    // Queue cursor position even if the window contents are unchanged.
+    wnoutrefresh(win->win);
+    return nothing();
+}
+
+//! Writes text at the current cursor position
+/**
+    @param text text to write
+    @param style optional style hash
+
+    @since %ncurses 2.0
+*/
+nothing Window::write(string text, *hash style) {
+    win->checkOpen(xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    NcursesCallGuard guard(win->session);
+    StyleSpec spec;
+    parseStyle(style, spec, xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    attr_t old_attr = 0;
+    short old_pair = 0;
+    applyStyle(win, spec, old_attr, old_pair, xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    waddnstr(win->win, text->c_str(), text->size());
+    restoreStyle(win, old_attr, old_pair);
+    return nothing();
+}
+
+//! Fills a rectangle
+/**
+    @param y top row
+    @param x left column
+    @param rows height
+    @param cols width
+    @param ch optional fill character
+    @param style optional style hash
+
+    @since %ncurses 2.0
+*/
+nothing Window::fillRect(int y, int x, int rows, int cols, *string ch, *hash style) {
+    win->checkOpen(xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    NcursesCallGuard guard(win->session);
+    StyleSpec spec;
+    parseStyle(style, spec, xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    chtype c = ' ';
+    if (ch && ch->size() > 0) {
+        c = static_cast<chtype>(ch->c_str()[0]);
+    }
+    attr_t old_attr = 0;
+    short old_pair = 0;
+    applyStyle(win, spec, old_attr, old_pair, xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    for (int r = 0; r < rows; ++r) {
+        mvwhline(win->win, y + r, x, c, cols);
+    }
+    restoreStyle(win, old_attr, old_pair);
+    return nothing();
+}
+
+//! Draws a box using default border characters
+/**
+    @param style optional style hash
+
+    @since %ncurses 2.0
+*/
+nothing Window::box(*hash style) {
+    win->checkOpen(xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    NcursesCallGuard guard(win->session);
+    StyleSpec spec;
+    parseStyle(style, spec, xsink);
+    attr_t old_attr = 0;
+    short old_pair = 0;
+    applyStyle(win, spec, old_attr, old_pair, xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    ::box(win->win, 0, 0);
+    restoreStyle(win, old_attr, old_pair);
+    return nothing();
+}
+
+//! Draws a border with optional characters
+/**
+    @param ls left side character
+    @param rs right side character
+    @param ts top side character
+    @param bs bottom side character
+    @param tl top-left corner character
+    @param tr top-right corner character
+    @param bl bottom-left corner character
+    @param br bottom-right corner character
+    @param style optional style hash
+
+    @since %ncurses 2.0
+*/
+nothing Window::border(*string ls, *string rs, *string ts, *string bs, *string tl, *string tr, *string bl, *string br, *hash style) {
+    win->checkOpen(xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    NcursesCallGuard guard(win->session);
+    StyleSpec spec;
+    parseStyle(style, spec, xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    chtype l = ls && ls->size() ? ls->c_str()[0] : 0;
+    chtype r = rs && rs->size() ? rs->c_str()[0] : 0;
+    chtype t = ts && ts->size() ? ts->c_str()[0] : 0;
+    chtype b = bs && bs->size() ? bs->c_str()[0] : 0;
+    chtype tlc = tl && tl->size() ? tl->c_str()[0] : 0;
+    chtype trc = tr && tr->size() ? tr->c_str()[0] : 0;
+    chtype blc = bl && bl->size() ? bl->c_str()[0] : 0;
+    chtype brc = br && br->size() ? br->c_str()[0] : 0;
+    attr_t old_attr = 0;
+    short old_pair = 0;
+    applyStyle(win, spec, old_attr, old_pair, xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    wborder(win->win, l, r, t, b, tlc, trc, blc, brc);
+    restoreStyle(win, old_attr, old_pair);
+    return nothing();
+}
+
+//! Draws a horizontal line
+/**
+    @param y row
+    @param x column
+    @param len length
+    @param ch optional character
+    @param style optional style hash
+
+    @since %ncurses 2.0
+*/
+nothing Window::drawHLine(int y, int x, int len, *string ch, *hash style) {
+    win->checkOpen(xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    NcursesCallGuard guard(win->session);
+    StyleSpec spec;
+    parseStyle(style, spec, xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    chtype c = ch && ch->size() ? ch->c_str()[0] : 0;
+    attr_t old_attr = 0;
+    short old_pair = 0;
+    applyStyle(win, spec, old_attr, old_pair, xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    mvwhline(win->win, y, x, c, len);
+    restoreStyle(win, old_attr, old_pair);
+    return nothing();
+}
+
+//! Draws a vertical line
+/**
+    @param y row
+    @param x column
+    @param len length
+    @param ch optional character
+    @param style optional style hash
+
+    @since %ncurses 2.0
+*/
+nothing Window::drawVLine(int y, int x, int len, *string ch, *hash style) {
+    win->checkOpen(xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    NcursesCallGuard guard(win->session);
+    StyleSpec spec;
+    parseStyle(style, spec, xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    chtype c = ch && ch->size() ? ch->c_str()[0] : 0;
+    attr_t old_attr = 0;
+    short old_pair = 0;
+    applyStyle(win, spec, old_attr, old_pair, xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    mvwvline(win->win, y, x, c, len);
+    restoreStyle(win, old_attr, old_pair);
+    return nothing();
+}
+
+//! Adds a single character
+/**
+    @param y row
+    @param x column
+    @param ch character
+    @param style optional style hash
+
+    @since %ncurses 2.0
+*/
+nothing Window::addChar(int y, int x, string ch, *hash style) {
+    win->checkOpen(xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    NcursesCallGuard guard(win->session);
+    StyleSpec spec;
+    parseStyle(style, spec, xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    if (!ch || !ch->size()) {
+        return nothing();
+    }
+    attr_t old_attr = 0;
+    short old_pair = 0;
+    applyStyle(win, spec, old_attr, old_pair, xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    mvwaddch(win->win, y, x, ch->c_str()[0]);
+    restoreStyle(win, old_attr, old_pair);
+    return nothing();
+}
+
+//! Moves the window
+/**
+    @param y new top row
+    @param x new left column
+
+    @since %ncurses 2.0
+*/
+nothing Window::move(int y, int x) {
+    win->checkOpen(xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    NcursesCallGuard guard(win->session);
+    mvwin(win->win, y, x);
+    return nothing();
+}
+
+//! Resizes the window
+/**
+    @param rows new height
+    @param cols new width
+
+    @since %ncurses 2.0
+*/
+nothing Window::resize(int rows, int cols) {
+    win->checkOpen(xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    NcursesCallGuard guard(win->session);
+    if (wresize(win->win, rows, cols) != OK) {
+        xsink->raiseException("NCURSES-ERROR", "wresize() failed");
+    }
+    return nothing();
+}
+
+//! Clears a line
+/**
+    @param y row
+    @param style optional style hash
+
+    @since %ncurses 2.0
+*/
+nothing Window::clearLine(int y, *hash style) {
+    win->checkOpen(xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    NcursesCallGuard guard(win->session);
+    StyleSpec spec;
+    attr_t old_attr = 0;
+    short old_pair = 0;
+    parseStyle(style, spec, xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    applyStyle(win, spec, old_attr, old_pair, xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    wmove(win->win, y, 0);
+    wclrtoeol(win->win);
+    restoreStyle(win, old_attr, old_pair);
+    return nothing();
+}
+
+//! Scrolls the window
+/**
+    @param n number of lines to scroll
+
+    @since %ncurses 2.0
+*/
+nothing Window::scroll(int n) {
+    win->checkOpen(xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    NcursesCallGuard guard(win->session);
+    wscrl(win->win, n);
+    return nothing();
+}
+
+//! Enables or disables scrolling
+/**
+    @param enabled enable scrolling when true
+
+    @since %ncurses 2.0
+*/
+nothing Window::enableScroll(bool enabled) {
+    win->checkOpen(xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    NcursesCallGuard guard(win->session);
+    scrollok(win->win, enabled ? TRUE : FALSE);
+    return nothing();
+}
+
+//! Enables or disables keypad mode
+/**
+    @param enabled enable keypad decoding when true
+
+    @since %ncurses 2.0
+*/
+nothing Window::enableKeypad(bool enabled) {
+    win->checkOpen(xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    NcursesCallGuard guard(win->session);
+    keypad(win->win, enabled ? TRUE : FALSE);
+    return nothing();
+}
+
+//! Reads text from the window
+/**
+    @param y row
+    @param x column
+    @param len length
+
+    @since %ncurses 2.0
+*/
+string Window::readText(int y, int x, int len) {
+    win->checkOpen(xsink);
+    if (*xsink) {
+        return nothing;
+    }
+    NcursesCallGuard guard(win->session);
+    if (len <= 0) {
+        return new QoreStringNode();
+    }
+    std::string buf;
+    buf.resize(len + 1);
+    mvwinnstr(win->win, y, x, &buf[0], len);
+    buf[len] = 0;
+    return new QoreStringNode(buf.c_str(), QCS_UTF8);
+}
+
+//! Reads multiple lines of text from the window
+/**
+    @param y start row (default 0)
+    @param rows number of rows (default full window)
+    @param cols number of columns (default full window)
+
+    @return list of strings (one per row)
+
+    @since %ncurses 2.1
+*/
+list<string> Window::readLines(*int y, *int rows, *int cols) {
+    win->checkOpen(xsink);
+    if (*xsink) {
+        return nothing;
+    }
+    size_t argc = args ? args->size() : 0;
+    while (argc > 0 && args->retrieveEntry(argc - 1).isNothing()) {
+        --argc;
+    }
+
+    int start_y = argc > 0 ? y : 0;
+    int max_rows = argc > 1 ? rows : -1;
+    int max_cols = argc > 2 ? cols : -1;
+
+    NcursesCallGuard guard(win->session);
+    int total_rows = 0;
+    int total_cols = 0;
+    getmaxyx(win->win, total_rows, total_cols);
+    if (max_rows < 0 || max_rows > total_rows) {
+        max_rows = total_rows;
+    }
+    if (max_cols < 0 || max_cols > total_cols) {
+        max_cols = total_cols;
+    }
+    if (start_y < 0) {
+        start_y = 0;
+    }
+    if (start_y >= total_rows || max_rows <= 0 || max_cols <= 0) {
+        return new QoreListNode(autoTypeInfo);
+    }
+    int end_row = std::min(total_rows, start_y + max_rows);
+    int width = max_cols;
+    ReferenceHolder<QoreListNode> out(new QoreListNode(autoTypeInfo), xsink);
+    if (*xsink) {
+        return nothing;
+    }
+    std::string buf;
+    buf.resize(width + 1);
+    for (int row = start_y; row < end_row; ++row) {
+        mvwinnstr(win->win, row, 0, &buf[0], width);
+        buf[width] = 0;
+        out->push(new QoreStringNode(buf.c_str(), QCS_UTF8), xsink);
+        if (*xsink) {
+            return nothing;
+        }
+    }
+    return out.release();
+}
+
+//! Creates a sub-window
+/**
+    @param rows height
+    @param cols width
+    @param y top row
+    @param x left column
+
+    @since %ncurses 2.0
+*/
+Window Window::subWindow(int rows, int cols, int y, int x) {
+    win->checkOpen(xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    NcursesCallGuard guard(win->session);
+    WINDOW* w = derwin(win->win, rows, cols, y, x);
+    if (!w) {
+        xsink->raiseException("NCURSES-ERROR", "derwin() failed");
+        return nothing();
+    }
+    QoreObject* obj = new QoreObject(QC_WINDOW, getProgram(), new NcursesWindow(win->session, w, true));
+    return obj;
+}
+
+/**
+    @param timeout_ms total timeout in milliseconds (-1 for infinite)
+    @param poll_ms poll interval in milliseconds
+
+    @return hash<@ref InputEvent> or @ref nothing on timeout
+
+    @since %ncurses 2.0
+*/
+//! Reads an input event
+/**
+    @param timeout_ms optional overall timeout in milliseconds
+    @param poll_ms optional poll interval in milliseconds
+
+    @since %ncurses 2.0
+*/
+hash<InputEvent> Window::readEvent(*int timeout_ms, *int poll_ms) {
+    win->checkOpen(xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    size_t argc = args ? args->size() : 0;
+    while (argc > 0 && args->retrieveEntry(argc - 1).isNothing()) {
+        --argc;
+    }
+    int timeout = argc > 0 ? timeout_ms : -1;
+    int poll = argc > 1 ? poll_ms : 25;
+    if (poll <= 0) {
+        xsink->raiseException("NCURSES-ERROR", "poll_ms must be > 0");
+        return nothing();
+    }
+    int elapsed = 0;
+    while (true) {
+        // check for sandbox interrupt between poll cycles
+        if (qore_check_io_interrupt(xsink, "reading terminal input")) {
+            return nothing();
+        }
+        NcursesCallGuard guard(win->session);
+        wtimeout(win->win, poll);
+        int rc = wgetch(win->win);
+        if (rc == ERR) {
+            if (timeout >= 0) {
+                elapsed += poll;
+                if (elapsed >= timeout) {
+                    return nothing();
+                }
+            }
+        } else {
+            ReferenceHolder<QoreHashNode> h(new QoreHashNode(hashdeclInputEvent, xsink), xsink);
+            h->setKeyValue("code", rc, xsink);
+            if (rc == KEY_MOUSE) {
+                MEVENT ev;
+                if (getmouse(&ev) == OK) {
+                    h->setKeyValue("type", NC_INPUT_MOUSE, xsink);
+                    ReferenceHolder<QoreHashNode> mh(new QoreHashNode(hashdeclMouseEvent, xsink), xsink);
+                    mh->setKeyValue("x", ev.x, xsink);
+                    mh->setKeyValue("y", ev.y, xsink);
+                    mh->setKeyValue("button_state", (int)ev.bstate, xsink);
+                    h->setKeyValue("mouse", mh.release(), xsink);
+                } else {
+                    h->setKeyValue("type", NC_INPUT_MOUSE, xsink);
+                }
+            } else if (rc == KEY_RESIZE) {
+                h->setKeyValue("type", NC_INPUT_RESIZE, xsink);
+            } else if (rc >= KEY_MIN) {
+                h->setKeyValue("type", NC_INPUT_KEY, xsink);
+                const char* nm = keyname(rc);
+                if (nm) {
+                    h->setKeyValue("name", new QoreStringNode(nm, QCS_UTF8), xsink);
+                }
+            } else if (rc == 27) {
+                // ESC received: check for Alt+key sequence
+                wtimeout(win->win, 0);
+                int rc2 = wgetch(win->win);
+                if (rc2 != ERR && rc2 >= 32 && rc2 < 127) {
+                    // Alt+key event
+                    h->setKeyValue("type", NC_INPUT_ALT, xsink);
+                    char buf[2] = {(char)rc2, 0};
+                    h->setKeyValue("ch", new QoreStringNode(buf, QCS_UTF8), xsink);
+                } else {
+                    if (rc2 != ERR) {
+                        ungetch(rc2);
+                    }
+                    // bare ESC
+                    h->setKeyValue("type", NC_INPUT_CHAR, xsink);
+                    char buf[2] = {(char)rc, 0};
+                    h->setKeyValue("ch", new QoreStringNode(buf, QCS_UTF8), xsink);
+                }
+            } else {
+                h->setKeyValue("type", NC_INPUT_CHAR, xsink);
+                char buf[2];
+                buf[0] = (char)rc;
+                buf[1] = 0;
+                h->setKeyValue("ch", new QoreStringNode(buf, QCS_UTF8), xsink);
+            }
+            return h.release();
+        }
+    }
+}
+
+//! Sets the background style
+/**
+    @param style optional style hash
+
+    @since %ncurses 2.0
+*/
+nothing Window::setBackground(*hash style) {
+    win->checkOpen(xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    NcursesCallGuard guard(win->session);
+    StyleSpec spec;
+    parseStyle(style, spec, xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    int fg = spec.has_fg ? spec.fg : -1;
+    int bg = spec.has_bg ? spec.bg : -1;
+    short pair = win->session->getColorPair(fg, bg, xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    wbkgdset(win->win, COLOR_PAIR(pair) | spec.attrs);
+    return nothing();
+}

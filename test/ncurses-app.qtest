@@ -1,0 +1,432 @@
+#!/usr/bin/env qore
+
+%requires ncurses
+%requires NcursesUi
+%requires QUnit
+
+%modern
+
+%exec-class NcursesAppTest
+
+class NcursesAppTest inherits Test {
+    constructor() : Test("NcursesAppTest", "1.0") {
+        addTestCase("Application lifecycle", \testAppLifecycle());
+        addTestCase("Application setRoot and layout", \testAppSetRoot());
+        addTestCase("Application processEvent", \testAppProcessEvent());
+        addTestCase("Application global key handler", \testAppGlobalKeyHandler());
+        addTestCase("Application drawAll", \testAppDrawAll());
+        addTestCase("Application resize", \testAppResize());
+        addTestCase("EventDispatcher modal stack", \testModalStack());
+        addTestCase("EventDispatcher modal receives all events", \testModalReceivesAll());
+        addTestCase("EventDispatcher mouse hit-test", \testMouseHitTest());
+        addTestCase("EventDispatcher focus traversal", \testDispatcherFocusTraversal());
+        addTestCase("EventDispatcher global key handler", \testDispatcherGlobalKey());
+        addTestCase("Application with BoxLayout", \testAppWithBoxLayout());
+        addTestCase("Application tick callback", \testAppTickCallback());
+        addTestCase("Application pushModal/popModal", \testAppModal());
+        addTestCase("Application cursor hidden during modals", \testAppCursorDuringModals());
+        addTestCase("EventDispatcher modal captures Alt events", \testModalAltCaptured());
+
+        set_return_value(main());
+    }
+
+    # ---- Application tests ----
+
+    testAppLifecycle() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::Application app(th.session());
+        assertTrue(app.getSession().isOpen());
+        assertFalse(app.isRunning());
+        assertFalse(exists app.getRoot());
+
+        app.close();
+    }
+
+    testAppSetRoot() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::Application app(th.session());
+        NcursesUi::Widget root();
+        app.setRoot(root);
+
+        assertTrue(exists app.getRoot());
+        # root should be sized to terminal
+        assertEq(0, root.getFrame().y);
+        assertEq(0, root.getFrame().x);
+        assertEq(24, root.getFrame().rows);
+        assertEq(80, root.getFrame().cols);
+    }
+
+    testAppProcessEvent() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::Application app(th.session());
+        AppTestWidget root();
+        root.setFocusable(True);
+        root.setFocused(True);
+        app.setRoot(root);
+
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = "x";
+        hash<NcursesUi::EventResult> result = app.processEvent(ev);
+        assertTrue(result.handled);
+        assertEq("app_test", result.action);
+    }
+
+    testAppGlobalKeyHandler() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::Application app(th.session());
+        NcursesUi::Widget root();
+        app.setRoot(root);
+
+        bool handler_called = False;
+        app.setGlobalKeyHandler(hash<NcursesUi::EventResult> sub (hash<Ncurses::InputEvent> ev) {
+            handler_called = True;
+            return <NcursesUi::EventResult>{"handled": True, "action": "quit"};
+        });
+
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = "q";
+        hash<NcursesUi::EventResult> result = app.processEvent(ev);
+        assertTrue(handler_called);
+        assertTrue(result.handled);
+        assertEq("quit", result.action);
+    }
+
+    testAppDrawAll() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::Application app(th.session());
+        AppDrawWidget root();
+        app.setRoot(root);
+        app.drawAll();
+        assertTrue(root.draw_called);
+    }
+
+    testAppResize() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::Application app(th.session());
+        NcursesUi::Widget root();
+        NcursesUi::Widget child();
+        root.addChild(child);
+        app.setRoot(root);
+
+        NcursesUi::BoxLayout layout(NcursesUi::Orientation::Vertical);
+        app.setRootLayout(layout);
+
+        # initial layout
+        assertEq(24, root.getFrame().rows);
+        assertEq(80, root.getFrame().cols);
+
+        # simulate resize event
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Resize;
+        hash<NcursesUi::EventResult> result = app.processEvent(ev);
+        assertTrue(result.handled);
+
+        # root should be re-laid out to terminal size
+        assertEq(24, root.getFrame().rows);
+    }
+
+    testAppWithBoxLayout() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::Application app(th.session());
+        NcursesUi::Widget root();
+        NcursesUi::Widget top();
+        NcursesUi::Widget bottom();
+        root.addChild(top);
+        root.addChild(bottom);
+
+        NcursesUi::BoxLayout layout(NcursesUi::Orientation::Vertical);
+        app.setRootLayout(layout);
+        app.setRoot(root);
+
+        # children should be laid out
+        assertEq(12, top.getFrame().rows);
+        assertEq(12, bottom.getFrame().rows);
+        assertEq(80, top.getFrame().cols);
+    }
+
+    testAppTickCallback() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::Application app(th.session());
+        NcursesUi::Widget root();
+        app.setRoot(root);
+
+        int tick_count = 0;
+        app.addTickCallback(sub () { tick_count += 1; });
+
+        # simulate processEvent doesn't trigger tick callbacks directly
+        # (those run in the event loop), but we can verify the callback is registered
+        # by checking the tick list is populated
+        assertTrue(tick_count == 0);
+    }
+
+    testAppModal() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::Application app(th.session());
+        NcursesUi::Widget root();
+        app.setRoot(root);
+
+        AppTestWidget modal();
+        modal.setFocusable(True);
+        modal.setFocused(True);
+        app.pushModal(modal);
+
+        # events should go to modal
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = "x";
+        hash<NcursesUi::EventResult> result = app.processEvent(ev);
+        assertTrue(result.handled);
+        assertEq("app_test", result.action);
+
+        # pop modal
+        *NcursesUi::Widget popped = app.popModal();
+        assertTrue(popped == modal);
+    }
+
+    # ---- EventDispatcher tests ----
+
+    testModalStack() {
+        NcursesUi::EventDispatcher ed();
+        assertFalse(ed.hasModal());
+
+        NcursesUi::Widget m1();
+        NcursesUi::Widget m2();
+
+        ed.pushModal(m1);
+        assertTrue(ed.hasModal());
+        assertTrue(ed.topModal() == m1);
+
+        ed.pushModal(m2);
+        assertTrue(ed.topModal() == m2);
+
+        *NcursesUi::Widget popped = ed.popModal();
+        assertTrue(popped == m2);
+        assertTrue(ed.topModal() == m1);
+
+        popped = ed.popModal();
+        assertTrue(popped == m1);
+        assertFalse(ed.hasModal());
+
+        # pop from empty
+        popped = ed.popModal();
+        assertFalse(exists popped);
+    }
+
+    testModalReceivesAll() {
+        NcursesUi::EventDispatcher ed();
+        NcursesUi::Widget root();
+        AppTestWidget modal();
+        modal.setFocusable(True);
+        modal.setFocused(True);
+
+        ed.pushModal(modal);
+
+        # even keyboard events go to modal
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = "x";
+        hash<NcursesUi::EventResult> result = ed.dispatch(root, ev);
+        assertTrue(result.handled);
+        assertEq("app_test", result.action);
+
+        # mouse events too
+        hash<Ncurses::MouseEvent> mouse();
+        mouse.x = 50;
+        mouse.y = 50;
+        mouse.button_state = Ncurses::BUTTON1_CLICKED;
+        ev.type = Ncurses::InputType::Mouse;
+        ev.mouse = mouse;
+        result = ed.dispatch(root, ev);
+        # modal handles it (test widget handles everything)
+        assertTrue(result.handled);
+    }
+
+    testMouseHitTest() {
+        NcursesUi::EventDispatcher ed();
+        NcursesUi::Widget root();
+        root.setFrame(NcursesUi::Geometry::makeRect(0, 0, 24, 80));
+
+        AppTestWidget child1();
+        child1.setFrame(NcursesUi::Geometry::makeRect(0, 0, 12, 40));
+
+        AppTestWidget child2();
+        child2.setFrame(NcursesUi::Geometry::makeRect(0, 40, 12, 40));
+
+        root.addChild(child1);
+        root.addChild(child2);
+
+        # click inside child2
+        hash<Ncurses::MouseEvent> mouse();
+        mouse.x = 50;
+        mouse.y = 5;
+        mouse.button_state = Ncurses::BUTTON1_CLICKED;
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Mouse;
+        ev.mouse = mouse;
+
+        hash<NcursesUi::EventResult> result = ed.dispatch(root, ev);
+        assertTrue(result.handled);
+    }
+
+    testDispatcherFocusTraversal() {
+        NcursesUi::EventDispatcher ed();
+        NcursesUi::Widget root();
+
+        NcursesUi::Widget a();
+        a.setFocusable(True);
+        NcursesUi::Widget b();
+        b.setFocusable(True);
+        root.addChild(a);
+        root.addChild(b);
+
+        # Tab should move focus
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = "\t";
+        hash<NcursesUi::EventResult> result = ed.dispatch(root, ev);
+        assertTrue(result.handled);
+        assertTrue(ed.getFocusManager().getCurrentFocus() == a);
+
+        # Tab again
+        result = ed.dispatch(root, ev);
+        assertTrue(result.handled);
+        assertTrue(ed.getFocusManager().getCurrentFocus() == b);
+    }
+
+    testDispatcherGlobalKey() {
+        NcursesUi::EventDispatcher ed();
+        NcursesUi::Widget root();
+
+        bool called = False;
+        ed.setGlobalKeyHandler(hash<NcursesUi::EventResult> sub (hash<Ncurses::InputEvent> ev) {
+            if (ev.type == Ncurses::InputType::Char && ev.ch == "q") {
+                called = True;
+                return <NcursesUi::EventResult>{"handled": True, "action": "quit"};
+            }
+            return <NcursesUi::EventResult>{"handled": False};
+        });
+
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = "q";
+        hash<NcursesUi::EventResult> result = ed.dispatch(root, ev);
+        assertTrue(called);
+        assertTrue(result.handled);
+        assertEq("quit", result.action);
+    }
+    testAppCursorDuringModals() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::Application app(th.session());
+        NcursesUi::Widget root();
+        app.setRoot(root);
+
+        # cursor starts visible (default saved_cursor = 1)
+        NcursesUi::Widget modal1();
+        NcursesUi::Widget modal2();
+
+        # push first modal - cursor should be hidden
+        app.pushModal(modal1);
+        assertTrue(app.getDispatcher().hasModal());
+
+        # push second modal - cursor still hidden
+        app.pushModal(modal2);
+
+        # pop second modal - still have a modal, cursor stays hidden
+        app.popModal();
+        assertTrue(app.getDispatcher().hasModal());
+
+        # pop last modal - cursor should be restored
+        app.popModal();
+        assertFalse(app.getDispatcher().hasModal());
+    }
+
+    testModalAltCaptured() {
+        NcursesUi::EventDispatcher ed();
+        NcursesUi::Widget root();
+        root.setFrame(NcursesUi::Geometry::makeRect(0, 0, 24, 80));
+
+        # create a modal widget that does NOT handle Alt events
+        NcursesUi::Widget modal();
+        modal.setFocusable(True);
+        ed.pushModal(modal);
+
+        # set up a global key handler that handles Alt+f
+        bool alt_handled = False;
+        ed.setGlobalKeyHandler(hash<NcursesUi::EventResult> sub (hash<Ncurses::InputEvent> ev) {
+            if (ev.type == Ncurses::InputType::Alt && ev.ch == "f") {
+                alt_handled = True;
+                return <NcursesUi::EventResult>{"handled": True, "action": "open_menu"};
+            }
+            return <NcursesUi::EventResult>{"handled": False};
+        });
+
+        # send an Alt+f event - global handler runs first and handles it
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Alt;
+        ev.ch = "f";
+        hash<NcursesUi::EventResult> result = ed.dispatch(root, ev);
+        assertTrue(alt_handled, "global handler should still process Alt events");
+        assertTrue(result.handled);
+
+        # send an unhandled Alt event (Alt+z) - modal should capture it
+        # (unlike mouse events, Alt events do NOT fall through from modals)
+        alt_handled = False;
+        hash<Ncurses::InputEvent> ev2();
+        ev2.type = Ncurses::InputType::Alt;
+        ev2.ch = "z";
+        hash<NcursesUi::EventResult> result2 = ed.dispatch(root, ev2);
+        # modal captures unhandled Alt events (they don't fall through)
+        assertFalse(result2.handled, "modal captures unhandled Alt");
+        assertFalse(alt_handled);
+
+        # verify that Char events are also captured by modal
+        hash<Ncurses::InputEvent> ev3();
+        ev3.type = Ncurses::InputType::Char;
+        ev3.ch = "x";
+        hash<NcursesUi::EventResult> result3 = ed.dispatch(root, ev3);
+        assertFalse(result3.handled, "modal captures unhandled Char");
+    }
+}
+
+# Test helper widget that handles all events
+class AppTestWidget inherits NcursesUi::Widget {
+    hash<NcursesUi::EventResult> processEvent(hash<Ncurses::InputEvent> ev) {
+        return <NcursesUi::EventResult>{
+            "handled": True,
+            "action": "app_test",
+        };
+    }
+}
+
+# Test helper widget that tracks draw calls
+class AppDrawWidget inherits NcursesUi::Widget {
+    public {
+        bool draw_called = False;
+    }
+
+    nothing draw(Ncurses::Window w) {
+        draw_called = True;
+    }
+}

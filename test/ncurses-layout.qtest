@@ -1,0 +1,379 @@
+#!/usr/bin/env qore
+
+%requires ncurses
+%requires NcursesUi
+%requires QUnit
+
+%modern
+
+%exec-class NcursesLayoutTest
+
+class NcursesLayoutTest inherits Test {
+    constructor() : Test("NcursesLayoutTest", "1.0") {
+        addTestCase("BoxLayout vertical equal expanding", \testBoxVerticalEqual());
+        addTestCase("BoxLayout vertical fixed + expanding", \testBoxVerticalFixedExpanding());
+        addTestCase("BoxLayout vertical hidden child", \testBoxVerticalHidden());
+        addTestCase("BoxLayout vertical with spacing", \testBoxVerticalSpacing());
+        addTestCase("BoxLayout horizontal equal expanding", \testBoxHorizontalEqual());
+        addTestCase("BoxLayout horizontal fixed + expanding", \testBoxHorizontalFixedExpanding());
+        addTestCase("BoxLayout single child gets all space", \testBoxSingleChild());
+        addTestCase("BoxLayout remainder distribution", \testBoxRemainder());
+        addTestCase("SplitLayout vertical ratio", \testSplitVerticalRatio());
+        addTestCase("SplitLayout vertical fixed pane 0", \testSplitVerticalFixedPane0());
+        addTestCase("SplitLayout vertical fixed pane 1", \testSplitVerticalFixedPane1());
+        addTestCase("SplitLayout horizontal ratio", \testSplitHorizontalRatio());
+        addTestCase("SplitLayout single visible child", \testSplitSingleChild());
+        addTestCase("SplitLayout minimum size respected", \testSplitMinimumSize());
+        addTestCase("SplitLayout resize propagation", \testSplitResize());
+        addTestCase("BoxLayout with padding", \testBoxWithPadding());
+
+        set_return_value(main());
+    }
+
+    # ---- BoxLayout tests ----
+
+    testBoxVerticalEqual() {
+        NcursesUi::Widget container();
+        container.setFrame(NcursesUi::Geometry::makeRect(0, 0, 30, 80));
+
+        NcursesUi::Widget a();
+        NcursesUi::Widget b();
+        NcursesUi::Widget c();
+        container.addChild(a);
+        container.addChild(b);
+        container.addChild(c);
+
+        NcursesUi::BoxLayout layout(NcursesUi::Orientation::Vertical);
+        layout.apply(container);
+
+        # 30 rows / 3 = 10 each
+        assertEq(0, a.getFrame().y);
+        assertEq(10, a.getFrame().rows);
+        assertEq(10, b.getFrame().y);
+        assertEq(10, b.getFrame().rows);
+        assertEq(20, c.getFrame().y);
+        assertEq(10, c.getFrame().rows);
+
+        # all get full width
+        assertEq(80, a.getFrame().cols);
+        assertEq(80, b.getFrame().cols);
+        assertEq(80, c.getFrame().cols);
+    }
+
+    testBoxVerticalFixedExpanding() {
+        NcursesUi::Widget container();
+        container.setFrame(NcursesUi::Geometry::makeRect(0, 0, 30, 80));
+
+        NcursesUi::Widget fixed_w();
+        fixed_w.setVSizePolicy(NcursesUi::SizePolicy::Fixed);
+        fixed_w.setPreferredSize(5, 0);
+
+        NcursesUi::Widget expanding();
+
+        container.addChild(fixed_w);
+        container.addChild(expanding);
+
+        NcursesUi::BoxLayout layout(NcursesUi::Orientation::Vertical);
+        layout.apply(container);
+
+        assertEq(0, fixed_w.getFrame().y);
+        assertEq(5, fixed_w.getFrame().rows);
+        assertEq(5, expanding.getFrame().y);
+        assertEq(25, expanding.getFrame().rows);
+    }
+
+    testBoxVerticalHidden() {
+        NcursesUi::Widget container();
+        container.setFrame(NcursesUi::Geometry::makeRect(0, 0, 20, 80));
+
+        NcursesUi::Widget a();
+        NcursesUi::Widget b();
+        b.setVisible(False);
+        NcursesUi::Widget c();
+
+        container.addChild(a);
+        container.addChild(b);
+        container.addChild(c);
+
+        NcursesUi::BoxLayout layout(NcursesUi::Orientation::Vertical);
+        layout.apply(container);
+
+        # only a and c are visible, 20 rows / 2 = 10 each
+        assertEq(0, a.getFrame().y);
+        assertEq(10, a.getFrame().rows);
+        assertEq(10, c.getFrame().y);
+        assertEq(10, c.getFrame().rows);
+
+        # b should not have been laid out (frame unchanged from addChild)
+        # since b is hidden it doesn't get positioned
+    }
+
+    testBoxVerticalSpacing() {
+        NcursesUi::Widget container();
+        container.setFrame(NcursesUi::Geometry::makeRect(0, 0, 22, 80));
+
+        NcursesUi::Widget a();
+        NcursesUi::Widget b();
+        container.addChild(a);
+        container.addChild(b);
+
+        NcursesUi::BoxLayout layout(NcursesUi::Orientation::Vertical, 2);
+        layout.apply(container);
+
+        # 22 - 2 (spacing) = 20 available, 20/2 = 10 each
+        assertEq(0, a.getFrame().y);
+        assertEq(10, a.getFrame().rows);
+        assertEq(12, b.getFrame().y);  # 10 + 2 spacing
+        assertEq(10, b.getFrame().rows);
+    }
+
+    testBoxHorizontalEqual() {
+        NcursesUi::Widget container();
+        container.setFrame(NcursesUi::Geometry::makeRect(0, 0, 24, 60));
+
+        NcursesUi::Widget a();
+        NcursesUi::Widget b();
+        NcursesUi::Widget c();
+        container.addChild(a);
+        container.addChild(b);
+        container.addChild(c);
+
+        NcursesUi::BoxLayout layout(NcursesUi::Orientation::Horizontal);
+        layout.apply(container);
+
+        # 60 cols / 3 = 20 each
+        assertEq(0, a.getFrame().x);
+        assertEq(20, a.getFrame().cols);
+        assertEq(20, b.getFrame().x);
+        assertEq(20, b.getFrame().cols);
+        assertEq(40, c.getFrame().x);
+        assertEq(20, c.getFrame().cols);
+
+        # all get full height
+        assertEq(24, a.getFrame().rows);
+        assertEq(24, b.getFrame().rows);
+        assertEq(24, c.getFrame().rows);
+    }
+
+    testBoxHorizontalFixedExpanding() {
+        NcursesUi::Widget container();
+        container.setFrame(NcursesUi::Geometry::makeRect(0, 0, 24, 80));
+
+        NcursesUi::Widget fixed_w();
+        fixed_w.setHSizePolicy(NcursesUi::SizePolicy::Fixed);
+        fixed_w.setPreferredSize(0, 20);
+
+        NcursesUi::Widget expanding();
+
+        container.addChild(fixed_w);
+        container.addChild(expanding);
+
+        NcursesUi::BoxLayout layout(NcursesUi::Orientation::Horizontal);
+        layout.apply(container);
+
+        assertEq(0, fixed_w.getFrame().x);
+        assertEq(20, fixed_w.getFrame().cols);
+        assertEq(20, expanding.getFrame().x);
+        assertEq(60, expanding.getFrame().cols);
+    }
+
+    testBoxSingleChild() {
+        NcursesUi::Widget container();
+        container.setFrame(NcursesUi::Geometry::makeRect(0, 0, 24, 80));
+
+        NcursesUi::Widget child();
+        container.addChild(child);
+
+        NcursesUi::BoxLayout layout(NcursesUi::Orientation::Vertical);
+        layout.apply(container);
+
+        assertEq(0, child.getFrame().y);
+        assertEq(0, child.getFrame().x);
+        assertEq(24, child.getFrame().rows);
+        assertEq(80, child.getFrame().cols);
+    }
+
+    testBoxRemainder() {
+        # 10 rows / 3 children = 3 each with 1 remainder
+        NcursesUi::Widget container();
+        container.setFrame(NcursesUi::Geometry::makeRect(0, 0, 10, 80));
+
+        NcursesUi::Widget a();
+        NcursesUi::Widget b();
+        NcursesUi::Widget c();
+        container.addChild(a);
+        container.addChild(b);
+        container.addChild(c);
+
+        NcursesUi::BoxLayout layout(NcursesUi::Orientation::Vertical);
+        layout.apply(container);
+
+        # first child gets the extra row
+        assertEq(4, a.getFrame().rows);  # 3 + 1 remainder
+        assertEq(3, b.getFrame().rows);
+        assertEq(3, c.getFrame().rows);
+        # total should be 10
+        assertEq(10, a.getFrame().rows + b.getFrame().rows + c.getFrame().rows);
+    }
+
+    # ---- SplitLayout tests ----
+
+    testSplitVerticalRatio() {
+        NcursesUi::Widget container();
+        container.setFrame(NcursesUi::Geometry::makeRect(0, 0, 20, 80));
+
+        NcursesUi::Widget top();
+        NcursesUi::Widget bottom();
+        container.addChild(top);
+        container.addChild(bottom);
+
+        NcursesUi::SplitLayout split(NcursesUi::Orientation::Vertical);
+        split.setSplitRatio(0.7);
+        split.apply(container);
+
+        assertEq(0, top.getFrame().y);
+        assertEq(14, top.getFrame().rows);  # 0.7 * 20 = 14
+        assertEq(14, bottom.getFrame().y);
+        assertEq(6, bottom.getFrame().rows);
+        assertEq(80, top.getFrame().cols);
+        assertEq(80, bottom.getFrame().cols);
+    }
+
+    testSplitVerticalFixedPane0() {
+        NcursesUi::Widget container();
+        container.setFrame(NcursesUi::Geometry::makeRect(0, 0, 24, 80));
+
+        NcursesUi::Widget top();
+        NcursesUi::Widget bottom();
+        container.addChild(top);
+        container.addChild(bottom);
+
+        NcursesUi::SplitLayout split(NcursesUi::Orientation::Vertical);
+        split.setFixedSize(3, 0);
+        split.apply(container);
+
+        assertEq(3, top.getFrame().rows);
+        assertEq(21, bottom.getFrame().rows);
+        assertEq(3, bottom.getFrame().y);
+    }
+
+    testSplitVerticalFixedPane1() {
+        NcursesUi::Widget container();
+        container.setFrame(NcursesUi::Geometry::makeRect(0, 0, 24, 80));
+
+        NcursesUi::Widget top();
+        NcursesUi::Widget bottom();
+        container.addChild(top);
+        container.addChild(bottom);
+
+        NcursesUi::SplitLayout split(NcursesUi::Orientation::Vertical);
+        split.setFixedSize(5, 1);
+        split.apply(container);
+
+        assertEq(19, top.getFrame().rows);
+        assertEq(5, bottom.getFrame().rows);
+        assertEq(19, bottom.getFrame().y);
+    }
+
+    testSplitHorizontalRatio() {
+        NcursesUi::Widget container();
+        container.setFrame(NcursesUi::Geometry::makeRect(0, 0, 24, 80));
+
+        NcursesUi::Widget left_w();
+        NcursesUi::Widget right_w();
+        container.addChild(left_w);
+        container.addChild(right_w);
+
+        NcursesUi::SplitLayout split(NcursesUi::Orientation::Horizontal);
+        split.setSplitRatio(0.5);
+        split.apply(container);
+
+        assertEq(0, left_w.getFrame().x);
+        assertEq(40, left_w.getFrame().cols);
+        assertEq(40, right_w.getFrame().x);
+        assertEq(40, right_w.getFrame().cols);
+        assertEq(24, left_w.getFrame().rows);
+        assertEq(24, right_w.getFrame().rows);
+    }
+
+    testSplitSingleChild() {
+        NcursesUi::Widget container();
+        container.setFrame(NcursesUi::Geometry::makeRect(0, 0, 24, 80));
+
+        NcursesUi::Widget only();
+        container.addChild(only);
+
+        NcursesUi::SplitLayout split(NcursesUi::Orientation::Vertical);
+        split.apply(container);
+
+        assertEq(0, only.getFrame().y);
+        assertEq(0, only.getFrame().x);
+        assertEq(24, only.getFrame().rows);
+        assertEq(80, only.getFrame().cols);
+    }
+
+    testSplitMinimumSize() {
+        NcursesUi::Widget container();
+        container.setFrame(NcursesUi::Geometry::makeRect(0, 0, 20, 80));
+
+        NcursesUi::Widget top();
+        top.setMinimumSize(8, 0);
+        NcursesUi::Widget bottom();
+        bottom.setMinimumSize(5, 0);
+        container.addChild(top);
+        container.addChild(bottom);
+
+        # set a ratio that would make top too small
+        NcursesUi::SplitLayout split(NcursesUi::Orientation::Vertical);
+        split.setSplitRatio(0.1);  # would give top 2 rows
+        split.apply(container);
+
+        # minimum should be respected
+        assertTrue(top.getFrame().rows >= 8,
+            sprintf("top.rows >= 8 (got %d)", top.getFrame().rows));
+        assertTrue(bottom.getFrame().rows >= 5,
+            sprintf("bottom.rows >= 5 (got %d)", bottom.getFrame().rows));
+    }
+
+    testSplitResize() {
+        NcursesUi::Widget container();
+        container.setFrame(NcursesUi::Geometry::makeRect(0, 0, 24, 80));
+
+        NcursesUi::Widget top();
+        NcursesUi::Widget bottom();
+        container.addChild(top);
+        container.addChild(bottom);
+
+        NcursesUi::SplitLayout split(NcursesUi::Orientation::Vertical);
+        split.setSplitRatio(0.5);
+        split.apply(container);
+
+        assertEq(12, top.getFrame().rows);
+        assertEq(12, bottom.getFrame().rows);
+
+        # resize container
+        container.setFrame(NcursesUi::Geometry::makeRect(0, 0, 30, 80));
+        split.apply(container);
+
+        assertEq(15, top.getFrame().rows);
+        assertEq(15, bottom.getFrame().rows);
+    }
+
+    testBoxWithPadding() {
+        NcursesUi::Widget container();
+        container.setFrame(NcursesUi::Geometry::makeRect(0, 0, 24, 80));
+        container.setPadding(NcursesUi::Geometry::makeInsets(1, 1, 2, 2));
+
+        NcursesUi::Widget child();
+        container.addChild(child);
+
+        NcursesUi::BoxLayout layout(NcursesUi::Orientation::Vertical);
+        layout.apply(container);
+
+        # content rect: y=1, x=2, rows=22, cols=76
+        assertEq(1, child.getFrame().y);
+        assertEq(2, child.getFrame().x);
+        assertEq(22, child.getFrame().rows);
+        assertEq(76, child.getFrame().cols);
+    }
+}

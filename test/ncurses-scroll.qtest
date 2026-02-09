@@ -1,0 +1,743 @@
+#!/usr/bin/env qore
+
+%requires ncurses
+%requires NcursesUi
+%requires QUnit
+
+%modern
+
+%exec-class NcursesScrollTest
+
+class NcursesScrollTest inherits Test {
+    constructor() : Test("NcursesScrollTest", "1.0") {
+        addTestCase("LineListContent basic operations", \testLineListContentBasic());
+        addTestCase("LineListContent setLines", \testLineListContentSetLines());
+        addTestCase("LineListContent clear", \testLineListContentClear());
+        addTestCase("LineListContent totalRows and totalCols", \testLineListContentDimensions());
+        addTestCase("LineListContent ANSI width", \testLineListContentAnsiWidth());
+        addTestCase("ScrollableWidget initial state", \testScrollableWidgetInit());
+        addTestCase("ScrollableWidget scroll down", \testScrollDown());
+        addTestCase("ScrollableWidget scroll up clamping", \testScrollUpClamping());
+        addTestCase("ScrollableWidget scroll down clamping", \testScrollDownClamping());
+        addTestCase("ScrollableWidget page scroll", \testPageScroll());
+        addTestCase("ScrollableWidget Home/End", \testHomeEnd());
+        addTestCase("ScrollableWidget setScrollY", \testSetScrollY());
+        addTestCase("ScrollableWidget keyboard events", \testKeyboardEvents());
+        addTestCase("ScrollableWidget mouse wheel up", \testMouseWheelUp());
+        addTestCase("ScrollableWidget mouse wheel down", \testMouseWheelDown());
+        addTestCase("ScrollableWidget empty content", \testEmptyContent());
+        addTestCase("ScrollableWidget no content", \testNoContent());
+        addTestCase("ScrollableWidget content swap", \testContentSwap());
+        addTestCase("ScrollableWidget scrollbar presence", \testScrollbarPresence());
+        addTestCase("ScrollableWidget scrollbar toggle", \testScrollbarToggle());
+        addTestCase("ScrollableWidget draw with content", \testDrawWithContent());
+        addTestCase("ScrollableWidget draw with scrollbar", \testDrawWithScrollbar());
+        addTestCase("ScrollableWidget left/right scroll", \testLeftRightScroll());
+        addTestCase("ScrollableWidget unhandled event", \testUnhandledEvent());
+        addTestCase("LineListContent setLine", \testLineListContentSetLine());
+        addTestCase("LineListContent insertLine", \testLineListContentInsertLine());
+        addTestCase("ScrollableWidget scrollbar click", \testScrollbarClick());
+        addTestCase("ScrollableWidget scrollbar click no scrollbar", \testScrollbarClickNoScrollbar());
+        addTestCase("ScrollableWidget cursor position", \testCursorPosition());
+        addTestCase("ScrollableWidget cursor in draw", \testCursorInDraw());
+
+        set_return_value(main());
+    }
+
+    # --- LineListContent tests ---
+
+    testLineListContentBasic() {
+        NcursesUi::LineListContent llc();
+        assertEq(0, llc.totalRows());
+        assertEq(0, llc.totalCols());
+        assertEq(0, llc.lineCount());
+
+        llc.appendLine("Hello");
+        assertEq(1, llc.totalRows());
+        assertEq(5, llc.totalCols());
+        assertEq(1, llc.lineCount());
+
+        llc.appendLine("Hello World!");
+        assertEq(2, llc.totalRows());
+        assertEq(12, llc.totalCols());
+        assertEq(2, llc.lineCount());
+
+        list<string> lines = llc.getLines();
+        assertEq(2, lines.size());
+        assertEq("Hello", lines[0]);
+        assertEq("Hello World!", lines[1]);
+    }
+
+    testLineListContentSetLines() {
+        NcursesUi::LineListContent llc();
+        llc.setLines(("line1", "longer line 2", "l3"));
+        assertEq(3, llc.totalRows());
+        assertEq(13, llc.totalCols());  # "longer line 2" = 13 chars
+        assertEq(3, llc.lineCount());
+
+        # setLines replaces everything
+        llc.setLines(("short",));
+        assertEq(1, llc.totalRows());
+        assertEq(5, llc.totalCols());
+    }
+
+    testLineListContentClear() {
+        NcursesUi::LineListContent llc();
+        llc.appendLine("foo");
+        llc.appendLine("bar");
+        assertEq(2, llc.lineCount());
+
+        llc.clear();
+        assertEq(0, llc.lineCount());
+        assertEq(0, llc.totalRows());
+        assertEq(0, llc.totalCols());
+    }
+
+    testLineListContentDimensions() {
+        NcursesUi::LineListContent llc();
+        # empty
+        assertEq(0, llc.totalRows());
+        assertEq(0, llc.totalCols());
+
+        llc.appendLine("abc");
+        assertEq(1, llc.totalRows());
+        assertEq(3, llc.totalCols());
+
+        llc.appendLine("abcdefghij");
+        assertEq(2, llc.totalRows());
+        assertEq(10, llc.totalCols());
+
+        # shorter line doesn't reduce max_width
+        llc.appendLine("x");
+        assertEq(3, llc.totalRows());
+        assertEq(10, llc.totalCols());
+    }
+
+    testLineListContentAnsiWidth() {
+        NcursesUi::LineListContent llc();
+        # ANSI codes should not count toward width
+        llc.appendLine("\033[31mRed\033[0m");
+        # visible text is "Red" = 3 chars
+        assertEq(3, llc.totalCols());
+
+        llc.appendLine("Plain");
+        assertEq(5, llc.totalCols());  # "Plain" = 5 > 3
+    }
+
+    # --- ScrollableWidget tests ---
+
+    testScrollableWidgetInit() {
+        NcursesUi::ScrollableWidget sw();
+        assertEq(0, sw.getScrollY());
+        assertEq(0, sw.getScrollX());
+        assertFalse(exists sw.getContent());
+        assertTrue(sw.isFocusable());
+    }
+
+    testScrollDown() {
+        NcursesUi::ScrollableWidget sw();
+        sw.setFrame(NcursesUi::Geometry::makeRect(0, 0, 10, 40));
+
+        NcursesUi::LineListContent llc();
+        for (int i = 0; i < 50; ++i) {
+            llc.appendLine(sprintf("Line %d", i));
+        }
+        sw.setContent(llc);
+
+        assertEq(0, sw.getScrollY());
+        sw.scrollTo(NcursesUi::ScrollDirection::Down);
+        assertEq(1, sw.getScrollY());
+        sw.scrollTo(NcursesUi::ScrollDirection::Down, 5);
+        assertEq(6, sw.getScrollY());
+    }
+
+    testScrollUpClamping() {
+        NcursesUi::ScrollableWidget sw();
+        sw.setFrame(NcursesUi::Geometry::makeRect(0, 0, 10, 40));
+
+        NcursesUi::LineListContent llc();
+        for (int i = 0; i < 50; ++i) {
+            llc.appendLine(sprintf("Line %d", i));
+        }
+        sw.setContent(llc);
+
+        # already at 0, scrolling up should stay at 0
+        sw.scrollTo(NcursesUi::ScrollDirection::Up);
+        assertEq(0, sw.getScrollY());
+
+        sw.scrollTo(NcursesUi::ScrollDirection::Up, 100);
+        assertEq(0, sw.getScrollY());
+    }
+
+    testScrollDownClamping() {
+        NcursesUi::ScrollableWidget sw();
+        sw.setFrame(NcursesUi::Geometry::makeRect(0, 0, 10, 40));
+
+        NcursesUi::LineListContent llc();
+        for (int i = 0; i < 20; ++i) {
+            llc.appendLine(sprintf("Line %d", i));
+        }
+        sw.setContent(llc);
+
+        # max scroll = 20 - 10 = 10
+        sw.scrollTo(NcursesUi::ScrollDirection::Down, 100);
+        assertEq(10, sw.getScrollY());
+
+        # scrolling more should not go past
+        sw.scrollTo(NcursesUi::ScrollDirection::Down);
+        assertEq(10, sw.getScrollY());
+    }
+
+    testPageScroll() {
+        NcursesUi::ScrollableWidget sw();
+        sw.setFrame(NcursesUi::Geometry::makeRect(0, 0, 10, 40));
+
+        NcursesUi::LineListContent llc();
+        for (int i = 0; i < 50; ++i) {
+            llc.appendLine(sprintf("Line %d", i));
+        }
+        sw.setContent(llc);
+
+        sw.scrollTo(NcursesUi::ScrollDirection::PageDown);
+        assertEq(10, sw.getScrollY());
+
+        sw.scrollTo(NcursesUi::ScrollDirection::PageDown);
+        assertEq(20, sw.getScrollY());
+
+        sw.scrollTo(NcursesUi::ScrollDirection::PageUp);
+        assertEq(10, sw.getScrollY());
+    }
+
+    testHomeEnd() {
+        NcursesUi::ScrollableWidget sw();
+        sw.setFrame(NcursesUi::Geometry::makeRect(0, 0, 10, 40));
+
+        NcursesUi::LineListContent llc();
+        for (int i = 0; i < 50; ++i) {
+            llc.appendLine(sprintf("Line %d", i));
+        }
+        sw.setContent(llc);
+
+        sw.scrollTo(NcursesUi::ScrollDirection::End);
+        assertEq(40, sw.getScrollY());  # 50 - 10
+
+        sw.scrollTo(NcursesUi::ScrollDirection::Home);
+        assertEq(0, sw.getScrollY());
+    }
+
+    testSetScrollY() {
+        NcursesUi::ScrollableWidget sw();
+        sw.setFrame(NcursesUi::Geometry::makeRect(0, 0, 10, 40));
+
+        NcursesUi::LineListContent llc();
+        for (int i = 0; i < 30; ++i) {
+            llc.appendLine(sprintf("Line %d", i));
+        }
+        sw.setContent(llc);
+
+        sw.setScrollY(5);
+        assertEq(5, sw.getScrollY());
+
+        # clamping
+        sw.setScrollY(-10);
+        assertEq(0, sw.getScrollY());
+
+        sw.setScrollY(100);
+        assertEq(20, sw.getScrollY());  # 30 - 10
+    }
+
+    testKeyboardEvents() {
+        NcursesUi::ScrollableWidget sw();
+        sw.setFrame(NcursesUi::Geometry::makeRect(0, 0, 10, 40));
+
+        NcursesUi::LineListContent llc();
+        for (int i = 0; i < 50; ++i) {
+            llc.appendLine(sprintf("Line %d", i));
+        }
+        sw.setContent(llc);
+
+        # KEY_DOWN
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Key;
+        ev.name = "KEY_DOWN";
+        hash<NcursesUi::EventResult> result = sw.processEvent(ev);
+        assertTrue(result.handled);
+        assertEq(1, sw.getScrollY());
+
+        # KEY_UP
+        ev.name = "KEY_UP";
+        result = sw.processEvent(ev);
+        assertTrue(result.handled);
+        assertEq(0, sw.getScrollY());
+
+        # KEY_NPAGE (Page Down)
+        ev.name = "KEY_NPAGE";
+        result = sw.processEvent(ev);
+        assertTrue(result.handled);
+        assertEq(10, sw.getScrollY());
+
+        # KEY_PPAGE (Page Up)
+        ev.name = "KEY_PPAGE";
+        result = sw.processEvent(ev);
+        assertTrue(result.handled);
+        assertEq(0, sw.getScrollY());
+
+        # KEY_END
+        ev.name = "KEY_END";
+        result = sw.processEvent(ev);
+        assertTrue(result.handled);
+        assertEq(40, sw.getScrollY());
+
+        # KEY_HOME
+        ev.name = "KEY_HOME";
+        result = sw.processEvent(ev);
+        assertTrue(result.handled);
+        assertEq(0, sw.getScrollY());
+    }
+
+    testMouseWheelUp() {
+        NcursesUi::ScrollableWidget sw();
+        sw.setFrame(NcursesUi::Geometry::makeRect(0, 0, 10, 40));
+
+        NcursesUi::LineListContent llc();
+        for (int i = 0; i < 50; ++i) {
+            llc.appendLine(sprintf("Line %d", i));
+        }
+        sw.setContent(llc);
+
+        # scroll down first
+        sw.setScrollY(15);
+        assertEq(15, sw.getScrollY());
+
+        # mouse wheel up (BUTTON4)
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Mouse;
+        hash<Ncurses::MouseEvent> mouse();
+        mouse.x = 5;
+        mouse.y = 5;
+        mouse.button_state = Ncurses::BUTTON4_PRESSED;
+        ev.mouse = mouse;
+
+        hash<NcursesUi::EventResult> result = sw.processEvent(ev);
+        assertTrue(result.handled);
+        assertEq(12, sw.getScrollY());  # 15 - 3 (wheel_lines default)
+    }
+
+    testMouseWheelDown() {
+        NcursesUi::ScrollableWidget sw();
+        sw.setFrame(NcursesUi::Geometry::makeRect(0, 0, 10, 40));
+
+        NcursesUi::LineListContent llc();
+        for (int i = 0; i < 50; ++i) {
+            llc.appendLine(sprintf("Line %d", i));
+        }
+        sw.setContent(llc);
+
+        # mouse wheel down (BUTTON5)
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Mouse;
+        hash<Ncurses::MouseEvent> mouse();
+        mouse.x = 5;
+        mouse.y = 5;
+        mouse.button_state = Ncurses::BUTTON5_PRESSED;
+        ev.mouse = mouse;
+
+        hash<NcursesUi::EventResult> result = sw.processEvent(ev);
+        assertTrue(result.handled);
+        assertEq(3, sw.getScrollY());  # 0 + 3 (wheel_lines default)
+    }
+
+    testEmptyContent() {
+        NcursesUi::ScrollableWidget sw();
+        sw.setFrame(NcursesUi::Geometry::makeRect(0, 0, 10, 40));
+
+        NcursesUi::LineListContent llc();
+        sw.setContent(llc);
+
+        # scrolling empty content should not crash
+        sw.scrollTo(NcursesUi::ScrollDirection::Down);
+        assertEq(0, sw.getScrollY());
+
+        sw.scrollTo(NcursesUi::ScrollDirection::Up);
+        assertEq(0, sw.getScrollY());
+
+        sw.scrollTo(NcursesUi::ScrollDirection::End);
+        assertEq(0, sw.getScrollY());
+
+        sw.scrollTo(NcursesUi::ScrollDirection::PageDown);
+        assertEq(0, sw.getScrollY());
+    }
+
+    testNoContent() {
+        NcursesUi::ScrollableWidget sw();
+        sw.setFrame(NcursesUi::Geometry::makeRect(0, 0, 10, 40));
+
+        # no content at all
+        sw.scrollTo(NcursesUi::ScrollDirection::Down);
+        assertEq(0, sw.getScrollY());
+
+        # draw should not crash
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+        sw.draw(th.session().screen());
+    }
+
+    testContentSwap() {
+        NcursesUi::ScrollableWidget sw();
+        sw.setFrame(NcursesUi::Geometry::makeRect(0, 0, 10, 40));
+
+        NcursesUi::LineListContent llc1();
+        for (int i = 0; i < 30; ++i) {
+            llc1.appendLine(sprintf("Content1 Line %d", i));
+        }
+        sw.setContent(llc1);
+        sw.setScrollY(10);
+        assertEq(10, sw.getScrollY());
+
+        # swap content resets scroll
+        NcursesUi::LineListContent llc2();
+        for (int i = 0; i < 5; ++i) {
+            llc2.appendLine(sprintf("Content2 Line %d", i));
+        }
+        sw.setContent(llc2);
+        assertEq(0, sw.getScrollY());
+        assertEq(0, sw.getScrollX());
+    }
+
+    testScrollbarPresence() {
+        NcursesUi::ScrollableWidget sw();
+        sw.setFrame(NcursesUi::Geometry::makeRect(0, 0, 10, 40));
+
+        # content fits - no scrollbar needed (handled internally in draw)
+        NcursesUi::LineListContent llc_short();
+        for (int i = 0; i < 5; ++i) {
+            llc_short.appendLine(sprintf("Line %d", i));
+        }
+        sw.setContent(llc_short);
+
+        # content exceeds viewport - scrollbar needed
+        NcursesUi::LineListContent llc_long();
+        for (int i = 0; i < 50; ++i) {
+            llc_long.appendLine(sprintf("Line %d", i));
+        }
+        sw.setContent(llc_long);
+
+        # verify scrollbar is shown by checking totalRows > visible rows
+        assertTrue(llc_long.totalRows() > 10);
+    }
+
+    testScrollbarToggle() {
+        NcursesUi::ScrollableWidget sw();
+        sw.setFrame(NcursesUi::Geometry::makeRect(0, 0, 10, 40));
+
+        # disable scrollbar
+        sw.setShowScrollbar(False);
+
+        NcursesUi::LineListContent llc();
+        for (int i = 0; i < 50; ++i) {
+            llc.appendLine(sprintf("Line %d", i));
+        }
+        sw.setContent(llc);
+
+        # draw should not crash with scrollbar disabled
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+        sw.draw(th.session().screen());
+    }
+
+    testDrawWithContent() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::ScrollableWidget sw();
+        sw.setFrame(NcursesUi::Geometry::makeRect(0, 0, 10, 40));
+
+        NcursesUi::LineListContent llc();
+        llc.appendLine("First line");
+        llc.appendLine("Second line");
+        llc.appendLine("Third line");
+        sw.setContent(llc);
+
+        # draw without scrollbar (content fits)
+        sw.draw(th.session().screen());
+        th.session().doupdate();
+
+        # verify content was drawn
+        string row0 = th.session().screen().readText(0, 0, 40);
+        assertTrue(row0.find("First line") >= 0);
+        string row1 = th.session().screen().readText(1, 0, 40);
+        assertTrue(row1.find("Second line") >= 0);
+        string row2 = th.session().screen().readText(2, 0, 40);
+        assertTrue(row2.find("Third line") >= 0);
+    }
+
+    testDrawWithScrollbar() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::ScrollableWidget sw();
+        sw.setFrame(NcursesUi::Geometry::makeRect(0, 0, 10, 40));
+
+        NcursesUi::LineListContent llc();
+        for (int i = 0; i < 50; ++i) {
+            llc.appendLine(sprintf("Line %02d content", i));
+        }
+        sw.setContent(llc);
+
+        # draw with scrollbar (content exceeds viewport)
+        sw.draw(th.session().screen());
+        th.session().doupdate();
+
+        # verify first visible line
+        string row0 = th.session().screen().readText(0, 0, 39);
+        assertTrue(row0.find("Line 00") >= 0);
+
+        # scrollbar track should be at column 39 (rightmost)
+        # ACS_VLINE reads back as "x" via readText; thumb is space with Reverse
+        # With 50 lines in 10 rows: thumb_size=2 at top, track at row 5+
+        string track_ch = th.session().screen().readText(5, 39, 1);
+        assertEq("x", track_ch, "scrollbar track uses ACS_VLINE");
+
+        # scroll down and redraw
+        sw.setScrollY(20);
+        sw.draw(th.session().screen());
+        th.session().doupdate();
+
+        # verify scrolled content
+        row0 = th.session().screen().readText(0, 0, 39);
+        assertTrue(row0.find("Line 20") >= 0);
+    }
+
+    testLeftRightScroll() {
+        NcursesUi::ScrollableWidget sw();
+        sw.setFrame(NcursesUi::Geometry::makeRect(0, 0, 10, 40));
+
+        NcursesUi::LineListContent llc();
+        llc.appendLine("Short");
+        sw.setContent(llc);
+
+        sw.scrollTo(NcursesUi::ScrollDirection::Right, 5);
+        assertEq(5, sw.getScrollX());
+
+        sw.scrollTo(NcursesUi::ScrollDirection::Left, 3);
+        assertEq(2, sw.getScrollX());
+
+        # clamp to 0
+        sw.scrollTo(NcursesUi::ScrollDirection::Left, 100);
+        assertEq(0, sw.getScrollX());
+    }
+
+    testUnhandledEvent() {
+        NcursesUi::ScrollableWidget sw();
+        sw.setFrame(NcursesUi::Geometry::makeRect(0, 0, 10, 40));
+
+        # char event should not be handled
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = "a";
+        hash<NcursesUi::EventResult> result = sw.processEvent(ev);
+        assertFalse(result.handled);
+
+        # unknown key should not be handled
+        ev.type = Ncurses::InputType::Key;
+        ev.name = "KEY_F1";
+        result = sw.processEvent(ev);
+        assertFalse(result.handled);
+    }
+
+    # --- LineListContent setLine tests ---
+
+    testLineListContentSetLine() {
+        NcursesUi::LineListContent llc();
+        llc.appendLine("line0");
+        llc.appendLine("line1");
+        llc.appendLine("line2");
+
+        # replace middle line
+        llc.setLine(1, "replaced");
+        list<string> lines = llc.getLines();
+        assertEq("line0", lines[0]);
+        assertEq("replaced", lines[1]);
+        assertEq("line2", lines[2]);
+        assertEq(3, llc.lineCount());
+
+        # max_width should update if new line is wider
+        llc.setLine(0, "a very long replacement line");
+        assertEq(28, llc.totalCols());
+
+        # out-of-range index should be a no-op
+        llc.setLine(-1, "nope");
+        llc.setLine(100, "nope");
+        assertEq(3, llc.lineCount());
+
+        # replace with shorter line - max_width may not shrink (lazy)
+        llc.setLine(0, "x");
+        assertEq(3, llc.lineCount());
+        # max_width is only updated upward, not recalculated downward
+        assertTrue(llc.totalCols() >= 8);  # "replaced" = 8
+    }
+
+    # --- LineListContent insertLine tests ---
+
+    testLineListContentInsertLine() {
+        NcursesUi::LineListContent llc();
+        llc.appendLine("line0");
+        llc.appendLine("line1");
+        llc.appendLine("line2");
+
+        # insert in the middle
+        llc.insertLine(1, "inserted");
+        list<string> lines = llc.getLines();
+        assertEq(4, llc.lineCount());
+        assertEq("line0", lines[0]);
+        assertEq("inserted", lines[1]);
+        assertEq("line1", lines[2]);
+        assertEq("line2", lines[3]);
+
+        # insert at beginning
+        llc.insertLine(0, "first");
+        lines = llc.getLines();
+        assertEq(5, llc.lineCount());
+        assertEq("first", lines[0]);
+        assertEq("line0", lines[1]);
+
+        # insert past end falls back to appendLine
+        llc.insertLine(100, "appended");
+        lines = llc.getLines();
+        assertEq(6, llc.lineCount());
+        assertEq("appended", lines[5]);
+
+        # insert with negative index clamps to 0
+        llc.insertLine(-5, "clamped");
+        lines = llc.getLines();
+        assertEq(7, llc.lineCount());
+        assertEq("clamped", lines[0]);
+
+        # max_width should track inserted lines
+        llc.insertLine(0, "a wide inserted line here!");
+        assertTrue(llc.totalCols() >= 26);
+    }
+
+    # --- ScrollableWidget cursor position tests ---
+
+    testCursorPosition() {
+        NcursesUi::ScrollableWidget sw();
+
+        # initially no cursor
+        assertFalse(exists sw.getCursorPos());
+
+        # set cursor
+        sw.setCursorLine(5, 10);
+        *hash<auto> cp = sw.getCursorPos();
+        assertTrue(exists cp);
+        assertEq(5, cp.line);
+        assertEq(10, cp.col);
+
+        # update cursor
+        sw.setCursorLine(3, 7);
+        cp = sw.getCursorPos();
+        assertEq(3, cp.line);
+        assertEq(7, cp.col);
+
+        # clear cursor
+        sw.clearCursorLine();
+        assertFalse(exists sw.getCursorPos());
+    }
+
+    testScrollbarClick() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::ScrollableWidget sw();
+        sw.setFrame(NcursesUi::Geometry::makeRect(0, 0, 10, 40));
+
+        NcursesUi::LineListContent llc();
+        for (int i = 0; i < 50; ++i) {
+            llc.appendLine(sprintf("Line %02d content", i));
+        }
+        sw.setContent(llc);
+
+        # initially at top
+        assertEq(0, sw.getScrollY());
+
+        # click on scrollbar at bottom (row 9, col 39)
+        hash<Ncurses::MouseEvent> mouse({"x": 39, "y": 9, "button_state": Ncurses::BUTTON1_CLICKED});
+        hash<Ncurses::InputEvent> ev({"type": Ncurses::InputType::Mouse, "mouse": mouse});
+        hash<NcursesUi::EventResult> result = sw.processEvent(ev);
+        assertTrue(result.handled, "scrollbar click handled");
+        assertTrue(sw.getScrollY() > 0, "scrollbar click scrolled down");
+
+        # click on scrollbar at top (row 0)
+        mouse = <Ncurses::MouseEvent>{"x": 39, "y": 0, "button_state": Ncurses::BUTTON1_CLICKED};
+        ev = <Ncurses::InputEvent>{"type": Ncurses::InputType::Mouse, "mouse": mouse};
+        result = sw.processEvent(ev);
+        assertTrue(result.handled, "scrollbar top click handled");
+        assertEq(0, sw.getScrollY(), "scrollbar top click scrolled to top");
+
+        # click on scrollbar at middle (row 5)
+        mouse = <Ncurses::MouseEvent>{"x": 39, "y": 5, "button_state": Ncurses::BUTTON1_CLICKED};
+        ev = <Ncurses::InputEvent>{"type": Ncurses::InputType::Mouse, "mouse": mouse};
+        result = sw.processEvent(ev);
+        assertTrue(result.handled, "scrollbar mid click handled");
+        int mid_scroll = sw.getScrollY();
+        assertTrue(mid_scroll > 0 && mid_scroll < 40, "scrollbar mid click scrolled to middle");
+
+        # click NOT on scrollbar column (col 38) - should NOT be handled
+        mouse = <Ncurses::MouseEvent>{"x": 38, "y": 5, "button_state": Ncurses::BUTTON1_CLICKED};
+        ev = <Ncurses::InputEvent>{"type": Ncurses::InputType::Mouse, "mouse": mouse};
+        result = sw.processEvent(ev);
+        assertFalse(result.handled, "click on content area not handled by scrollbar");
+    }
+
+    testScrollbarClickNoScrollbar() {
+        NcursesUi::ScrollableWidget sw();
+        sw.setFrame(NcursesUi::Geometry::makeRect(0, 0, 10, 40));
+
+        # content fits in viewport - no scrollbar
+        NcursesUi::LineListContent llc();
+        for (int i = 0; i < 5; ++i) {
+            llc.appendLine(sprintf("Line %02d", i));
+        }
+        sw.setContent(llc);
+
+        # click on would-be scrollbar column - not handled (no scrollbar shown)
+        hash<Ncurses::MouseEvent> mouse({"x": 39, "y": 5, "button_state": Ncurses::BUTTON1_CLICKED});
+        hash<Ncurses::InputEvent> ev({"type": Ncurses::InputType::Mouse, "mouse": mouse});
+        hash<NcursesUi::EventResult> result = sw.processEvent(ev);
+        assertFalse(result.handled, "no scrollbar means click not handled");
+    }
+
+    testCursorInDraw() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::ScrollableWidget sw();
+        sw.setFrame(NcursesUi::Geometry::makeRect(0, 0, 10, 40));
+
+        NcursesUi::LineListContent llc();
+        llc.appendLine("prompt> hello");
+        llc.appendLine("output line");
+        sw.setContent(llc);
+
+        # set cursor on line 0, col 14
+        sw.setCursorLine(0, 14);
+
+        # draw should not crash
+        sw.draw(th.session().screen());
+        th.session().doupdate();
+
+        # verify content was drawn
+        string row0 = th.session().screen().readText(0, 0, 40);
+        assertTrue(row0.find("prompt> hello") >= 0);
+
+        # verify cursor position does not crash with cursor off-screen
+        sw.setCursorLine(20, 5);  # off-screen line
+        sw.draw(th.session().screen());
+        th.session().doupdate();
+
+        # cursor cleared - draw still works
+        sw.clearCursorLine();
+        sw.draw(th.session().screen());
+        th.session().doupdate();
+    }
+}

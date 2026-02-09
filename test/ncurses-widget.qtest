@@ -1,0 +1,538 @@
+#!/usr/bin/env qore
+
+%requires ncurses
+%requires NcursesUi
+%requires QUnit
+
+%modern
+
+%exec-class NcursesWidgetTest
+
+class NcursesWidgetTest inherits Test {
+    constructor() : Test("NcursesWidgetTest", "1.0") {
+        addTestCase("widget default state", \testWidgetDefaults());
+        addTestCase("widget frame and content rect", \testWidgetFrame());
+        addTestCase("widget tree add/remove", \testWidgetTree());
+        addTestCase("widget tree parent references", \testWidgetParentRefs());
+        addTestCase("markDirty propagation", \testDirtyPropagation());
+        addTestCase("hitTest coordinates", \testHitTest());
+        addTestCase("hitTest invisible", \testHitTestInvisible());
+        addTestCase("collectFocusable depth-first", \testCollectFocusable());
+        addTestCase("collectFocusable skips invisible", \testCollectFocusableInvisible());
+        addTestCase("widget event routing", \testEventRouting());
+        addTestCase("widget drawTree calls children", \testDrawTree());
+        addTestCase("widget size policy", \testSizePolicy());
+        addTestCase("FocusManager setFocus", \testFocusManagerSetFocus());
+        addTestCase("FocusManager moveFocus next", \testFocusManagerMoveNext());
+        addTestCase("FocusManager moveFocus prev", \testFocusManagerMovePrev());
+        addTestCase("FocusManager moveFocus wraps", \testFocusManagerWraps());
+        addTestCase("FocusManager handleFocusEvent tab", \testFocusManagerTab());
+        addTestCase("FocusManager handleFocusEvent shift-tab", \testFocusManagerShiftTab());
+        addTestCase("FocusManager no focusable", \testFocusManagerNoFocusable());
+        addTestCase("PanelWidget lifecycle", \testPanelWidgetLifecycle());
+        addTestCase("PanelWidget draw border and title", \testPanelWidgetDraw());
+        addTestCase("PanelWidget resize", \testPanelWidgetResize());
+        addTestCase("PanelWidget closable", \testPanelWidgetClosable());
+        addTestCase("PanelWidget close hit test", \testPanelWidgetCloseHit());
+        addTestCase("PanelWidget hide/show", \testPanelWidgetHideShow());
+        addTestCase("PanelWidget center title default off", \testPanelWidgetCenterTitleDefault());
+        addTestCase("PanelWidget center title enabled", \testPanelWidgetCenterTitle());
+
+        set_return_value(main());
+    }
+
+    # ---- Widget base class tests ----
+
+    testWidgetDefaults() {
+        NcursesUi::Widget w();
+        assertTrue(w.isVisible());
+        assertFalse(w.isFocusable());
+        assertFalse(w.hasFocus());
+        assertTrue(w.isDirty());
+        assertEq(0, w.childCount());
+        assertFalse(exists w.getParent());
+        assertEq(0, w.getFrame().y);
+        assertEq(0, w.getFrame().x);
+        assertEq(0, w.getFrame().rows);
+        assertEq(0, w.getFrame().cols);
+    }
+
+    testWidgetFrame() {
+        NcursesUi::Widget w();
+        w.setFrame(NcursesUi::Geometry::makeRect(5, 10, 20, 40));
+        assertEq(5, w.getFrame().y);
+        assertEq(10, w.getFrame().x);
+        assertEq(20, w.getFrame().rows);
+        assertEq(40, w.getFrame().cols);
+
+        # content rect with padding
+        w.setPadding(NcursesUi::Geometry::makeInsets(1, 1, 1, 1));
+        hash<NcursesUi::Rect> cr = w.contentRect();
+        assertEq(6, cr.y);
+        assertEq(11, cr.x);
+        assertEq(18, cr.rows);
+        assertEq(38, cr.cols);
+
+        # setFrameValues
+        w.setFrameValues(0, 0, 10, 10);
+        assertEq(0, w.getFrame().y);
+        assertEq(10, w.getFrame().cols);
+    }
+
+    testWidgetTree() {
+        NcursesUi::Widget parent();
+        NcursesUi::Widget child1();
+        NcursesUi::Widget child2();
+
+        parent.addChild(child1);
+        parent.addChild(child2);
+        assertEq(2, parent.childCount());
+
+        list<NcursesUi::Widget> kids = parent.getChildren();
+        assertEq(2, kids.size());
+
+        parent.removeChild(child1);
+        assertEq(1, parent.childCount());
+        assertFalse(exists child1.getParent());
+    }
+
+    testWidgetParentRefs() {
+        NcursesUi::Widget parent();
+        NcursesUi::Widget child();
+
+        parent.addChild(child);
+        assertTrue(child.getParent() == parent);
+
+        parent.removeChild(child);
+        assertFalse(exists child.getParent());
+    }
+
+    testDirtyPropagation() {
+        NcursesUi::Widget root();
+        NcursesUi::Widget mid();
+        NcursesUi::Widget leaf();
+
+        root.addChild(mid);
+        mid.addChild(leaf);
+
+        # clear all dirty flags
+        root.clearDirty();
+        mid.clearDirty();
+        leaf.clearDirty();
+        assertFalse(root.isDirty());
+        assertFalse(mid.isDirty());
+        assertFalse(leaf.isDirty());
+
+        # mark leaf dirty - should propagate to root
+        leaf.markDirty();
+        assertTrue(leaf.isDirty());
+        assertTrue(mid.isDirty());
+        assertTrue(root.isDirty());
+    }
+
+    testHitTest() {
+        NcursesUi::Widget w();
+        w.setFrame(NcursesUi::Geometry::makeRect(10, 20, 5, 10));
+
+        assertTrue(w.hitTest(10, 20));   # top-left
+        assertTrue(w.hitTest(14, 29));   # bottom-right (inclusive)
+        assertFalse(w.hitTest(15, 20));  # one past bottom
+        assertFalse(w.hitTest(10, 30));  # one past right
+        assertFalse(w.hitTest(9, 20));   # above
+        assertFalse(w.hitTest(10, 19));  # left
+    }
+
+    testHitTestInvisible() {
+        NcursesUi::Widget w();
+        w.setFrame(NcursesUi::Geometry::makeRect(0, 0, 10, 10));
+        w.setVisible(False);
+        assertFalse(w.hitTest(5, 5));
+    }
+
+    testCollectFocusable() {
+        NcursesUi::Widget root();
+        NcursesUi::Widget a();
+        a.setFocusable(True);
+        NcursesUi::Widget b();
+        NcursesUi::Widget c();
+        c.setFocusable(True);
+        NcursesUi::Widget d();
+        d.setFocusable(True);
+
+        root.addChild(a);
+        root.addChild(b);
+        b.addChild(c);
+        root.addChild(d);
+
+        list<NcursesUi::Widget> focusable = root.collectFocusable();
+        assertEq(3, focusable.size());
+        # depth-first: a, c (child of b), d
+        assertTrue(focusable[0] == a);
+        assertTrue(focusable[1] == c);
+        assertTrue(focusable[2] == d);
+    }
+
+    testCollectFocusableInvisible() {
+        NcursesUi::Widget root();
+        NcursesUi::Widget a();
+        a.setFocusable(True);
+        NcursesUi::Widget b();
+        b.setFocusable(True);
+        b.setVisible(False);  # hidden - should not be collected
+
+        root.addChild(a);
+        root.addChild(b);
+
+        list<NcursesUi::Widget> focusable = root.collectFocusable();
+        assertEq(1, focusable.size());
+        assertTrue(focusable[0] == a);
+    }
+
+    testEventRouting() {
+        # create a custom widget that handles events
+        NcursesUi::Widget root();
+        TestEventWidget child();
+        child.setFocusable(True);
+        child.setFocused(True);
+        root.addChild(child);
+
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = "x";
+
+        hash<NcursesUi::EventResult> result = root.handleEvent(ev);
+        assertTrue(result.handled);
+        assertEq("test_handled", result.action);
+    }
+
+    testDrawTree() {
+        NcursesUi::TestHarness th(10, 20);
+        on_exit th.close();
+
+        NcursesUi::Widget root();
+        DrawTestWidget child();
+        root.addChild(child);
+
+        root.drawTree(th.screen());
+        assertTrue(child.draw_called);
+    }
+
+    testSizePolicy() {
+        NcursesUi::Widget w();
+        assertEq(NcursesUi::SizePolicy::Expanding, w.getHSizePolicy());
+        assertEq(NcursesUi::SizePolicy::Expanding, w.getVSizePolicy());
+
+        w.setHSizePolicy(NcursesUi::SizePolicy::Fixed);
+        w.setVSizePolicy(NcursesUi::SizePolicy::Minimum);
+        assertEq(NcursesUi::SizePolicy::Fixed, w.getHSizePolicy());
+        assertEq(NcursesUi::SizePolicy::Minimum, w.getVSizePolicy());
+
+        w.setMinimumSize(5, 10);
+        assertEq(5, w.getMinimumSize().rows);
+        assertEq(10, w.getMinimumSize().cols);
+
+        w.setPreferredSize(15, 30);
+        assertEq(15, w.getPreferredSize().rows);
+        assertEq(30, w.getPreferredSize().cols);
+    }
+
+    # ---- FocusManager tests ----
+
+    testFocusManagerSetFocus() {
+        NcursesUi::FocusManager fm();
+        NcursesUi::Widget a();
+        a.setFocusable(True);
+        NcursesUi::Widget b();
+        b.setFocusable(True);
+
+        assertFalse(exists fm.getCurrentFocus());
+
+        fm.setFocus(a);
+        assertTrue(fm.getCurrentFocus() == a);
+        assertTrue(a.hasFocus());
+
+        fm.setFocus(b);
+        assertTrue(fm.getCurrentFocus() == b);
+        assertTrue(b.hasFocus());
+        assertFalse(a.hasFocus());
+
+        fm.setFocus(NOTHING);
+        assertFalse(exists fm.getCurrentFocus());
+        assertFalse(b.hasFocus());
+    }
+
+    testFocusManagerMoveNext() {
+        NcursesUi::Widget root();
+        NcursesUi::Widget a();
+        a.setFocusable(True);
+        NcursesUi::Widget b();
+        b.setFocusable(True);
+        NcursesUi::Widget c();
+        c.setFocusable(True);
+        root.addChild(a);
+        root.addChild(b);
+        root.addChild(c);
+
+        NcursesUi::FocusManager fm();
+
+        # first move goes to first widget
+        fm.moveFocus(root, NcursesUi::FocusDirection::Next);
+        assertTrue(fm.getCurrentFocus() == a);
+
+        # next
+        fm.moveFocus(root, NcursesUi::FocusDirection::Next);
+        assertTrue(fm.getCurrentFocus() == b);
+
+        fm.moveFocus(root, NcursesUi::FocusDirection::Next);
+        assertTrue(fm.getCurrentFocus() == c);
+    }
+
+    testFocusManagerMovePrev() {
+        NcursesUi::Widget root();
+        NcursesUi::Widget a();
+        a.setFocusable(True);
+        NcursesUi::Widget b();
+        b.setFocusable(True);
+        root.addChild(a);
+        root.addChild(b);
+
+        NcursesUi::FocusManager fm();
+
+        # first prev goes to last widget
+        fm.moveFocus(root, NcursesUi::FocusDirection::Previous);
+        assertTrue(fm.getCurrentFocus() == b);
+
+        fm.moveFocus(root, NcursesUi::FocusDirection::Previous);
+        assertTrue(fm.getCurrentFocus() == a);
+    }
+
+    testFocusManagerWraps() {
+        NcursesUi::Widget root();
+        NcursesUi::Widget a();
+        a.setFocusable(True);
+        NcursesUi::Widget b();
+        b.setFocusable(True);
+        root.addChild(a);
+        root.addChild(b);
+
+        NcursesUi::FocusManager fm();
+        fm.setFocus(b);
+
+        # next from last should wrap to first
+        fm.moveFocus(root, NcursesUi::FocusDirection::Next);
+        assertTrue(fm.getCurrentFocus() == a);
+
+        # prev from first should wrap to last
+        fm.moveFocus(root, NcursesUi::FocusDirection::Previous);
+        assertTrue(fm.getCurrentFocus() == b);
+    }
+
+    testFocusManagerTab() {
+        NcursesUi::Widget root();
+        NcursesUi::Widget a();
+        a.setFocusable(True);
+        NcursesUi::Widget b();
+        b.setFocusable(True);
+        root.addChild(a);
+        root.addChild(b);
+
+        NcursesUi::FocusManager fm();
+        fm.setFocus(a);
+
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = "\t";
+
+        bool handled = fm.handleFocusEvent(root, ev);
+        assertTrue(handled);
+        assertTrue(fm.getCurrentFocus() == b);
+    }
+
+    testFocusManagerShiftTab() {
+        NcursesUi::Widget root();
+        NcursesUi::Widget a();
+        a.setFocusable(True);
+        NcursesUi::Widget b();
+        b.setFocusable(True);
+        root.addChild(a);
+        root.addChild(b);
+
+        NcursesUi::FocusManager fm();
+        fm.setFocus(b);
+
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Key;
+        ev.name = "KEY_BTAB";
+
+        bool handled = fm.handleFocusEvent(root, ev);
+        assertTrue(handled);
+        assertTrue(fm.getCurrentFocus() == a);
+    }
+
+    testFocusManagerNoFocusable() {
+        NcursesUi::Widget root();
+        NcursesUi::Widget child();
+        root.addChild(child);
+
+        NcursesUi::FocusManager fm();
+        bool moved = fm.moveFocus(root, NcursesUi::FocusDirection::Next);
+        assertFalse(moved);
+    }
+
+    # ---- PanelWidget tests ----
+
+    testPanelWidgetLifecycle() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::PanelWidget pw(th.session(), "Test Panel");
+        pw.setFrame(NcursesUi::Geometry::makeRect(2, 5, 10, 30));
+        pw.createPanel();
+
+        assertTrue(pw.isVisible());
+        assertTrue(exists pw.getWindow());
+        assertEq("Test Panel", pw.getTitle());
+
+        pw.destroyPanel();
+        assertFalse(exists pw.getWindow());
+    }
+
+    testPanelWidgetDraw() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::PanelWidget pw(th.session(), "Hello");
+        pw.setFrame(NcursesUi::Geometry::makeRect(0, 0, 6, 20));
+        pw.createPanel();
+        pw.draw(th.screen());
+        th.refresh();
+
+        # read from panel's own window to verify border and title
+        Ncurses::Window pw_win = pw.getWindow();
+        string title_row = pw_win.readText(0, 0, 20);
+        assertTrue(regex(title_row, "Hello"), sprintf("title row contains 'Hello' (got: '%s')", title_row));
+    }
+
+    testPanelWidgetResize() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::PanelWidget pw(th.session(), "Resize");
+        pw.setFrame(NcursesUi::Geometry::makeRect(0, 0, 5, 15));
+        pw.createPanel();
+
+        pw.resize(NcursesUi::Geometry::makeRect(1, 2, 8, 25));
+        assertEq(1, pw.getFrame().y);
+        assertEq(2, pw.getFrame().x);
+        assertEq(8, pw.getFrame().rows);
+        assertEq(25, pw.getFrame().cols);
+        assertTrue(exists pw.getWindow());
+    }
+
+    testPanelWidgetClosable() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::PanelWidget pw(th.session(), "Closable");
+        pw.setFrame(NcursesUi::Geometry::makeRect(0, 0, 6, 20));
+        pw.setClosable(True);
+        assertTrue(pw.isClosable());
+        pw.createPanel();
+        pw.draw(th.screen());
+        th.refresh();
+
+        # read from panel's own window to verify close button
+        Ncurses::Window pw_win = pw.getWindow();
+        string title_row = pw_win.readText(0, 0, 20);
+        assertTrue(regex(title_row, "\\[X\\]"), sprintf("title row contains [X] (got: '%s')", title_row));
+    }
+
+    testPanelWidgetCloseHit() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::PanelWidget pw(th.session(), "Close");
+        pw.setFrame(NcursesUi::Geometry::makeRect(5, 10, 6, 20));
+        pw.setClosable(True);
+        pw.createPanel();
+        pw.draw(th.screen());
+
+        # close button is at row 5 (top border), near the right edge
+        # frame is at (5,10), cols=20, so close button at col max(1, 20-3-2)=15
+        # absolute: row 5, col 10+15=25
+        assertTrue(pw.isCloseHit(25, 5));
+        assertTrue(pw.isCloseHit(26, 5));
+        assertTrue(pw.isCloseHit(27, 5));
+        assertFalse(pw.isCloseHit(24, 5));  # before close button
+        assertFalse(pw.isCloseHit(28, 5));  # after close button
+        assertFalse(pw.isCloseHit(25, 6));  # wrong row
+    }
+
+    testPanelWidgetHideShow() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::PanelWidget pw(th.session(), "HideShow");
+        pw.setFrame(NcursesUi::Geometry::makeRect(0, 0, 6, 20));
+        pw.createPanel();
+        assertTrue(pw.isVisible());
+
+        pw.hide();
+        assertFalse(pw.isVisible());
+
+        pw.show();
+        assertTrue(pw.isVisible());
+        assertTrue(exists pw.getWindow());
+    }
+
+    testPanelWidgetCenterTitleDefault() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+        NcursesUi::PanelWidget pw(th.session(), "Test");
+        assertFalse(pw.getCenterTitle());
+    }
+
+    testPanelWidgetCenterTitle() {
+        NcursesUi::TestHarness th(24, 80);
+        on_exit th.close();
+
+        NcursesUi::PanelWidget pw(th.session(), "Hi");
+        pw.setCenterTitle(True);
+        assertTrue(pw.getCenterTitle());
+
+        pw.setFrame(NcursesUi::Geometry::makeRect(0, 0, 6, 30));
+        pw.createPanel();
+        pw.draw(th.screen());
+        th.refresh();
+
+        # title " Hi " is 4 chars; panel is 30 cols; center = (30-4)/2 = 13
+        Ncurses::Window pw_win = pw.getWindow();
+        string title_row = pw_win.readText(0, 0, 30);
+        int title_pos = title_row.find("Hi");
+        assertTrue(title_pos >= 0, "title should be present: " + title_row);
+        # centered title should be roughly in the middle, not at position 3 (left-aligned default)
+        assertTrue(title_pos >= 10, sprintf("title 'Hi' should be centered (pos %d), got: '%s'",
+            title_pos, title_row));
+    }
+}
+
+# Helper widget that handles events for testing
+class TestEventWidget inherits NcursesUi::Widget {
+    hash<NcursesUi::EventResult> processEvent(hash<Ncurses::InputEvent> ev) {
+        return <NcursesUi::EventResult>{
+            "handled": True,
+            "action": "test_handled",
+        };
+    }
+}
+
+# Helper widget that tracks draw calls
+class DrawTestWidget inherits NcursesUi::Widget {
+    public {
+        bool draw_called = False;
+    }
+
+    nothing draw(Ncurses::Window w) {
+        draw_called = True;
+    }
+}

@@ -1,0 +1,164 @@
+/* -*- mode: c++; indent-tabs-mode: nil -*- */
+/*
+    Qore ncurses module
+
+
+    Copyright (C) 2003 - 2026 Qore Technologies, s.r.o.
+
+    This library is free software; you can redistribute it and/or
+    modify it under the terms of the GNU Lesser General Public
+    License as published by the Free Software Foundation; either
+    version 2.1 of the License, or (at your option) any later version.
+
+    This library is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    Lesser General Public License for more details.
+
+    You should have received a copy of the GNU Lesser General Public
+    License along with this library; if not, write to the Free Software
+    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+*/
+
+#include "ncurses-internal.h"
+
+//! Test terminal helper
+/** Provides a pseudo-terminal for automated tests.
+
+    TestTerminal creates a PTY (pseudo-terminal) pair that can be passed to
+    the Session constructor for headless, deterministic testing. Use
+    Session::injectEvent() to simulate input and Session::snapshot() to
+    read back screen contents.
+
+    @par Example:
+    @code{.py}
+%modern
+%requires ncurses
+
+# create a 24x80 test terminal
+Ncurses::TestTerminal tt(24, 80);
+
+# create a session backed by the test terminal
+Ncurses::Session s({"test_terminal": tt});
+Ncurses::Window w = s.screen();
+
+w.clear();
+w.drawText(0, 0, "Test output");
+w.refresh();
+
+# read back screen contents for verification
+list<string> rows = s.snapshot();
+# rows[0] starts with "Test output"
+
+# inject a keypress
+s.injectEvent({"type": Ncurses::InputType::Char, "ch": "q"});
+auto ev = w.readEvent(100, 25);
+# ev.ch == "q"
+
+s.close();
+    @endcode
+
+    @since %ncurses 2.0
+*/
+qclass TestTerminal [dom=TERMINAL_IO; arg=NcursesTestTerminal* term; ns=Qore::Ncurses];
+
+// ---------------------------------------------
+// TestTerminal implementation
+// ---------------------------------------------
+
+/**
+    @param rows
+    @param cols
+    @param term optional TERM value
+
+    @since %ncurses 2.0
+*/
+//! Creates a test terminal
+/**
+    @param rows optional rows
+    @param cols optional cols
+    @param term optional TERM value
+
+    @since %ncurses 2.0
+*/
+TestTerminal::constructor(*int rows, *int cols, *string term) {
+    size_t argc = args ? args->size() : 0;
+    while (argc > 0 && args->retrieveEntry(argc - 1).isNothing()) {
+        --argc;
+    }
+    int r = argc > 0 ? rows : 24;
+    int c = argc > 1 ? cols : 80;
+    self->setPrivate(CID_TESTTERMINAL, new NcursesTestTerminal(r, c, term));
+}
+
+//! Opens the pseudo-terminal
+/**
+    @since %ncurses 2.0
+*/
+nothing TestTerminal::open() {
+    term->ensureOpen(xsink);
+    return nothing();
+}
+
+//! Resizes the test terminal
+/**
+    @param rows new rows
+    @param cols new cols
+
+    @since %ncurses 2.0
+*/
+nothing TestTerminal::resize(int rows, int cols) {
+    term->resize(rows, cols, xsink);
+    return nothing();
+}
+
+//! Writes input data to the test terminal
+/**
+    @param data input data
+
+    @since %ncurses 2.0
+*/
+nothing TestTerminal::writeInput(string data) {
+    term->writeInput(data, xsink);
+    return nothing();
+}
+
+//! Closes the test terminal
+/**
+    @since %ncurses 2.0
+*/
+nothing TestTerminal::close() {
+    term->close(xsink);
+    return nothing();
+}
+
+//! Returns true if the test terminal is open
+/**
+    @since %ncurses 2.0
+*/
+bool TestTerminal::isOpen() {
+    return term && term->master_fd >= 0;
+}
+
+//! Returns the path to the slave device for this test terminal
+/**
+    @return slave device path (for use with Session::constructor \c tty_path)
+
+    @since %ncurses 2.0
+*/
+string TestTerminal::getSlavePath() {
+    term->ensureOpen(xsink);
+    if (xsink && *xsink) {
+        return "";
+    }
+    if (term->master_fd < 0) {
+        xsink->raiseException("NCURSES-TEST-ERROR", "test terminal is closed");
+        return "";
+    }
+    const char* path = ptsname(term->master_fd);
+    if (!path) {
+        xsink->raiseErrnoException("NCURSES-TEST-ERROR", errno, "ptsname() failed");
+        return "";
+    }
+    return new QoreStringNode(path, QCS_UTF8);
+}
