@@ -3897,6 +3897,11 @@ class QRepl {
         init_ui();
         init_output_capture();
 
+        # load persistent history
+        if (exists ENV.HOME) {
+            history.load(ENV.HOME + "/.qore-repl-history");
+        }
+
         push_output("Qore Ncurses REPL (QoreRepl backend)");
         hash<auto> qore_info = get_qore_library_info();
         *string qore_version = qore_info{"VersionString"};
@@ -3946,7 +3951,7 @@ class QRepl {
         # set up menu bar (connect to app for dropdown popups)
         menu_bar.setApplication(app);
         menu_bar.addMenu("File", (
-            {"label": "Browse...", "command": "file_browser", "hotkey": "Alt+B"},
+            {"label": "Browse...", "command": "file_browser", "hotkey": "Alt+O"},
             {"label": "Load...", "command": "/load"},
             {"label": "Save...", "command": "/save"},
             {"separator": True},
@@ -4293,6 +4298,14 @@ class QRepl {
         await_capture_flush();
         drain_pending_output();
 
+        # auto-indent on continuation: pre-fill buffer with indent
+        if (repl.needsMoreInput()) {
+            int indent = repl.getIndentLevel();
+            if (indent > 0) {
+                buffer.setText(strmul("    ", indent));
+            }
+        }
+
         # start a new prompt line after execution
         new_prompt_line();
     }
@@ -4493,17 +4506,43 @@ class QRepl {
                 buffer.deleteChar();
                 update_prompt_line();
                 return <NcursesUi::EventResult>{"handled": True};
+            } else if (code == 0x09) {
+                # Tab - code completion
+                handle_tab_completion();
+                return <NcursesUi::EventResult>{"handled": True};
             } else if (code >= 32) {
                 # printable character
                 buffer.insertChar(ch);
+                # auto-dedent when typing "}" on a whitespace-only line during continuation
+                if (ch == "}" && repl.needsMoreInput()) {
+                    buffer.autoDedent("    ");
+                }
                 update_prompt_line();
                 return <NcursesUi::EventResult>{"handled": True};
             }
         } else if (ev.type == Ncurses::InputType::Alt) {
             string ch = ev.ch ?? "";
             if (ch != "") {
-                # check item-level hotkeys first (Alt+B → file_browser, Alt+H → /help, etc.)
-                *string cmd = alt_commands{ch.lwr()};
+                # standard editing keys (Alt+B/F/D) take priority over menu hotkeys
+                string lch = ch.lwr();
+                if (lch == "b") {
+                    # Alt+B - move word left
+                    buffer.moveWordLeft();
+                    update_prompt_line();
+                    return <NcursesUi::EventResult>{"handled": True};
+                } else if (lch == "f") {
+                    # Alt+F - move word right
+                    buffer.moveWordRight();
+                    update_prompt_line();
+                    return <NcursesUi::EventResult>{"handled": True};
+                } else if (lch == "d") {
+                    # Alt+D - delete word forward
+                    buffer.deleteWordForward();
+                    update_prompt_line();
+                    return <NcursesUi::EventResult>{"handled": True};
+                }
+                # check item-level hotkeys (Alt+O → file_browser, Alt+H → /help, etc.)
+                *string cmd = alt_commands{lch};
                 if (exists cmd) {
                     handle_menu_command(cmd);
                     return <NcursesUi::EventResult>{"handled": True, "action": "menu_command"};
@@ -4520,6 +4559,16 @@ class QRepl {
                 mouse_enabled = !mouse_enabled;
                 app.getSession().setMouse(mouse_enabled);
                 update_status();
+                return <NcursesUi::EventResult>{"handled": True};
+            } else if (name == "kLFT3") {
+                # Alt+Left - move word left
+                buffer.moveWordLeft();
+                update_prompt_line();
+                return <NcursesUi::EventResult>{"handled": True};
+            } else if (name == "kRIT3") {
+                # Alt+Right - move word right
+                buffer.moveWordRight();
+                update_prompt_line();
                 return <NcursesUi::EventResult>{"handled": True};
             } else if (name == "KEY_LEFT") {
                 buffer.moveLeft();
@@ -4583,6 +4632,135 @@ class QRepl {
             }
         }
         return <NcursesUi::EventResult>{"handled": False};
+    }
+
+    /** Handles Tab key for code completion.
+
+        Gets completion details from QoreRepl, and either auto-inserts
+        the single completion or shows a popup for multiple completions.
+    */
+    private nothing handle_tab_completion() {
+        string input = buffer.getText().substr(0, buffer.getCursor());
+        if (input == "") {
+            return;
+        }
+
+        *list<hash<auto>> completions;
+        try {
+            completions = repl.getCompletionDetails(input);
+        } catch (hash<ExceptionInfo> ex) {
+            # completion not available - ignore
+            return;
+        }
+
+        if (!exists completions || !completions.size()) {
+            return;
+        }
+
+        # find the word start for replacement
+        int word_start = input.length();
+        while (word_start > 0) {
+            string ch = input.substr(word_start - 1, 1);
+            if (ch == " " || ch == "\t" || ch == "(" || ch == ")" || ch == ","
+                    || ch == ";" || ch == "{" || ch == "}" || ch == ":"
+                    || ch == "." || ch == "=" || ch == "+" || ch == "-"
+                    || ch == "*" || ch == "/" || ch == "!" || ch == "<"
+                    || ch == ">" || ch == "&" || ch == "|" || ch == "^"
+                    || ch == "~" || ch == "?" || ch == "@" || ch == "#"
+                    || ch == "%" || ch == "[" || ch == "]") {
+                break;
+            }
+            word_start -= 1;
+        }
+        string prefix = input.substr(word_start);
+
+        if (completions.size() == 1) {
+            # single completion - auto-insert
+            insert_completion(completions[0], word_start, prefix);
+            return;
+        }
+
+        # multiple completions - show popup
+        show_completion_popup(completions, word_start, prefix);
+    }
+
+    /** Inserts a completion into the buffer, replacing the prefix.
+        @param item the completion item
+        @param word_start the position where the prefix starts
+        @param prefix the current prefix being replaced
+    */
+    private nothing insert_completion(hash<auto> item, int word_start, string prefix) {
+        string label = item.label ?? "";
+        if (label == "") {
+            return;
+        }
+
+        # build the replacement text
+        string replacement = label;
+        if (item.isCallable) {
+            replacement += "(";
+        } else if (item.kind == "namespace") {
+            replacement += "::";
+        }
+
+        # replace prefix with completion
+        string text = buffer.getText();
+        string new_text = text.substr(0, word_start) + replacement + text.substr(word_start + prefix.length());
+        int new_cursor = word_start + replacement.length();
+        buffer.setText(new_text);
+        buffer.setCursor(new_cursor);
+        update_prompt_line();
+    }
+
+    /** Shows a completion popup with multiple items.
+        @param completions the list of completion items
+        @param word_start the position where the prefix starts
+        @param prefix the current prefix
+    */
+    private nothing show_completion_popup(list<hash<auto>> completions, int word_start, string prefix) {
+        Ncurses::Session sess = app.getSession();
+        hash<Ncurses::Size> sz = sess.screen().size();
+
+        NcursesUi::CompletionPopupWidget popup(sess, completions);
+
+        # position below the cursor
+        string prompt_text = display_prompt(current_prompt);
+        int cursor_screen_col = prompt_text.length() + buffer.getCursor();
+
+        # the prompt is on the last line of visible content
+        hash<NcursesUi::Rect> ow_frame = output_widget.getFrame();
+        int anchor_y;
+        if (prompt_line_idx >= 0) {
+            # try to get the screen row of the prompt line
+            int visible_start = output_widget.getScrollY();
+            int line_in_view = prompt_line_idx - visible_start;
+            anchor_y = ow_frame.y + line_in_view;
+        } else {
+            anchor_y = ow_frame.y + ow_frame.rows - 1;
+        }
+        # clamp anchor_y to the visible output area
+        if (anchor_y < ow_frame.y) {
+            anchor_y = ow_frame.y;
+        } else if (anchor_y > ow_frame.y + ow_frame.rows - 1) {
+            anchor_y = ow_frame.y + ow_frame.rows - 1;
+        }
+        int anchor_x = ow_frame.x + cursor_screen_col;
+
+        popup.positionAt(anchor_y, anchor_x, sz.rows, sz.cols);
+
+        popup.setOnSelect(sub (hash<auto> item) {
+            app.popModal();
+            popup.destroyPanel();
+            insert_completion(item, word_start, prefix);
+        });
+
+        popup.setOnDismiss(sub () {
+            app.popModal();
+            popup.destroyPanel();
+        });
+
+        popup.createPanel();
+        app.pushModal(popup);
     }
 
     private nothing show_quit_dialog() {
@@ -4748,6 +4926,15 @@ class QRepl {
     }
 
     private nothing close_session() {
+        # save persistent history
+        if (exists ENV.HOME) {
+            try {
+                history.save(ENV.HOME + "/.qore-repl-history");
+            } catch (hash<ExceptionInfo> ex) {
+                # ignore save errors during shutdown
+            }
+        }
+
         if (capture_enabled) {
             capture_running = False;
             try {

@@ -269,6 +269,140 @@ public class InputBuffer {
         cursor = 0;
     }
 
+    /** Auto-dedents the current line by removing one indent prefix.
+
+        If the buffer content consists of only whitespace followed by "}", removes
+        one occurrence of @a indent_str from the front of the buffer.
+
+        @param indent_str the indent string to remove (e.g. "    " for 4-space indent)
+        @return True if a dedent was performed
+        @since %ncurses 2.0
+    */
+    bool autoDedent(string indent_str) {
+        if (indent_str == "") {
+            return False;
+        }
+        # check if buffer is whitespace + "}"
+        string trimmed = regex_subst(text, "^\\s*", "");
+        if (trimmed != "}") {
+            return False;
+        }
+        # check if the buffer starts with the indent string
+        if (text.length() < indent_str.length()) {
+            return False;
+        }
+        if (text.substr(0, indent_str.length()) != indent_str) {
+            return False;
+        }
+        # remove one indent level from the front
+        text = text.substr(indent_str.length());
+        # adjust cursor
+        if (cursor > indent_str.length()) {
+            cursor -= indent_str.length();
+        } else {
+            cursor = 0;
+        }
+        # move cursor to end (after the "}")
+        cursor = text.length();
+        return True;
+    }
+
+    /** Moves the cursor to the beginning of the previous word.
+
+        Skips whitespace backward, then skips non-whitespace backward,
+        mimicking the standard readline Alt+B behavior.
+
+        @since %ncurses 2.0
+    */
+    nothing moveWordLeft() {
+        if (cursor <= 0) {
+            return;
+        }
+        int i = cursor;
+        # skip whitespace backward
+        while (i > 0) {
+            string ch = text.substr(i - 1, 1);
+            if (ch == " " || ch == "\t") {
+                i -= 1;
+            } else {
+                break;
+            }
+        }
+        # skip non-whitespace backward
+        while (i > 0) {
+            string ch = text.substr(i - 1, 1);
+            if (ch == " " || ch == "\t") {
+                break;
+            }
+            i -= 1;
+        }
+        cursor = i;
+    }
+
+    /** Moves the cursor to the end of the next word.
+
+        Skips non-whitespace forward, then skips whitespace forward,
+        mimicking the standard readline Alt+F behavior.
+
+        @since %ncurses 2.0
+    */
+    nothing moveWordRight() {
+        if (cursor >= text.length()) {
+            return;
+        }
+        int i = cursor;
+        # skip non-whitespace forward
+        while (i < text.length()) {
+            string ch = text.substr(i, 1);
+            if (ch == " " || ch == "\t") {
+                break;
+            }
+            i += 1;
+        }
+        # skip whitespace forward
+        while (i < text.length()) {
+            string ch = text.substr(i, 1);
+            if (ch == " " || ch == "\t") {
+                i += 1;
+            } else {
+                break;
+            }
+        }
+        cursor = i;
+    }
+
+    /** Deletes from the cursor to the next word boundary.
+
+        Mimics the standard readline Alt+D behavior: deletes non-whitespace
+        forward, then whitespace forward.
+
+        @since %ncurses 2.0
+    */
+    nothing deleteWordForward() {
+        if (cursor >= text.length()) {
+            return;
+        }
+        int i = cursor;
+        # skip non-whitespace forward
+        while (i < text.length()) {
+            string ch = text.substr(i, 1);
+            if (ch == " " || ch == "\t") {
+                break;
+            }
+            i += 1;
+        }
+        # skip whitespace forward
+        while (i < text.length()) {
+            string ch = text.substr(i, 1);
+            if (ch == " " || ch == "\t") {
+                i += 1;
+            } else {
+                break;
+            }
+        }
+        text = text.substr(0, cursor) + text.substr(i);
+    }
+
     /** Deletes the previous word.
         @since %ncurses 2.0
     */
@@ -304,6 +438,7 @@ public class History {
     private {
         list<string> items = ();
         int idx = -1;
+        int max_length = 500;
     }
 
     /** Adds an entry to history.
@@ -315,6 +450,7 @@ public class History {
         }
         items += line;
         idx = -1;
+        trimToMaxLength();
     }
 
     /** Returns the previous entry or NOTHING if unavailable.
@@ -360,6 +496,82 @@ public class History {
     nothing clear() {
         items = ();
         idx = -1;
+    }
+
+    /** Returns the history items.
+        @since %ncurses 2.0
+    */
+    list<string> getItems() {
+        return items;
+    }
+
+    /** Loads history from a file.
+
+        Reads lines from the file and adds each non-empty line to history.
+        If the file does not exist, this is a no-op.
+
+        @param path the file path to load from
+        @since %ncurses 2.0
+    */
+    nothing load(string path) {
+        if (!is_readable(path)) {
+            return;
+        }
+        ReadOnlyFile f(path);
+        *string content = f.read(-1);
+        if (!exists content || content == "") {
+            return;
+        }
+        list<string> lines = content.split("\n");
+        foreach string line in (lines) {
+            if (line != "") {
+                items += line;
+            }
+        }
+        trimToMaxLength();
+        idx = -1;
+    }
+
+    /** Saves history to a file.
+
+        Writes all history items to the file, one per line, with mode 0600.
+        Creates the file if it does not exist.
+
+        @param path the file path to save to
+        @since %ncurses 2.0
+    */
+    nothing save(string path) {
+        File f();
+        f.open(path, O_WRONLY | O_CREAT | O_TRUNC, 0600);
+        foreach string line in (items) {
+            f.write(line + "\n");
+        }
+    }
+
+    /** Sets the maximum number of history entries.
+
+        @param max the maximum history size (must be > 0)
+        @since %ncurses 2.0
+    */
+    nothing setMaxLength(int max) {
+        if (max > 0) {
+            max_length = max;
+            trimToMaxLength();
+        }
+    }
+
+    /** Returns the current maximum history length.
+        @since %ncurses 2.0
+    */
+    int getMaxLength() {
+        return max_length;
+    }
+
+    /** Trims the history to the maximum length by removing oldest entries. */
+    private nothing trimToMaxLength() {
+        while (items.size() > max_length) {
+            splice items, 0, 1;
+        }
     }
 }
 

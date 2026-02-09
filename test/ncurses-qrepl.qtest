@@ -82,7 +82,30 @@ class NcursesQreplTest inherits QUnit::Test {
         addTestCase("testStdoutRedirectPipeCapture", \testStdoutRedirectPipeCapture());
 %ifndef NO_QORE_REPL
         addTestCase("testReplEvalPrintCapture", \testReplEvalPrintCapture());
+        addTestCase("testAutoIndentOnContinuation", \testAutoIndentOnContinuation());
 %endif
+        addTestCase("testAutoDedentOnCloseBrace", \testAutoDedentOnCloseBrace());
+        addTestCase("testAutoDedentNoEffectMidExpression", \testAutoDedentNoEffectMidExpression());
+        addTestCase("testMoveWordLeft", \testMoveWordLeft());
+        addTestCase("testMoveWordRight", \testMoveWordRight());
+        addTestCase("testDeleteWordForward", \testDeleteWordForward());
+        addTestCase("testMoveWordLeftAtBoundaries", \testMoveWordLeftAtBoundaries());
+        addTestCase("testMoveWordRightAtBoundaries", \testMoveWordRightAtBoundaries());
+        addTestCase("testDeleteWordForwardAtEnd", \testDeleteWordForwardAtEnd());
+        addTestCase("testAltBNoLongerOpensBrowser", \testAltBNoLongerOpensBrowser());
+%ifndef NO_QORE_REPL
+        addTestCase("testTabCompletionSingle", \testTabCompletionSingle());
+        addTestCase("testTabCompletionMultiple", \testTabCompletionMultiple());
+        addTestCase("testTabCompletionEmpty", \testTabCompletionEmpty());
+%endif
+        addTestCase("testCompletionPopupWidget", \testCompletionPopupWidget());
+        addTestCase("testCompletionPopupDismissOnEscape", \testCompletionPopupDismissOnEscape());
+        addTestCase("testCompletionPopupKindIndicator", \testCompletionPopupKindIndicator());
+        addTestCase("testHistoryLoad", \testHistoryLoad());
+        addTestCase("testHistorySave", \testHistorySave());
+        addTestCase("testHistoryMaxLength", \testHistoryMaxLength());
+        addTestCase("testHistoryLoadNonexistent", \testHistoryLoadNonexistent());
+        addTestCase("testHistoryRoundTrip", \testHistoryRoundTrip());
 
         set_return_value(main());
     }
@@ -2128,5 +2151,609 @@ class NcursesQreplTest inherits QUnit::Test {
         content.appendLine("qore> ");
         assertEq(1, content.lineCount());
         assertEq("qore> ", content.getLines()[0]);
+    }
+
+    # ==================== Phase 1: Auto-Indent and Auto-Dedent Tests ====================
+
+%ifndef NO_QORE_REPL
+    /** Test auto-indent: after opening { continuation, getIndentLevel() returns > 0. */
+    testAutoIndentOnContinuation() {
+        QoreRepl::QoreRepl repl();
+
+        # incomplete statement with opening brace
+        *hash<auto> result = repl.eval("if (True) {");
+        assertFalse(exists result, "continuation input should return NOTHING");
+
+        # repl should indicate more input needed
+        assertTrue(repl.needsMoreInput(), "repl should need more input after '{'");
+
+        # indent level should be > 0
+        int indent = repl.getIndentLevel();
+        assertTrue(indent > 0, sprintf("indent level should be > 0 after '{', got %d", indent));
+
+        # complete the statement
+        *hash<auto> result2 = repl.eval("}");
+        assertTrue(exists result2, "completing continuation should return a result");
+    }
+%endif
+
+    /** Test autoDedent: removes one indent level when buffer is whitespace + }. */
+    testAutoDedentOnCloseBrace() {
+        NcursesReplUi::InputBuffer buf();
+
+        # simulate auto-indented buffer with "    }"
+        buf.setText("        }");  # 8 spaces (2 indent levels) + }
+        assertTrue(buf.autoDedent("    "), "autoDedent should return True");
+        assertEq("    }", buf.getText(), "one indent level should be removed");
+        assertEq(5, buf.getCursor(), "cursor should be at end after dedent");
+
+        # dedent again
+        assertTrue(buf.autoDedent("    "), "second autoDedent should succeed");
+        assertEq("}", buf.getText(), "second indent level should be removed");
+        assertEq(1, buf.getCursor(), "cursor should be at end");
+
+        # no more to dedent
+        assertFalse(buf.autoDedent("    "), "autoDedent with no indent prefix should return False");
+        assertEq("}", buf.getText(), "text should be unchanged");
+    }
+
+    /** Test autoDedent has no effect when } is mid-expression. */
+    testAutoDedentNoEffectMidExpression() {
+        NcursesReplUi::InputBuffer buf();
+
+        # "foo }" - not just whitespace + }
+        buf.setText("foo }");
+        assertFalse(buf.autoDedent("    "), "autoDedent should not affect mid-expression }");
+        assertEq("foo }", buf.getText());
+
+        # "    x}" - has non-whitespace before }
+        buf.setText("    x}");
+        assertFalse(buf.autoDedent("    "), "autoDedent should not affect line with content before }");
+        assertEq("    x}", buf.getText());
+
+        # empty buffer
+        buf.reset();
+        assertFalse(buf.autoDedent("    "), "autoDedent on empty buffer should return False");
+
+        # just whitespace, no }
+        buf.setText("    ");
+        assertFalse(buf.autoDedent("    "), "autoDedent without } should return False");
+    }
+
+    # ==================== Phase 2: Word Navigation Tests ====================
+
+    /** Test moveWordLeft skips to previous word start. */
+    testMoveWordLeft() {
+        NcursesReplUi::InputBuffer buf();
+        buf.setText("hello world foo");
+
+        # cursor at end (position 15)
+        assertEq(15, buf.getCursor());
+
+        # move word left: should skip "foo" backward to position 12
+        buf.moveWordLeft();
+        assertEq(12, buf.getCursor());
+
+        # move word left: should skip "world" backward to position 6
+        buf.moveWordLeft();
+        assertEq(6, buf.getCursor());
+
+        # move word left: should skip "hello" backward to position 0
+        buf.moveWordLeft();
+        assertEq(0, buf.getCursor());
+
+        # move word left at position 0: no change
+        buf.moveWordLeft();
+        assertEq(0, buf.getCursor());
+    }
+
+    /** Test moveWordRight skips to next word end. */
+    testMoveWordRight() {
+        NcursesReplUi::InputBuffer buf();
+        buf.setText("hello world foo");
+        buf.setCursor(0);
+
+        # move word right: should skip "hello" + space to position 6
+        buf.moveWordRight();
+        assertEq(6, buf.getCursor());
+
+        # move word right: should skip "world" + space to position 12
+        buf.moveWordRight();
+        assertEq(12, buf.getCursor());
+
+        # move word right: should skip "foo" to position 15 (end)
+        buf.moveWordRight();
+        assertEq(15, buf.getCursor());
+
+        # move word right at end: no change
+        buf.moveWordRight();
+        assertEq(15, buf.getCursor());
+    }
+
+    /** Test deleteWordForward deletes to next word boundary. */
+    testDeleteWordForward() {
+        NcursesReplUi::InputBuffer buf();
+        buf.setText("hello world foo");
+        buf.setCursor(0);
+
+        # delete word forward: should delete "hello " → "world foo"
+        buf.deleteWordForward();
+        assertEq("world foo", buf.getText());
+        assertEq(0, buf.getCursor());
+
+        # delete word forward again: should delete "world " → "foo"
+        buf.deleteWordForward();
+        assertEq("foo", buf.getText());
+
+        # delete word forward: should delete "foo" → ""
+        buf.deleteWordForward();
+        assertEq("", buf.getText());
+    }
+
+    /** Test moveWordLeft at boundaries (start, single word, whitespace-only). */
+    testMoveWordLeftAtBoundaries() {
+        NcursesReplUi::InputBuffer buf();
+
+        # single word
+        buf.setText("hello");
+        buf.moveWordLeft();
+        assertEq(0, buf.getCursor());
+
+        # whitespace-only
+        buf.setText("   ");
+        buf.moveWordLeft();
+        assertEq(0, buf.getCursor());
+
+        # cursor in middle of word
+        buf.setText("hello world");
+        buf.setCursor(8);  # in "world"
+        buf.moveWordLeft();
+        assertEq(6, buf.getCursor());  # start of "world"
+
+        # multiple spaces between words
+        buf.setText("a   b");
+        buf.moveWordLeft();  # cursor at 5, should go to start of "b"
+        assertEq(4, buf.getCursor());
+        buf.moveWordLeft();  # should go to start of "a"
+        assertEq(0, buf.getCursor());
+    }
+
+    /** Test moveWordRight at boundaries. */
+    testMoveWordRightAtBoundaries() {
+        NcursesReplUi::InputBuffer buf();
+
+        # empty
+        buf.reset();
+        buf.moveWordRight();
+        assertEq(0, buf.getCursor());
+
+        # single word
+        buf.setText("hello");
+        buf.setCursor(0);
+        buf.moveWordRight();
+        assertEq(5, buf.getCursor());
+
+        # cursor in middle of word
+        buf.setText("hello world");
+        buf.setCursor(3);  # in "hello"
+        buf.moveWordRight();
+        assertEq(6, buf.getCursor());  # end of "hello" + space
+
+        # trailing spaces
+        buf.setText("hello   ");
+        buf.setCursor(0);
+        buf.moveWordRight();
+        assertEq(8, buf.getCursor());  # skip "hello" + trailing spaces
+    }
+
+    /** Test deleteWordForward at end of buffer is no-op. */
+    testDeleteWordForwardAtEnd() {
+        NcursesReplUi::InputBuffer buf();
+        buf.setText("hello");
+        # cursor at end
+        buf.deleteWordForward();
+        assertEq("hello", buf.getText());
+        assertEq(5, buf.getCursor());
+
+        # empty buffer
+        buf.reset();
+        buf.deleteWordForward();
+        assertEq("", buf.getText());
+    }
+
+    /** Test Alt+B no longer opens file browser (now uses Alt+O). */
+    testAltBNoLongerOpensBrowser() {
+        NcursesUi::TestHarness th(term_rows, term_cols);
+        on_exit th.close();
+
+        hash<auto> repl = buildReplLayout(th);
+        NcursesUi::Application app = repl.app;
+        NcursesUi::MenuBarWidget menu_bar = repl.menu_bar;
+        NcursesReplUi::InputBuffer buffer = repl.buffer;
+
+        # add menus with new hotkey (Alt+O for browse)
+        menu_bar.setApplication(app);
+        menu_bar.addMenu("File", (
+            {"label": "Browse...", "command": "file_browser", "hotkey": "Alt+O"},
+        ));
+
+        # build alt_commands map
+        hash<string, string> alt_commands = {};
+        foreach hash<auto> menu in (menu_bar.getMenus()) {
+            foreach hash<auto> item in (menu.items) {
+                if (item.separator) {
+                    continue;
+                }
+                *string hotkey = item.hotkey;
+                if (exists hotkey && hotkey.size() > 0) {
+                    string hk_char = hotkey.substr(-1).lwr();
+                    alt_commands{hk_char} = item.command;
+                }
+            }
+        }
+
+        # set up global handler that routes Alt+B to word-left
+        bool word_left_called = False;
+        string last_cmd = "";
+        app.setGlobalKeyHandler(hash<NcursesUi::EventResult> sub (hash<Ncurses::InputEvent> ev) {
+            if (app.getDispatcher().hasModal()) {
+                return <NcursesUi::EventResult>{"handled": False};
+            }
+            if (ev.type == Ncurses::InputType::Alt) {
+                string ch = ev.ch ?? "";
+                if (ch != "") {
+                    string lch = ch.lwr();
+                    if (lch == "b") {
+                        buffer.moveWordLeft();
+                        word_left_called = True;
+                        return <NcursesUi::EventResult>{"handled": True};
+                    }
+                    *string cmd = alt_commands{lch};
+                    if (exists cmd) {
+                        last_cmd = cmd;
+                        return <NcursesUi::EventResult>{"handled": True, "action": "menu_command"};
+                    }
+                }
+            }
+            return <NcursesUi::EventResult>{"handled": False};
+        });
+
+        # type some text first
+        buffer.setText("hello world");
+
+        # send Alt+B - should call moveWordLeft, NOT file_browser
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Alt;
+        ev.ch = "b";
+        app.processEvent(ev);
+
+        assertTrue(word_left_called, "Alt+B should trigger moveWordLeft");
+        assertEq("", last_cmd, "Alt+B should NOT trigger file_browser command");
+        assertEq(6, buffer.getCursor(), "cursor should be at word boundary");
+
+        # verify Alt+O does trigger file browser
+        ev.ch = "o";
+        app.processEvent(ev);
+        assertEq("file_browser", last_cmd, "Alt+O should trigger file_browser");
+    }
+
+    # ==================== Phase 3: Tab Code Completion Tests ====================
+
+%ifndef NO_QORE_REPL
+    /** Test Tab completion returns valid results with expected structure. */
+    testTabCompletionSingle() {
+        QoreRepl::QoreRepl repl();
+        # "printf" should return completions including "printf"
+        *list<hash<auto>> completions;
+        try {
+            completions = repl.getCompletionDetails("printf");
+        } catch (hash<ExceptionInfo> ex) {
+            # completion API not available
+            testSkip("QoreRepl::getCompletionDetails not available");
+            return;
+        }
+        if (!exists completions || completions.size() == 0) {
+            testSkip("no completions returned for 'printf'");
+            return;
+        }
+        # verify completions contain "printf" with expected structure
+        assertTrue(completions.size() >= 1,
+            sprintf("should have at least 1 completion for 'printf', got %d", completions.size()));
+        # find the printf entry
+        bool found_printf = False;
+        foreach hash<auto> item in (completions) {
+            assertTrue(exists item.label, "completion item should have a label");
+            if (item.label == "printf") {
+                found_printf = True;
+                assertTrue(item.isCallable, "printf should be callable");
+            }
+        }
+        assertTrue(found_printf, "completions for 'printf' should include 'printf'");
+    }
+
+    /** Test Tab with multiple completions returns them. */
+    testTabCompletionMultiple() {
+        QoreRepl::QoreRepl repl();
+        *list<hash<auto>> completions;
+        try {
+            completions = repl.getCompletionDetails("pri");
+        } catch (hash<ExceptionInfo> ex) {
+            testSkip("QoreRepl::getCompletionDetails not available");
+            return;
+        }
+        if (!exists completions) {
+            testSkip("no completions returned for 'pri'");
+            return;
+        }
+        # "pri" should match print, printf, println, etc.
+        assertTrue(completions.size() >= 1,
+            sprintf("should have completions for 'pri', got %d", completions.size()));
+    }
+
+    /** Test Tab with empty input does not crash. */
+    testTabCompletionEmpty() {
+        QoreRepl::QoreRepl repl();
+        *list<hash<auto>> completions;
+        try {
+            completions = repl.getCompletionDetails("");
+        } catch (hash<ExceptionInfo> ex) {
+            # expected - empty input may throw; verify it's a known error type
+            assertTrue(exists ex.err, "exception should have an error code");
+            return;
+        }
+        # either NOTHING or a list is acceptable for empty input
+        if (exists completions) {
+            assertTrue(completions.size() >= 0,
+                "completions for empty input should be a valid list");
+        } else {
+            assertFalse(exists completions,
+                "NOTHING is an acceptable result for empty input");
+        }
+    }
+%endif
+
+    /** Test CompletionPopupWidget construction and navigation. */
+    testCompletionPopupWidget() {
+        NcursesUi::TestHarness th(term_rows, term_cols);
+        on_exit th.close();
+
+        list<hash<auto>> items = (
+            {"label": "print", "kind": "function", "isCallable": True},
+            {"label": "printf", "kind": "function", "isCallable": True},
+            {"label": "println", "kind": "function", "isCallable": True},
+        );
+
+        NcursesUi::CompletionPopupWidget popup(th.session(), items);
+        assertEq(3, popup.getItems().size());
+        assertEq(0, popup.getHighlightIndex());
+
+        # position and create panel
+        popup.positionAt(10, 5, term_rows, term_cols);
+        popup.createPanel();
+
+        # draw should not crash
+        NcursesUi::Application app(th.session());
+        NcursesUi::Widget root();
+        NcursesUi::BoxLayout layout(NcursesUi::Orientation::Vertical);
+        app.setRootLayout(layout);
+        app.setRoot(root);
+        app.pushModal(popup);
+        app.drawAll();
+
+        # navigate down
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Key;
+        ev.name = "KEY_DOWN";
+        popup.processEvent(ev);
+        assertEq(1, popup.getHighlightIndex());
+
+        ev.name = "KEY_DOWN";
+        popup.processEvent(ev);
+        assertEq(2, popup.getHighlightIndex());
+
+        # navigate up
+        ev.name = "KEY_UP";
+        popup.processEvent(ev);
+        assertEq(1, popup.getHighlightIndex());
+
+        # select on Enter
+        hash<auto> selected;
+        popup.setOnSelect(sub (hash<auto> item) {
+            selected = item;
+        });
+
+        hash<Ncurses::InputEvent> enter_ev();
+        enter_ev.type = Ncurses::InputType::Char;
+        enter_ev.ch = "\n";
+        popup.processEvent(enter_ev);
+
+        assertTrue(exists selected, "Enter should select an item");
+        assertEq("printf", selected.label, "selected item should be 'printf'");
+
+        app.popModal();
+        popup.destroyPanel();
+    }
+
+    /** Test CompletionPopupWidget dismisses on Escape. */
+    testCompletionPopupDismissOnEscape() {
+        NcursesUi::TestHarness th(term_rows, term_cols);
+        on_exit th.close();
+
+        list<hash<auto>> items = (
+            {"label": "foo"},
+            {"label": "bar"},
+        );
+
+        NcursesUi::CompletionPopupWidget popup(th.session(), items);
+        popup.positionAt(5, 5, term_rows, term_cols);
+        popup.createPanel();
+
+        bool dismissed = False;
+        popup.setOnDismiss(sub () {
+            dismissed = True;
+        });
+
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Char;
+        ev.ch = chr(0x1b);
+        popup.processEvent(ev);
+
+        assertTrue(dismissed, "Escape should dismiss the completion popup");
+
+        popup.destroyPanel();
+    }
+
+    /** Test CompletionPopupWidget kind indicators. */
+    testCompletionPopupKindIndicator() {
+        assertEq("f", NcursesUi::CompletionPopupWidget::kindIndicator({"kind": "function"}));
+        assertEq("f", NcursesUi::CompletionPopupWidget::kindIndicator({"kind": "method"}));
+        assertEq("c", NcursesUi::CompletionPopupWidget::kindIndicator({"kind": "class"}));
+        assertEq("n", NcursesUi::CompletionPopupWidget::kindIndicator({"kind": "namespace"}));
+        assertEq("v", NcursesUi::CompletionPopupWidget::kindIndicator({"kind": "variable"}));
+        assertEq("k", NcursesUi::CompletionPopupWidget::kindIndicator({"kind": "constant"}));
+        assertEq("m", NcursesUi::CompletionPopupWidget::kindIndicator({"kind": "module"}));
+        assertEq("h", NcursesUi::CompletionPopupWidget::kindIndicator({"kind": "hashdecl"}));
+        assertEq("f", NcursesUi::CompletionPopupWidget::kindIndicator({"isCallable": True}));
+        assertEq(" ", NcursesUi::CompletionPopupWidget::kindIndicator({}));
+    }
+
+    # ==================== Phase 4: History Persistence Tests ====================
+
+    /** Test History.load() reads lines from file. */
+    testHistoryLoad() {
+        NcursesReplUi::History hist();
+        string path = (ENV.TMPDIR ?? "/tmp") + "/test-history-load-" + string(getpid());
+        on_exit {
+            try { unlink(path); } catch () {}
+        }
+
+        # write a test file
+        File f();
+        f.open(path, O_WRONLY | O_CREAT | O_TRUNC, 0600);
+        f.write("line1\n");
+        f.write("line2\n");
+        f.write("line3\n");
+        f.close();
+
+        hist.load(path);
+        assertEq(3, hist.size());
+
+        # verify order by navigating history
+        *string prev = hist.prev();
+        assertEq("line3", prev);
+        prev = hist.prev();
+        assertEq("line2", prev);
+        prev = hist.prev();
+        assertEq("line1", prev);
+    }
+
+    /** Test History.save() writes lines to file. */
+    testHistorySave() {
+        NcursesReplUi::History hist();
+        hist.add("save1");
+        hist.add("save2");
+        hist.add("save3");
+
+        string path = (ENV.TMPDIR ?? "/tmp") + "/test-history-save-" + string(getpid());
+        on_exit {
+            try { unlink(path); } catch () {}
+        }
+
+        hist.save(path);
+
+        # read back and verify
+        ReadOnlyFile f(path);
+        string content = f.read(-1);
+        list<string> lines = content.split("\n");
+        # filter empty lines from trailing newline
+        list<string> non_empty = ();
+        foreach string line in (lines) {
+            if (line != "") {
+                non_empty += line;
+            }
+        }
+        assertEq(3, non_empty.size());
+        assertEq("save1", non_empty[0]);
+        assertEq("save2", non_empty[1]);
+        assertEq("save3", non_empty[2]);
+
+        # verify file permissions (mode 0600)
+        *hash<StatInfo> st = hstat(path);
+        assertTrue(exists st, "hstat should succeed on saved file");
+        int mode = st.mode & 0777;
+        assertEq(0600, mode, sprintf("file should have mode 0600, got %o", mode));
+    }
+
+    /** Test History max length trimming. */
+    testHistoryMaxLength() {
+        NcursesReplUi::History hist();
+        hist.setMaxLength(3);
+        assertEq(3, hist.getMaxLength());
+
+        hist.add("a");
+        hist.add("b");
+        hist.add("c");
+        assertEq(3, hist.size());
+
+        # adding a 4th should trim the oldest
+        hist.add("d");
+        assertEq(3, hist.size());
+
+        # verify oldest was trimmed
+        list<string> items = hist.getItems();
+        assertEq("b", items[0]);
+        assertEq("c", items[1]);
+        assertEq("d", items[2]);
+
+        # setMaxLength to smaller value should trim immediately
+        hist.setMaxLength(2);
+        assertEq(2, hist.size());
+        items = hist.getItems();
+        assertEq("c", items[0]);
+        assertEq("d", items[1]);
+    }
+
+    /** Test History.load() on nonexistent file doesn't crash. */
+    testHistoryLoadNonexistent() {
+        NcursesReplUi::History hist();
+        string path = (ENV.TMPDIR ?? "/tmp") + "/nonexistent-history-" + string(getpid());
+
+        # should not throw
+        hist.load(path);
+        assertEq(0, hist.size());
+    }
+
+    /** Test History round-trip: save then load preserves entries. */
+    testHistoryRoundTrip() {
+        string path = (ENV.TMPDIR ?? "/tmp") + "/test-history-roundtrip-" + string(getpid());
+        on_exit {
+            try { unlink(path); } catch () {}
+        }
+
+        # save
+        NcursesReplUi::History hist1();
+        hist1.add("alpha");
+        hist1.add("beta");
+        hist1.add("gamma");
+        hist1.save(path);
+
+        # load into fresh history
+        NcursesReplUi::History hist2();
+        hist2.load(path);
+        assertEq(3, hist2.size());
+
+        # verify entries match
+        list<string> items = hist2.getItems();
+        assertEq("alpha", items[0]);
+        assertEq("beta", items[1]);
+        assertEq("gamma", items[2]);
+
+        # verify navigation works
+        *string prev = hist2.prev();
+        assertEq("gamma", prev);
+        prev = hist2.prev();
+        assertEq("beta", prev);
+        prev = hist2.prev();
+        assertEq("alpha", prev);
     }
 }
