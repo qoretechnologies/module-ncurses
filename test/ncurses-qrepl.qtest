@@ -2063,10 +2063,11 @@ class NcursesQreplTest inherits QUnit::Test {
 
         # write via Qore File::write (direct syscall to fd, no C stdio buffering)
         int written = stdout.write("redirect_test\n");
-        assertEq(14, written, "stdout.write should succeed");
 
-        # restore stdout BEFORE reading (so test output goes to terminal)
+        # restore stdout BEFORE any assertions (so test output goes to terminal, not pipe)
         stdout.redirect(saved);
+
+        assertEq(14, written, "stdout.write should succeed");
 
         # read from pipe — data should be there
         *binary b = pipe.read.readShortBinary(4096, 2000);
