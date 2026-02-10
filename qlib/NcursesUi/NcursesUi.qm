@@ -26,6 +26,12 @@
 %requires ncurses
 %requires NcursesReplUi
 
+# Optional magic module for rich file type detection in FileBrowserWidget
+# magic_file_info() was added in magic 2.0
+%try-module magic >= 2.0
+%define NO_MAGIC
+%endtry
+
 %modern
 
 module NcursesUi {

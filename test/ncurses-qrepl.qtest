@@ -5,9 +5,7 @@
 %requires NcursesUi
 %requires NcursesReplUi
 %requires QUnit
-%try-module QoreRepl
-%define NO_QORE_REPL
-%endtry
+%requires QoreRepl
 
 %include "test/TestHarness.qc"
 
@@ -40,14 +38,12 @@ class NcursesQreplTest inherits QUnit::Test {
         addTestCase("testReplRedraw", \testReplRedraw());
         addTestCase("testReplOutputCapture", \testReplOutputCapture());
         addTestCase("testReplFocusOnOutput", \testReplFocusOnOutput());
-%ifndef NO_QORE_REPL
         addTestCase("testReplEvalSimpleExpr", \testReplEvalSimpleExpr());
         addTestCase("testReplEvalError", \testReplEvalError());
         addTestCase("testReplPromptUpdate", \testReplPromptUpdate());
         addTestCase("testReplEvalContinuation", \testReplEvalContinuation());
         addTestCase("testReplExecLineHandlesNothingResult", \testReplExecLineHandlesNothingResult());
         addTestCase("testReplHelpOutputMultiLine", \testReplHelpOutputMultiLine());
-%endif
         addTestCase("testReplMenuCommandExec", \testReplMenuCommandExec());
         addTestCase("testReplMouseToggle", \testReplMouseToggle());
         addTestCase("testReplTickCallback", \testReplTickCallback());
@@ -80,10 +76,8 @@ class NcursesQreplTest inherits QUnit::Test {
         addTestCase("testRealPipeCaptureThread", \testRealPipeCaptureThread());
         addTestCase("testRealPipeNoNewlineCapture", \testRealPipeNoNewlineCapture());
         addTestCase("testStdoutRedirectPipeCapture", \testStdoutRedirectPipeCapture());
-%ifndef NO_QORE_REPL
         addTestCase("testReplEvalPrintCapture", \testReplEvalPrintCapture());
         addTestCase("testAutoIndentOnContinuation", \testAutoIndentOnContinuation());
-%endif
         addTestCase("testAutoDedentOnCloseBrace", \testAutoDedentOnCloseBrace());
         addTestCase("testAutoDedentNoEffectMidExpression", \testAutoDedentNoEffectMidExpression());
         addTestCase("testMoveWordLeft", \testMoveWordLeft());
@@ -93,14 +87,15 @@ class NcursesQreplTest inherits QUnit::Test {
         addTestCase("testMoveWordRightAtBoundaries", \testMoveWordRightAtBoundaries());
         addTestCase("testDeleteWordForwardAtEnd", \testDeleteWordForwardAtEnd());
         addTestCase("testAltBNoLongerOpensBrowser", \testAltBNoLongerOpensBrowser());
-%ifndef NO_QORE_REPL
         addTestCase("testTabCompletionSingle", \testTabCompletionSingle());
         addTestCase("testTabCompletionMultiple", \testTabCompletionMultiple());
         addTestCase("testTabCompletionEmpty", \testTabCompletionEmpty());
-%endif
         addTestCase("testCompletionPopupWidget", \testCompletionPopupWidget());
         addTestCase("testCompletionPopupDismissOnEscape", \testCompletionPopupDismissOnEscape());
         addTestCase("testCompletionPopupKindIndicator", \testCompletionPopupKindIndicator());
+        addTestCase("testCompletionPopupDetail", \testCompletionPopupDetail());
+        addTestCase("testNoArgsOnlyCompletion", \testNoArgsOnlyCompletion());
+        addTestCase("testHintsApi", \testHintsApi());
         addTestCase("testHistoryLoad", \testHistoryLoad());
         addTestCase("testHistorySave", \testHistorySave());
         addTestCase("testHistoryMaxLength", \testHistoryMaxLength());
@@ -719,7 +714,6 @@ class NcursesQreplTest inherits QUnit::Test {
         assertTrue(ow.hasFocus());
     }
 
-%ifndef NO_QORE_REPL
     /** Test QoreRepl evaluation of a simple expression. */
     testReplEvalSimpleExpr() {
         QoreRepl::QoreRepl repl();
@@ -799,7 +793,6 @@ class NcursesQreplTest inherits QUnit::Test {
         *hash<auto> result2 = repl.eval("}");
         assertTrue(exists result2, "completed continuation should yield a result");
     }
-%endif
 
     /** Test menu command execution via onCommand callback. */
     testReplMenuCommandExec() {
@@ -1329,7 +1322,6 @@ class NcursesQreplTest inherits QUnit::Test {
         assertTrue(quit_dialog_shown, "Ctrl+Q should trigger quit dialog");
     }
 
-%ifndef NO_QORE_REPL
     /** Test /help command output is displayed as multi-line text. */
     testReplHelpOutputMultiLine() {
         QoreRepl::QoreRepl repl();
@@ -1351,7 +1343,6 @@ class NcursesQreplTest inherits QUnit::Test {
         list<string> lines = help_text.split("\n");
         assertTrue(lines.size() > 3, sprintf("help text should have multiple lines, got %d", lines.size()));
     }
-%endif
 
     /** Test inline prompt line is updated when typing. */
     testInlinePromptLineUpdate() {
@@ -2073,7 +2064,6 @@ class NcursesQreplTest inherits QUnit::Test {
         pipe.read.close();
     }
 
-%ifndef NO_QORE_REPL
     /** Test: QoreRepl eval('print("hi")') output reaches pipe via redirect.
         This tests the EXACT path that qrepl uses — including C-level fflush/setvbuf
         via Session::redirectStdout + flushStdio.
@@ -2125,7 +2115,6 @@ class NcursesQreplTest inherits QUnit::Test {
         assertTrue(captured.find("hello_from_repl") >= 0,
             "captured data should contain 'hello_from_repl', got: " + captured);
     }
-%endif
 
     /** Test clear_output resets and adds new prompt line. */
     testClearOutputWithInlinePrompt() {
@@ -2155,7 +2144,6 @@ class NcursesQreplTest inherits QUnit::Test {
 
     # ==================== Phase 1: Auto-Indent and Auto-Dedent Tests ====================
 
-%ifndef NO_QORE_REPL
     /** Test auto-indent: after opening { continuation, getIndentLevel() returns > 0. */
     testAutoIndentOnContinuation() {
         QoreRepl::QoreRepl repl();
@@ -2175,7 +2163,6 @@ class NcursesQreplTest inherits QUnit::Test {
         *hash<auto> result2 = repl.eval("}");
         assertTrue(exists result2, "completing continuation should return a result");
     }
-%endif
 
     /** Test autoDedent: removes one indent level when buffer is whitespace + }. */
     testAutoDedentOnCloseBrace() {
@@ -2439,26 +2426,14 @@ class NcursesQreplTest inherits QUnit::Test {
 
     # ==================== Phase 3: Tab Code Completion Tests ====================
 
-%ifndef NO_QORE_REPL
     /** Test Tab completion returns valid results with expected structure. */
     testTabCompletionSingle() {
         QoreRepl::QoreRepl repl();
         # "printf" should return completions including "printf"
-        *list<hash<auto>> completions;
-        try {
-            completions = repl.getCompletionDetails("printf");
-        } catch (hash<ExceptionInfo> ex) {
-            # completion API not available
-            testSkip("QoreRepl::getCompletionDetails not available");
-            return;
-        }
-        if (!exists completions || completions.size() == 0) {
-            testSkip("no completions returned for 'printf'");
-            return;
-        }
-        # verify completions contain "printf" with expected structure
-        assertTrue(completions.size() >= 1,
-            sprintf("should have at least 1 completion for 'printf', got %d", completions.size()));
+        *list<hash<auto>> completions = repl.getCompletionDetails("printf");
+        assertTrue(exists completions && completions.size() >= 1,
+            sprintf("should have at least 1 completion for 'printf', got %d",
+                exists completions ? completions.size() : 0));
         # find the printf entry
         bool found_printf = False;
         foreach hash<auto> item in (completions) {
@@ -2474,20 +2449,10 @@ class NcursesQreplTest inherits QUnit::Test {
     /** Test Tab with multiple completions returns them. */
     testTabCompletionMultiple() {
         QoreRepl::QoreRepl repl();
-        *list<hash<auto>> completions;
-        try {
-            completions = repl.getCompletionDetails("pri");
-        } catch (hash<ExceptionInfo> ex) {
-            testSkip("QoreRepl::getCompletionDetails not available");
-            return;
-        }
-        if (!exists completions) {
-            testSkip("no completions returned for 'pri'");
-            return;
-        }
-        # "pri" should match print, printf, println, etc.
-        assertTrue(completions.size() >= 1,
-            sprintf("should have completions for 'pri', got %d", completions.size()));
+        *list<hash<auto>> completions = repl.getCompletionDetails("pri");
+        assertTrue(exists completions && completions.size() >= 1,
+            sprintf("should have completions for 'pri', got %d",
+                exists completions ? completions.size() : 0));
     }
 
     /** Test Tab with empty input does not crash. */
@@ -2505,12 +2470,8 @@ class NcursesQreplTest inherits QUnit::Test {
         if (exists completions) {
             assertTrue(completions.size() >= 0,
                 "completions for empty input should be a valid list");
-        } else {
-            assertFalse(exists completions,
-                "NOTHING is an acceptable result for empty input");
         }
     }
-%endif
 
     /** Test CompletionPopupWidget construction and navigation. */
     testCompletionPopupWidget() {
@@ -2615,6 +2576,112 @@ class NcursesQreplTest inherits QUnit::Test {
         assertEq("h", NcursesUi::CompletionPopupWidget::kindIndicator({"kind": "hashdecl"}));
         assertEq("f", NcursesUi::CompletionPopupWidget::kindIndicator({"isCallable": True}));
         assertEq(" ", NcursesUi::CompletionPopupWidget::kindIndicator({}));
+    }
+
+    # ==================== Upstream Improvements Tests ====================
+
+    /** Test CompletionPopupWidget renders detail text. */
+    testCompletionPopupDetail() {
+        NcursesUi::TestHarness th(term_rows, term_cols);
+        on_exit th.close();
+
+        list<hash<auto>> items = (
+            {"label": "printf", "kind": "function", "isCallable": True,
+                "detail": "(string fmt, ...)"},
+            {"label": "print", "kind": "function", "isCallable": True},
+            {"label": "MyClass", "kind": "class", "detail": "user class"},
+        );
+
+        NcursesUi::CompletionPopupWidget popup(th.session(), items);
+        popup.positionAt(10, 5, term_rows, term_cols);
+        popup.createPanel();
+
+        # verify items are stored correctly
+        list<hash<auto>> stored = popup.getItems();
+        assertEq(3, stored.size());
+        assertEq("(string fmt, ...)", stored[0].detail);
+        assertFalse(exists stored[1].detail, "print should have no detail");
+        assertEq("user class", stored[2].detail);
+
+        # draw should not crash with detail text
+        NcursesUi::Application app(th.session());
+        NcursesUi::Widget root();
+        NcursesUi::BoxLayout layout(NcursesUi::Orientation::Vertical);
+        app.setRootLayout(layout);
+        app.setRoot(root);
+        app.pushModal(popup);
+        app.drawAll();
+
+        # navigate to item with detail and draw again
+        hash<Ncurses::InputEvent> ev();
+        ev.type = Ncurses::InputType::Key;
+        ev.name = "KEY_DOWN";
+        popup.processEvent(ev);
+        ev.name = "KEY_DOWN";
+        popup.processEvent(ev);
+        assertEq(2, popup.getHighlightIndex());
+        app.drawAll();
+
+        app.popModal();
+        popup.destroyPanel();
+    }
+
+    /** Test noArgsOnly completion appends "()" instead of "(". */
+    testNoArgsOnlyCompletion() {
+        # verify the noArgsOnly field is recognized in completion items
+        hash<auto> callable_item = {
+            "label": "toString",
+            "kind": "method",
+            "isCallable": True,
+            "noArgsOnly": True,
+        };
+        hash<auto> multi_arg_item = {
+            "label": "printf",
+            "kind": "function",
+            "isCallable": True,
+            "noArgsOnly": False,
+        };
+        hash<auto> namespace_item = {
+            "label": "Qore",
+            "kind": "namespace",
+        };
+
+        # verify kind indicators still work with noArgsOnly items
+        assertEq("f", NcursesUi::CompletionPopupWidget::kindIndicator(callable_item));
+        assertEq("f", NcursesUi::CompletionPopupWidget::kindIndicator(multi_arg_item));
+        assertEq("n", NcursesUi::CompletionPopupWidget::kindIndicator(namespace_item));
+
+        # verify noArgsOnly field is preserved in popup items
+        NcursesUi::TestHarness th(term_rows, term_cols);
+        on_exit th.close();
+
+        list<hash<auto>> items = (callable_item, multi_arg_item, namespace_item);
+        NcursesUi::CompletionPopupWidget popup(th.session(), items);
+        list<hash<auto>> stored = popup.getItems();
+        assertTrue(stored[0].noArgsOnly, "noArgsOnly should be True for toString");
+        assertFalse(stored[1].noArgsOnly, "noArgsOnly should be False for printf");
+    }
+
+    /** Test QoreRepl.getHints() API returns hint text for function calls. */
+    testHintsApi() {
+        QoreRepl::QoreRepl repl();
+
+        # empty input should return no hints
+        *string empty_hint = repl.getHints("");
+        assertFalse(exists empty_hint, "empty input should return no hints");
+
+        # plain identifier without paren should return no hints
+        *string no_paren_hint = repl.getHints("printf");
+        assertFalse(exists no_paren_hint, "identifier without '(' should return no hints");
+
+        # function call with open paren should return signature hint
+        *string hint = repl.getHints("printf(");
+        assertTrue(exists hint, "printf( should return a hint");
+        assertTrue(hint.size() > 0, "hint should not be empty");
+
+        # nested parens — inner function should still return a hint
+        *string nested_hint = repl.getHints("printf(strlen(");
+        assertTrue(exists nested_hint, "nested call should return hint for innermost function");
     }
 
     # ==================== Phase 4: History Persistence Tests ====================

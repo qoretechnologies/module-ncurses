@@ -91,6 +91,11 @@ class QRepl {
         #! Alt+key → command map built from menu item hotkeys
         hash<string, string> alt_commands = {};
 
+        #! current inline hint text (dim text after cursor)
+        *string current_hint;
+        #! last buffer text for hint change detection
+        string last_hint_input = "";
+
         #! debug log file
     }
 
@@ -4239,7 +4244,14 @@ class QRepl {
     /** Updates the live prompt line in output_content with current buffer text. */
     private nothing update_prompt_line() {
         string prompt_text = display_prompt(current_prompt);
-        string line = prompt_text + buffer.getText();
+        string buf_text = buffer.getText();
+        # refresh hints when the buffer text changes
+        if (buf_text != last_hint_input) {
+            last_hint_input = buf_text;
+            update_hints();
+            update_status();
+        }
+        string line = prompt_text + buf_text;
         if (prompt_line_idx >= 0) {
             output_content.setLine(prompt_line_idx, line);
         }
@@ -4265,6 +4277,8 @@ class QRepl {
     private nothing on_input_submit() {
         string text = buffer.getText();
         buffer.reset();
+        current_hint = NOTHING;
+        last_hint_input = "";
 
         if (text == "") {
             # just start a new prompt line for empty input
@@ -4634,6 +4648,23 @@ class QRepl {
         return <NcursesUi::EventResult>{"handled": False};
     }
 
+    /** Updates the inline hint text based on the current buffer content.
+        Calls repl.getHints() and stores the result for display in the prompt line.
+    */
+    private nothing update_hints() {
+        string input = buffer.getText();
+        if (input == "") {
+            current_hint = NOTHING;
+            return;
+        }
+        try {
+            current_hint = repl.getHints(input);
+        } catch (hash<ExceptionInfo> ex) {
+            @debug("update_hints: %s: %s", ex.err, ex.desc);
+            current_hint = NOTHING;
+        }
+    }
+
     /** Handles Tab key for code completion.
 
         Gets completion details from QoreRepl, and either auto-inserts
@@ -4698,7 +4729,11 @@ class QRepl {
         # build the replacement text
         string replacement = label;
         if (item.isCallable) {
-            replacement += "(";
+            if (item.hasKey("noArgsOnly") && item.noArgsOnly) {
+                replacement += "()";
+            } else {
+                replacement += "(";
+            }
         } else if (item.kind == "namespace") {
             replacement += "::";
         }
@@ -4855,6 +4890,8 @@ class QRepl {
     private nothing update_status() {
         hash<auto> status_style = {"fg": Ncurses::Color::White, "bg": Ncurses::Color::Blue};
         hash<auto> time_style = {"fg": Ncurses::Color::White, "bg": Ncurses::Color::Blue};
+        hash<auto> hint_style = {"fg": Ncurses::Color::Cyan, "bg": Ncurses::Color::Blue,
+            "attrs": Ncurses::Attr::Dim};
 
         int color = status_color(last_status);
         hash<auto> label_style = {"fg": color, "bg": Ncurses::Color::Blue,
@@ -4863,7 +4900,16 @@ class QRepl {
         list<hash<auto>> segs = (
             {"text": pad_status_label(last_status), "style": label_style},
             {"text": " " + output_title + " ", "style": status_style},
-            {"text": " Lines: " + output_content.lineCount() + " ", "style": status_style},
+        );
+
+        # show hint in status bar when available
+        if (exists current_hint && current_hint != "") {
+            segs += {"text": current_hint + " ", "style": hint_style};
+        } else {
+            segs += {"text": " Lines: " + output_content.lineCount() + " ", "style": status_style};
+        }
+
+        segs += (
             {"text": time_text + " ", "align": "right", "style": time_style},
             {"text": mouse_enabled ? "Mouse:ON  " : "Mouse:OFF ", "align": "right", "style": status_style},
         );
@@ -4919,7 +4965,23 @@ class QRepl {
         try {
             app.run();
         } catch (hash<ExceptionInfo> ex) {
-            # ignore errors during shutdown
+            # app.run() already calls close() on exception to restore the terminal;
+            # print the error so the user can see what happened
+            close_session();
+            stderr.printf("qrepl: unhandled exception in event loop:\n");
+            stderr.printf("  %s: %s\n", ex.err, ex.desc);
+            if (exists ex.arg) {
+                stderr.printf("  arg: %y\n", ex.arg);
+            }
+            stderr.printf("  at %s:%d (%s)\n", ex.file ?? "<unknown>", ex.line, ex.type ?? "");
+            # print full chain
+            *hash<ExceptionInfo> next = ex.next;
+            while (exists next) {
+                stderr.printf("  chained: %s: %s at %s:%d\n",
+                    next.err, next.desc, next.file ?? "<unknown>", next.line);
+                next = next.next;
+            }
+            return 1;
         }
         close_session();
         return 0;

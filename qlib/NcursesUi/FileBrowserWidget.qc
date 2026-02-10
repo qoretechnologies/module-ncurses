@@ -79,6 +79,9 @@ public class NcursesUi::FileBrowserWidget inherits NcursesUi::PanelWidget {
         hash<string, bool> qore_extensions = {
             ".q": True, ".qm": True, ".qc": True, ".qr": True, ".qtest": True,
         };
+        #! optional file info provider: takes a file path and returns a hash with
+        #! description, mime_type, mime_encoding, is_text, type_category
+        *code<*hash<auto>(string)> file_info_provider;
     }
 
     /** Creates a new FileBrowserWidget.
@@ -89,6 +92,12 @@ public class NcursesUi::FileBrowserWidget inherits NcursesUi::PanelWidget {
     constructor(Ncurses::Session s, string dir = getcwd())
             : PanelWidget(s, "File Browser - " + dir) {
         current_dir = dir;
+%ifndef NO_MAGIC
+        # automatically use magic module for rich file type detection
+        file_info_provider = *hash<auto> sub (string path) {
+            return magic_file_info(path);
+        };
+%endif
         preview_widget.setContent(preview_content);
         preview_widget.setShowScrollbar(True);
         addChild(file_list);
@@ -219,6 +228,22 @@ public class NcursesUi::FileBrowserWidget inherits NcursesUi::PanelWidget {
     */
     nothing setOnDismiss(*code cb) {
         on_dismiss = cb;
+    }
+
+    /** Sets an optional file info provider for rich file type detection.
+
+        The provider is a callback that takes a file path and returns a hash
+        with keys: \c description (string), \c mime_type (string),
+        \c mime_encoding (string), \c is_text (bool), \c type_category (string).
+
+        When set, the file browser uses this for MIME type detection, binary
+        file identification, and richer status/preview information.
+
+        @param cb the file info provider callback, or NOTHING to disable
+        @since ncurses 2.0
+    */
+    nothing setFileInfoProvider(*code<*hash<auto>(string)> cb) {
+        file_info_provider = cb;
     }
 
     /** Returns the file list widget.
@@ -469,11 +494,18 @@ public class NcursesUi::FileBrowserWidget inherits NcursesUi::PanelWidget {
                 return;
             }
 
-            # check for binary files by extension or content
+            # check for binary files by extension, magic info, or content
             string ftype = item.type ?? "file";
-            if (ftype == "binary" || isBinaryContent(path)) {
+            if (ftype == "binary" || isBinaryContent(path, item)) {
                 preview_content.appendLine("(Binary file)");
                 preview_content.appendLine(sprintf("Size: %s", formatSize(st.size)));
+                # show MIME type and description from magic info if available
+                if (item.file_info) {
+                    preview_content.appendLine(sprintf("Type: %s", item.file_info.mime_type));
+                    if (item.file_info.description) {
+                        preview_content.appendLine(sprintf("Info: %s", item.file_info.description));
+                    }
+                }
                 preview_widget.markDirty();
                 return;
             }
@@ -567,6 +599,10 @@ public class NcursesUi::FileBrowserWidget inherits NcursesUi::PanelWidget {
             } else if (can_load) {
                 hints += "Enter:Load";
             }
+            # show MIME type from magic info if available
+            if (item.file_info.mime_type) {
+                hints += item.file_info.mime_type;
+            }
         }
         if (!dir_history.empty()) {
             hints += "S-Tab:Back";
@@ -642,6 +678,21 @@ public class NcursesUi::FileBrowserWidget inherits NcursesUi::PanelWidget {
                     entry.mtime = st.mtime;
                 } catch (hash<ExceptionInfo> ex) {
                     # ignore stat errors
+                }
+                # get rich file info from provider if available
+                if (file_info_provider) {
+                    try {
+                        *hash<auto> info = file_info_provider(full_path);
+                        if (info) {
+                            entry.file_info = info;
+                            # use magic MIME type for better type detection
+                            if (!info.is_text && ftype != "binary") {
+                                entry.type = "binary";
+                            }
+                        }
+                    } catch () {
+                        # ignore provider errors
+                    }
                 }
             }
 
@@ -724,12 +775,22 @@ public class NcursesUi::FileBrowserWidget inherits NcursesUi::PanelWidget {
         return style;
     }
 
-    /** Checks if file content appears to be binary (contains null bytes).
+    /** Checks if file content appears to be binary.
+
+        Uses the file info provider's \c is_text field when available in the
+        item's \c file_info hash; otherwise falls back to null-byte scanning.
+
         @param path the file path
+        @param item the file item hash (may contain \c file_info from provider)
         @return True if the file appears to be binary
         @since ncurses 2.0
     */
-    private bool isBinaryContent(string path) {
+    private bool isBinaryContent(string path, *hash<auto> item) {
+        # use magic info if available
+        if (item.file_info.is_text != NOTHING) {
+            return !item.file_info.is_text;
+        }
+        # fallback: scan for null bytes
         try {
             ReadOnlyFile f(path);
             *binary chunk = f.readBinary(8192);
