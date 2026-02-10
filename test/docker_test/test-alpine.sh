@@ -44,9 +44,14 @@ fi
 # own everything by the qore user
 chown -R qore:qore ${MODULE_SRC_DIR}
 
-# run the tests
+# run the tests — continue on failure so all test files run
 export QORE_MODULE_DIR=${MODULE_SRC_DIR}/qlib:${QORE_MODULE_DIR}
 cd ${MODULE_SRC_DIR}
+FAILED=0
 for test in test/*.qtest; do
-    gosu qore:qore qore $test -vv
+    if ! gosu qore:qore qore $test -vv; then
+        echo "FAILED: $test"
+        FAILED=1
+    fi
 done
+exit $FAILED

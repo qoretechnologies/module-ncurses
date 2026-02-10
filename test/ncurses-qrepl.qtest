@@ -2037,13 +2037,26 @@ class NcursesQreplTest inherits QUnit::Test {
             "should have reverse-video % indicator");
     }
 
-    /** Test: stdout.redirect() to pipe — verify data reaches pipe via stdout.write(). */
+    /** Test: stdout.redirect() to pipe — verify data reaches pipe via stdout.write().
+
+        Skipped in environments where /proc/self/fd/1 is not accessible (e.g. CI containers).
+    */
     testStdoutRedirectPipeCapture() {
+        if (!is_readable("/proc/self/fd/1")) {
+            testSkip("/proc/self/fd/1 not accessible");
+        }
+
         hash<PipeInfo> pipe = File::getPipe();
 
         # save original stdout
         File saved();
-        saved.open("/proc/self/fd/1", O_WRONLY);
+        try {
+            saved.open("/proc/self/fd/1", O_WRONLY);
+        } catch (hash<ExceptionInfo> ex) {
+            pipe.write.close();
+            pipe.read.close();
+            testSkip("cannot open /proc/self/fd/1: " + ex.desc);
+        }
 
         # redirect stdout to pipe (dup2)
         stdout.redirect(pipe.write);
@@ -2067,8 +2080,14 @@ class NcursesQreplTest inherits QUnit::Test {
     /** Test: QoreRepl eval('print("hi")') output reaches pipe via redirect.
         This tests the EXACT path that qrepl uses — including C-level fflush/setvbuf
         via Session::redirectStdout + flushStdio.
+
+        Skipped in environments where /proc/self/fd is not accessible (e.g. CI containers).
     */
     testReplEvalPrintCapture() {
+        if (!is_readable("/proc/self/fd/1") || !is_readable("/proc/self/fd/2")) {
+            testSkip("/proc/self/fd not accessible");
+        }
+
         NcursesUi::TestHarness th(term_rows, term_cols);
         on_exit th.close();
         Ncurses::Session sess = th.session();
@@ -2077,7 +2096,13 @@ class NcursesQreplTest inherits QUnit::Test {
 
         # save original stdout/stderr
         File saved_stdout();
-        saved_stdout.open("/proc/self/fd/1", O_WRONLY);
+        try {
+            saved_stdout.open("/proc/self/fd/1", O_WRONLY);
+        } catch (hash<ExceptionInfo> ex) {
+            pipe.write.close();
+            pipe.read.close();
+            testSkip("cannot open /proc/self/fd/1: " + ex.desc);
+        }
         File saved_stderr();
         saved_stderr.open("/proc/self/fd/2", O_WRONLY);
 
