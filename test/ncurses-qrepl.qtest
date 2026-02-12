@@ -127,7 +127,7 @@ class NcursesQreplTest inherits QUnit::Test {
 
         # inline input state
         NcursesReplUi::InputBuffer buffer();
-        NcursesReplUi::History history();
+        QoreHistory::History history();
 
         output_widget.setContent(output_content);
         output_widget.setVSizePolicy(NcursesUi::SizePolicy::Expanding);
@@ -228,7 +228,7 @@ class NcursesQreplTest inherits QUnit::Test {
         NcursesUi::Application app = repl.app;
         NcursesUi::LineListContent content = repl.output_content;
         NcursesReplUi::InputBuffer buffer = repl.buffer;
-        NcursesReplUi::History history = repl.history;
+        QoreHistory::History history = repl.history;
 
         # add initial prompt line
         string prompt = "qore> ";
@@ -393,7 +393,7 @@ class NcursesQreplTest inherits QUnit::Test {
         hash<auto> repl = buildReplLayout(th);
         NcursesUi::Application app = repl.app;
         NcursesReplUi::InputBuffer buffer = repl.buffer;
-        NcursesReplUi::History history = repl.history;
+        QoreHistory::History history = repl.history;
         NcursesUi::LineListContent content = repl.output_content;
 
         # add initial prompt line
@@ -2714,7 +2714,7 @@ class NcursesQreplTest inherits QUnit::Test {
 
     /** Test History.load() reads lines from file. */
     testHistoryLoad() {
-        NcursesReplUi::History hist();
+        QoreHistory::History hist();
         string path = (ENV.TMPDIR ?? "/tmp") + "/test-history-load-" + string(getpid());
         on_exit {
             try { unlink(path); } catch () {}
@@ -2740,9 +2740,9 @@ class NcursesQreplTest inherits QUnit::Test {
         assertEq("line1", prev);
     }
 
-    /** Test History.save() writes lines to file. */
+    /** Test History.save() writes timestamp-delimited format to file. */
     testHistorySave() {
-        NcursesReplUi::History hist();
+        QoreHistory::History hist();
         hist.add("save1");
         hist.add("save2");
         hist.add("save3");
@@ -2754,21 +2754,14 @@ class NcursesQreplTest inherits QUnit::Test {
 
         hist.save(path);
 
-        # read back and verify
-        ReadOnlyFile f(path);
-        string content = f.read(-1);
-        list<string> lines = content.split("\n");
-        # filter empty lines from trailing newline
-        list<string> non_empty = ();
-        foreach string line in (lines) {
-            if (line != "") {
-                non_empty += line;
-            }
-        }
-        assertEq(3, non_empty.size());
-        assertEq("save1", non_empty[0]);
-        assertEq("save2", non_empty[1]);
-        assertEq("save3", non_empty[2]);
+        # verify by loading into a new history and checking entries
+        QoreHistory::History hist2();
+        hist2.load(path);
+        assertEq(3, hist2.size());
+        list<hash<QoreHistory::HistoryEntry>> items = hist2.getItems();
+        assertEq("save1", items[0].text);
+        assertEq("save2", items[1].text);
+        assertEq("save3", items[2].text);
 
         # verify file permissions (mode 0600)
         *hash<StatInfo> st = hstat(path);
@@ -2779,7 +2772,7 @@ class NcursesQreplTest inherits QUnit::Test {
 
     /** Test History max length trimming. */
     testHistoryMaxLength() {
-        NcursesReplUi::History hist();
+        QoreHistory::History hist();
         hist.setMaxLength(3);
         assertEq(3, hist.getMaxLength());
 
@@ -2793,22 +2786,22 @@ class NcursesQreplTest inherits QUnit::Test {
         assertEq(3, hist.size());
 
         # verify oldest was trimmed
-        list<string> items = hist.getItems();
-        assertEq("b", items[0]);
-        assertEq("c", items[1]);
-        assertEq("d", items[2]);
+        list<hash<QoreHistory::HistoryEntry>> items = hist.getItems();
+        assertEq("b", items[0].text);
+        assertEq("c", items[1].text);
+        assertEq("d", items[2].text);
 
         # setMaxLength to smaller value should trim immediately
         hist.setMaxLength(2);
         assertEq(2, hist.size());
         items = hist.getItems();
-        assertEq("c", items[0]);
-        assertEq("d", items[1]);
+        assertEq("c", items[0].text);
+        assertEq("d", items[1].text);
     }
 
     /** Test History.load() on nonexistent file doesn't crash. */
     testHistoryLoadNonexistent() {
-        NcursesReplUi::History hist();
+        QoreHistory::History hist();
         string path = (ENV.TMPDIR ?? "/tmp") + "/nonexistent-history-" + string(getpid());
 
         # should not throw
@@ -2824,22 +2817,22 @@ class NcursesQreplTest inherits QUnit::Test {
         }
 
         # save
-        NcursesReplUi::History hist1();
+        QoreHistory::History hist1();
         hist1.add("alpha");
         hist1.add("beta");
         hist1.add("gamma");
         hist1.save(path);
 
         # load into fresh history
-        NcursesReplUi::History hist2();
+        QoreHistory::History hist2();
         hist2.load(path);
         assertEq(3, hist2.size());
 
         # verify entries match
-        list<string> items = hist2.getItems();
-        assertEq("alpha", items[0]);
-        assertEq("beta", items[1]);
-        assertEq("gamma", items[2]);
+        list<hash<QoreHistory::HistoryEntry>> items = hist2.getItems();
+        assertEq("alpha", items[0].text);
+        assertEq("beta", items[1].text);
+        assertEq("gamma", items[2].text);
 
         # verify navigation works
         *string prev = hist2.prev();

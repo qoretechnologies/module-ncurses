@@ -9,7 +9,7 @@
 # - StatusBarWidget with live status segments
 # - Output capture via File::getPipe() + a background reader thread
 # - Modal dialogs (exit confirmation, file browser, animated About)
-# - Inline input editing with InputBuffer and History from NcursesReplUi
+# - Inline input editing with InputBuffer from NcursesReplUi and History from QoreHistory
 
 %requires ncurses
 %requires QoreRepl
@@ -58,7 +58,7 @@ class QRepl {
         #! inline input buffer
         NcursesReplUi::InputBuffer buffer();
         #! command history
-        NcursesReplUi::History history();
+        QoreHistory::History history();
         #! index of the live prompt line in output_content (-1 = no active prompt)
         int prompt_line_idx = -1;
 
@@ -4284,6 +4284,23 @@ class QRepl {
             # just start a new prompt line for empty input
             new_prompt_line();
             return;
+        }
+
+        # History expansion (!! !n !-n !prefix !$)
+        if (text.size() >= 2 && text[0] == "!") {
+            *string expanded = history.expand(text);
+            if (exists expanded) {
+                text = expanded;
+            } else {
+                # No match — show error like bash and abort (don't eval or add to history)
+                prompt_line_idx = -1;
+                output_widget.clearCursorLine();
+                push_output(text + ": event not found");
+                last_status = "Error";
+                update_status();
+                new_prompt_line();
+                return;
+            }
         }
 
         history.add(text);

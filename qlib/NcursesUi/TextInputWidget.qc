@@ -24,7 +24,7 @@
 /** Single-line text input widget with cursor, editing, and history.
 
     Wraps @ref NcursesReplUi::InputBuffer for editing and optionally
-    @ref NcursesReplUi::History for command history. Supports all
+    @ref QoreHistory::History for command history. Supports all
     standard editing keys: Home/End, Ctrl+A/E/K/U/W/B/F/D,
     Backspace/Delete, arrow keys, and history navigation with
     Up/Down.
@@ -36,7 +36,7 @@ public class NcursesUi::TextInputWidget inherits NcursesUi::Widget {
         #! the input buffer
         NcursesReplUi::InputBuffer buffer();
         #! optional history
-        *NcursesReplUi::History history;
+        *QoreHistory::History history;
         #! the prompt string
         string prompt = "";
         #! callback on submit (Enter)
@@ -99,14 +99,14 @@ public class NcursesUi::TextInputWidget inherits NcursesUi::Widget {
         @param h the history
         @since ncurses 2.0
     */
-    nothing setHistory(*NcursesReplUi::History h) {
+    nothing setHistory(*QoreHistory::History h) {
         history = h;
     }
 
     /** Returns the history instance.
         @since ncurses 2.0
     */
-    *NcursesReplUi::History getHistory() {
+    *QoreHistory::History getHistory() {
         return history;
     }
 
