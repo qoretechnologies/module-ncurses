@@ -30,7 +30,7 @@
 
 #include "ncurses-internal.h"
 
-static QoreNamespace NcursesNS("Ncurses");
+static QoreNamespace NcursesNS("Qore::Ncurses");
 
 DLLLOCAL QoreEnumDecl* init_enum_CursorVisibility(QoreNamespace& ns);
 DLLLOCAL QoreEnumDecl* init_enum_InputType(QoreNamespace& ns);
