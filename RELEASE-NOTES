@@ -50,7 +50,7 @@ qrepl — full-screen ncurses REPL:
   180-frame spinning Qore coin
 
 Build and test:
-- CMake build system (replaces autotools)
+- CMake build system
 - Doxygen documentation with mainpage overviews, code examples, and
   cross-references for all three module layers
 - 9 test suites with 290+ automated test cases
