@@ -524,7 +524,6 @@ nothing Session::setMouse(bool enabled) {
     @since %ncurses 2.0
 */
 nothing Session::redirectStdout(File[File] file) {
-    ReferenceHolder<File> f(file, xsink);
     if (*xsink) {
         return nothing();
     }
@@ -559,7 +558,6 @@ nothing Session::redirectStdout(File[File] file) {
     @since %ncurses 2.0
 */
 nothing Session::redirectStderr(File[File] file) {
-    ReferenceHolder<File> f(file, xsink);
     if (*xsink) {
         return nothing();
     }

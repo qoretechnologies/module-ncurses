@@ -77,21 +77,20 @@ qclass Window [dom=TERMINAL_IO; arg=NcursesWindow* win; ns=Qore::Ncurses];
     @since %ncurses 2.0
 */
 Window::constructor(Qore::Ncurses::Session[NcursesSession] session, int rows, int cols, int y, int x) {
-    ReferenceHolder<NcursesSession> sh(session, xsink);
     if (*xsink) {
         return;
     }
-    sh->checkOpen(xsink);
+    session->checkOpen(xsink);
     if (*xsink) {
         return;
     }
-    NcursesCallGuard guard(*sh);
+    NcursesCallGuard guard(*session);
     WINDOW* w = newwin(rows, cols, y, x);
     if (!w) {
         xsink->raiseException("NCURSES-ERROR", "newwin() failed");
         return;
     }
-    self->setPrivate(CID_WINDOW, new NcursesWindow(*sh, w, true));
+    self->setPrivate(CID_WINDOW, new NcursesWindow(*session, w, true));
 }
 
 //! Clears the window

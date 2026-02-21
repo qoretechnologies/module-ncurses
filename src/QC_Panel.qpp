@@ -71,22 +71,21 @@ qclass Panel [dom=TERMINAL_IO; arg=NcursesPanel* panel; ns=Qore::Ncurses];
     @since %ncurses 2.0
 */
 Panel::constructor(Qore::Ncurses::Window[NcursesWindow] window) {
-    ReferenceHolder<NcursesWindow> wh(window, xsink);
     if (*xsink) {
         return;
     }
-    wh->checkOpen(xsink);
+    window->checkOpen(xsink);
     if (*xsink) {
         return;
     }
-    NcursesCallGuard guard(wh->session);
-    PANEL* p = new_panel(wh->win);
+    NcursesCallGuard guard(window->session);
+    PANEL* p = new_panel(window->win);
     if (!p) {
         xsink->raiseException("NCURSES-ERROR", "new_panel() failed");
         return;
     }
     QoreObject* wobj = const_cast<QoreObject*>(obj_window);
-    self->setPrivate(CID_PANEL, new NcursesPanel(wh->session, p, wobj));
+    self->setPrivate(CID_PANEL, new NcursesPanel(window->session, p, wobj));
 }
 
 //! Creates a panel with a new window
@@ -100,15 +99,14 @@ Panel::constructor(Qore::Ncurses::Window[NcursesWindow] window) {
     @since %ncurses 2.0
 */
 Panel::constructor(Qore::Ncurses::Session[NcursesSession] session, int rows, int cols, int y, int x) {
-    ReferenceHolder<NcursesSession> sh(session, xsink);
     if (*xsink) {
         return;
     }
-    sh->checkOpen(xsink);
+    session->checkOpen(xsink);
     if (*xsink) {
         return;
     }
-    NcursesCallGuard guard(*sh);
+    NcursesCallGuard guard(*session);
     WINDOW* w = newwin(rows, cols, y, x);
     if (!w) {
         xsink->raiseException("NCURSES-ERROR", "newwin() failed");
@@ -120,8 +118,8 @@ Panel::constructor(Qore::Ncurses::Session[NcursesSession] session, int rows, int
         xsink->raiseException("NCURSES-ERROR", "new_panel() failed");
         return;
     }
-    QoreObject* wobj = new QoreObject(QC_WINDOW, getProgram(), new NcursesWindow(*sh, w, true));
-    self->setPrivate(CID_PANEL, new NcursesPanel(*sh, p, wobj));
+    QoreObject* wobj = new QoreObject(QC_WINDOW, getProgram(), new NcursesWindow(*session, w, true));
+    self->setPrivate(CID_PANEL, new NcursesPanel(*session, p, wobj));
 }
 
 //! Shows the panel
