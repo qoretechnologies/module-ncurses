@@ -1,0 +1,15 @@
+# Hashes of file build rules.
+2bac80f2e186b904126eb40622dd7cc4 CMakeFiles/QORE_MOD_DOX_FILES
+c9dd6e1bafff8af9ac8f477ee913f1fe CMakeFiles/dist
+7fabd3eaa0e0f219ce264853e691adc1 CMakeFiles/docs-NcursesReplUi
+2e6bd7bee2fb638d471831ab49c16dc9 CMakeFiles/docs-NcursesUi
+60ffdf7a72c4edaa955fff7c1656de7f CMakeFiles/docs-module
+1d8049f72906025b65802bbdec1124cd CMakeFiles/docs-module-final
+c6053a419f428cd0eb05ca50be75e305 CMakeFiles/uninstall
+94c8980d4d6986dc2b48e68e096b6d18 QC_Ansi.cpp
+4e37d4aad1daef5512c70f2bed306ab4 QC_Panel.cpp
+87bc0d52e908ae802e107d21aa76f187 QC_Session.cpp
+3e432729621a0d6c62f04d86b3d0ee79 QC_TestTerminal.cpp
+ea4de79f48db6b1d10693a9d02d07603 QC_Window.cpp
+7631a93a9f00c1454cb98b459d640942 mainpage.dox
+6ba8304c39416fa855674558fc44fb94 ncurses.cpp

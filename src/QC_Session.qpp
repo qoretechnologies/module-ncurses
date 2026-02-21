@@ -528,7 +528,7 @@ nothing Session::redirectStdout(File[File] file) {
     if (*xsink) {
         return nothing();
     }
-    if (qore_check_io_interrupt(xsink, "redirecting stdout")) {
+    if (qore_check_cancel(xsink, "redirecting stdout")) {
         return nothing();
     }
     if (!file || !file->isOpen()) {
@@ -563,7 +563,7 @@ nothing Session::redirectStderr(File[File] file) {
     if (*xsink) {
         return nothing();
     }
-    if (qore_check_io_interrupt(xsink, "redirecting stderr")) {
+    if (qore_check_cancel(xsink, "redirecting stderr")) {
         return nothing();
     }
     if (!file || !file->isOpen()) {

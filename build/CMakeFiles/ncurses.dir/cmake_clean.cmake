@@ -1,0 +1,42 @@
+file(REMOVE_RECURSE
+  "CMakeFiles/ncurses.dir/link.d"
+  "CMakeFiles/ncurses.dir/QC_Ansi.cpp.o"
+  "CMakeFiles/ncurses.dir/QC_Ansi.cpp.o.d"
+  "CMakeFiles/ncurses.dir/QC_Panel.cpp.o"
+  "CMakeFiles/ncurses.dir/QC_Panel.cpp.o.d"
+  "CMakeFiles/ncurses.dir/QC_Session.cpp.o"
+  "CMakeFiles/ncurses.dir/QC_Session.cpp.o.d"
+  "CMakeFiles/ncurses.dir/QC_TestTerminal.cpp.o"
+  "CMakeFiles/ncurses.dir/QC_TestTerminal.cpp.o.d"
+  "CMakeFiles/ncurses.dir/QC_Window.cpp.o"
+  "CMakeFiles/ncurses.dir/QC_Window.cpp.o.d"
+  "CMakeFiles/ncurses.dir/ncurses.cpp.o"
+  "CMakeFiles/ncurses.dir/ncurses.cpp.o.d"
+  "CMakeFiles/ncurses.dir/src/ncurses-internal.cpp.o"
+  "CMakeFiles/ncurses.dir/src/ncurses-internal.cpp.o.d"
+  "QC_Ansi.cpp"
+  "QC_Ansi.dox.h"
+  "QC_Ansi.meta.json"
+  "QC_Panel.cpp"
+  "QC_Panel.dox.h"
+  "QC_Panel.meta.json"
+  "QC_Session.cpp"
+  "QC_Session.dox.h"
+  "QC_Session.meta.json"
+  "QC_TestTerminal.cpp"
+  "QC_TestTerminal.dox.h"
+  "QC_TestTerminal.meta.json"
+  "QC_Window.cpp"
+  "QC_Window.dox.h"
+  "QC_Window.meta.json"
+  "ncurses-api-2.0.qmod"
+  "ncurses.cpp"
+  "ncurses.dox.h"
+  "ncurses.meta.json"
+  "ncurses.pdb"
+)
+
+# Per-language clean rules from dependency scanning.
+foreach(lang CXX)
+  include(CMakeFiles/ncurses.dir/cmake_clean_${lang}.cmake OPTIONAL)
+endforeach()

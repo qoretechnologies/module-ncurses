@@ -1,0 +1,108 @@
+/* -*- mode: c++; indent-tabs-mode: nil -*- */
+/** @file ncurses.qpp defines the %Qore Ncurses module */
+/*
+    Qore ncurses module
+
+    Copyright (C) 2003 - 2026 Qore Technologies, s.r.o.
+
+    Permission is hereby granted, free of charge, to any person obtaining a
+    copy of this software and associated documentation files (the "Software"),
+    to deal in the Software without restriction, including without limitation
+    the rights to use, copy, modify, merge, publish, distribute, sublicense,
+    and/or sell copies of the Software, and to permit persons to whom the
+    Software is furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in
+    all copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+    DEALINGS IN THE SOFTWARE.
+*/
+
+#include <qore/Qore.h>
+
+#include <locale.h>
+
+#include "ncurses-internal.h"
+
+static QoreNamespace NcursesNS("Qore::Ncurses");
+
+DLLLOCAL QoreEnumDecl* init_enum_CursorVisibility(QoreNamespace& ns);
+DLLLOCAL QoreEnumDecl* init_enum_InputType(QoreNamespace& ns);
+DLLLOCAL QoreEnumDecl* init_enum_Color(QoreNamespace& ns);
+DLLLOCAL QoreEnumDecl* init_enum_Attr(QoreNamespace& ns);
+DLLLOCAL QoreEnumDecl* init_enum_WrapMode(QoreNamespace& ns);
+DLLLOCAL void preinitSessionClass();
+DLLLOCAL void preinitWindowClass();
+QoreClass* initSessionClass(QoreNamespace& ns);
+QoreClass* initWindowClass(QoreNamespace& ns);
+QoreClass* initPanelClass(QoreNamespace& ns);
+QoreClass* initAnsiClass(QoreNamespace& ns);
+QoreClass* initTestTerminalClass(QoreNamespace& ns);
+
+DLLLOCAL TypedHashDecl* init_hashdecl_Style(QoreNamespace& ns);
+DLLLOCAL TypedHashDecl* init_hashdecl_Size(QoreNamespace& ns);
+DLLLOCAL TypedHashDecl* init_hashdecl_Position(QoreNamespace& ns);
+DLLLOCAL TypedHashDecl* init_hashdecl_MouseEvent(QoreNamespace& ns);
+DLLLOCAL TypedHashDecl* init_hashdecl_InputEvent(QoreNamespace& ns);
+
+const TypedHashDecl* hashdeclStyle = nullptr;
+const TypedHashDecl* hashdeclSize = nullptr;
+const TypedHashDecl* hashdeclPosition = nullptr;
+const TypedHashDecl* hashdeclMouseEvent = nullptr;
+const TypedHashDecl* hashdeclInputEvent = nullptr;
+QoreEnumDecl* enumWrapMode = nullptr;
+
+// Module initialization and teardown
+
+static void ncurses_module_init(QoreModuleInitContext& ctx, ExceptionSink& xsink) {
+    setlocale(LC_ALL, "");
+
+    hashdeclStyle = init_hashdecl_Style(NcursesNS);
+    hashdeclSize = init_hashdecl_Size(NcursesNS);
+    hashdeclPosition = init_hashdecl_Position(NcursesNS);
+    hashdeclMouseEvent = init_hashdecl_MouseEvent(NcursesNS);
+    hashdeclInputEvent = init_hashdecl_InputEvent(NcursesNS);
+
+    init_enum_CursorVisibility(NcursesNS);
+    init_enum_InputType(NcursesNS);
+    init_enum_Color(NcursesNS);
+    init_enum_Attr(NcursesNS);
+    enumWrapMode = init_enum_WrapMode(NcursesNS);
+
+    preinitSessionClass();
+    preinitWindowClass();
+    NcursesNS.addSystemClass(initSessionClass(NcursesNS));
+    NcursesNS.addSystemClass(initWindowClass(NcursesNS));
+    NcursesNS.addSystemClass(initPanelClass(NcursesNS));
+    NcursesNS.addSystemClass(initAnsiClass(NcursesNS));
+    NcursesNS.addSystemClass(initTestTerminalClass(NcursesNS));
+}
+
+static void ncurses_module_ns_init(QoreNamespace* rns, QoreNamespace* qns, ExceptionSink& xsink) {
+    qns->addNamespace(NcursesNS.copy());
+}
+
+void ncurses_module_delete() {
+    // nothing to do here
+}
+
+extern "C" DLLEXPORT void ncurses_qore_module_desc(QoreModuleInfo& mod_info) {
+    mod_info.name = "ncurses";
+    mod_info.version = PACKAGE_VERSION;
+    mod_info.desc = "Ncurses terminal UI module";
+    mod_info.author = "Qore Technologies, s.r.o.";
+    mod_info.url = "http://qore.org";
+    mod_info.api_major = QORE_MODULE_API_MAJOR;
+    mod_info.api_minor = QORE_MODULE_API_MINOR;
+    mod_info.init = ncurses_module_init;
+    mod_info.ns_init = ncurses_module_ns_init;
+    mod_info.del = ncurses_module_delete;
+    mod_info.license = QL_LGPL;
+    mod_info.license_str = "LGPL";
+}
