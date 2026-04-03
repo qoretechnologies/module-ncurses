@@ -31,7 +31,8 @@
 
     @since ncurses 2.0
 */
-public class NcursesUi::TextInputWidget inherits NcursesUi::Widget {
+public namespace NcursesUi {
+public class TextInputWidget inherits NcursesUi::Widget {
     private {
         #! the input buffer
         NcursesReplUi::InputBuffer buffer();
@@ -334,3 +335,5 @@ public class NcursesUi::TextInputWidget inherits NcursesUi::Widget {
         }
     }
 }
+
+} # namespace NcursesUi

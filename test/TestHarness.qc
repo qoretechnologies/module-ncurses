@@ -41,7 +41,8 @@
 
     @since ncurses 2.0
 */
-public class NcursesUi::TestHarness {
+public namespace NcursesUi {
+public class TestHarness {
     private {
         Ncurses::TestTerminal terminal;
         Ncurses::Session sess;
@@ -290,3 +291,5 @@ public class NcursesUi::TestHarness {
         return readEvent(timeout_ms);
     }
 }
+
+} # namespace NcursesUi

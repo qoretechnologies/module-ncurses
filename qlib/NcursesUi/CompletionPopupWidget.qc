@@ -35,7 +35,8 @@
 
     @since %ncurses 2.0
 */
-public class NcursesUi::CompletionPopupWidget inherits NcursesUi::PanelWidget {
+public namespace NcursesUi {
+public class CompletionPopupWidget inherits NcursesUi::PanelWidget {
     private {
         #! list of completion item hashes
         list<hash<auto>> completion_items = ();
@@ -364,3 +365,5 @@ public class NcursesUi::CompletionPopupWidget inherits NcursesUi::PanelWidget {
         }
     }
 }
+
+} # namespace NcursesUi

@@ -39,7 +39,8 @@
 
     @since ncurses 2.0
 */
-public class NcursesUi::SplitLayout {
+public namespace NcursesUi {
+public class SplitLayout {
     private {
         #! layout orientation
         int orientation;
@@ -219,3 +220,5 @@ public class NcursesUi::SplitLayout {
         pane1.setFrame(NcursesUi::Geometry::makeRect(area.y, area.x + size0, area.rows, size1));
     }
 }
+
+} # namespace NcursesUi

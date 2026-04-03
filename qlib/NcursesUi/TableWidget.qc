@@ -35,7 +35,8 @@
 
     @since ncurses 2.0
 */
-public class NcursesUi::TableWidget inherits NcursesUi::Widget {
+public namespace NcursesUi {
+public class TableWidget inherits NcursesUi::Widget {
     private {
         #! column definitions
         list<hash<auto>> columns = ();
@@ -383,3 +384,5 @@ public class NcursesUi::TableWidget inherits NcursesUi::Widget {
         });
     }
 }
+
+} # namespace NcursesUi

@@ -25,7 +25,8 @@
 
     @since ncurses 2.0
 */
-public class NcursesUi::Geometry {
+public namespace NcursesUi {
+public class Geometry {
     /** Check if a point is inside a Rect.
         @param rect the rectangle to test
         @param py the row coordinate
@@ -95,3 +96,5 @@ public class NcursesUi::Geometry {
         };
     }
 }
+
+} # namespace NcursesUi

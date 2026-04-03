@@ -28,7 +28,8 @@
 
     @since ncurses 2.0
 */
-public class NcursesUi::RadioGroupWidget inherits NcursesUi::Widget {
+public namespace NcursesUi {
+public class RadioGroupWidget inherits NcursesUi::Widget {
     private {
         #! list of option labels
         list<string> options = ();
@@ -200,3 +201,5 @@ public class NcursesUi::RadioGroupWidget inherits NcursesUi::Widget {
         }
     }
 }
+
+} # namespace NcursesUi

@@ -37,7 +37,8 @@
 
     @since ncurses 2.0
 */
-public class NcursesUi::Application {
+public namespace NcursesUi {
+public class Application {
     private {
         #! the ncurses session
         Ncurses::Session session;
@@ -312,3 +313,5 @@ public class NcursesUi::Application {
         }
     }
 }
+
+} # namespace NcursesUi

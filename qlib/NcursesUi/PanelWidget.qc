@@ -32,7 +32,8 @@
 
     @since ncurses 2.0
 */
-public class NcursesUi::PanelWidget inherits NcursesUi::Widget {
+public namespace NcursesUi {
+public class PanelWidget inherits NcursesUi::Widget {
     private {
         #! the ncurses session
         Ncurses::Session session;
@@ -319,3 +320,5 @@ public class NcursesUi::PanelWidget inherits NcursesUi::Widget {
         return local_x >= close_col && local_x < close_col + close_len;
     }
 }
+
+} # namespace NcursesUi

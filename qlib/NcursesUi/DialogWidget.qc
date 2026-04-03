@@ -33,7 +33,8 @@
 
     @since ncurses 2.0
 */
-public class NcursesUi::DialogWidget inherits NcursesUi::PanelWidget {
+public namespace NcursesUi {
+public class DialogWidget inherits NcursesUi::PanelWidget {
     private {
         #! message lines
         list<string> message_lines = ();
@@ -363,3 +364,5 @@ public class NcursesUi::DialogWidget inherits NcursesUi::PanelWidget {
         }
     }
 }
+
+} # namespace NcursesUi

@@ -32,7 +32,8 @@
 
     @since ncurses 2.0
 */
-public class NcursesUi::ListWidget inherits NcursesUi::Widget {
+public namespace NcursesUi {
+public class ListWidget inherits NcursesUi::Widget {
     private {
         #! list of item hashes
         list<hash<auto>> items = ();
@@ -421,3 +422,5 @@ public class NcursesUi::ListWidget inherits NcursesUi::Widget {
         }
     }
 }
+
+} # namespace NcursesUi

@@ -41,7 +41,8 @@
 
     @since ncurses 2.0
 */
-public class NcursesUi::FileBrowserWidget inherits NcursesUi::PanelWidget {
+public namespace NcursesUi {
+public class FileBrowserWidget inherits NcursesUi::PanelWidget {
     private {
         #! current directory path
         string current_dir;
@@ -831,3 +832,5 @@ public class NcursesUi::FileBrowserWidget inherits NcursesUi::PanelWidget {
         return sprintf("%d", sz);
     }
 }
+
+} # namespace NcursesUi

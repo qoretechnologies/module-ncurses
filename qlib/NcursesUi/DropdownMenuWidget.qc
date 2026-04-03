@@ -35,7 +35,8 @@
 
     @since ncurses 2.0
 */
-public class NcursesUi::DropdownMenuWidget inherits NcursesUi::PanelWidget {
+public namespace NcursesUi {
+public class DropdownMenuWidget inherits NcursesUi::PanelWidget {
     private {
         #! list of menu item hashes
         list<hash<auto>> menu_items = ();
@@ -429,3 +430,5 @@ public class NcursesUi::DropdownMenuWidget inherits NcursesUi::PanelWidget {
         }
     }
 }
+
+} # namespace NcursesUi

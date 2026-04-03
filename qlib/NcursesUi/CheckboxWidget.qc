@@ -28,7 +28,8 @@
 
     @since ncurses 2.0
 */
-public class NcursesUi::CheckboxWidget inherits NcursesUi::Widget {
+public namespace NcursesUi {
+public class CheckboxWidget inherits NcursesUi::Widget {
     private {
         #! the label text
         string label;
@@ -145,3 +146,5 @@ public class NcursesUi::CheckboxWidget inherits NcursesUi::Widget {
         return <NcursesUi::EventResult>{"handled": False};
     }
 }
+
+} # namespace NcursesUi

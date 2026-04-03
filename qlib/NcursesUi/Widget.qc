@@ -32,7 +32,8 @@
 
     @since ncurses 2.0
 */
-public class NcursesUi::Widget {
+public namespace NcursesUi {
+public class Widget {
     private {
         #! parent widget (NOTHING for root)
         *NcursesUi::Widget parent_widget;
@@ -442,3 +443,5 @@ public class NcursesUi::Widget {
         # override point
     }
 }
+
+} # namespace NcursesUi

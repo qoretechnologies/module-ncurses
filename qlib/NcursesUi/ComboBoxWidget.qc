@@ -29,7 +29,8 @@
 
     @since ncurses 2.0
 */
-public class NcursesUi::ComboBoxWidget inherits NcursesUi::Widget {
+public namespace NcursesUi {
+public class ComboBoxWidget inherits NcursesUi::Widget {
     private {
         #! all options
         list<string> all_options = ();
@@ -311,3 +312,5 @@ public class NcursesUi::ComboBoxWidget inherits NcursesUi::Widget {
         }
     }
 }
+
+} # namespace NcursesUi

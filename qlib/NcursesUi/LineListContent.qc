@@ -30,7 +30,8 @@
 
     @since ncurses 2.0
 */
-public class NcursesUi::LineListContent inherits NcursesUi::ScrollableContent {
+public namespace NcursesUi {
+public class LineListContent inherits NcursesUi::ScrollableContent {
     private {
         #! the list of lines
         list<string> lines = ();
@@ -167,3 +168,5 @@ public class NcursesUi::LineListContent inherits NcursesUi::ScrollableContent {
         }
     }
 }
+
+} # namespace NcursesUi

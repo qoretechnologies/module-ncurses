@@ -37,7 +37,8 @@
 
     @since ncurses 2.0
 */
-public class NcursesUi::BoxLayout {
+public namespace NcursesUi {
+public class BoxLayout {
     private {
         #! layout orientation
         int orientation;
@@ -208,3 +209,5 @@ public class NcursesUi::BoxLayout {
         }
     }
 }
+
+} # namespace NcursesUi

@@ -29,7 +29,8 @@
 
     @since ncurses 2.0
 */
-public class NcursesUi::ScrollableContent {
+public namespace NcursesUi {
+public class ScrollableContent {
     /** Returns the total number of content rows.
         @since ncurses 2.0
     */
@@ -53,3 +54,5 @@ public class NcursesUi::ScrollableContent {
     abstract nothing drawContent(Ncurses::Window w, int scrollY, int scrollX,
         int visibleRows, int visibleCols, int startY, int startX);
 }
+
+} # namespace NcursesUi

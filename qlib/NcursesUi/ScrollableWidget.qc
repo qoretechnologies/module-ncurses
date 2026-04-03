@@ -30,7 +30,8 @@
 
     @since ncurses 2.0
 */
-public class NcursesUi::ScrollableWidget inherits NcursesUi::Widget {
+public namespace NcursesUi {
+public class ScrollableWidget inherits NcursesUi::Widget {
     private {
         #! the content provider
         *NcursesUi::ScrollableContent content;
@@ -318,3 +319,5 @@ public class NcursesUi::ScrollableWidget inherits NcursesUi::Widget {
         }
     }
 }
+
+} # namespace NcursesUi

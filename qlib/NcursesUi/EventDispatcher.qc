@@ -32,7 +32,8 @@
 
     @since ncurses 2.0
 */
-public class NcursesUi::EventDispatcher {
+public namespace NcursesUi {
+public class EventDispatcher {
     private {
         #! the focus manager
         NcursesUi::FocusManager focus_mgr;
@@ -209,3 +210,5 @@ public class NcursesUi::EventDispatcher {
         return w;
     }
 }
+
+} # namespace NcursesUi

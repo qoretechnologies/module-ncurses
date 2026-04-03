@@ -28,7 +28,8 @@
 
     @since ncurses 2.0
 */
-public class NcursesUi::FocusManager {
+public namespace NcursesUi {
+public class FocusManager {
     private {
         #! the currently focused widget (or NOTHING)
         *NcursesUi::Widget current_focus;
@@ -125,3 +126,5 @@ public class NcursesUi::FocusManager {
         return False;
     }
 }
+
+} # namespace NcursesUi

@@ -37,7 +37,8 @@
 
     @since ncurses 2.0
 */
-public class NcursesUi::MenuBarWidget inherits NcursesUi::Widget {
+public namespace NcursesUi {
+public class MenuBarWidget inherits NcursesUi::Widget {
     private {
         #! list of menu definitions
         list<hash<auto>> menus = ();
@@ -419,3 +420,5 @@ public class NcursesUi::MenuBarWidget inherits NcursesUi::Widget {
         return -1;
     }
 }
+
+} # namespace NcursesUi

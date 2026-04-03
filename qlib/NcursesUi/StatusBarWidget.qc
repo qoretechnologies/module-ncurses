@@ -34,7 +34,8 @@
 
     @since ncurses 2.0
 */
-public class NcursesUi::StatusBarWidget inherits NcursesUi::Widget {
+public namespace NcursesUi {
+public class StatusBarWidget inherits NcursesUi::Widget {
     private {
         #! list of segment hashes
         list<hash<auto>> segments = ();
@@ -162,3 +163,5 @@ public class NcursesUi::StatusBarWidget inherits NcursesUi::Widget {
         }
     }
 }
+
+} # namespace NcursesUi
