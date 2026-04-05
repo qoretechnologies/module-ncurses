@@ -23,6 +23,7 @@
 
 %modern
 
+%requires ncurses
 %requires(reexport) QoreHistory
 
 module NcursesReplUi {
@@ -431,6 +432,122 @@ public class InputBuffer {
         }
         text = text.substr(0, i) + text.substr(cursor);
         cursor = i;
+    }
+
+    /** Processes a keyboard event and applies the corresponding editing action.
+
+        Handles all standard readline-style key bindings:
+        - Printable characters: insert at cursor
+        - Backspace/Delete: delete char before/at cursor
+        - Left/Right arrows: move cursor
+        - Home/End: move to start/end
+        - Ctrl+Left/Right, Alt+Left/Right: word navigation
+        - Ctrl+A/E: home/end
+        - Ctrl+B/F: left/right
+        - Ctrl+K/U: kill to end/start
+        - Ctrl+W, Ctrl+Backspace: delete word back
+        - Ctrl+D: delete char at cursor
+        - Ctrl+Delete, Alt+D: delete word forward
+        - Alt+B/F: word left/right
+
+        @param ev the input event from the ncurses event loop
+        @return True if the event was handled (buffer was modified or cursor moved)
+
+        @since %ncurses 2.0
+    */
+    bool processEvent(hash<Ncurses::InputEvent> ev) {
+        if (ev.type == Ncurses::InputType::Char) {
+            string ch = ev.ch ?? "";
+            int code = ord(ch);
+            if (code == 0x7f || code == 0x08) {
+                # Backspace
+                backspace();
+                return True;
+            } else if (code == 0x01) {
+                # Ctrl+A — home
+                moveHome();
+                return True;
+            } else if (code == 0x05) {
+                # Ctrl+E — end
+                moveEnd();
+                return True;
+            } else if (code == 0x0b) {
+                # Ctrl+K — kill to end
+                killToEnd();
+                return True;
+            } else if (code == 0x15) {
+                # Ctrl+U — kill to start
+                killToStart();
+                return True;
+            } else if (code == 0x17) {
+                # Ctrl+W — delete word back
+                deleteWordBack();
+                return True;
+            } else if (code == 0x02) {
+                # Ctrl+B — left
+                moveLeft();
+                return True;
+            } else if (code == 0x06) {
+                # Ctrl+F — right
+                moveRight();
+                return True;
+            } else if (code == 0x04) {
+                # Ctrl+D — delete char at cursor
+                deleteChar();
+                return True;
+            } else if (code >= 32) {
+                # Printable character
+                insertChar(ch);
+                return True;
+            }
+        } else if (ev.type == Ncurses::InputType::Alt) {
+            string ch = ev.ch ?? "";
+            string lch = ch.lwr();
+            if (lch == "b") {
+                moveWordLeft();
+                return True;
+            } else if (lch == "f") {
+                moveWordRight();
+                return True;
+            } else if (lch == "d") {
+                deleteWordForward();
+                return True;
+            }
+        } else if (ev.type == Ncurses::InputType::Key) {
+            string name = ev.name ?? "";
+            if (name == "kLFT3" || name == "kLFT5") {
+                # Alt+Left or Ctrl+Left — word left
+                moveWordLeft();
+                return True;
+            } else if (name == "kRIT3" || name == "kRIT5") {
+                # Alt+Right or Ctrl+Right — word right
+                moveWordRight();
+                return True;
+            } else if (name == "KEY_LEFT") {
+                moveLeft();
+                return True;
+            } else if (name == "KEY_RIGHT") {
+                moveRight();
+                return True;
+            } else if (name == "KEY_HOME") {
+                moveHome();
+                return True;
+            } else if (name == "KEY_END") {
+                moveEnd();
+                return True;
+            } else if (name == "KEY_BACKSPACE") {
+                backspace();
+                return True;
+            } else if (name == "kDC5") {
+                # Ctrl+Delete — delete word forward
+                deleteWordForward();
+                return True;
+            } else if (name == "KEY_DC") {
+                deleteChar();
+                return True;
+            }
+        }
+        return False;
     }
 }
 

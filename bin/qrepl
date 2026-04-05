@@ -4591,13 +4591,13 @@ class QRepl {
                 app.getSession().setMouse(mouse_enabled);
                 update_status();
                 return <NcursesUi::EventResult>{"handled": True};
-            } else if (name == "kLFT3") {
-                # Alt+Left - move word left
+            } else if (name == "kLFT3" || name == "kLFT5") {
+                # Alt+Left or Ctrl+Left - move word left
                 buffer.moveWordLeft();
                 update_prompt_line();
                 return <NcursesUi::EventResult>{"handled": True};
-            } else if (name == "kRIT3") {
-                # Alt+Right - move word right
+            } else if (name == "kRIT3" || name == "kRIT5") {
+                # Alt+Right or Ctrl+Right - move word right
                 buffer.moveWordRight();
                 update_prompt_line();
                 return <NcursesUi::EventResult>{"handled": True};
@@ -4635,6 +4635,11 @@ class QRepl {
                 return <NcursesUi::EventResult>{"handled": True};
             } else if (name == "KEY_BACKSPACE") {
                 buffer.backspace();
+                update_prompt_line();
+                return <NcursesUi::EventResult>{"handled": True};
+            } else if (name == "kDC5") {
+                # Ctrl+Delete - delete word forward
+                buffer.deleteWordForward();
                 update_prompt_line();
                 return <NcursesUi::EventResult>{"handled": True};
             } else if (name == "KEY_DC") {
