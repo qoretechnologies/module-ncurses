@@ -74,11 +74,15 @@ static list<hash> Ansi::parse(string text) [flags=CONSTANT] {
 static int Ansi::len(string text) [flags=CONSTANT] {
     std::vector<AnsiSegment> segs;
     parseAnsiSegments(text, segs);
-    size_t total = 0;
+    int total = 0;
     for (const auto& seg : segs) {
-        total += seg.text.size();
+        QoreString tmp(seg.text.c_str(), seg.text.size(), QCS_UTF8);
+        total += static_cast<int>(tmp.getCharWidth(xsink));
+        if (*xsink) {
+            return 0;
+        }
     }
-    return static_cast<int>(total);
+    return total;
 }
 
 //! Wraps ANSI SGR text to a given width

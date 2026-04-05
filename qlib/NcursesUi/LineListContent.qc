@@ -111,6 +111,17 @@ public class LineListContent inherits NcursesUi::ScrollableContent {
         }
     }
 
+    /** Removes a line at the given index, shifting subsequent lines up.
+        @param idx the line index (0-based)
+        @since ncurses 2.0
+    */
+    nothing removeLine(int idx) {
+        if (idx >= 0 && idx < lines.size()) {
+            splice lines, idx, 1;
+            recalcWidth();
+        }
+    }
+
     /** Inserts a line at the given index, shifting subsequent lines down.
         @param idx the insertion index (0-based); clamped to valid range
         @param text the text to insert

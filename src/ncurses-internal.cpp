@@ -4,7 +4,6 @@
 #include <assert.h>
 #include <errno.h>
 #include <stdlib.h>
-
 QoreRecursiveThreadLock ncurses_lock;
 
 NcursesSession::NcursesSession() = default;
@@ -435,21 +434,60 @@ void drawAnsiText(NcursesWindow* w, int y, int x, bool inside, bool clear_line, 
         if (t.empty()) {
             continue;
         }
-        size_t offset = 0;
-        while (offset < t.size() && remaining > 0) {
-            int n = static_cast<int>(std::min(static_cast<size_t>(remaining), t.size() - offset));
-            StyleSpec spec = segs[i].style;
-            attr_t old_attr = 0;
-            short old_pair = 0;
-            applyStyle(w, spec, old_attr, old_pair, xsink);
+        // Calculate how many bytes of this segment fit within 'remaining'
+        // display columns. Walk UTF-8 codepoints and sum display widths.
+        int fit_bytes = 0;
+        int fit_cols = 0;
+        const char* p = t.c_str();
+        const char* end = p + t.size();
+        while (p < end) {
+            unsigned char c = static_cast<unsigned char>(*p);
+            int char_bytes;
+            if (c < 0x80) {
+                char_bytes = 1;
+            } else if ((c & 0xE0) == 0xC0) {
+                char_bytes = 2;
+            } else if ((c & 0xF0) == 0xE0) {
+                char_bytes = 3;
+            } else if ((c & 0xF8) == 0xF0) {
+                char_bytes = 4;
+            } else {
+                char_bytes = 1;
+            }
+            if (p + char_bytes > end) {
+                break;
+            }
+            // Use QoreString to measure this character's display width
+            QoreString ch_str(p, char_bytes, QCS_UTF8);
+            int ch_width = static_cast<int>(ch_str.getCharWidth(xsink));
             if (xsink && *xsink) {
                 return;
             }
-            mvwaddnstr(w->win, start_row, col, t.c_str() + offset, n);
-            restoreStyle(w, old_attr, old_pair);
-            col += n;
-            remaining -= n;
-            offset += n;
+            if (ch_width <= 0) {
+                ch_width = 1;
+            }
+            if (fit_cols + ch_width > remaining) {
+                break;
+            }
+            fit_cols += ch_width;
+            fit_bytes += char_bytes;
+            p += char_bytes;
         }
+
+        if (fit_bytes <= 0) {
+            continue;
+        }
+
+        StyleSpec spec = segs[i].style;
+        attr_t old_attr = 0;
+        short old_pair = 0;
+        applyStyle(w, spec, old_attr, old_pair, xsink);
+        if (xsink && *xsink) {
+            return;
+        }
+        mvwaddnstr(w->win, start_row, col, t.c_str(), fit_bytes);
+        restoreStyle(w, old_attr, old_pair);
+        remaining -= fit_cols;
+        col += fit_cols;
     }
 }
