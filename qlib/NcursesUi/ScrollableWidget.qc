@@ -187,9 +187,14 @@ public class ScrollableWidget inherits NcursesUi::Widget {
             drawScrollbar(w, cr, visible_rows);
         }
 
-        # position cursor if set
+        # position cursor if set — convert logical line to display row
+        # when the content supports word-wrap
         if (cursor_pos) {
-            int row = cr.y + (cursor_pos.line - scrollY);
+            int display_line = cursor_pos.line;
+            if (content.hasCallableMethod("displayRowForLine")) {
+                display_line = content.displayRowForLine(cursor_pos.line);
+            }
+            int row = cr.y + (display_line - scrollY);
             if (row >= cr.y && row < cr.y + visible_rows) {
                 w.moveCursor(row, cr.x + cursor_pos.col);
             }

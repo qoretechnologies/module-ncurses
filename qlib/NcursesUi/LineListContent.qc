@@ -85,6 +85,28 @@ public class LineListContent inherits NcursesUi::ScrollableContent {
         return word_wrap;
     }
 
+    /** Returns the display row index for a logical line index.
+        With word-wrap enabled, a logical line may span multiple display rows;
+        this returns the first display row for the given line.
+        Without word-wrap, returns the line index unchanged.
+        @param line_idx the logical line index
+        @return the display row index
+        @since ncurses 2.0
+    */
+    int displayRowForLine(int line_idx) {
+        if (!word_wrap || last_wrap_width <= 0) {
+            return line_idx;
+        }
+        rebuildDisplayCache(last_wrap_width);
+        for (int i = 0; i < display_rows.size(); ++i) {
+            if (display_rows[i].line_idx == line_idx) {
+                return i;
+            }
+        }
+        # Fallback: return end
+        return display_rows.size();
+    }
+
     /** Sets all lines at once.
         @param l the lines to set
         @since ncurses 2.0
