@@ -24,25 +24,39 @@
 /** ScrollableContent backed by a list of strings.
 
     Supports ANSI color codes in the text. Uses
-    @ref Qore::Ncurses::Window::drawAnsiTextInsideLine() "drawAnsiTextInsideLine()" for rendering when
-    the widget has a border, or @ref Qore::Ncurses::Window::drawAnsiText() "drawAnsiText()"
-    for direct rendering.
+    @ref Qore::Ncurses::Window::drawAnsiText() "drawAnsiText()" for rendering.
+
+    Word-wrap can be enabled via @ref setWordWrap(). When enabled, lines
+    longer than the visible width are wrapped at word boundaries. The scroll
+    position and total row count account for wrapped lines transparently.
 
     @since ncurses 2.0
 */
 public namespace NcursesUi {
 public class LineListContent inherits NcursesUi::ScrollableContent {
     private {
-        #! the list of lines
+        #! the list of logical lines
         list<string> lines = ();
         #! maximum line width (for totalCols)
         int max_width = 0;
+        #! word-wrap enabled
+        bool word_wrap = False;
+        #! last known visible width for wrap calculations
+        int last_wrap_width = 0;
+        #! cached display rows (list of {line_idx, text} for each display row)
+        list<hash<auto>> display_rows = ();
+        #! whether display_rows cache is valid
+        bool display_cache_valid = False;
     }
 
-    /** Returns the total number of lines.
+    /** Returns the total number of display rows (accounts for wrapping).
         @since ncurses 2.0
     */
     int totalRows() {
+        if (word_wrap && last_wrap_width > 0) {
+            rebuildDisplayCache(last_wrap_width);
+            return display_rows.size();
+        }
         return lines.size();
     }
 
@@ -53,6 +67,24 @@ public class LineListContent inherits NcursesUi::ScrollableContent {
         return max_width;
     }
 
+    /** Enables or disables word-wrap.
+        @param enabled True to enable word-wrap
+        @since ncurses 2.0
+    */
+    nothing setWordWrap(bool enabled) {
+        if (word_wrap != enabled) {
+            word_wrap = enabled;
+            display_cache_valid = False;
+        }
+    }
+
+    /** Returns whether word-wrap is enabled.
+        @since ncurses 2.0
+    */
+    bool getWordWrap() {
+        return word_wrap;
+    }
+
     /** Sets all lines at once.
         @param l the lines to set
         @since ncurses 2.0
@@ -60,6 +92,7 @@ public class LineListContent inherits NcursesUi::ScrollableContent {
     nothing setLines(list<string> l) {
         lines = l;
         recalcWidth();
+        display_cache_valid = False;
     }
 
     /** Returns all lines.
@@ -79,6 +112,7 @@ public class LineListContent inherits NcursesUi::ScrollableContent {
         if (w > max_width) {
             max_width = w;
         }
+        display_cache_valid = False;
     }
 
     /** Clears all lines.
@@ -87,9 +121,11 @@ public class LineListContent inherits NcursesUi::ScrollableContent {
     nothing clear() {
         lines = ();
         max_width = 0;
+        display_rows = ();
+        display_cache_valid = False;
     }
 
-    /** Returns the number of lines.
+    /** Returns the number of logical lines.
         @since ncurses 2.0
     */
     int lineCount() {
@@ -108,6 +144,7 @@ public class LineListContent inherits NcursesUi::ScrollableContent {
             if (w > max_width) {
                 max_width = w;
             }
+            display_cache_valid = False;
         }
     }
 
@@ -119,6 +156,7 @@ public class LineListContent inherits NcursesUi::ScrollableContent {
         if (idx >= 0 && idx < lines.size()) {
             splice lines, idx, 1;
             recalcWidth();
+            display_cache_valid = False;
         }
     }
 
@@ -140,6 +178,7 @@ public class LineListContent inherits NcursesUi::ScrollableContent {
         if (w > max_width) {
             max_width = w;
         }
+        display_cache_valid = False;
     }
 
     /** Draws the visible portion of the lines.
@@ -154,19 +193,61 @@ public class LineListContent inherits NcursesUi::ScrollableContent {
     */
     nothing drawContent(Ncurses::Window w, int scrollY, int scrollX,
             int visibleRows, int visibleCols, int startY, int startX) {
+        if (word_wrap && visibleCols > 0) {
+            drawContentWrapped(w, scrollY, visibleRows, visibleCols, startY, startX);
+            return;
+        }
         for (int i = 0; i < visibleRows; ++i) {
             int idx = scrollY + i;
             int row = startY + i;
             if (idx >= 0 && idx < lines.size()) {
                 string line = lines[idx];
-                # clear the line first, then draw ANSI text
                 w.drawHLine(row, startX, visibleCols, " ");
                 w.drawAnsiText(row, startX, line);
             } else {
-                # blank line
                 w.drawHLine(row, startX, visibleCols, " ");
             }
         }
+    }
+
+    #! Draws content with word-wrap
+    private nothing drawContentWrapped(Ncurses::Window w, int scrollY,
+            int visibleRows, int visibleCols, int startY, int startX) {
+        # Rebuild display cache if width changed or cache is invalid
+        if (last_wrap_width != visibleCols) {
+            last_wrap_width = visibleCols;
+            display_cache_valid = False;
+        }
+        rebuildDisplayCache(visibleCols);
+
+        for (int i = 0; i < visibleRows; ++i) {
+            int idx = scrollY + i;
+            int row = startY + i;
+            w.drawHLine(row, startX, visibleCols, " ");
+            if (idx >= 0 && idx < display_rows.size()) {
+                w.drawAnsiText(row, startX, display_rows[idx].text);
+            }
+        }
+    }
+
+    #! Rebuilds the display row cache by wrapping lines to the given width
+    private nothing rebuildDisplayCache(int width) {
+        if (display_cache_valid) {
+            return;
+        }
+        display_rows = ();
+        for (int i = 0; i < lines.size(); ++i) {
+            string line = lines[i];
+            if (Ncurses::Ansi::len(line) <= width) {
+                display_rows += {"line_idx": i, "text": line};
+            } else {
+                list<string> wrapped = Ncurses::Ansi::wrap(line, width);
+                foreach string wline in (wrapped) {
+                    display_rows += {"line_idx": i, "text": wline};
+                }
+            }
+        }
+        display_cache_valid = True;
     }
 
     private nothing recalcWidth() {
