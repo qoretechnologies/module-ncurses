@@ -363,7 +363,10 @@ Session::constructor(*hash opts) {
         v = opts->getKeyValue("use_tty");
         if (!v.isNothing()) { use_tty = v.getAsBool(); }
         v = opts->getKeyValue("tty_path");
-        if (!v.isNothing()) { tty_path = v.get<QoreStringNode>()->c_str(); }
+        if (!v.isNothing()) {
+            QoreStringValueHelper str(v);
+            tty_path.assign(str->c_str(), str->size());
+        }
         v = opts->getKeyValue("unbuffered_stdio");
         if (!v.isNothing()) {
             unbuffered_stdio = v.getAsBool();
@@ -974,8 +977,8 @@ nothing Session::injectEvent(hash<InputEvent> ev) {
     NcursesCallGuard guard(session);
     if (type == NC_INPUT_CHAR) {
         if (!vch.isNothing()) {
-            QoreStringNode* s = vch.get<QoreStringNode>();
-            if (!s || !s->size()) {
+            QoreStringValueHelper s(vch);
+            if (!s->size()) {
                 return nothing();
             }
             const char* buf = s->c_str();
@@ -1030,8 +1033,8 @@ nothing Session::injectEvent(hash<InputEvent> ev) {
             xsink->raiseException("NCURSES-ERROR", "injectEvent(): missing 'ch' for Alt event");
             return nothing();
         }
-        QoreStringNode* s = vch.get<QoreStringNode>();
-        if (!s || !s->size()) {
+        QoreStringValueHelper s(vch);
+        if (!s->size()) {
             xsink->raiseException("NCURSES-ERROR", "injectEvent(): empty 'ch' for Alt event");
             return nothing();
         }
@@ -1092,8 +1095,8 @@ nothing Session::injectEvents(list<hash<InputEvent>> events) {
 
         if (type == NC_INPUT_CHAR) {
             if (!vch.isNothing()) {
-                QoreStringNode* s = vch.get<QoreStringNode>();
-                if (!s || !s->size()) {
+                QoreStringValueHelper s(vch);
+                if (!s->size()) {
                     continue;
                 }
                 const char* buf = s->c_str();
@@ -1143,8 +1146,8 @@ nothing Session::injectEvents(list<hash<InputEvent>> events) {
                 xsink->raiseException("NCURSES-ERROR", "injectEvents(): missing 'ch' for Alt event");
                 return nothing();
             }
-            QoreStringNode* s2 = vch.get<QoreStringNode>();
-            if (!s2 || !s2->size()) {
+            QoreStringValueHelper s2(vch);
+            if (!s2->size()) {
                 xsink->raiseException("NCURSES-ERROR", "injectEvents(): empty 'ch' for Alt event");
                 return nothing();
             }
