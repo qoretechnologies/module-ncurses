@@ -1,0 +1,18 @@
+#!/usr/bin/env qore
+%requires ncurses
+%requires NcursesUi
+%requires QUnit
+%modern
+
+%include "test/TestHarness.qc"
+
+# 5 panels in sequence
+{
+    NcursesUi::TestHarness th(24, 80);
+    on_exit th.close();
+    for (int i = 0; i < 5; ++i) {
+        Ncurses::Panel p(th.session(), 5, 20, 0, 0);
+    }
+}
+
+stderr.printf("done\n");

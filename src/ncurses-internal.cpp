@@ -3,13 +3,132 @@
 
 #include <assert.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <stdlib.h>
+#include <sys/select.h>
+#include <unistd.h>
+
+#include <thread>
+
+// libpanel allocates a per-SCREEN "pseudo panel" the first time new_panel() is
+// called and only frees it when libpanel was built with NO_LEAKS — which is
+// off in distro/macports builds. We free it ourselves before delscreen() by
+// reaching into the panel hook. Layout matches ncurses' `struct panelhook`
+// in include/nc_panel.h (stable since the panel layer was added).
+extern "C" {
+struct panelhook_compat {
+    struct panel* top_panel;
+    struct panel* bottom_panel;
+    struct panel* stdscr_pseudo_panel;
+    // optional NO_LEAKS field follows; we never read past the third pointer.
+};
+extern struct panelhook_compat* _nc_panelhook_sp(SCREEN*);
+}
+
 QoreRecursiveThreadLock ncurses_lock;
+
+// Background reader for an NcursesTestTerminal's master PTY. Without it, the
+// kernel's PTY output queue (small on macOS, ~1-4 KB) fills up after a few
+// ncurses writes from the slave side and any further write — including the
+// implicit tcsetattr(TCSADRAIN) inside endwin() — blocks forever. Linux's
+// queue is typically large enough for short tests to run to completion
+// without a reader, which is why CI passes on Linux but not macOS.
+class NcursesTestTerminalDrain {
+public:
+    NcursesTestTerminalDrain(int master_fd) : master_fd(master_fd) {
+        if (pipe(wake_pipe) != 0) {
+            wake_pipe[0] = wake_pipe[1] = -1;
+            return;
+        }
+        thr = std::thread(&NcursesTestTerminalDrain::run, this);
+    }
+
+    ~NcursesTestTerminalDrain() {
+        stop();
+    }
+
+    void stop() {
+        if (thr.joinable()) {
+            if (wake_pipe[1] >= 0) {
+                char b = 0;
+                ssize_t r = ::write(wake_pipe[1], &b, 1);
+                (void)r;
+            }
+            thr.join();
+        }
+        if (wake_pipe[0] >= 0) {
+            ::close(wake_pipe[0]);
+            wake_pipe[0] = -1;
+        }
+        if (wake_pipe[1] >= 0) {
+            ::close(wake_pipe[1]);
+            wake_pipe[1] = -1;
+        }
+    }
+
+private:
+    int master_fd = -1;
+    int wake_pipe[2] = {-1, -1};
+    std::thread thr;
+
+    void run() {
+        char buf[4096];
+        while (true) {
+            fd_set rfds;
+            FD_ZERO(&rfds);
+            FD_SET(master_fd, &rfds);
+            FD_SET(wake_pipe[0], &rfds);
+            int maxfd = master_fd > wake_pipe[0] ? master_fd : wake_pipe[0];
+            int rc = select(maxfd + 1, &rfds, nullptr, nullptr, nullptr);
+            if (rc < 0) {
+                if (errno == EINTR) {
+                    continue;
+                }
+                return;
+            }
+            if (FD_ISSET(wake_pipe[0], &rfds)) {
+                return;
+            }
+            if (FD_ISSET(master_fd, &rfds)) {
+                ssize_t n = ::read(master_fd, buf, sizeof(buf));
+                if (n < 0 && errno == EINTR) {
+                    continue;
+                }
+                if (n <= 0) {
+                    return;
+                }
+            }
+        }
+    }
+};
 
 NcursesSession::NcursesSession() = default;
 
 NcursesSession::~NcursesSession() {
     close(nullptr);
+    // delscreen runs only in the dtor — by which time NcursesPanel and
+    // NcursesWindow holders that ref'd this session have been deref'd and
+    // destructed. Doing it here (and not in close()) lets a panel/window
+    // destructed after close() still safely call del_panel/delwin against
+    // a live SCREEN.
+    if (screen) {
+        AutoLocker al(ncurses_lock);
+        // Free libpanel's per-screen pseudo panel; otherwise it leaks one
+        // PANEL allocation per session that ever used a panel.
+        if (panelhook_compat* ph = _nc_panelhook_sp(screen)) {
+            if (ph->stdscr_pseudo_panel) {
+                del_panel(ph->stdscr_pseudo_panel);
+                ph->stdscr_pseudo_panel = nullptr;
+                ph->top_panel = nullptr;
+                ph->bottom_panel = nullptr;
+            }
+        }
+        if (!is_default) {
+            delscreen(screen);
+        }
+        screen = nullptr;
+        stdwin = nullptr;
+    }
 }
 
 void NcursesSession::close(ExceptionSink* xsink) {
@@ -20,10 +139,7 @@ void NcursesSession::close(ExceptionSink* xsink) {
     if (screen) {
         set_term(screen);
         endwin();
-        if (!is_default) {
-            delscreen(screen);
-        }
-        screen = nullptr;
+        // delscreen() is deferred to ~NcursesSession; see comment there.
     }
     if (in_file) {
         fclose(in_file);
@@ -33,7 +149,6 @@ void NcursesSession::close(ExceptionSink* xsink) {
         fclose(out_file);
         out_file = nullptr;
     }
-    stdwin = nullptr;
     cursor_win = nullptr;
     cursor_set = false;
     closed = true;
@@ -108,21 +223,28 @@ NcursesPanel::NcursesPanel(NcursesSession* s, PANEL* p, QoreObject* wobj) : sess
     if (session) {
         session->ref();
     }
+    // strong ref: the panel owns its window object; tRef() only tracks pointer
+    // existence and does not keep the QoreObject alive, which leaks any
+    // window object that has no other holder (e.g. created inline in the
+    // Panel(session, rows, cols, ...) constructor).
     if (window_obj) {
-        window_obj->tRef();
+        window_obj->ref();
     }
 }
 
 NcursesPanel::~NcursesPanel() {
-    if (session && panel) {
+    if (panel) {
         AutoLocker al(ncurses_lock);
-        if (session->screen) {
+        // del_panel only touches libpanel's internal state, not the SCREEN,
+        // so it is safe to call even after Session::close() has already run
+        // delscreen() — and required, otherwise the PANEL leaks.
+        if (session && session->screen) {
             set_term(session->screen);
-            del_panel(panel);
         }
+        del_panel(panel);
     }
     if (window_obj) {
-        window_obj->tDeref();
+        window_obj->deref(nullptr);
     }
     if (session) {
         session->deref(nullptr);
@@ -165,9 +287,15 @@ void NcursesTestTerminal::open(ExceptionSink* xsink) {
     }
     master_fd = mfd;
     slave_fd = sfd;
+    drain = new NcursesTestTerminalDrain(master_fd);
 }
 
 void NcursesTestTerminal::close(ExceptionSink* xsink) {
+    if (drain) {
+        drain->stop();
+        delete drain;
+        drain = nullptr;
+    }
     if (master_fd >= 0) {
         ::close(master_fd);
         master_fd = -1;

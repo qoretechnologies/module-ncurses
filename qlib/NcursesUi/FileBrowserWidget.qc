@@ -166,7 +166,13 @@ public class FileBrowserWidget inherits NcursesUi::PanelWidget {
         string prev = dir_history.last();
         splice dir_history, dir_history.size() - 1, 1;
         if (is_dir(prev)) {
-            current_dir = realpath(prev);
+            # use the popped path verbatim — it was already canonical when
+            # it was pushed (either as user input at construction or the
+            # realpath() result inside navigateTo). Re-resolving here would
+            # convert e.g. /tmp into /private/tmp on macOS and so the path
+            # returned by getCurrentDir() would change form across a
+            # navigateTo/navigateBack round-trip.
+            current_dir = prev;
             updateTitle();
             clearPreview();
             focused_pane = 0;

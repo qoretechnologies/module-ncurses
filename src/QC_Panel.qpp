@@ -120,6 +120,8 @@ Panel::constructor(Qore::Ncurses::Session[NcursesSession] session, int rows, int
     }
     QoreObject* wobj = new QoreObject(QC_WINDOW, getProgram(), new NcursesWindow(*session, w, true));
     self->setPrivate(CID_PANEL, new NcursesPanel(*session, p, wobj));
+    // NcursesPanel takes its own strong ref; release the +1 from new QoreObject
+    wobj->deref(xsink);
 }
 
 //! Shows the panel

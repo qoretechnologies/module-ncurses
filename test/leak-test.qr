@@ -1,0 +1,50 @@
+#!/usr/bin/env qore
+# Stress test for NcursesTestTerminal drain thread lifecycle.
+# Run under: MallocStackLogging=1 leaks --atExit -- qore -b test/leak-test.qr
+%requires ncurses
+%requires NcursesUi
+%requires QUnit
+%modern
+
+%include "test/TestHarness.qc"
+
+const ITERATIONS = 20;
+
+# 1) construct + destruct (no explicit close); covers the destructor path
+for (int i = 0; i < ITERATIONS; ++i) {
+    NcursesUi::TestHarness th(24, 80);
+    th.session().screen().drawText(0, 0, sprintf("dtor %d", i), {});
+    th.session().doupdate();
+    # th goes out of scope -> dtor closes session and terminal+drain
+}
+
+# 2) explicit close path with drawing — exercises every drain wakeup
+for (int i = 0; i < ITERATIONS; ++i) {
+    NcursesUi::TestHarness th(24, 80);
+    on_exit th.close();
+
+    NcursesUi::CheckboxWidget cb(sprintf("Iter %d", i));
+    cb.setFrame(NcursesUi::Geometry::makeRect(0, 0, 1, 30));
+    cb.draw(th.session().screen());
+    th.session().doupdate();
+    cb.toggle();
+    cb.draw(th.session().screen());
+    th.session().doupdate();
+}
+
+# 3) bare TestTerminal without a Session — drain still spins up and tears down
+for (int i = 0; i < ITERATIONS; ++i) {
+    Ncurses::TestTerminal tt(24, 80, "xterm-256color");
+    tt.open();
+    tt.close();
+}
+
+# 4) double-close should be idempotent
+{
+    Ncurses::TestTerminal tt(24, 80, "xterm-256color");
+    tt.open();
+    tt.close();
+    tt.close();
+}
+
+stderr.printf("leak-test done; pid=%d\n", getpid());

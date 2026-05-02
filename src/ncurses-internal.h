@@ -110,6 +110,8 @@ public:
     void checkOpen(ExceptionSink* xsink) const;
 };
 
+class NcursesTestTerminalDrain;
+
 class NcursesTestTerminal : public AbstractPrivateData {
 public:
     int master_fd = -1;
@@ -117,6 +119,9 @@ public:
     int rows = 24;
     int cols = 80;
     QoreString term;
+    // background drainer keeps the master PTY output queue empty so writes
+    // from ncurses (doupdate, endwin, etc.) on the slave side never block
+    NcursesTestTerminalDrain* drain = nullptr;
 
     NcursesTestTerminal(int r, int c, const QoreString* t);
     ~NcursesTestTerminal();
