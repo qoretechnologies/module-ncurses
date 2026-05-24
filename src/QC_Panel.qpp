@@ -70,7 +70,7 @@ qclass Panel [dom=TERMINAL_IO; arg=NcursesPanel* panel; ns=Qore::Ncurses];
 
     @since %ncurses 2.0
 */
-Panel::constructor(Qore::Ncurses::Window[NcursesWindow] window) {
+Panel::constructor(Qore::Ncurses::Window[NcursesWindow] window) [flags=NAMED_ARGS] {
     if (*xsink) {
         return;
     }
@@ -98,7 +98,7 @@ Panel::constructor(Qore::Ncurses::Window[NcursesWindow] window) {
 
     @since %ncurses 2.0
 */
-Panel::constructor(Qore::Ncurses::Session[NcursesSession] session, int rows, int cols, int y, int x) {
+Panel::constructor(Qore::Ncurses::Session[NcursesSession] session, int rows, int cols, int y, int x) [flags=NAMED_ARGS] {
     if (*xsink) {
         return;
     }
@@ -187,7 +187,7 @@ nothing Panel::bottom() {
 
     @since %ncurses 2.0
 */
-nothing Panel::move(int y, int x) {
+nothing Panel::move(int y, int x) [flags=NAMED_ARGS] {
     panel->checkOpen(xsink);
     if (*xsink) {
         return nothing();
@@ -233,7 +233,7 @@ Window Panel::window() {
 
     @since %ncurses 2.0
 */
-nothing Panel::setWrapMode(enum<WrapMode> mode) {
+nothing Panel::setWrapMode(enum<WrapMode> mode) [flags=NAMED_ARGS] {
     panel->checkOpen(xsink);
     if (*xsink) {
         return nothing();

@@ -304,7 +304,7 @@ qclass Session [dom=TERMINAL_IO; arg=NcursesSession* session; ns=Qore::Ncurses];
 
 //! Creates a new session
 /**
-    @param opts optional hash of options:
+    @param options optional hash of options:
     - \c echo (bool, default false)
     - \c raw (bool, default false)
     - \c cbreak (bool, default true)
@@ -322,7 +322,7 @@ qclass Session [dom=TERMINAL_IO; arg=NcursesSession* session; ns=Qore::Ncurses];
 
     @since %ncurses 2.0
 */
-Session::constructor(*hash opts) {
+Session::constructor(*hash options) [flags=NAMED_ARGS] {
     NcursesSession* s = new NcursesSession();
 
     bool echo_on = false;
@@ -340,39 +340,39 @@ Session::constructor(*hash opts) {
     std::string tty_path = "/dev/tty";
 
     ReferenceHolder<NcursesTestTerminal> tterm_holder(nullptr, xsink);
-    if (opts) {
+    if (options) {
         QoreValue v;
-        v = opts->getKeyValue("echo");
+        v = options->getKeyValue("echo");
         if (!v.isNothing()) { echo_on = v.getAsBool(); }
-        v = opts->getKeyValue("raw");
+        v = options->getKeyValue("raw");
         if (!v.isNothing()) { raw_on = v.getAsBool(); }
-        v = opts->getKeyValue("cbreak");
+        v = options->getKeyValue("cbreak");
         if (!v.isNothing()) { cbreak_on = v.getAsBool(); }
-        v = opts->getKeyValue("keypad");
+        v = options->getKeyValue("keypad");
         if (!v.isNothing()) { keypad_on = v.getAsBool(); }
-        v = opts->getKeyValue("mouse");
+        v = options->getKeyValue("mouse");
         if (!v.isNothing()) { mouse_on = v.getAsBool(); }
-        v = opts->getKeyValue("use_colors");
+        v = options->getKeyValue("use_colors");
         if (!v.isNothing()) { colors_on = v.getAsBool(); }
-        v = opts->getKeyValue("use_default_colors");
+        v = options->getKeyValue("use_default_colors");
         if (!v.isNothing()) { default_colors_on = v.getAsBool(); }
-        v = opts->getKeyValue("cursor");
+        v = options->getKeyValue("cursor");
         if (!v.isNothing()) { cursor = v.getAsBigInt(); }
-        v = opts->getKeyValue("esc_delay");
+        v = options->getKeyValue("esc_delay");
         if (!v.isNothing()) { esc_delay = v.getAsBigInt(); }
-        v = opts->getKeyValue("use_tty");
+        v = options->getKeyValue("use_tty");
         if (!v.isNothing()) { use_tty = v.getAsBool(); }
-        v = opts->getKeyValue("tty_path");
+        v = options->getKeyValue("tty_path");
         if (!v.isNothing()) {
             QoreStringValueHelper str(v);
             tty_path.assign(str->c_str(), str->size());
         }
-        v = opts->getKeyValue("unbuffered_stdio");
+        v = options->getKeyValue("unbuffered_stdio");
         if (!v.isNothing()) {
             unbuffered_stdio = v.getAsBool();
             unbuffered_stdio_set = true;
         }
-        v = opts->getKeyValue("test_terminal");
+        v = options->getKeyValue("test_terminal");
         if (!v.isNothing() && v.getType() == NT_OBJECT) {
             QoreObject* obj = v.get<QoreObject>();
             TryPrivateDataRefHolder<NcursesTestTerminal> t(obj, CID_TESTTERMINAL, xsink);
@@ -510,7 +510,7 @@ Session::constructor(*hash opts) {
 
     @since %ncurses 2.0
 */
-nothing Session::setMouse(bool enabled) {
+nothing Session::setMouse(bool enabled) [flags=NAMED_ARGS] {
     session->checkOpen(xsink);
     if (*xsink) {
         return nothing();
@@ -526,7 +526,7 @@ nothing Session::setMouse(bool enabled) {
 
     @since %ncurses 2.0
 */
-nothing Session::redirectStdout(File[File] file) {
+nothing Session::redirectStdout(File[File] file) [flags=NAMED_ARGS] {
     if (*xsink) {
         return nothing();
     }
@@ -560,7 +560,7 @@ nothing Session::redirectStdout(File[File] file) {
 
     @since %ncurses 2.0
 */
-nothing Session::redirectStderr(File[File] file) {
+nothing Session::redirectStderr(File[File] file) [flags=NAMED_ARGS] {
     if (*xsink) {
         return nothing();
     }
@@ -640,19 +640,18 @@ Window Session::screen() {
 
     @since %ncurses 2.1
 */
-list<string> Session::snapshot(*int y, *int rows, *int cols) {
+list<string> Session::snapshot(*int y, *int rows, *int cols) [flags=NAMED_ARGS] {
     session->checkOpen(xsink);
     if (*xsink) {
         return nothing();
     }
-    size_t argc = args ? args->size() : 0;
-    while (argc > 0 && args->retrieveEntry(argc - 1).isNothing()) {
-        --argc;
-    }
+    bool has_y = args && args->size() > 0 && !args->retrieveEntry(0).isNothing();
+    bool has_rows = args && args->size() > 1 && !args->retrieveEntry(1).isNothing();
+    bool has_cols = args && args->size() > 2 && !args->retrieveEntry(2).isNothing();
 
-    int start_y = argc > 0 ? y : 0;
-    int max_rows = argc > 1 ? rows : -1;
-    int max_cols = argc > 2 ? cols : -1;
+    int start_y = has_y ? y : 0;
+    int max_rows = has_rows ? rows : -1;
+    int max_cols = has_cols ? cols : -1;
 
     NcursesCallGuard guard(session);
     int total_rows = 0;
@@ -703,7 +702,7 @@ bool Session::supportsColor() {
 
     @since %ncurses 2.0
 */
-nothing Session::setCursor(int visibility) {
+nothing Session::setCursor(int visibility) [flags=NAMED_ARGS] {
     session->checkOpen(xsink);
     if (*xsink) {
         return nothing();
@@ -715,26 +714,26 @@ nothing Session::setCursor(int visibility) {
 
 //! Sets the escape sequence delay
 /**
-    @param ms delay in milliseconds (values < 0 are treated as 0)
+    @param delay_ms delay in milliseconds (values < 0 are treated as 0)
     @return previous delay value if available, otherwise 0
 
     @since %ncurses 2.0
 */
-int Session::setEscDelay(int ms) {
+int Session::setEscDelay(int delay_ms) [flags=NAMED_ARGS] {
     session->checkOpen(xsink);
     if (*xsink) {
         return 0;
     }
-    if (ms < 0) {
-        ms = 0;
+    if (delay_ms < 0) {
+        delay_ms = 0;
     }
     NcursesCallGuard guard(session);
 #ifdef NCURSES_VERSION
-    return set_escdelay(ms);
+    return set_escdelay(delay_ms);
 #else
 #ifdef ESCDELAY
     int old = ESCDELAY;
-    ESCDELAY = ms;
+    ESCDELAY = delay_ms;
     return old;
 #else
     return 0;
@@ -777,9 +776,9 @@ bool Session::canChangeColor() {
 //! Redefines a color slot with custom RGB values
 /**
     @param color the color number to redefine (0 to @ref maxColors() - 1)
-    @param r red component (0-1000)
-    @param g green component (0-1000)
-    @param b blue component (0-1000)
+    @param red red component (0-1000)
+    @param green green component (0-1000)
+    @param blue blue component (0-1000)
 
     @throw NCURSES-ERROR if the terminal does not support color redefinition or the color number is out of range
 
@@ -787,7 +786,7 @@ bool Session::canChangeColor() {
 
     @since %ncurses 2.1
 */
-nothing Session::initColor(int color, int r, int g, int b) {
+nothing Session::initColor(int color, int red, int green, int blue) [flags=NAMED_ARGS] {
     session->checkOpen(xsink);
     if (*xsink) {
         return nothing();
@@ -801,11 +800,11 @@ nothing Session::initColor(int color, int r, int g, int b) {
         xsink->raiseException("NCURSES-ERROR", "color number %d out of range (0-%d)", (int)color, COLORS - 1);
         return nothing();
     }
-    if (r < 0 || r > 1000 || g < 0 || g > 1000 || b < 0 || b > 1000) {
+    if (red < 0 || red > 1000 || green < 0 || green > 1000 || blue < 0 || blue > 1000) {
         xsink->raiseException("NCURSES-ERROR", "RGB values must be in range 0-1000");
         return nothing();
     }
-    if (init_color(color, r, g, b) != OK) {
+    if (init_color(color, red, green, blue) != OK) {
         xsink->raiseException("NCURSES-ERROR", "init_color() failed for color %d", (int)color);
     }
     return nothing();
@@ -890,24 +889,24 @@ nothing Session::flash() {
 
 //! Executes a callback with the ncurses lock held
 /**
-    @param cb callable (closure or call reference)
-    @param cb_args optional list of arguments
+    @param callback callable (closure or call reference)
+    @param callback_args optional list of arguments
 
     @return the callback result
 
     @since %ncurses 2.0
 */
-auto Session::withLock(code cb, *list cb_args) {
+auto Session::withLock(code callback, *list callback_args) [flags=NAMED_ARGS] {
     session->checkOpen(xsink);
     if (*xsink) {
         return nothing();
     }
     NcursesCallGuard guard(session);
-    ReferenceHolder<ResolvedCallReferenceNode> holder(cb->refRefSelf(), xsink);
+    ReferenceHolder<ResolvedCallReferenceNode> holder(callback->refRefSelf(), xsink);
     if (*xsink) {
         return nothing();
     }
-    QoreListNode* arg_list = cb_args ? const_cast<QoreListNode*>(cb_args) : nullptr;
+    QoreListNode* arg_list = callback_args ? const_cast<QoreListNode*>(callback_args) : nullptr;
     return holder->execValue(arg_list, xsink);
 }
 
@@ -917,7 +916,7 @@ auto Session::withLock(code cb, *list cb_args) {
 
     @since %ncurses 2.0
 */
-nothing Session::injectInput(string data) {
+nothing Session::injectInput(string data) [flags=NAMED_ARGS] {
     session->checkOpen(xsink);
     if (*xsink) {
         return nothing();
@@ -936,7 +935,7 @@ nothing Session::injectInput(string data) {
 
 //! Injects a single input event into the ncurses input queue
 /**
-    @param ev input event hash (type + payload)
+    @param event input event hash (type + payload)
     - type (int) one of @ref InputType values
     - code (int) for Key or Char events
     - ch (string) for Char events
@@ -944,25 +943,25 @@ nothing Session::injectInput(string data) {
 
     @since %ncurses 2.1
 */
-nothing Session::injectEvent(hash<InputEvent> ev) {
+nothing Session::injectEvent(hash<InputEvent> event) [flags=NAMED_ARGS] {
     session->checkOpen(xsink);
     if (*xsink) {
         return nothing();
     }
-    if (!ev) {
+    if (!event) {
         return nothing();
     }
     int type = NC_INPUT_CHAR;
     bool type_set = false;
-    QoreValue vtype = ev->getKeyValue("type");
+    QoreValue vtype = event->getKeyValue("type");
     if (!vtype.isNothing()) {
         type = vtype.getAsBigInt();
         type_set = true;
     }
 
-    QoreValue vcode = ev->getKeyValue("code");
-    QoreValue vch = ev->getKeyValue("ch");
-    QoreValue vmouse = ev->getKeyValue("mouse");
+    QoreValue vcode = event->getKeyValue("code");
+    QoreValue vch = event->getKeyValue("ch");
+    QoreValue vmouse = event->getKeyValue("mouse");
 
     if (!type_set) {
         if (!vmouse.isNothing()) {
@@ -1054,7 +1053,7 @@ nothing Session::injectEvent(hash<InputEvent> ev) {
 
     @since %ncurses 2.1
 */
-nothing Session::injectEvents(list<hash<InputEvent>> events) {
+nothing Session::injectEvents(list<hash<InputEvent>> events) [flags=NAMED_ARGS] {
     session->checkOpen(xsink);
     if (*xsink) {
         return nothing();

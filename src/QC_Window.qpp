@@ -76,7 +76,7 @@ qclass Window [dom=TERMINAL_IO; arg=NcursesWindow* win; ns=Qore::Ncurses];
 
     @since %ncurses 2.0
 */
-Window::constructor(Qore::Ncurses::Session[NcursesSession] session, int rows, int cols, int y, int x) {
+Window::constructor(Qore::Ncurses::Session[NcursesSession] session, int rows, int cols, int y, int x) [flags=NAMED_ARGS] {
     if (*xsink) {
         return;
     }
@@ -156,7 +156,7 @@ nothing Window::noutrefresh() {
 
     @since %ncurses 2.0
 */
-nothing Window::moveCursor(int y, int x) {
+nothing Window::moveCursor(int y, int x) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);
     if (*xsink) {
         return nothing();
@@ -246,7 +246,7 @@ hash<Position> Window::position() {
 
     @since %ncurses 2.0
 */
-nothing Window::drawText(int y, int x, string text, *hash style) {
+nothing Window::drawText(int y, int x, string text, *hash style) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);
     if (*xsink) {
         return nothing();
@@ -284,7 +284,7 @@ nothing Window::drawText(int y, int x, string text, *hash style) {
 
     @since %ncurses 2.0
 */
-nothing Window::drawTextClipped(int y, int x, string text, *hash style) {
+nothing Window::drawTextClipped(int y, int x, string text, *hash style) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);
     if (*xsink) {
         return nothing();
@@ -348,7 +348,7 @@ nothing Window::drawTextClipped(int y, int x, string text, *hash style) {
 
     @since %ncurses 2.0
 */
-nothing Window::drawTextInside(int y, int x, string text, *hash style) {
+nothing Window::drawTextInside(int y, int x, string text, *hash style) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);
     if (*xsink) {
         return nothing();
@@ -412,7 +412,7 @@ nothing Window::drawTextInside(int y, int x, string text, *hash style) {
 
     @since %ncurses 2.0
 */
-nothing Window::clearInsideLine(int y, *hash style) {
+nothing Window::clearInsideLine(int y, *hash style) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);
     if (*xsink) {
         return nothing();
@@ -455,7 +455,7 @@ nothing Window::clearInsideLine(int y, *hash style) {
 
     @since %ncurses 2.0
 */
-nothing Window::drawTextInsideLine(int y, string text, *hash style) {
+nothing Window::drawTextInsideLine(int y, string text, *hash style) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);
     if (*xsink) {
         return nothing();
@@ -507,7 +507,7 @@ nothing Window::drawTextInsideLine(int y, string text, *hash style) {
 
     @since %ncurses 2.0
 */
-nothing Window::drawAnsiText(int y, int x, string text, *hash style) {
+nothing Window::drawAnsiText(int y, int x, string text, *hash style) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);
     if (*xsink) {
         return nothing();
@@ -542,7 +542,7 @@ nothing Window::drawAnsiText(int y, int x, string text, *hash style) {
 
     @since %ncurses 2.0
 */
-nothing Window::drawAnsiTextInside(int y, int x, string text, *hash style) {
+nothing Window::drawAnsiTextInside(int y, int x, string text, *hash style) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);
     if (*xsink) {
         return nothing();
@@ -576,7 +576,7 @@ nothing Window::drawAnsiTextInside(int y, int x, string text, *hash style) {
 
     @since %ncurses 2.0
 */
-nothing Window::drawAnsiTextInsideLine(int y, string text, *hash style) {
+nothing Window::drawAnsiTextInsideLine(int y, string text, *hash style) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);
     if (*xsink) {
         return nothing();
@@ -608,7 +608,7 @@ nothing Window::drawAnsiTextInsideLine(int y, string text, *hash style) {
 
     @since %ncurses 2.0
 */
-nothing Window::setWrapMode(enum<WrapMode> mode) {
+nothing Window::setWrapMode(enum<WrapMode> mode) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);
     if (*xsink) {
         return nothing();
@@ -638,19 +638,19 @@ enum<WrapMode> Window::getWrapMode() [flags=CONSTANT] {
 
 //! Sets whether the cursor should be left in this window after refresh
 /**
-    @param on True to disable cursor positioning for this window
+    @param enabled True to disable cursor positioning for this window
 
     @since %ncurses 2.0
 */
-nothing Window::setLeaveOk(bool on) {
+nothing Window::setLeaveOk(bool enabled) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);
     if (*xsink) {
         return nothing();
     }
     NcursesCallGuard guard(win->session);
-    leaveok(win->win, on ? TRUE : FALSE);
-    win->leave_ok = on;
-    if (on && win->session && win->session->cursor_win == win->win) {
+    leaveok(win->win, enabled ? TRUE : FALSE);
+    win->leave_ok = enabled;
+    if (enabled && win->session && win->session->cursor_win == win->win) {
         win->session->cursor_win = nullptr;
         win->session->cursor_set = false;
     }
@@ -680,18 +680,18 @@ hash<Position> Window::saveCursor() {
 
 //! Restores a previously saved cursor position
 /**
-    @param pos hash with keys \c y and \c x
+    @param position hash with keys \c y and \c x
 
     @since %ncurses 2.0
 */
-nothing Window::restoreCursor(hash pos) {
+nothing Window::restoreCursor(hash position) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);
     if (*xsink) {
         return nothing();
     }
     NcursesCallGuard guard(win->session);
-    int y = pos ? pos->getKeyValue("y").getAsBigInt() : 0;
-    int x = pos ? pos->getKeyValue("x").getAsBigInt() : 0;
+    int y = position ? position->getKeyValue("y").getAsBigInt() : 0;
+    int x = position ? position->getKeyValue("x").getAsBigInt() : 0;
     wmove(win->win, y, x);
     if (win->session && !win->leave_ok) {
         win->session->cursor_win = win->win;
@@ -711,7 +711,7 @@ nothing Window::restoreCursor(hash pos) {
 
     @since %ncurses 2.0
 */
-nothing Window::write(string text, *hash style) {
+nothing Window::write(string text, *hash style) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);
     if (*xsink) {
         return nothing();
@@ -739,12 +739,12 @@ nothing Window::write(string text, *hash style) {
     @param x left column
     @param rows height
     @param cols width
-    @param ch optional fill character
+    @param character optional fill character
     @param style optional style hash
 
     @since %ncurses 2.0
 */
-nothing Window::fillRect(int y, int x, int rows, int cols, *string ch, *hash style) {
+nothing Window::fillRect(int y, int x, int rows, int cols, *string character, *hash style) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);
     if (*xsink) {
         return nothing();
@@ -756,8 +756,8 @@ nothing Window::fillRect(int y, int x, int rows, int cols, *string ch, *hash sty
         return nothing();
     }
     chtype c = ' ';
-    if (ch && ch->size() > 0) {
-        c = static_cast<chtype>(ch->c_str()[0]);
+    if (character && character->size() > 0) {
+        c = static_cast<chtype>(character->c_str()[0]);
     }
     attr_t old_attr = 0;
     short old_pair = 0;
@@ -778,7 +778,7 @@ nothing Window::fillRect(int y, int x, int rows, int cols, *string ch, *hash sty
 
     @since %ncurses 2.0
 */
-nothing Window::box(*hash style) {
+nothing Window::box(*hash style) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);
     if (*xsink) {
         return nothing();
@@ -799,19 +799,21 @@ nothing Window::box(*hash style) {
 
 //! Draws a border with optional characters
 /**
-    @param ls left side character
-    @param rs right side character
-    @param ts top side character
-    @param bs bottom side character
-    @param tl top-left corner character
-    @param tr top-right corner character
-    @param bl bottom-left corner character
-    @param br bottom-right corner character
+    @param left_side left side character
+    @param right_side right side character
+    @param top_side top side character
+    @param bottom_side bottom side character
+    @param top_left top-left corner character
+    @param top_right top-right corner character
+    @param bottom_left bottom-left corner character
+    @param bottom_right bottom-right corner character
     @param style optional style hash
 
     @since %ncurses 2.0
 */
-nothing Window::border(*string ls, *string rs, *string ts, *string bs, *string tl, *string tr, *string bl, *string br, *hash style) {
+nothing Window::border(*string left_side, *string right_side, *string top_side, *string bottom_side,
+        *string top_left, *string top_right, *string bottom_left, *string bottom_right,
+        *hash style) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);
     if (*xsink) {
         return nothing();
@@ -822,14 +824,14 @@ nothing Window::border(*string ls, *string rs, *string ts, *string bs, *string t
     if (*xsink) {
         return nothing();
     }
-    chtype l = ls && ls->size() ? ls->c_str()[0] : 0;
-    chtype r = rs && rs->size() ? rs->c_str()[0] : 0;
-    chtype t = ts && ts->size() ? ts->c_str()[0] : 0;
-    chtype b = bs && bs->size() ? bs->c_str()[0] : 0;
-    chtype tlc = tl && tl->size() ? tl->c_str()[0] : 0;
-    chtype trc = tr && tr->size() ? tr->c_str()[0] : 0;
-    chtype blc = bl && bl->size() ? bl->c_str()[0] : 0;
-    chtype brc = br && br->size() ? br->c_str()[0] : 0;
+    chtype l = left_side && left_side->size() ? left_side->c_str()[0] : 0;
+    chtype r = right_side && right_side->size() ? right_side->c_str()[0] : 0;
+    chtype t = top_side && top_side->size() ? top_side->c_str()[0] : 0;
+    chtype b = bottom_side && bottom_side->size() ? bottom_side->c_str()[0] : 0;
+    chtype tlc = top_left && top_left->size() ? top_left->c_str()[0] : 0;
+    chtype trc = top_right && top_right->size() ? top_right->c_str()[0] : 0;
+    chtype blc = bottom_left && bottom_left->size() ? bottom_left->c_str()[0] : 0;
+    chtype brc = bottom_right && bottom_right->size() ? bottom_right->c_str()[0] : 0;
     attr_t old_attr = 0;
     short old_pair = 0;
     applyStyle(win, spec, old_attr, old_pair, xsink);
@@ -845,13 +847,13 @@ nothing Window::border(*string ls, *string rs, *string ts, *string bs, *string t
 /**
     @param y row
     @param x column
-    @param len length
-    @param ch optional character
+    @param length length
+    @param character optional character
     @param style optional style hash
 
     @since %ncurses 2.0
 */
-nothing Window::drawHLine(int y, int x, int len, *string ch, *hash style) {
+nothing Window::drawHLine(int y, int x, int length, *string character, *hash style) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);
     if (*xsink) {
         return nothing();
@@ -862,14 +864,14 @@ nothing Window::drawHLine(int y, int x, int len, *string ch, *hash style) {
     if (*xsink) {
         return nothing();
     }
-    chtype c = ch && ch->size() ? ch->c_str()[0] : 0;
+    chtype c = character && character->size() ? character->c_str()[0] : 0;
     attr_t old_attr = 0;
     short old_pair = 0;
     applyStyle(win, spec, old_attr, old_pair, xsink);
     if (*xsink) {
         return nothing();
     }
-    mvwhline(win->win, y, x, c, len);
+    mvwhline(win->win, y, x, c, length);
     restoreStyle(win, old_attr, old_pair);
     return nothing();
 }
@@ -878,13 +880,13 @@ nothing Window::drawHLine(int y, int x, int len, *string ch, *hash style) {
 /**
     @param y row
     @param x column
-    @param len length
-    @param ch optional character
+    @param length length
+    @param character optional character
     @param style optional style hash
 
     @since %ncurses 2.0
 */
-nothing Window::drawVLine(int y, int x, int len, *string ch, *hash style) {
+nothing Window::drawVLine(int y, int x, int length, *string character, *hash style) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);
     if (*xsink) {
         return nothing();
@@ -895,14 +897,14 @@ nothing Window::drawVLine(int y, int x, int len, *string ch, *hash style) {
     if (*xsink) {
         return nothing();
     }
-    chtype c = ch && ch->size() ? ch->c_str()[0] : 0;
+    chtype c = character && character->size() ? character->c_str()[0] : 0;
     attr_t old_attr = 0;
     short old_pair = 0;
     applyStyle(win, spec, old_attr, old_pair, xsink);
     if (*xsink) {
         return nothing();
     }
-    mvwvline(win->win, y, x, c, len);
+    mvwvline(win->win, y, x, c, length);
     restoreStyle(win, old_attr, old_pair);
     return nothing();
 }
@@ -911,12 +913,12 @@ nothing Window::drawVLine(int y, int x, int len, *string ch, *hash style) {
 /**
     @param y row
     @param x column
-    @param ch character
+    @param character character
     @param style optional style hash
 
     @since %ncurses 2.0
 */
-nothing Window::addChar(int y, int x, string ch, *hash style) {
+nothing Window::addChar(int y, int x, string character, *hash style) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);
     if (*xsink) {
         return nothing();
@@ -927,7 +929,7 @@ nothing Window::addChar(int y, int x, string ch, *hash style) {
     if (*xsink) {
         return nothing();
     }
-    if (!ch || !ch->size()) {
+    if (!character || !character->size()) {
         return nothing();
     }
     attr_t old_attr = 0;
@@ -936,7 +938,7 @@ nothing Window::addChar(int y, int x, string ch, *hash style) {
     if (*xsink) {
         return nothing();
     }
-    mvwaddch(win->win, y, x, ch->c_str()[0]);
+    mvwaddch(win->win, y, x, character->c_str()[0]);
     restoreStyle(win, old_attr, old_pair);
     return nothing();
 }
@@ -948,7 +950,7 @@ nothing Window::addChar(int y, int x, string ch, *hash style) {
 
     @since %ncurses 2.0
 */
-nothing Window::move(int y, int x) {
+nothing Window::move(int y, int x) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);
     if (*xsink) {
         return nothing();
@@ -965,7 +967,7 @@ nothing Window::move(int y, int x) {
 
     @since %ncurses 2.0
 */
-nothing Window::resize(int rows, int cols) {
+nothing Window::resize(int rows, int cols) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);
     if (*xsink) {
         return nothing();
@@ -984,7 +986,7 @@ nothing Window::resize(int rows, int cols) {
 
     @since %ncurses 2.0
 */
-nothing Window::clearLine(int y, *hash style) {
+nothing Window::clearLine(int y, *hash style) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);
     if (*xsink) {
         return nothing();
@@ -1009,17 +1011,17 @@ nothing Window::clearLine(int y, *hash style) {
 
 //! Scrolls the window
 /**
-    @param n number of lines to scroll
+    @param lines number of lines to scroll
 
     @since %ncurses 2.0
 */
-nothing Window::scroll(int n) {
+nothing Window::scroll(int lines) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);
     if (*xsink) {
         return nothing();
     }
     NcursesCallGuard guard(win->session);
-    wscrl(win->win, n);
+    wscrl(win->win, lines);
     return nothing();
 }
 
@@ -1029,7 +1031,7 @@ nothing Window::scroll(int n) {
 
     @since %ncurses 2.0
 */
-nothing Window::enableScroll(bool enabled) {
+nothing Window::enableScroll(bool enabled) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);
     if (*xsink) {
         return nothing();
@@ -1045,7 +1047,7 @@ nothing Window::enableScroll(bool enabled) {
 
     @since %ncurses 2.0
 */
-nothing Window::enableKeypad(bool enabled) {
+nothing Window::enableKeypad(bool enabled) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);
     if (*xsink) {
         return nothing();
@@ -1059,23 +1061,23 @@ nothing Window::enableKeypad(bool enabled) {
 /**
     @param y row
     @param x column
-    @param len length
+    @param length length
 
     @since %ncurses 2.0
 */
-string Window::readText(int y, int x, int len) {
+string Window::readText(int y, int x, int length) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);
     if (*xsink) {
         return nothing;
     }
     NcursesCallGuard guard(win->session);
-    if (len <= 0) {
+    if (length <= 0) {
         return new QoreStringNode();
     }
     std::string buf;
-    buf.resize(len + 1);
-    mvwinnstr(win->win, y, x, &buf[0], len);
-    buf[len] = 0;
+    buf.resize(length + 1);
+    mvwinnstr(win->win, y, x, &buf[0], length);
+    buf[length] = 0;
     return new QoreStringNode(buf.c_str(), QCS_UTF8);
 }
 
@@ -1089,19 +1091,18 @@ string Window::readText(int y, int x, int len) {
 
     @since %ncurses 2.1
 */
-list<string> Window::readLines(*int y, *int rows, *int cols) {
+list<string> Window::readLines(*int y, *int rows, *int cols) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);
     if (*xsink) {
         return nothing;
     }
-    size_t argc = args ? args->size() : 0;
-    while (argc > 0 && args->retrieveEntry(argc - 1).isNothing()) {
-        --argc;
-    }
+    bool has_y = args && args->size() > 0 && !args->retrieveEntry(0).isNothing();
+    bool has_rows = args && args->size() > 1 && !args->retrieveEntry(1).isNothing();
+    bool has_cols = args && args->size() > 2 && !args->retrieveEntry(2).isNothing();
 
-    int start_y = argc > 0 ? y : 0;
-    int max_rows = argc > 1 ? rows : -1;
-    int max_cols = argc > 2 ? cols : -1;
+    int start_y = has_y ? y : 0;
+    int max_rows = has_rows ? rows : -1;
+    int max_cols = has_cols ? cols : -1;
 
     NcursesCallGuard guard(win->session);
     int total_rows = 0;
@@ -1147,7 +1148,7 @@ list<string> Window::readLines(*int y, *int rows, *int cols) {
 
     @since %ncurses 2.0
 */
-Window Window::subWindow(int rows, int cols, int y, int x) {
+Window Window::subWindow(int rows, int cols, int y, int x) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);
     if (*xsink) {
         return nothing();
@@ -1177,17 +1178,15 @@ Window Window::subWindow(int rows, int cols, int y, int x) {
 
     @since %ncurses 2.0
 */
-hash<InputEvent> Window::readEvent(*int timeout_ms, *int poll_ms) {
+hash<InputEvent> Window::readEvent(*int timeout_ms, *int poll_ms) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);
     if (*xsink) {
         return nothing();
     }
-    size_t argc = args ? args->size() : 0;
-    while (argc > 0 && args->retrieveEntry(argc - 1).isNothing()) {
-        --argc;
-    }
-    int timeout = argc > 0 ? timeout_ms : -1;
-    int poll = argc > 1 ? poll_ms : 25;
+    bool has_timeout = args && args->size() > 0 && !args->retrieveEntry(0).isNothing();
+    bool has_poll = args && args->size() > 1 && !args->retrieveEntry(1).isNothing();
+    int timeout = has_timeout ? timeout_ms : -1;
+    int poll = has_poll ? poll_ms : 25;
     if (poll <= 0) {
         xsink->raiseException("NCURSES-ERROR", "poll_ms must be > 0");
         return nothing();
@@ -1310,7 +1309,7 @@ hash<InputEvent> Window::readEvent(*int timeout_ms, *int poll_ms) {
 
     @since %ncurses 2.0
 */
-nothing Window::setBackground(*hash style) {
+nothing Window::setBackground(*hash style) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);
     if (*xsink) {
         return nothing();

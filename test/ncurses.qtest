@@ -28,6 +28,7 @@ class NcursesTest inherits Test {
         addTestCase("session use_tty unbuffered", \testUseTty());
         addTestCase("injectEvent Alt", \testInjectEventAlt());
         addTestCase("readEvent bare Esc", \testReadEventBareEsc());
+        addTestCase("named arguments", \testNamedArguments());
 
         set_return_value(main());
     }
@@ -451,5 +452,111 @@ class NcursesTest inherits Test {
             rethrow;
         }
         s2.close();
+    }
+
+    testNamedArguments() {
+        assertEq(3, Ncurses::Ansi::len(text: "abc"));
+        list<string> wrapped = Ncurses::Ansi::wrap(text: "alpha beta", width: 5,
+            mode: Ncurses::WrapMode::Word);
+        assertTrue(wrapped.size() >= 2);
+        assertEq("x", Ncurses::Ansi::parse(text: "x")[0].text);
+
+        Ncurses::TestTerminal tt = new Ncurses::TestTerminal(term_name: "xterm-256color", rows: 8, cols: 30);
+        tt.open();
+        tt.resize(cols: 32, rows: 8);
+        Ncurses::Session s = new Ncurses::Session(options: {
+            "test_terminal": tt,
+            "echo": False,
+            "raw": True,
+            "cbreak": False,
+            "keypad": True,
+            "mouse": False,
+            "use_colors": True,
+            "use_default_colors": True,
+            "cursor": 0
+        });
+        try {
+            s.setMouse(enabled: False);
+            s.setEscDelay(delay_ms: 25);
+            Ncurses::Window w = new Ncurses::Window(session: s, rows: 6, cols: 20, y: 0, x: 0);
+
+            w.clear();
+            w.drawText(y: 0, x: 0, text: "abc", style: {});
+            assertEq("abc", w.readText(y: 0, x: 0, length: 3));
+            w.drawTextClipped(y: 0, x: 1, text: "xy", style: {});
+            assertEq("axy", w.readText(y: 0, x: 0, length: 3));
+            w.fillRect(y: 1, x: 0, rows: 1, cols: 3, character: "*", style: {});
+            w.drawHLine(y: 2, x: 0, length: 3, character: "-", style: {});
+            w.drawVLine(y: 1, x: 5, length: 3, character: "|", style: {});
+            w.addChar(y: 3, x: 0, character: "Z", style: {});
+            w.moveCursor(y: 4, x: 0);
+            w.write(text: "w", style: {});
+            hash<Ncurses::Position> pos = w.saveCursor();
+            w.restoreCursor(position: pos);
+            w.setLeaveOk(enabled: True);
+            w.setWrapMode(mode: Ncurses::WrapMode::Hard);
+            w.enableScroll(enabled: True);
+            w.enableKeypad(enabled: True);
+            w.scroll(lines: 0);
+            w.clearLine(y: 5, style: {});
+            list<string> window_lines = w.readLines(cols: 5);
+            assertEq(6, window_lines.size());
+            assertEq(5, window_lines[0].length());
+
+            w.box(style: {});
+            w.border(left_side: "|", right_side: "|", top_side: "-", bottom_side: "-",
+                top_left: "+", top_right: "+", bottom_left: "+", bottom_right: "+", style: {});
+            w.drawTextInside(y: 0, x: 0, text: "I", style: {});
+            w.clearInsideLine(y: 1, style: {});
+            w.drawTextInsideLine(y: 1, text: "inside", style: {});
+            w.drawAnsiText(y: 4, x: 1, text: "plain", style: {});
+            w.drawAnsiTextInside(y: 2, x: 0, text: "ansi", style: {});
+            w.drawAnsiTextInsideLine(y: 3, text: "line", style: {});
+            w.setBackground(style: {});
+
+            Ncurses::Window sw = w.subWindow(rows: 1, cols: 5, y: 0, x: 0);
+            sw.write(text: "sub", style: {});
+            sw.refresh();
+
+            Ncurses::Window pane = new Ncurses::Window(session: s, rows: 3, cols: 10, y: 1, x: 1);
+            Ncurses::Panel p = new Ncurses::Panel(window: pane);
+            p.move(y: 2, x: 2);
+            p.setWrapMode(mode: Ncurses::WrapMode::Word);
+            p.show();
+            p.top();
+            p.update();
+            Ncurses::Panel p2 = new Ncurses::Panel(session: s, rows: 3, cols: 10, y: 1, x: 1);
+            p2.bottom();
+            p2.hide();
+
+            s.injectInput(data: "q");
+            auto ev = w.readEvent(poll_ms: 10, timeout_ms: 100);
+            assertTrue(exists ev);
+            assertEq("q", ev.ch);
+            hash<Ncurses::InputEvent> ev_r();
+            ev_r.type = Ncurses::InputType::Char;
+            ev_r.ch = "r";
+            s.injectEvent(event: ev_r);
+            ev = w.readEvent(timeout_ms: 100, poll_ms: 10);
+            assertTrue(exists ev);
+            assertEq("r", ev.ch);
+            hash<Ncurses::InputEvent> ev_s();
+            ev_s.type = Ncurses::InputType::Char;
+            ev_s.ch = "s";
+            list<hash<Ncurses::InputEvent>> events = (ev_s,);
+            s.injectEvents(events: events);
+            ev = w.readEvent(timeout_ms: 100, poll_ms: 10);
+            assertTrue(exists ev);
+            assertEq("s", ev.ch);
+
+            assertEq(5, s.withLock(callback: int sub (int a, int b) { return a + b; }, callback_args: (2, 3)));
+            list<string> screen_lines = s.snapshot(cols: 5);
+            assertEq(8, screen_lines.size());
+            assertEq(5, screen_lines[0].length());
+        } catch (hash<ExceptionInfo> ex) {
+            s.close();
+            rethrow;
+        }
+        s.close();
     }
 }
