@@ -39,7 +39,7 @@ qclass Ansi [dom=TERMINAL_IO; arg=void* na; ns=Qore::Ncurses];
 
     @since %ncurses 2.0
 */
-static list<hash> Ansi::parse(string text) [flags=CONSTANT] {
+static list<hash> Ansi::parse(string text) [flags=CONSTANT,NAMED_ARGS] {
     std::vector<AnsiSegment> segs;
     parseAnsiSegments(text, segs);
     ReferenceHolder<QoreListNode> list(new QoreListNode(autoTypeInfo), xsink);
@@ -71,7 +71,7 @@ static list<hash> Ansi::parse(string text) [flags=CONSTANT] {
 
     @since %ncurses 2.0
 */
-static int Ansi::len(string text) [flags=CONSTANT] {
+static int Ansi::len(string text) [flags=CONSTANT,NAMED_ARGS] {
     std::vector<AnsiSegment> segs;
     parseAnsiSegments(text, segs);
     int total = 0;
@@ -93,7 +93,7 @@ static int Ansi::len(string text) [flags=CONSTANT] {
 
     @since %ncurses 2.0
 */
-static list<string> Ansi::wrap(string text, int width, enum<WrapMode> mode = 2) [flags=CONSTANT] {
+static list<string> Ansi::wrap(string text, int width, enum<WrapMode> mode = 2) [flags=CONSTANT,NAMED_ARGS] {
     ReferenceHolder<QoreListNode> list(new QoreListNode(stringTypeInfo), xsink);
     if (width <= 0) {
         return list.release();

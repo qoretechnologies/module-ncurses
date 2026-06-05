@@ -73,7 +73,7 @@ qclass TestTerminal [dom=TERMINAL_IO; arg=NcursesTestTerminal* term; ns=Qore::Nc
 /**
     @param rows
     @param cols
-    @param term optional TERM value
+    @param term_name optional TERM value
 
     @since %ncurses 2.0
 */
@@ -81,18 +81,16 @@ qclass TestTerminal [dom=TERMINAL_IO; arg=NcursesTestTerminal* term; ns=Qore::Nc
 /**
     @param rows optional rows
     @param cols optional cols
-    @param term optional TERM value
+    @param term_name optional TERM value
 
     @since %ncurses 2.0
 */
-TestTerminal::constructor(*int rows, *int cols, *string term) {
-    size_t argc = args ? args->size() : 0;
-    while (argc > 0 && args->retrieveEntry(argc - 1).isNothing()) {
-        --argc;
-    }
-    int r = argc > 0 ? rows : 24;
-    int c = argc > 1 ? cols : 80;
-    self->setPrivate(CID_TESTTERMINAL, new NcursesTestTerminal(r, c, term));
+TestTerminal::constructor(*int rows, *int cols, *string term_name) [flags=NAMED_ARGS] {
+    bool has_rows = args && args->size() > 0 && !args->retrieveEntry(0).isNothing();
+    bool has_cols = args && args->size() > 1 && !args->retrieveEntry(1).isNothing();
+    int r = has_rows ? rows : 24;
+    int c = has_cols ? cols : 80;
+    self->setPrivate(CID_TESTTERMINAL, new NcursesTestTerminal(r, c, term_name));
 }
 
 //! Opens the pseudo-terminal
@@ -111,7 +109,7 @@ nothing TestTerminal::open() {
 
     @since %ncurses 2.0
 */
-nothing TestTerminal::resize(int rows, int cols) {
+nothing TestTerminal::resize(int rows, int cols) [flags=NAMED_ARGS] {
     term->resize(rows, cols, xsink);
     return nothing();
 }
@@ -122,7 +120,7 @@ nothing TestTerminal::resize(int rows, int cols) {
 
     @since %ncurses 2.0
 */
-nothing TestTerminal::writeInput(string data) {
+nothing TestTerminal::writeInput(string data) [flags=NAMED_ARGS] {
     term->writeInput(data, xsink);
     return nothing();
 }
