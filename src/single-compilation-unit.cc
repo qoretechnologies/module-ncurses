@@ -1,6 +1,0 @@
-#include "ncurses.cpp"
-#include "QC_Session.cpp"
-#include "QC_Window.cpp"
-#include "QC_Panel.cpp"
-#include "QC_Ansi.cpp"
-#include "QC_TestTerminal.cpp"
