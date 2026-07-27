@@ -133,9 +133,7 @@ public class RadioGroupWidget inherits NcursesUi::Widget {
             string text = indicator + " " + options[i];
 
             # truncate to fit
-            if (text.length() > cr.cols) {
-                text = text.substr(0, cr.cols);
-            }
+            text = TerminalText::clipRight(text, cr.cols);
 
             hash<auto> style;
             if (hasFocus() && i == highlight_index) {

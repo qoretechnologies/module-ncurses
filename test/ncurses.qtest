@@ -1,5 +1,7 @@
 #!/usr/bin/env qore
 
+%prepend-module-path "${SCRIPT_DIR}/../build"
+
 %requires ncurses
 %requires QUnit
 %requires Util
@@ -29,6 +31,8 @@ class NcursesTest inherits Test {
         addTestCase("injectEvent Alt", \testInjectEventAlt());
         addTestCase("readEvent bare Esc", \testReadEventBareEsc());
         addTestCase("named arguments", \testNamedArguments());
+        addTestCase("Unicode ANSI width and wrapping",
+            \testUnicodeAnsiWidthAndWrapping());
 
         set_return_value(main());
     }
@@ -558,5 +562,47 @@ class NcursesTest inherits Test {
             rethrow;
         }
         s.close();
+    }
+
+    testUnicodeAnsiWidthAndWrapping() {
+        string japanese = "ステップの例";
+        assertEq(12, Ncurses::Ansi::len(japanese),
+            "ANSI width uses terminal display columns");
+        assertEq(12, Ncurses::Ansi::len(
+                "\x1b[31m" + japanese + "\x1b[0m"),
+            "ANSI styling does not affect display width");
+
+        list<string> wrapped = Ncurses::Ansi::wrap(
+            japanese, 4, Ncurses::WrapMode::Hard);
+        assertEq(3, wrapped.size(),
+            "six double-width characters wrap into three four-column lines");
+        string reconstructed = "";
+        foreach string line in (wrapped) {
+            assertTrue(Ncurses::Ansi::len(line) <= 4,
+                "every Japanese line respects the column limit");
+            reconstructed += (map $1.text,
+                Ncurses::Ansi::parse(line)).join("");
+        }
+        assertEq(japanese, reconstructed,
+            "wrapping preserves every UTF-8 character");
+
+        string family = "👨‍👩‍👧‍👦";
+        wrapped = Ncurses::Ansi::wrap(
+            "A" + family + "B", char_width(family),
+            Ncurses::WrapMode::Hard);
+        list<string> plain = map (map $1.text,
+            Ncurses::Ansi::parse($1)).join(""), wrapped;
+        assertTrue(inlist(family, plain),
+            "wrapping does not split a joined emoji grapheme");
+
+        string combining = "éé";
+        wrapped = Ncurses::Ansi::wrap(
+            combining, 1, Ncurses::WrapMode::Hard);
+        assertEq(2, wrapped.size(),
+            "combining sequences wrap as complete graphemes");
+        foreach string line in (wrapped) {
+            assertEq(1, Ncurses::Ansi::len(line),
+                "combining-mark line occupies one column");
+        }
     }
 }

@@ -332,9 +332,7 @@ public class TableWidget inherits NcursesUi::Widget {
             if (cw <= 0) {
                 continue;
             }
-            if (header.length() > cw) {
-                header = header.substr(0, cw);
-            }
+            header = TerminalText::clipRight(header, cw);
             w.drawText(row, x, header, header_style);
             x += cw;
         }
@@ -354,10 +352,10 @@ public class TableWidget inherits NcursesUi::Widget {
             string cell_text = sprintf("%s", row_data{key} ?? "");
             string align = columns[i].align ?? "left";
 
-            if (cell_text.length() > cw) {
-                cell_text = cell_text.substr(0, cw);
-            } else if (align == "right" && cell_text.length() < cw) {
-                cell_text = strmul(" ", cw - cell_text.length()) + cell_text;
+            if (align == "right") {
+                cell_text = TerminalText::fitLeft(cell_text, cw);
+            } else {
+                cell_text = TerminalText::clipRight(cell_text, cw);
             }
 
             w.drawText(row, x, cell_text, style);

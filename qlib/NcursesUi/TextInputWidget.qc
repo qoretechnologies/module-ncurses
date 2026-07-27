@@ -145,7 +145,8 @@ public class TextInputWidget inherits NcursesUi::Widget {
 
         # prompt + text
         string full = prompt + buffer.getText();
-        int cursor_screen = prompt.length() + buffer.getCursor();
+        int cursor_screen = TerminalText::displayWidth(
+            prompt + buffer.getText().substr(0, buffer.getCursor()));
 
         # adjust scroll_x so cursor is visible
         if (cursor_screen < scroll_x) {
@@ -154,21 +155,9 @@ public class TextInputWidget inherits NcursesUi::Widget {
             scroll_x = cursor_screen - width + 1;
         }
 
-        # extract visible portion
-        string visible;
-        if (scroll_x < full.length()) {
-            visible = full.substr(scroll_x);
-        } else {
-            visible = "";
-        }
-        if (visible.length() > width) {
-            visible = visible.substr(0, width);
-        }
-
-        # pad to width
-        if (visible.length() < width) {
-            visible += strmul(" ", width - visible.length());
-        }
+        # Extract a display-column window; scroll_x is a column offset, not a
+        # character index.
+        string visible = TerminalText::columnSlice(full, scroll_x, width);
 
         hash<auto> style;
         if (hasFocus()) {

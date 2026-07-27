@@ -122,17 +122,19 @@ public class StatusBarWidget inherits NcursesUi::Widget {
         int left_pos = cr.x;
         for (int li = 0; li < left_segs.size(); ++li) {
             string text = left_segs[li].text ?? "";
-            if (left_pos + text.length() > cr.x + width) {
+            int text_width = TerminalText::displayWidth(text);
+            if (left_pos + text_width > cr.x + width) {
                 int avail = cr.x + width - left_pos;
                 if (avail > 0) {
-                    text = text.substr(0, avail);
+                    text = TerminalText::clipRight(text, avail);
+                    text_width = TerminalText::displayWidth(text);
                 } else {
                     break;
                 }
             }
             hash<auto> style = left_segs[li].style ?? bg_style;
             w.drawText(row, left_pos, text, style);
-            left_pos += text.length();
+            left_pos += text_width;
             # add spacing after each segment except the last
             if (li < left_segs.size() - 1) {
                 left_pos += segment_spacing;
@@ -146,13 +148,15 @@ public class StatusBarWidget inherits NcursesUi::Widget {
             string text = right_segs[i].text ?? "";
             # account for spacing before this segment (except the rightmost)
             int spacing = (i < right_segs.size() - 1) ? segment_spacing : 0;
-            int start = right_pos - spacing - text.length();
+            int text_width = TerminalText::displayWidth(text);
+            int start = right_pos - spacing - text_width;
             if (start < left_pos) {
                 # truncate from the left side of right text
                 int avail = right_pos - spacing - left_pos;
                 if (avail > 0) {
-                    text = text.substr(text.length() - avail);
-                    start = left_pos;
+                    text = TerminalText::clipLeft(text, avail);
+                    text_width = TerminalText::displayWidth(text);
+                    start = right_pos - spacing - text_width;
                 } else {
                     break;
                 }

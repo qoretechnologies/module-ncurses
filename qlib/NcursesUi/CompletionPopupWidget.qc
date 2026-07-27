@@ -159,11 +159,11 @@ public class CompletionPopupWidget inherits NcursesUi::PanelWidget {
         int max_label = 0;
         foreach hash<auto> item in (completion_items) {
             string label = item.label ?? "";
-            int item_width = label.length();
+            int item_width = TerminalText::displayWidth(label);
             # account for detail text (shown as " detail" after label)
             *string detail = item.detail;
             if (exists detail && detail != "") {
-                item_width += 1 + detail.length();
+                item_width += 1 + TerminalText::displayWidth(detail);
             }
             if (item_width > max_label) {
                 max_label = item_width;
@@ -234,43 +234,36 @@ public class CompletionPopupWidget inherits NcursesUi::PanelWidget {
             if (exists detail && detail != "") {
                 detail_part = " " + detail;
             }
-            int label_len = label_part.length();
-            int total_len = label_len + detail_part.length();
-
-            # pad to content width
-            string pad = "";
-            if (total_len < cr.cols) {
-                pad = strmul(" ", cr.cols - total_len);
-            }
-
             if (item_idx == highlight_index) {
                 # highlighted: draw entire line in highlight style
-                string line = label_part + detail_part + pad;
-                if (line.length() > cr.cols) {
-                    line = line.substr(0, cr.cols);
-                }
+                string line = TerminalText::fitRight(
+                    label_part + detail_part, cr.cols);
                 w.drawText(row, cr.x, line, highlight_style);
             } else {
+                string shown_label = TerminalText::clipRight(
+                    label_part, cr.cols);
+                int shown_label_width =
+                    TerminalText::displayWidth(shown_label);
                 # kind character in kind_style
                 w.drawText(row, cr.x, kind_ch, kind_style);
                 # label in default style
-                string label_rest = label_part.substr(1);
+                string label_rest = shown_label.substr(1);
                 w.drawText(row, cr.x + 1, label_rest);
                 # detail in dim style
-                if (detail_part != "") {
-                    int detail_col = cr.x + label_len;
+                int drawn = shown_label_width;
+                if (detail_part != "" && drawn < cr.cols) {
+                    int detail_col = cr.x + drawn;
                     # truncate if needed
-                    if (detail_col < cr.x + cr.cols) {
-                        int avail = cr.cols - label_len;
-                        string shown = detail_part.length() > avail
-                            ? detail_part.substr(0, avail) : detail_part;
-                        w.drawText(row, detail_col, shown, detail_style);
-                    }
+                    int avail = cr.cols - drawn;
+                    string shown = TerminalText::clipRight(
+                        detail_part, avail);
+                    w.drawText(row, detail_col, shown, detail_style);
+                    drawn += TerminalText::displayWidth(shown);
                 }
                 # pad remaining space
-                int drawn = label_len + detail_part.length();
                 if (drawn < cr.cols) {
-                    w.drawText(row, cr.x + drawn, pad);
+                    w.drawText(row, cr.x + drawn,
+                        strmul(" ", cr.cols - drawn));
                 }
             }
         }

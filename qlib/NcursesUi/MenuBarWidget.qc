@@ -183,7 +183,8 @@ public class MenuBarWidget inherits NcursesUi::Widget {
         hash<NcursesUi::Rect> cr = contentRect();
         int x_pos = cr.x;
         for (int i = 0; i < idx && i < menus.size(); ++i) {
-            x_pos += menus[i].label.length() + 2;  # " label "
+            x_pos += TerminalText::displayWidth(menus[i].label)
+                + 2;  # " label "
         }
         return x_pos;
     }
@@ -203,15 +204,20 @@ public class MenuBarWidget inherits NcursesUi::Widget {
         int x_pos = cr.x;
         for (int i = 0; i < menus.size(); ++i) {
             string mlabel = menus[i].label;
-            int full_len = mlabel.length() + 2;  # " label "
+            int full_len = TerminalText::displayWidth(mlabel) + 2;
             if (x_pos + full_len > cr.x + cr.cols) {
                 break;
             }
             hash<auto> style = (i == active_menu) ? active_style : bar_style;
             hash<auto> hk_style = style + {"attrs": (style.attrs ?? 0) | Ncurses::Attr::Underline};
             w.drawText(row, x_pos, " ", style);
-            w.drawText(row, x_pos + 1, mlabel.substr(0, 1), hk_style);
-            w.drawText(row, x_pos + 2, mlabel.substr(1) + " ", style);
+            list<string> graphemes = (mlabel =~ x/(\X)/g) ?? ();
+            string first = graphemes ? graphemes[0] : "";
+            int first_len = first.length();
+            int first_width = TerminalText::displayWidth(first);
+            w.drawText(row, x_pos + 1, first, hk_style);
+            w.drawText(row, x_pos + 1 + first_width,
+                mlabel.substr(first_len) + " ", style);
             x_pos += full_len;
         }
     }
@@ -300,7 +306,8 @@ public class MenuBarWidget inherits NcursesUi::Widget {
         string lower_ch = ch.lwr();
         for (int i = 0; i < menus.size(); ++i) {
             string label = menus[i].label ?? "";
-            if (label.size() > 0 && label.substr(0, 1).lwr() == lower_ch) {
+            list<string> graphemes = (label =~ x/(\X)/g) ?? ();
+            if (graphemes && graphemes[0].lwr() == lower_ch) {
                 openMenu(i);
                 return True;
             }
@@ -411,7 +418,8 @@ public class MenuBarWidget inherits NcursesUi::Widget {
         hash<NcursesUi::Rect> cr = contentRect();
         int x_pos = cr.x;
         for (int i = 0; i < menus.size(); ++i) {
-            int label_len = menus[i].label.length() + 2;
+            int label_len =
+                TerminalText::displayWidth(menus[i].label) + 2;
             if (mx >= x_pos && mx < x_pos + label_len) {
                 return i;
             }

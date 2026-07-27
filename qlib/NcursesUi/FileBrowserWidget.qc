@@ -628,9 +628,7 @@ public class FileBrowserWidget inherits NcursesUi::PanelWidget {
         hash<auto> text_style = {"fg": Ncurses::Color::White, "bg": Ncurses::Color::Blue,
             "attrs": Ncurses::Attr::Bold};
         string text = " " + status_text;
-        if (text.length() > width) {
-            text = text.substr(0, width);
-        }
+        text = TerminalText::clipRight(text, width);
         w.drawText(row, x, text, text_style);
     }
 

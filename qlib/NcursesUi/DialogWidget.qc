@@ -150,7 +150,7 @@ public class DialogWidget inherits NcursesUi::PanelWidget {
         # button row width (must match draw()'s total_btn_width calculation)
         int btn_width = 0;
         for (int i = 0; i < buttons.size(); ++i) {
-            btn_width += buttons[i].length() + 4;  # "[ label ]"
+            btn_width += TerminalText::displayWidth(buttons[i]) + 4;  # "[ label ]"
             if (i < buttons.size() - 1) {
                 btn_width += 1;  # space between buttons
             }
@@ -207,17 +207,20 @@ public class DialogWidget inherits NcursesUi::PanelWidget {
             string line = message_lines[i];
             int line_len = Ncurses::Ansi::len(line);
             if (line_len > usable_width) {
-                line = line.substr(0, usable_width);
-                line_len = usable_width;
+                list<string> clipped = Ncurses::Ansi::wrap(
+                    line, usable_width, Ncurses::WrapMode::Hard);
+                line = clipped ? clipped[0] : "";
+                line_len = Ncurses::Ansi::len(line);
             }
             int offset = max(0, (usable_width - line_len) / 2);
-            w.drawText(cr.y + pad_top + i, cr.x + pad_left + offset, line);
+            w.drawAnsiText(
+                cr.y + pad_top + i, cr.x + pad_left + offset, line);
         }
 
         # compute total button width for centering
         int total_btn_width = 0;
         for (int i = 0; i < buttons.size(); ++i) {
-            total_btn_width += buttons[i].length() + 4;  # "[ label ]"
+            total_btn_width += TerminalText::displayWidth(buttons[i]) + 4;  # "[ label ]"
             if (i < buttons.size() - 1) {
                 total_btn_width += 1;  # space between buttons
             }
@@ -231,14 +234,16 @@ public class DialogWidget inherits NcursesUi::PanelWidget {
         button_rects = ();
         for (int i = 0; i < buttons.size(); ++i) {
             string btn_text = "[ " + buttons[i] + " ]";
-            if (btn_x + btn_text.length() > cr.x + cr.cols) {
+            int btn_text_width = TerminalText::displayWidth(btn_text);
+            if (btn_x + btn_text_width > cr.x + cr.cols) {
                 break;
             }
             hash<auto> style = (i == focused_button) ? focused_button_style : button_style;
             w.drawText(btn_row, btn_x, btn_text, style);
             # store panel-local rect for mouse hit testing
-            button_rects += NcursesUi::Geometry::makeRect(btn_row, btn_x, 1, btn_text.length());
-            btn_x += btn_text.length() + 1;
+            button_rects += NcursesUi::Geometry::makeRect(
+                btn_row, btn_x, 1, btn_text_width);
+            btn_x += btn_text_width + 1;
         }
 
         # position cursor on focused button via absolute screen coordinates

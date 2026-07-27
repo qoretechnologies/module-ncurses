@@ -568,6 +568,7 @@ void drawAnsiText(NcursesWindow* w, int y, int x, bool inside, bool clear_line, 
         int fit_cols = 0;
         const char* p = t.c_str();
         const char* end = p + t.size();
+        size_t decoded = 0;
         while (p < end) {
             unsigned char c = static_cast<unsigned char>(*p);
             int char_bytes;
@@ -591,15 +592,17 @@ void drawAnsiText(NcursesWindow* w, int y, int x, bool inside, bool clear_line, 
             if (xsink && *xsink) {
                 return;
             }
-            if (ch_width <= 0) {
-                ch_width = 1;
-            }
             if (fit_cols + ch_width > remaining) {
                 break;
             }
             fit_cols += ch_width;
             fit_bytes += char_bytes;
             p += char_bytes;
+            if (++decoded % 100 == 0
+                    && qore_check_cancel(xsink,
+                        "drawing ANSI terminal text")) {
+                return;
+            }
         }
 
         if (fit_bytes <= 0) {

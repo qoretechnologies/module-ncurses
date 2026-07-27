@@ -225,11 +225,7 @@ public class ListWidget inherits NcursesUi::Widget {
                 }
 
                 # truncate/pad to width
-                if (text.length() > visible_cols) {
-                    text = text.substr(0, visible_cols);
-                } else if (text.length() < visible_cols) {
-                    text += strmul(" ", visible_cols - text.length());
-                }
+                text = TerminalText::fitRight(text, visible_cols);
 
                 hash<auto> style;
                 if (render_item_style) {

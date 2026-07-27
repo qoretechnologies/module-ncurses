@@ -261,7 +261,8 @@ public class PanelWidget inherits NcursesUi::Widget {
                 string decorated = " " + title + " ";
                 int title_x;
                 if (center_title) {
-                    title_x = max(2, (f.cols - decorated.length()) / 2);
+                    title_x = max(2, (f.cols
+                        - TerminalText::displayWidth(decorated)) / 2);
                 } else {
                     title_x = 2;
                 }
@@ -273,7 +274,7 @@ public class PanelWidget inherits NcursesUi::Widget {
             if (closable) {
                 hash<NcursesUi::Rect> f = getFrame();
                 string label = "[X]";
-                close_len = label.length();
+                close_len = TerminalText::displayWidth(label);
                 close_col = max(1, f.cols - close_len - 2);
                 win.drawText(0, close_col, label,
                     {"fg": Ncurses::Color::Red, "attrs": Ncurses::Attr::Bold});

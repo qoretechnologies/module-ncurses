@@ -154,12 +154,14 @@ public class DropdownMenuWidget inherits NcursesUi::PanelWidget {
                 continue;
             }
             string label = item.label ?? "";
-            if (label.length() > max_label) {
-                max_label = label.length();
+            int label_width = TerminalText::displayWidth(label);
+            if (label_width > max_label) {
+                max_label = label_width;
             }
             *string hotkey = item.hotkey;
-            if (exists hotkey && hotkey.length() > max_hotkey) {
-                max_hotkey = hotkey.length();
+            if (exists hotkey
+                    && TerminalText::displayWidth(hotkey) > max_hotkey) {
+                max_hotkey = TerminalText::displayWidth(hotkey);
             }
         }
 
@@ -218,37 +220,37 @@ public class DropdownMenuWidget inherits NcursesUi::PanelWidget {
 
             # find hotkey character position in label for underlining
             int hk_pos = -1;
+            int hk_len = 0;
+            int hk_col = -1;
+            int label_pos = 0;
+            int label_col = 0;
             if (exists hotkey && hotkey.size() > 0) {
                 string hk_char = hotkey.substr(-1).lwr();
-                for (int ci = 0; ci < label.size(); ++ci) {
-                    if (label.substr(ci, 1).lwr() == hk_char) {
-                        hk_pos = ci;
+                foreach string grapheme in (
+                        (label =~ x/(\X)/g) ?? ()) {
+                    if (grapheme.lwr() == hk_char) {
+                        hk_pos = label_pos;
+                        hk_len = grapheme.length();
+                        hk_col = label_col;
                         break;
                     }
+                    label_pos += grapheme.length();
+                    label_col += TerminalText::displayWidth(grapheme);
                 }
             }
 
             if (exists hotkey && hotkey.size() > 0) {
                 # build line: "label  hotkey" right-aligned within cr.cols
-                int gap = cr.cols - label.length() - hotkey.length();
+                int gap = cr.cols - TerminalText::displayWidth(label)
+                    - TerminalText::displayWidth(hotkey);
                 if (gap >= 2) {
-                    label += strmul(" ", gap - 0) + hotkey;
+                    label += strmul(" ", gap) + hotkey;
                 } else {
                     # not enough room for hotkey, just show label
-                    if (label.length() > cr.cols) {
-                        label = label.substr(0, cr.cols);
-                    }
-                    if (label.length() < cr.cols) {
-                        label += strmul(" ", cr.cols - label.length());
-                    }
+                    label = TerminalText::fitRight(label, cr.cols);
                 }
             } else {
-                if (label.length() > cr.cols) {
-                    label = label.substr(0, cr.cols);
-                }
-                if (label.length() < cr.cols) {
-                    label += strmul(" ", cr.cols - label.length());
-                }
+                label = TerminalText::fitRight(label, cr.cols);
             }
 
             bool enabled = menu_items[i].enabled ?? True;
@@ -259,7 +261,9 @@ public class DropdownMenuWidget inherits NcursesUi::PanelWidget {
                 style = highlight_style;
             }
 
-            if (hk_pos >= 0 && hk_pos < label.size()) {
+            if (hk_pos >= 0 && hk_pos < label.length()
+                    && hk_col + TerminalText::displayWidth(
+                        label.substr(hk_pos, hk_len)) <= cr.cols) {
                 # draw in 3 segments: before, underlined char, after
                 hash<auto> hk_style = style + {
                     "attrs": (style.attrs ?? 0) | Ncurses::Attr::Underline,
@@ -267,9 +271,12 @@ public class DropdownMenuWidget inherits NcursesUi::PanelWidget {
                 if (hk_pos > 0) {
                     w.drawText(row, cr.x, label.substr(0, hk_pos), style);
                 }
-                w.drawText(row, cr.x + hk_pos, label.substr(hk_pos, 1), hk_style);
-                if (hk_pos + 1 < label.size()) {
-                    w.drawText(row, cr.x + hk_pos + 1, label.substr(hk_pos + 1), style);
+                string hk_grapheme = label.substr(hk_pos, hk_len);
+                int hk_width = TerminalText::displayWidth(hk_grapheme);
+                w.drawText(row, cr.x + hk_col, hk_grapheme, hk_style);
+                if (hk_pos + hk_len < label.length()) {
+                    w.drawText(row, cr.x + hk_col + hk_width,
+                        label.substr(hk_pos + hk_len), style);
                 }
             } else {
                 w.drawText(row, cr.x, label, style);

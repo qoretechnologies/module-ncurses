@@ -65,9 +65,9 @@ static list<hash> Ansi::parse(string text) [flags=CONSTANT,NAMED_ARGS] {
     return list.release();
 }
 
-//! Returns the visible character length of ANSI SGR text
+//! Returns the terminal display width of ANSI SGR text
 /** @param text text with ANSI SGR color codes
-    @return visible character length (ANSI codes excluded)
+    @return terminal display columns occupied by the text (ANSI codes excluded)
 
     @since %ncurses 2.0
 */
@@ -85,15 +85,15 @@ static int Ansi::len(string text) [flags=CONSTANT,NAMED_ARGS] {
     return total;
 }
 
-//! Wraps ANSI SGR text to a given width
+//! Wraps ANSI SGR text to a given terminal display width
 /** @param text text with ANSI SGR color codes
-    @param width wrap width
+    @param width wrap width in terminal display columns
     @param mode wrap mode (default: @ref Qore::Ncurses::WrapMode "WrapMode::Word")
     @return list of wrapped lines with ANSI codes preserved
 
     @since %ncurses 2.0
 */
-static list<string> Ansi::wrap(string text, int width, enum<WrapMode> mode = 2) [flags=CONSTANT,NAMED_ARGS] {
+static list<string> Ansi::wrap(string text, int width, enum<WrapMode> mode = 2) [flags=RET_VALUE_ONLY,NAMED_ARGS] {
     ReferenceHolder<QoreListNode> list(new QoreListNode(stringTypeInfo), xsink);
     if (width <= 0) {
         return list.release();
@@ -101,13 +101,66 @@ static list<string> Ansi::wrap(string text, int width, enum<WrapMode> mode = 2) 
     std::vector<AnsiSegment> segs;
     parseAnsiSegments(text, segs);
     struct StyledChar {
-        char c;
+        std::string bytes;
+        int width;
+        bool space;
         StyleSpec style;
     };
     std::vector<StyledChar> chars;
+    size_t decoded = 0;
     for (const auto& seg : segs) {
-        for (size_t i = 0; i < seg.text.size(); ++i) {
-            chars.push_back({seg.text[i], seg.style});
+        size_t segment_start = chars.size();
+        const char* ptr = seg.text.c_str();
+        const char* end = ptr + seg.text.size();
+        bool join_next = false;
+        int regional_run = 0;
+        while (ptr < end) {
+            unsigned char c = static_cast<unsigned char>(*ptr);
+            int char_bytes;
+            if (c < 0x80) {
+                char_bytes = 1;
+            } else if ((c & 0xE0) == 0xC0) {
+                char_bytes = 2;
+            } else if ((c & 0xF0) == 0xE0) {
+                char_bytes = 3;
+            } else if ((c & 0xF8) == 0xF0) {
+                char_bytes = 4;
+            } else {
+                char_bytes = 1;
+            }
+            if (ptr + char_bytes > end) {
+                break;
+            }
+            QoreString ch(ptr, char_bytes, QCS_UTF8);
+            int char_width = static_cast<int>(ch.getCharWidth(xsink));
+            if (*xsink) {
+                return list.release();
+            }
+            unsigned codepoint = ch.getUnicodePointFromUTF8();
+            bool space = char_bytes == 1 && (*ptr == ' ' || *ptr == '\t');
+            bool regional = codepoint >= 0x1f1e6 && codepoint <= 0x1f1ff;
+            bool append = chars.size() > segment_start && !space
+                && (char_width == 0 || join_next
+                    || (regional && regional_run % 2 == 1));
+            if (append) {
+                chars.back().bytes.append(
+                    ptr, static_cast<size_t>(char_bytes));
+                chars.back().width += char_width;
+            } else {
+                chars.push_back({
+                    std::string(ptr, static_cast<size_t>(char_bytes)),
+                    char_width,
+                    space,
+                    seg.style,
+                });
+            }
+            join_next = codepoint == 0x200d;
+            regional_run = regional ? regional_run + 1 : 0;
+            ptr += char_bytes;
+            if (++decoded % 100 == 0
+                    && qore_check_cancel(xsink, "wrapping ANSI terminal text")) {
+                return list.release();
+            }
         }
     }
     auto style_eq = [](const StyleSpec& a, const StyleSpec& b) {
@@ -155,6 +208,11 @@ static list<string> Ansi::wrap(string text, int width, enum<WrapMode> mode = 2) 
         StyleSpec cur;
         bool cur_set = false;
         for (size_t i = start; i < end; ++i) {
+            if (i > start && (i - start) % 100 == 0
+                    && qore_check_cancel(xsink,
+                        "emitting wrapped ANSI terminal text")) {
+                return std::string();
+            }
             const StyleSpec& st = chars[i].style;
             if (!cur_set || !style_eq(cur, st)) {
                 line += "\x1b[0m";
@@ -163,7 +221,7 @@ static list<string> Ansi::wrap(string text, int width, enum<WrapMode> mode = 2) 
                 cur = st;
                 cur_set = true;
             }
-            line.push_back(chars[i].c);
+            line += chars[i].bytes;
         }
         if (cur_set && !style_empty(cur)) {
             line += "\x1b[0m";
@@ -173,6 +231,9 @@ static list<string> Ansi::wrap(string text, int width, enum<WrapMode> mode = 2) 
     if (mode.getAsBigInt() == 0 || chars.empty()) {
         if (!chars.empty()) {
             std::string line = emit_line(0, chars.size());
+            if (*xsink) {
+                return list.release();
+            }
             list->push(new QoreStringNode(line.c_str(), text->getEncoding()), xsink);
         }
         return list.release();
@@ -180,31 +241,53 @@ static list<string> Ansi::wrap(string text, int width, enum<WrapMode> mode = 2) 
     size_t i = 0;
     int wrap_mode = static_cast<int>(mode.getAsBigInt());
     while (i < chars.size()) {
-        size_t remaining = chars.size() - i;
-        if (remaining <= static_cast<size_t>(width)) {
+        if (i && i % 100 == 0
+                && qore_check_cancel(xsink, "wrapping ANSI terminal text")) {
+            return list.release();
+        }
+
+        size_t end = i;
+        int line_width = 0;
+        ssize_t last_space = -1;
+        while (end < chars.size()
+                && line_width + chars[end].width <= width) {
+            if (chars[end].space) {
+                last_space = static_cast<ssize_t>(end);
+            }
+            line_width += chars[end].width;
+            ++end;
+        }
+
+        // A character wider than the complete target still has to make
+        // progress; the drawing layer will clip it if the terminal truly has
+        // only one column available.
+        if (end == i) {
+            end = i + 1;
+        }
+        if (end >= chars.size()) {
             std::string line = emit_line(i, chars.size());
+            if (*xsink) {
+                return list.release();
+            }
             list->push(new QoreStringNode(line.c_str(), text->getEncoding()), xsink);
             break;
         }
-        size_t end = i + width;
-        if (wrap_mode == 2) {
-            ssize_t last_space = -1;
-            for (size_t j = i; j < end; ++j) {
-                if (chars[j].c == ' ' || chars[j].c == '\t') {
-                    last_space = static_cast<ssize_t>(j);
-                }
+        if (wrap_mode == 2 && last_space > static_cast<ssize_t>(i)) {
+            std::string line = emit_line(i, static_cast<size_t>(last_space));
+            if (*xsink) {
+                return list.release();
             }
-            if (last_space > static_cast<ssize_t>(i)) {
-                std::string line = emit_line(i, static_cast<size_t>(last_space));
-                list->push(new QoreStringNode(line.c_str(), text->getEncoding()), xsink);
-                i = static_cast<size_t>(last_space + 1);
-                while (i < chars.size() && (chars[i].c == ' ' || chars[i].c == '\t')) {
-                    ++i;
-                }
-                continue;
+            list->push(new QoreStringNode(line.c_str(), text->getEncoding()), xsink);
+            i = static_cast<size_t>(last_space + 1);
+            while (i < chars.size() && chars[i].space) {
+                ++i;
             }
+            continue;
         }
         std::string line = emit_line(i, end);
+        if (*xsink) {
+            return list.release();
+        }
         list->push(new QoreStringNode(line.c_str(), text->getEncoding()), xsink);
         i = end;
     }

@@ -1,5 +1,8 @@
 #!/usr/bin/env qore
 
+%prepend-module-path "${SCRIPT_DIR}/../build"
+%prepend-module-path "${SCRIPT_DIR}/../build/qlib-qmod"
+
 %requires ncurses
 %requires NcursesUi
 %requires NcursesReplUi
@@ -14,6 +17,11 @@
 class NcursesComponentsTest inherits Test {
     constructor() : Test("NcursesComponentsTest", "1.0") {
         # CheckboxWidget tests
+        addTestCase("TerminalText Unicode layout",
+            \testTerminalTextUnicodeLayout());
+        addTestCase("Unicode widget geometry",
+            \testUnicodeWidgetGeometry());
+
         addTestCase("CheckboxWidget initial state", \testCheckboxInit());
         addTestCase("CheckboxWidget toggle", \testCheckboxToggle());
         addTestCase("CheckboxWidget keyboard toggle", \testCheckboxKeyboard());
@@ -146,6 +154,53 @@ class NcursesComponentsTest inherits Test {
         addTestCase("FileBrowserWidget file info provider binary preview detail", \testFileBrowserFileInfoProviderBinaryPreview());
 
         set_return_value(main());
+    }
+
+    testTerminalTextUnicodeLayout() {
+        assertEq(12, NcursesUi::TerminalText::displayWidth(
+                "ステップの例"),
+            "Japanese sample occupies twelve columns");
+        assertEq("日本",
+            NcursesUi::TerminalText::clipRight("日本語", 4),
+            "right clipping preserves complete double-width graphemes");
+        assertEq("本語",
+            NcursesUi::TerminalText::clipLeft("日本語", 4),
+            "left clipping preserves complete double-width graphemes");
+        assertEq(5, char_width(
+                NcursesUi::TerminalText::fitRight("日本", 5)),
+            "right fit pads to the exact display width");
+        assertEq(5, char_width(
+                NcursesUi::TerminalText::fitLeft("日本", 5)),
+            "left fit pads to the exact display width");
+        assertEq(" 本B  ",
+            NcursesUi::TerminalText::columnSlice("A日本B", 2, 6),
+            "a viewport intersecting a wide glyph uses a blank hidden cell");
+    }
+
+    testUnicodeWidgetGeometry() {
+        NcursesUi::MenuBarWidget mb();
+        mb.setFrame(NcursesUi::Geometry::makeRect(0, 0, 1, 80));
+        mb.addMenu("設定", ());
+        mb.addMenu("表示", ());
+        assertEq(6, mb.menuXPosition(1),
+            "menu anchors use display columns");
+
+        NcursesUi::TestHarness th(12, 40);
+        on_exit th.close();
+
+        NcursesUi::DropdownMenuWidget dropdown(th.session(), (
+            {"label": "設定", "command": "settings", "hotkey": "Alt+S"},
+        ));
+        dropdown.positionAt(0, 0, 12, 40);
+        assertEq(15, dropdown.getFrame().cols,
+            "dropdown width includes wide labels by display columns");
+
+        NcursesUi::CompletionPopupWidget popup(th.session(), (
+            {"label": "ステップの例"},
+        ));
+        popup.positionAt(0, 0, 12, 40);
+        assertEq(18, popup.getFrame().cols,
+            "completion width includes wide labels by display columns");
     }
 
     # ---- CheckboxWidget ----

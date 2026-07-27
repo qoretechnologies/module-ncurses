@@ -111,9 +111,7 @@ public class CheckboxWidget inherits NcursesUi::Widget {
         string text = indicator + " " + label;
 
         # truncate to fit
-        if (text.length() > cr.cols) {
-            text = text.substr(0, cr.cols);
-        }
+        text = TerminalText::clipRight(text, cr.cols);
 
         hash<auto> style;
         if (hasFocus()) {

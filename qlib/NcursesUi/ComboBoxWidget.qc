@@ -149,10 +149,7 @@ public class ComboBoxWidget inherits NcursesUi::Widget {
 
         # draw input line
         string display = text;
-        if (display.length() > cr.cols - 2) {
-            display = display.substr(0, cr.cols - 2);
-        }
-        string padded = display + strmul(" ", max(0, cr.cols - 2 - display.length()));
+        string padded = TerminalText::fitRight(display, max(0, cr.cols - 2));
         string arrow = dropdown_open ? "^" : "v";
         string input_text = padded + " " + arrow;
 
@@ -176,13 +173,8 @@ public class ComboBoxWidget inherits NcursesUi::Widget {
                 }
 
                 if (idx >= 0 && idx < filtered_options.size()) {
-                    string opt_text = filtered_options[idx];
-                    if (opt_text.length() > cr.cols) {
-                        opt_text = opt_text.substr(0, cr.cols);
-                    }
-                    if (opt_text.length() < cr.cols) {
-                        opt_text += strmul(" ", cr.cols - opt_text.length());
-                    }
+                    string opt_text = TerminalText::fitRight(
+                        filtered_options[idx], cr.cols);
 
                     hash<auto> opt_style = (idx == highlight_index) ? highlight_style : {};
                     w.drawText(row, cr.x, opt_text, opt_style);
