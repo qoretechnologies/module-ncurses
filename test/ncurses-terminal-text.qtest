@@ -1,0 +1,85 @@
+#!/usr/bin/env qore
+
+%prepend-module-path "${SCRIPT_DIR}/../qlib"
+
+%requires ncurses
+%requires NcursesUi
+%requires QUnit
+
+%modern
+
+%exec-class NcursesTerminalTextTest
+
+class NcursesTerminalTextTest inherits Test {
+    constructor() : Test("NcursesTerminalTextTest", "1.0") {
+        addTestCase("display width", \testDisplayWidth());
+        addTestCase("ASCII clipping", \testAsciiClipping());
+        addTestCase("wide-character clipping", \testWideClipping());
+        addTestCase("grapheme-safe clipping", \testGraphemeClipping());
+        addTestCase("right fitting", \testFitRight());
+        addTestCase("empty and non-positive widths", \testBoundaries());
+
+        set_return_value(main());
+    }
+
+    testDisplayWidth() {
+        assertEq(0, NcursesUi::TerminalText::displayWidth(""));
+        assertEq(3, NcursesUi::TerminalText::displayWidth("abc"));
+        assertEq(12, NcursesUi::TerminalText::displayWidth("ステップの例"));
+        assertEq(1, NcursesUi::TerminalText::displayWidth("é"));
+    }
+
+    testAsciiClipping() {
+        assertEq("abc", NcursesUi::TerminalText::clipRight("abcdef", 3));
+        assertEq("abcdef", NcursesUi::TerminalText::clipRight("abcdef", 6));
+        assertEq("abcdef", NcursesUi::TerminalText::clipRight("abcdef", 20));
+    }
+
+    testWideClipping() {
+        assertEq("", NcursesUi::TerminalText::clipRight("界a", 1),
+            "a double-width character must not occupy one column");
+        assertEq("界", NcursesUi::TerminalText::clipRight("界a", 2));
+        assertEq("界a", NcursesUi::TerminalText::clipRight("界a", 3));
+        assertEq("ステ", NcursesUi::TerminalText::clipRight("ステップ", 4));
+    }
+
+    testGraphemeClipping() {
+        string combining = "éx";
+        assertEq("é", NcursesUi::TerminalText::clipRight(combining, 1),
+            "combining marks must remain attached to their base character");
+
+        string family = "👨‍👩‍👧‍👦x";
+        int family_width = NcursesUi::TerminalText::displayWidth("👨‍👩‍👧‍👦");
+        assertEq("", NcursesUi::TerminalText::clipRight(family, family_width - 1),
+            "a zero-width-joiner emoji sequence must not be split");
+        assertEq("👨‍👩‍👧‍👦", NcursesUi::TerminalText::clipRight(family, family_width));
+
+        string flag = "🇨🇿x";
+        int flag_width = NcursesUi::TerminalText::displayWidth("🇨🇿");
+        assertEq("", NcursesUi::TerminalText::clipRight(flag, flag_width - 1),
+            "a regional-indicator flag must not be split");
+        assertEq("🇨🇿", NcursesUi::TerminalText::clipRight(flag, flag_width));
+    }
+
+    testFitRight() {
+        string ascii = NcursesUi::TerminalText::fitRight("abc", 5);
+        assertEq("abc  ", ascii);
+        assertEq(5, NcursesUi::TerminalText::displayWidth(ascii));
+
+        string wide = NcursesUi::TerminalText::fitRight("界", 4);
+        assertEq("界  ", wide);
+        assertEq(4, NcursesUi::TerminalText::displayWidth(wide));
+
+        string clipped = NcursesUi::TerminalText::fitRight("界a", 1);
+        assertEq(" ", clipped);
+        assertEq(1, NcursesUi::TerminalText::displayWidth(clipped));
+    }
+
+    testBoundaries() {
+        assertEq("", NcursesUi::TerminalText::clipRight("abc", 0));
+        assertEq("", NcursesUi::TerminalText::clipRight("abc", -1));
+        assertEq("", NcursesUi::TerminalText::fitRight("abc", 0));
+        assertEq("", NcursesUi::TerminalText::fitRight("abc", -1));
+        assertEq("   ", NcursesUi::TerminalText::fitRight("", 3));
+    }
+}

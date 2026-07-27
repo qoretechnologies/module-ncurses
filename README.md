@@ -99,6 +99,14 @@ NcursesUi::MenuBarWidget menu();
 
 These widgets are used by `qrepl` to provide mouse-driven menus, a reflection browser, and a filesystem browser.
 
+For column-aligned terminal output, `NcursesUi::TerminalText` measures display
+columns and clips or pads plain text without splitting Unicode grapheme
+clusters:
+
+```qore
+string label = NcursesUi::TerminalText::fitRight("ステップの例", 16);
+```
+
 ## Mouse Support
 
 Mouse input is supported via `Window::readEvent()` when `Session` is created with

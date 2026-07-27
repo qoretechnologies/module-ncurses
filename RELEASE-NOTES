@@ -32,6 +32,8 @@ NcursesUi toolkit module (22 widget classes):
 - ComboBoxWidget, CheckboxWidget, RadioGroupWidget, TableWidget
 - FocusManager: Tab/Shift+Tab focus traversal
 - TestHarness: TestTerminal + Session wrapper for widget testing
+- TerminalText: Unicode-aware display-width measurement, grapheme-safe
+  clipping, and right padding for aligned terminal output
 
 NcursesReplUi helper module:
 - InputBuffer: text buffer with cursor tracking and Emacs-style editing

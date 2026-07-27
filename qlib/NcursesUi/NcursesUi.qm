@@ -52,6 +52,7 @@ module NcursesUi {
 
     - A widget tree with parent-child relationships and focus management
     - Layout managers (BoxLayout, SplitLayout)
+    - Unicode-aware terminal text measurement, clipping, and padding
     - Scrollable content with scrollbar rendering
     - Typed event dispatch with modal stack and mouse hit-testing
     - Standard UI components (list, text input, dialog, menu bar, status bar,
