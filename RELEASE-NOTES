@@ -15,7 +15,7 @@ C++ binary module (ncurses):
 - Thread-safe: module-level recursive lock with lock-releasing input polling
 - Interrupt and sandbox compliance (QDOM_TERMINAL_IO, filesystem checks)
 
-NcursesUi toolkit module (22 widget classes):
+NcursesUi toolkit module 1.1 (22 widget classes):
 - Widget base class with parent-child tree, geometry, focus, dirty-flag propagation
 - BoxLayout (vertical/horizontal) and SplitLayout (ratio/fixed) layout managers
 - EventDispatcher: typed event routing with modal stack and mouse hit-testing
@@ -32,6 +32,9 @@ NcursesUi toolkit module (22 widget classes):
 - ComboBoxWidget, CheckboxWidget, RadioGroupWidget, TableWidget
 - FocusManager: Tab/Shift+Tab focus traversal
 - TestHarness: TestTerminal + Session wrapper for widget testing
+- TerminalText: Unicode-aware display-width measurement, grapheme-safe
+  clipping, and right padding for aligned terminal output; added in module
+  version 1.1, so consumers must declare "%requires NcursesUi >= 1.1"
 
 NcursesReplUi helper module:
 - InputBuffer: text buffer with cursor tracking and Emacs-style editing

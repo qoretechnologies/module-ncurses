@@ -35,6 +35,10 @@
 %modern
 
 module NcursesUi {
+    # 1.1 added the TerminalText Unicode display-width API; consumers that
+    # call TerminalText must declare "%requires NcursesUi >= 1.1" so a stale
+    # installed module fails with a dependency error instead of unresolved
+    # method-call parse exceptions
     version = "1.1";
     desc = "Ncurses terminal UI toolkit";
     author = "Qore Technologies, s.r.o.";
@@ -52,6 +56,7 @@ module NcursesUi {
 
     - A widget tree with parent-child relationships and focus management
     - Layout managers (BoxLayout, SplitLayout)
+    - Unicode-aware terminal text measurement, clipping, and padding
     - Scrollable content with scrollbar rendering
     - Typed event dispatch with modal stack and mouse hit-testing
     - Standard UI components (list, text input, dialog, menu bar, status bar,
