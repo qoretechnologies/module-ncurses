@@ -35,7 +35,11 @@
 %modern
 
 module NcursesUi {
-    version = "1.0";
+    # 1.1 added the TerminalText Unicode display-width API; consumers that
+    # call TerminalText must declare "%requires NcursesUi >= 1.1" so a stale
+    # installed module fails with a dependency error instead of unresolved
+    # method-call parse exceptions
+    version = "1.1";
     desc = "Ncurses terminal UI toolkit";
     author = "Qore Technologies, s.r.o.";
     license = "MIT";
