@@ -1,5 +1,70 @@
 /** @page ncursesreleasenotes Release Notes
 
+    @section ncurses_2_0_0 ncurses Module Version 2.0.0
+    Complete redesign with a modern, thread-safe API built for Qore 2.3.
+
+    @subsection ncurses_2_0_0_binary C++ binary module (ncurses)
+    - @c Session: terminal lifecycle, color management, cursor control, input
+      injection
+    - @c Window: drawing (text, ANSI SGR, box, lines, fill), input events with
+      timeout/polling, wrap modes, sub-windows
+    - @c Panel: z-order stacking with show/hide/top/bottom/move
+    - @c TestTerminal: PTY-based pseudo-terminal for headless automated tests
+    - @c Ansi: parse, wrap, measure, and strip ANSI SGR escape sequences
+    - style system: <tt>{fg, bg, attrs}</tt> hashes with @c Color and @c Attr
+      enums
+    - thread-safe: module-level recursive lock with lock-releasing input polling
+    - interrupt and sandbox compliance (@c QDOM_TERMINAL_IO, filesystem checks)
+
+    @subsection ncurses_2_0_0_ui NcursesUi toolkit module (22 widget classes)
+    - @c Widget base class with parent-child tree, geometry, focus, dirty-flag
+      propagation
+    - @c BoxLayout (vertical/horizontal) and @c SplitLayout (ratio/fixed) layout
+      managers
+    - @c EventDispatcher: typed event routing with modal stack and mouse
+      hit-testing
+    - @c Application: session management, event loop, tick callbacks, modal
+      stack
+    - @c PanelWidget: floating overlays backed by ncurses panels
+    - @c ListWidget: selectable scrollable list with keyboard and mouse support
+    - @c TextInputWidget: single-line text editing with cursor and history
+    - @c ScrollableWidget + @c LineListContent: viewport with scrollbar
+      rendering
+    - @c MenuBarWidget + @c DropdownMenuWidget: horizontal menus with Alt+key
+      hotkeys and underlined hotkey indicators
+    - @c StatusBarWidget: styled left/right-aligned status segments
+    - @c DialogWidget: modal dialogs with configurable buttons
+      (confirm/error/custom)
+    - @c FileBrowserWidget: split-pane file browser with directory listing and
+      preview
+    - @c ComboBoxWidget, @c CheckboxWidget, @c RadioGroupWidget, @c TableWidget
+    - @c FocusManager: Tab/Shift+Tab focus traversal
+    - @c TestHarness: @c TestTerminal + @c Session wrapper for widget testing
+    - @c TerminalText: Unicode-aware display-width measurement, grapheme-safe
+      clipping, and right padding for aligned terminal output
+
+    @subsection ncurses_2_0_0_repl_ui NcursesReplUi helper module
+    - @c InputBuffer: text buffer with cursor tracking and Emacs-style editing
+    - @c History: command history with up/down navigation
+    - @c LayoutCalc: REPL layout dimension calculation
+    - @c ScrollCalc: bottom-anchored scroll position helpers
+
+    @subsection ncurses_2_0_0_qrepl qrepl — full-screen ncurses REPL
+    - @c Application + @c BoxLayout root layout (menu bar, output, status bar)
+    - @c ScrollableWidget output pane with ANSI color rendering
+    - inline input editing with @c InputBuffer and @c History
+    - @c MenuBarWidget with Alt+key hotkeys (File, Edit, View, Help)
+    - @c StatusBarWidget with live status, line count, and timer segments
+    - output capture via @c File::getPipe() and a background reader thread
+    - modal dialogs: exit confirmation, file browser, animated About with a
+      180-frame spinning Qore coin
+
+    @subsection ncurses_2_0_0_build Build and test
+    - CMake build system
+    - Doxygen documentation with mainpage overviews, code examples, and
+      cross-references for all three module layers
+    - 9 test suites with 290+ automated test cases
+
     @section ncurses_1_0 ncurses Module Version 1.0
     - initial release
 */
