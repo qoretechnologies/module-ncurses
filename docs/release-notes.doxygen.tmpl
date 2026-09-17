@@ -4,6 +4,8 @@
     Complete redesign with a modern, thread-safe API built for Qore 2.3.
 
     @subsection ncurses_2_0_0_binary C++ binary module (ncurses)
+    - Fixed default word wrapping raising a type error when displaying long
+      lines, including pasted input in console applications.
     - @c Session: terminal lifecycle, color management, cursor control, input
       injection
     - @c Window: drawing (text, ANSI SGR, box, lines, fill), input events with

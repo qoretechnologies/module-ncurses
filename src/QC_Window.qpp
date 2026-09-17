@@ -252,9 +252,6 @@ nothing Window::drawText(int y, int x, string text, *hash style) [flags=NAMED_AR
         return nothing();
     }
     NcursesCallGuard guard(win->session);
-    int cy = 0;
-    int cx = 0;
-    getyx(win->win, cy, cx);
     StyleSpec spec;
     parseStyle(style, spec, xsink);
     if (*xsink) {
@@ -293,9 +290,6 @@ nothing Window::drawTextClipped(int y, int x, string text, *hash style) [flags=N
         return nothing();
     }
     NcursesCallGuard guard(win->session);
-    int cy = 0;
-    int cx = 0;
-    getyx(win->win, cy, cx);
     int rows = 0;
     int cols = 0;
     getmaxyx(win->win, rows, cols);
@@ -357,9 +351,6 @@ nothing Window::drawTextInside(int y, int x, string text, *hash style) [flags=NA
         return nothing();
     }
     NcursesCallGuard guard(win->session);
-    int cy = 0;
-    int cx = 0;
-    getyx(win->win, cy, cx);
     int rows = 0;
     int cols = 0;
     getmaxyx(win->win, rows, cols);
@@ -461,9 +452,6 @@ nothing Window::drawTextInsideLine(int y, string text, *hash style) [flags=NAMED
         return nothing();
     }
     NcursesCallGuard guard(win->session);
-    int cy = 0;
-    int cx = 0;
-    getyx(win->win, cy, cx);
     int rows = 0;
     int cols = 0;
     getmaxyx(win->win, rows, cols);
@@ -1068,7 +1056,7 @@ nothing Window::enableKeypad(bool enabled) [flags=NAMED_ARGS] {
 string Window::readText(int y, int x, int length) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);
     if (*xsink) {
-        return nothing;
+        return nothing();
     }
     NcursesCallGuard guard(win->session);
     if (length <= 0) {
@@ -1094,7 +1082,7 @@ string Window::readText(int y, int x, int length) [flags=NAMED_ARGS] {
 list<string> Window::readLines(*int y, *int rows, *int cols) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);
     if (*xsink) {
-        return nothing;
+        return nothing();
     }
     bool has_y = args && args->size() > 0 && !args->retrieveEntry(0).isNothing();
     bool has_rows = args && args->size() > 1 && !args->retrieveEntry(1).isNothing();
@@ -1124,16 +1112,19 @@ list<string> Window::readLines(*int y, *int rows, *int cols) [flags=NAMED_ARGS] 
     int width = max_cols;
     ReferenceHolder<QoreListNode> out(new QoreListNode(autoTypeInfo), xsink);
     if (*xsink) {
-        return nothing;
+        return nothing();
     }
     std::string buf;
     buf.resize(width + 1);
     for (int row = start_y; row < end_row; ++row) {
+        if ((row - start_y) % 10 == 0 && qore_check_cancel(xsink, "reading terminal lines")) {
+            return nothing();
+        }
         mvwinnstr(win->win, row, 0, &buf[0], width);
         buf[width] = 0;
         out->push(new QoreStringNode(buf.c_str(), QCS_UTF8), xsink);
         if (*xsink) {
-            return nothing;
+            return nothing();
         }
     }
     return out.release();

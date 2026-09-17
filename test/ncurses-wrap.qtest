@@ -1,0 +1,108 @@
+#!/usr/bin/env qore
+# Copyright 2026 Qore Technologies, s.r.o.
+
+%modern
+%prepend-module-path "${SCRIPT_DIR}/../qlib"
+%requires ncurses
+%requires NcursesUi
+%requires QUnit
+
+%include "test/TestHarness.qc"
+%exec-class NcursesWrapTest
+
+class NcursesWrapTest inherits Test {
+    constructor() : Test("NcursesWrapTest", "1.0", \ARGV) {
+        addTestCase("default word wrapping", \testDefault());
+        addTestCase("default wrapping boundaries", \testBoundaries());
+        addTestCase("explicit wrapping modes and invalid types", \testModes());
+        addTestCase("scroll after pasting a long prompt", \testScrollAfterPaste());
+        addTestCase("window snapshot boundaries", \testSnapshotBoundaries());
+        addTestCase("large window snapshot clipping", \testLargeSnapshot());
+        set_return_value(main());
+    }
+
+    private list<string> plain(list<string> lines) {
+        return map (map $1.text, Ncurses::Ansi::parse($1)).join(""), lines;
+    }
+
+    testDefault() {
+        assertEq(("alpha", "beta gamma"), plain(Ncurses::Ansi::wrap("alpha beta gamma", 10)));
+        assertEq(("alpha", "beta gamma"), plain(Ncurses::Ansi::wrap(
+            width: 10, text: "alpha beta gamma")));
+        string styled = "\x1b[31malpha beta gamma\x1b[0m";
+        assertEq(Ncurses::Ansi::wrap(styled, 10, Ncurses::WrapMode::Word),
+            Ncurses::Ansi::wrap(styled, 10));
+        assertEq(("ステ", "ップ", "の例"), plain(Ncurses::Ansi::wrap("ステップの例", 4)));
+    }
+
+    testBoundaries() {
+        assertEq((), Ncurses::Ansi::wrap("", 10));
+        assertEq((), Ncurses::Ansi::wrap("abc", 0));
+        assertEq((), Ncurses::Ansi::wrap("abc", -1));
+        assertEq(("abc",), plain(Ncurses::Ansi::wrap("abc", 3)));
+        assertEq(("a", "b", "c"), plain(Ncurses::Ansi::wrap("abc", 1)));
+    }
+
+    testModes() {
+        assertEq(("alpha beta", " gamma"), plain(Ncurses::Ansi::wrap(
+            "alpha beta gamma", 10, Ncurses::WrapMode::Hard)));
+        assertEq(("alpha beta gamma",), plain(Ncurses::Ansi::wrap(
+            "alpha beta gamma", 10, Ncurses::WrapMode::None)));
+        auto invalid_mode = 2;
+        assertThrows("RUNTIME-OVERLOAD-ERROR", list<string> sub () {
+            return Ncurses::Ansi::wrap("alpha beta gamma", 10, invalid_mode);
+        });
+    }
+
+    testScrollAfterPaste() {
+        NcursesUi::TestHarness th(8, 30);
+        on_exit th.close();
+        NcursesUi::LineListContent content();
+        content.setWordWrap(True);
+        content.setLines(("qonsole>",));
+        NcursesUi::ScrollableWidget widget();
+        widget.setFrame(NcursesUi::Geometry::makeRect(0, 0, 2, 10));
+        widget.setShowScrollbar(False);
+        widget.setContent(content);
+        # Establish the visible width before pasting, as the TUI does.
+        widget.drawTree(th.screen());
+        content.setLine(0, "alpha beta gamma");
+        content.insertLine(0, "connecting");
+        widget.scrollTo(NcursesUi::ScrollDirection::End);
+        assertEq(3, content.totalRows());
+        assertEq(1, widget.getScrollY());
+        assertEq(1, content.displayRowForLine(1));
+        widget.markDirty();
+        widget.drawTree(th.screen());
+        assertEq("alpha     ", th.screen().readText(0, 0, 10));
+        assertEq("beta gamma", th.screen().readText(1, 0, 10));
+        content.setWordWrap(False);
+        assertEq(2, content.totalRows());
+        content.clear();
+        content.setWordWrap(True);
+        assertEq(0, content.totalRows());
+    }
+
+    testSnapshotBoundaries() {
+        NcursesUi::TestHarness th(8, 30);
+        on_exit th.close();
+        Ncurses::Window window = th.screen();
+        window.drawText(0, 0, "ready");
+        assertEq("", window.readText(0, 0, 0));
+        assertEq("", window.readText(0, 0, -1));
+        assertEq((), window.readLines(y: 8, rows: 1, cols: 5));
+        assertEq((), window.readLines(y: 0, rows: 0, cols: 5));
+        assertEq(("ready",), window.readLines(y: -1, rows: 1, cols: 5));
+    }
+
+    testLargeSnapshot() {
+        NcursesUi::TestHarness th(160, 20);
+        on_exit th.close();
+        Ncurses::Window window = th.screen();
+        window.drawText(159, 0, "last");
+        list<string> lines = window.readLines(cols: 4);
+        assertEq(160, lines.size());
+        assertEq("last", lines[159]);
+        assertEq(("    ", "    ", "    ", "    ", "last"), window.readLines(y: 155, rows: 200, cols: 4));
+    }
+}

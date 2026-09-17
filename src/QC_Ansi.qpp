@@ -26,6 +26,8 @@
 
 #include "ncurses-internal.h"
 
+//! @qppval: WrapMode::Word=QoreValue::makeEnum(enumWrapMode->findMember("Word"))
+
 //! ANSI text helper class
 /** Helpers for parsing and wrapping ANSI SGR colored text.
 
@@ -93,7 +95,7 @@ static int Ansi::len(string text) [flags=CONSTANT,NAMED_ARGS] {
 
     @since %ncurses 2.0
 */
-static list<string> Ansi::wrap(string text, int width, enum<WrapMode> mode = 2) [flags=RET_VALUE_ONLY,NAMED_ARGS] {
+static list<string> Ansi::wrap(string text, int width, enum<WrapMode> mode = WrapMode::Word) [flags=RET_VALUE_ONLY,NAMED_ARGS] {
     ReferenceHolder<QoreListNode> list(new QoreListNode(stringTypeInfo), xsink);
     if (width <= 0) {
         return list.release();
