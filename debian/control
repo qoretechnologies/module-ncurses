@@ -1,0 +1,40 @@
+Source: qore-ncurses-module
+Section: interpreters
+Priority: optional
+Maintainer: David Nichols <david@qore.org>
+Build-Depends: debhelper-compat (= 13),
+               cmake (>= 3.21),
+               libncurses-dev,
+               pkgconf,
+               libqore-dev (>= 3.0.0~),
+               qore (>= 3.0.0~),
+               python3
+Build-Depends-Indep: doxygen <!nodoc>
+Standards-Version: 4.7.4
+Rules-Requires-Root: no
+Homepage: https://qore.org
+Vcs-Git: https://github.com/qoretechnologies/module-ncurses.git
+Vcs-Browser: https://github.com/qoretechnologies/module-ncurses
+
+Package: qore-ncurses-module
+Architecture: any
+Depends: ${qore:Depends},
+         ${shlibs:Depends},
+         ${misc:Depends}
+Recommends: ncurses-term
+Suggests: qore-ncurses-module-doc
+Description: terminal user interfaces and interactive REPL for Qore
+ This package provides the native wide-character ncurses module, NcursesUi
+ widget toolkit, NcursesReplUi helpers and the qrepl interactive shell.
+ Source and compiled modules and compiler metadata are included.
+
+Package: qore-ncurses-module-doc
+Section: doc
+Architecture: all
+Multi-Arch: foreign
+Build-Profiles: <!nodoc>
+Depends: ${misc:Depends}
+Suggests: qore-ncurses-module
+Description: documentation and examples for Qore's terminal UI modules
+ This package contains the HTML API references and example tests for the
+ native terminal module, NcursesUi and NcursesReplUi.

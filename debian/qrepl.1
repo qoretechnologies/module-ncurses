@@ -1,0 +1,31 @@
+.\" Copyright (C) 2026 David Nichols
+.\" SPDX-License-Identifier: MIT
+.TH QREPL 1 "September 2026" "Qore ncurses 2.0.0" "User Commands"
+.SH NAME
+qrepl \- interactive Qore shell with a terminal user interface
+.SH SYNOPSIS
+.B qrepl
+.RI [ \-\-help | \-h ]
+.SH DESCRIPTION
+.B qrepl
+runs Qore expressions in an interactive terminal interface built with NcursesUi.
+It provides an input prompt, output scrolling, command history, completion,
+menus and dialogs. It requires a terminal described by the TERM environment
+variable.
+.SH OPTIONS
+.TP
+.B \-h, \-\-help
+Print usage information and exit.
+.SH INTERACTIVE USE
+Enter Qore expressions at the prompt. Use /help for the available commands.
+Press Ctrl+Q or Esc to open the quit dialog.
+.SH ENVIRONMENT
+.TP
+.B TERM
+Terminal type used by ncurses to select its terminal capabilities.
+.SH SEE ALSO
+.BR qore (1),
+.BR terminfo (5)
+.PP
+The qore-ncurses-module-doc package provides the terminal and widget API
+references and test examples.

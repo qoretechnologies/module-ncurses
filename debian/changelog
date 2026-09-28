@@ -1,0 +1,7 @@
+qore-ncurses-module (2.0.0~git20260928.1-0qore1~ubuntu26.04) resolute; urgency=medium
+
+  * Package native ncurses, both source/AOT UI modules and qrepl.
+  * Ship all API references, test examples, metadata and debug symbols.
+  * Support isolated documentation paths and headless terminal qualification.
+
+ -- David Nichols <david@qore.org>  Mon, 28 Sep 2026 21:45:34 +0000

@@ -1,0 +1,6 @@
+usr/bin/qrepl
+usr/lib/*/qore-modules/*.qmod
+usr/lib/*/qore-modules/NcursesUi/
+usr/share/qore-modules/NcursesReplUi.qm
+usr/share/qore-modules/NcursesUi/
+usr/share/qore/metadata/ncurses/*.meta.json

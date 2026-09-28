@@ -1,0 +1,20 @@
+#!/bin/sh
+# Copyright (C) 2026 David Nichols
+# SPDX-License-Identifier: MIT
+set -eu
+export LC_ALL=C.UTF-8 TERM=xterm-256color
+unset QORE_MODULE_DIR QORE_MODULE_DIR_ONLY QORE_INCLUDE_DIR LD_LIBRARY_PATH LD_PRELOAD
+# Preserve test-relative includes while excluding all source modules.
+mkdir -p "$AUTOPKGTEST_TMP/test"
+cp test/*.qtest test/TestHarness.qc "$AUTOPKGTEST_TMP/test/"
+cd "$AUTOPKGTEST_TMP"
+module_dir=$(/usr/bin/qore --module-path | tr : '\n' | while IFS= read -r path; do
+    if [ -f "$path/NcursesReplUi.qmod" ]; then printf '%s\n' "$path"; break; fi
+done)
+test -n "$module_dir"
+for test in test/*.qtest; do
+    timeout 300 /usr/bin/qore -l "$module_dir/NcursesReplUi.qmod" \
+        -l "$module_dir/NcursesUi/NcursesUi.qmod" "$test" -v
+done
+/usr/bin/qrepl --help > qrepl-help.txt
+grep -q 'Usage: qrepl' qrepl-help.txt

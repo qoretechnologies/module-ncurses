@@ -1,0 +1,2 @@
+test/*.qtest usr/share/doc/qore-ncurses-module-doc/examples/test/
+test/TestHarness.qc usr/share/doc/qore-ncurses-module-doc/examples/test/

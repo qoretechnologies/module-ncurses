@@ -1,0 +1,9 @@
+Document: qore-ncurses-module
+Title: Qore Ncurses Module References
+Author: Qore Technologies, s.r.o.
+Abstract: API references for terminal sessions, widgets and REPL UI helpers.
+Section: Programming
+
+Format: HTML
+Index: /usr/share/doc/qore-ncurses-module-doc/docs/ncurses/html/index.html
+Files: /usr/share/doc/qore-ncurses-module-doc/docs/*/html/*.html

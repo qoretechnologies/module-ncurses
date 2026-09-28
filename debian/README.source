@@ -1,0 +1,88 @@
+Debian/Ubuntu packaging for the ncurses module
+=============================================
+
+qore-ncurses-module contains the native terminal module, source and compiled
+NcursesUi and NcursesReplUi modules, compiler metadata, qrepl and its manual.
+qore-ncurses-module-doc contains all three HTML API references and the upstream
+test scripts with their shared harness. Debhelper creates matching debug symbols.
+
+Build prerequisites and supported scope
+--------------------------------------
+
+Use an isolated native environment with packaged Qore and libqore-dev and all
+Build-Depends from debian/control. Current qualification targets Ubuntu 26.04
+amd64 with Qore 3.0 development packages. Other Debian/Ubuntu releases and
+architectures require their own qualified SDK and native tests. Cross builds
+are rejected because Qore tools run during compilation.
+
+The module links distribution wide-character ncurses and panel libraries.
+The essential ncurses-base package supplies standard terminal definitions; ncurses-term is recommended
+for additional terminal types. Tests use xterm-256color pseudo-terminals and
+C.UTF-8, requiring neither a desktop nor an interactive controlling terminal.
+
+The package derives minimum Qore and libqore SONAME dependencies from the SDK
+used to build it. dh_shlibdeps supplies other shared-library dependencies.
+The runtime package requires the native interpreter and includes shared compiler
+metadata, so it is not marked Multi-Arch: same.
+
+AOT modules and documentation
+-----------------------------
+
+AOT compilation is enabled, source-tree qmod symlinks are disabled and noopt
+selects optimization level zero. The SDK propagates Debian prefix maps into
+compiled modules and metadata. Tests explicitly preload the newly built qmods.
+Metadata and documentation use the new native/AOT modules and packaged standard
+library. CMake honors a caller-supplied QORE_MODULE_DIR_FOR_DOCS and runs final
+qdx postprocessing through cmake -E env. This supports isolated builds without
+requiring user-installed modules.
+
+The trailer-preservation helper and its real-ELF tests are copied from Qore's
+qualified packaging. They preserve dependency/source metadata around dh_strip.
+dwz skips this runtime package because it cannot process all LLVM DWARF forms;
+dh_strip still creates matching debug symbols for all three ELF modules.
+
+Source and binary builds
+------------------------
+
+Use a fresh version for every changed upload. This snapshot precedes 2.0.0.
+From a clean committed checkout:
+
+    version=2.0.0~git20260928.1
+    mkdir -p ../ncurses-package-work
+    git archive --format=tar --prefix="qore-ncurses-module-$version/" \
+        HEAD -- . ':!debian' | xz > \
+        "../ncurses-package-work/qore-ncurses-module_$version.orig.tar.xz"
+    tar -xf "../ncurses-package-work/qore-ncurses-module_$version.orig.tar.xz" \
+        -C ../ncurses-package-work
+    cp -a debian "../ncurses-package-work/qore-ncurses-module-$version/"
+    cd "../ncurses-package-work/qore-ncurses-module-$version"
+    dpkg-buildpackage -S -us -uc
+
+Extract the .dsc with dpkg-source -x into a fresh directory. Install dependencies
+and run unprivileged with networking disabled:
+
+    dpkg-buildpackage -b -us -uc
+
+Architecture-only builds (-B) omit documentation and do not need Doxygen.
+Architecture-independent builds (-A) produce documentation. The nodoc option
+suppresses documentation generation and the nodoc profile omits the doc package.
+Do not use nocheck for qualification.
+
+Qualification and publication
+-----------------------------
+
+Run all eleven upstream suites. Installed tests copy only the scripts and their
+harness to temporary storage, preserving test-relative includes; they explicitly
+preload installed qmods with no source-module directory present. They also run
+qrepl --help. The compiler fixture creates a pseudo-terminal, draws and reads
+text, exercises the input buffer and checks wide-character display width.
+
+The documentation example layout preserves test/TestHarness.qc. To run an
+example, change to /usr/share/doc/qore-ncurses-module-doc/examples and invoke
+qore test/<suite>.qtest with the runtime package installed.
+
+Check Lintian, hardening/debug links, AOT trailer preservation, runtime-only
+install without SDK, documentation/debug coinstallation, dpkg -V, purge/reinstall
+and reproducibility from distinct directories. Retain source/package hashes,
+dependency inventories and logs. Testing-PPA publication is separate from
+approval for a final general release.

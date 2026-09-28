@@ -1,0 +1,29 @@
+#!/bin/sh
+# Copyright (C) 2026 David Nichols
+# SPDX-License-Identifier: MIT
+set -eu
+export LC_ALL=C.UTF-8 TERM=xterm-256color
+unset QORE_MODULE_DIR QORE_MODULE_DIR_ONLY QORE_INCLUDE_DIR LD_LIBRARY_PATH LD_PRELOAD
+cd "$AUTOPKGTEST_TMP"
+cat > ncurses-smoke.q <<'EOF'
+%modern
+%requires ncurses
+%requires NcursesUi
+%requires NcursesReplUi
+int sub main() {
+    Ncurses::TestTerminal terminal(rows: 8, cols: 30, term_name: "xterm-256color");
+    terminal.open();
+    Ncurses::Session session({"test_terminal": terminal});
+    on_exit session.close();
+    Ncurses::Window window = session.screen();
+    window.drawText(1, 2, "package", {});
+    window.refresh();
+    NcursesReplUi::InputBuffer input();
+    input.insertChar("a");
+    return (window.readText(1, 2, 7) != "package" || input.getText() != "a"
+        || NcursesUi::TerminalText::displayWidth("界") != 2) ? 1 : 0;
+}
+exit(main());
+EOF
+/usr/bin/qcc -o ncurses-smoke ncurses-smoke.q
+./ncurses-smoke
