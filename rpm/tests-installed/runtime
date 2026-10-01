@@ -1,0 +1,26 @@
+#!/bin/sh
+# Copyright (C) 2026 Qore Technologies, s.r.o.
+# SPDX-License-Identifier: MIT
+set -eu
+export LC_ALL=C.UTF-8 TERM=xterm-256color
+unset QORE_MODULE_DIR QORE_MODULE_DIR_ONLY QORE_INCLUDE_DIR LD_LIBRARY_PATH LD_PRELOAD
+# Preserve test-relative includes while excluding all source modules.
+mkdir -p "${QORE_RPM_TEST_TMP:?set QORE_RPM_TEST_TMP}/test"
+cp test/*.qtest test/TestHarness.qc "${QORE_RPM_TEST_TMP:?set QORE_RPM_TEST_TMP}/test/"
+cd "${QORE_RPM_TEST_TMP:?set QORE_RPM_TEST_TMP}"
+# An AOT optional-module binding becomes a runtime package dependency.
+if rpm -e --test qore-magic-module > magic-removal.txt 2>&1; then
+    echo 'magic can be removed despite the compiled NcursesUi dependency' >&2
+    exit 1
+fi
+grep -q 'qore-ncurses-module' magic-removal.txt
+module_dir=$(/usr/bin/qore --module-path | tr : '\n' | while IFS= read -r path; do
+    if [ -f "$path/NcursesReplUi.qmod" ]; then printf '%s\n' "$path"; break; fi
+done)
+test -n "$module_dir"
+for test in test/*.qtest; do
+    timeout 300 /usr/bin/qore -b --enable-debug -l "$module_dir/NcursesReplUi.qmod" \
+        -l "$module_dir/NcursesUi/NcursesUi.qmod" "$test" -v
+done
+/usr/bin/qrepl --help > qrepl-help.txt
+grep -q 'Usage: qrepl' qrepl-help.txt
