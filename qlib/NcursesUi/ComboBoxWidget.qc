@@ -21,6 +21,7 @@
     DEALINGS IN THE SOFTWARE.
 */
 
+public namespace NcursesUi {
 /** Text input with dropdown list (combo box).
 
     Combines a text input field with a filterable dropdown list.
@@ -29,7 +30,6 @@
 
     @since ncurses 2.0
 */
-public namespace NcursesUi {
 public class ComboBoxWidget inherits NcursesUi::Widget {
     private {
         #! all options

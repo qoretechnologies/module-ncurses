@@ -21,6 +21,7 @@
     DEALINGS IN THE SOFTWARE.
 */
 
+public namespace NcursesUi {
 /** ScrollableContent backed by a list of strings.
 
     Supports ANSI color codes in the text. Uses
@@ -32,7 +33,6 @@
 
     @since ncurses 2.0
 */
-public namespace NcursesUi {
 public class LineListContent inherits NcursesUi::ScrollableContent {
     private {
         #! the list of logical lines

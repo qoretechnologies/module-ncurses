@@ -21,6 +21,7 @@
     DEALINGS IN THE SOFTWARE.
 */
 
+public namespace NcursesUi {
 /** Status bar widget with styled segments.
 
     Displays left-aligned and right-aligned text segments with
@@ -34,7 +35,6 @@
 
     @since ncurses 2.0
 */
-public namespace NcursesUi {
 public class StatusBarWidget inherits NcursesUi::Widget {
     private {
         #! list of segment hashes

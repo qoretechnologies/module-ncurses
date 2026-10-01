@@ -21,6 +21,7 @@
     DEALINGS IN THE SOFTWARE.
 */
 
+public namespace NcursesUi {
 /** Typed event dispatch with modal stack and hit-testing.
 
     Routes events through the widget tree with support for:
@@ -32,7 +33,6 @@
 
     @since ncurses 2.0
 */
-public namespace NcursesUi {
 public class EventDispatcher {
     private {
         #! the focus manager

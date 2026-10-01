@@ -21,6 +21,7 @@
     DEALINGS IN THE SOFTWARE.
 */
 
+public namespace NcursesUi {
 /** Code completion popup widget.
 
     Displays a scrollable list of completion items in a floating panel.
@@ -35,7 +36,6 @@
 
     @since %ncurses 2.0
 */
-public namespace NcursesUi {
 public class CompletionPopupWidget inherits NcursesUi::PanelWidget {
     private {
         #! list of completion item hashes

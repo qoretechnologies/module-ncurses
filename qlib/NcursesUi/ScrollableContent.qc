@@ -21,6 +21,7 @@
     DEALINGS IN THE SOFTWARE.
 */
 
+public namespace NcursesUi {
 /** Abstract content provider for @ref ScrollableWidget.
 
     Subclasses implement the content dimensions and drawing logic.
@@ -29,7 +30,6 @@
 
     @since ncurses 2.0
 */
-public namespace NcursesUi {
 public class ScrollableContent {
     /** Returns the total number of content rows.
         @since ncurses 2.0

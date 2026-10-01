@@ -21,6 +21,7 @@
     DEALINGS IN THE SOFTWARE.
 */
 
+public namespace NcursesUi {
 /** Vertical or horizontal box layout manager.
 
     Distributes space among children based on their size policy:
@@ -37,7 +38,6 @@
 
     @since ncurses 2.0
 */
-public namespace NcursesUi {
 public class BoxLayout {
     private {
         #! layout orientation

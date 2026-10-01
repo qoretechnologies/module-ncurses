@@ -21,6 +21,7 @@
     DEALINGS IN THE SOFTWARE.
 */
 
+public namespace NcursesUi {
 /** Checkbox toggle widget.
 
     Displays a labeled checkbox that can be toggled on/off with
@@ -28,7 +29,6 @@
 
     @since ncurses 2.0
 */
-public namespace NcursesUi {
 public class CheckboxWidget inherits NcursesUi::Widget {
     private {
         #! the label text

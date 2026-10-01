@@ -21,6 +21,7 @@
     DEALINGS IN THE SOFTWARE.
 */
 
+public namespace NcursesUi {
 /** Split-pane file system browser widget.
 
     Displays a directory listing on the left with a file preview pane
@@ -41,7 +42,6 @@
 
     @since ncurses 2.0
 */
-public namespace NcursesUi {
 public class FileBrowserWidget inherits NcursesUi::PanelWidget {
     private {
         #! current directory path

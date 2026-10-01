@@ -21,6 +21,7 @@
     DEALINGS IN THE SOFTWARE.
 */
 
+public namespace NcursesUi {
 /** Widget that wraps a @ref ScrollableContent with viewport management
     and scrollbar rendering.
 
@@ -30,7 +31,6 @@
 
     @since ncurses 2.0
 */
-public namespace NcursesUi {
 public class ScrollableWidget inherits NcursesUi::Widget {
     private {
         #! the content provider

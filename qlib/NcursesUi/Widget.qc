@@ -21,6 +21,7 @@
     DEALINGS IN THE SOFTWARE.
 */
 
+public namespace NcursesUi {
 /** Base widget for the NcursesUi toolkit.
 
     Provides a tree structure (parent/children), geometry management,
@@ -32,7 +33,6 @@
 
     @since ncurses 2.0
 */
-public namespace NcursesUi {
 public class Widget {
     private {
         #! parent widget (NOTHING for root)

@@ -21,6 +21,7 @@
     DEALINGS IN THE SOFTWARE.
 */
 
+public namespace NcursesUi {
 /** Top-level application orchestrator.
 
     Manages the session, event loop, layout, and drawing. Clients
@@ -37,7 +38,6 @@
 
     @since ncurses 2.0
 */
-public namespace NcursesUi {
 public class Application {
     private {
         #! the ncurses session

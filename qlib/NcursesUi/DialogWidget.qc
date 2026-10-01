@@ -21,6 +21,7 @@
     DEALINGS IN THE SOFTWARE.
 */
 
+public namespace NcursesUi {
 /** Modal dialog widget with message and configurable buttons.
 
     Displays a centered dialog with a title, message text, and
@@ -33,7 +34,6 @@
 
     @since ncurses 2.0
 */
-public namespace NcursesUi {
 public class DialogWidget inherits NcursesUi::PanelWidget {
     private {
         #! message lines

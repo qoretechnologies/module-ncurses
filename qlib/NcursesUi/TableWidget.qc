@@ -21,6 +21,7 @@
     DEALINGS IN THE SOFTWARE.
 */
 
+public namespace NcursesUi {
 /** Multi-column table widget with headers, sorting, and row selection.
 
     Displays tabular data with configurable columns, keyboard/mouse
@@ -35,7 +36,6 @@
 
     @since ncurses 2.0
 */
-public namespace NcursesUi {
 public class TableWidget inherits NcursesUi::Widget {
     private {
         #! column definitions

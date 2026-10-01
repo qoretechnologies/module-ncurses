@@ -21,11 +21,11 @@
     DEALINGS IN THE SOFTWARE.
 */
 
+public namespace NcursesUi {
 /** Static geometry helper methods for @ref Rect and @ref Insets types.
 
     @since ncurses 2.0
 */
-public namespace NcursesUi {
 public class Geometry {
     /** Check if a point is inside a Rect.
         @param rect the rectangle to test

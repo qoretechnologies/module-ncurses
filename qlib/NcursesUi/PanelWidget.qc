@@ -21,6 +21,7 @@
     DEALINGS IN THE SOFTWARE.
 */
 
+public namespace NcursesUi {
 /** Widget that owns an ncurses Panel.
 
     Unlike regular widgets that draw into their parent's window, a
@@ -32,7 +33,6 @@
 
     @since ncurses 2.0
 */
-public namespace NcursesUi {
 public class PanelWidget inherits NcursesUi::Widget {
     private {
         #! the ncurses session

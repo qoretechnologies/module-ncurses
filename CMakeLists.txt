@@ -19,6 +19,7 @@ if (NOT DEFINED QORE_MODULE_DIR_FOR_DOCS)
     set(QORE_MODULE_DIR_FOR_DOCS "${CMAKE_BINARY_DIR}:${CMAKE_SOURCE_DIR}/qlib")
 endif()
 
+set(QORE_DOXYGEN_MODULES QoreHistory)
 find_package(Qore 2.3 REQUIRED)
 
 # Use wide-character ncurses (ncursesw) to avoid ABI mismatch with wide panel library.
@@ -74,7 +75,7 @@ set(QPP_SRC
     src/QC_TestTerminal.qpp
 )
 
-qore_wrap_qpp_value(QPP_SOURCES METALIST QPP_META_SRC ${QPP_SRC})
+qore_wrap_qpp_value(QPP_SOURCES DOXLIST QPP_DOX_SOURCES METALIST QPP_META_SRC ${QPP_SRC})
 
 set(module_name "ncurses")
 
@@ -140,6 +141,9 @@ set(SCRIPTS
 # disable qjar for this module (ncurses is not a Java module)
 set(QORE_QJAR_COMMAND true)
 
+# Document public Qore declarations, excluding private C++ implementation bodies.
+set(MODULE_DOX_INPUT ${CMAKE_BINARY_DIR}/mainpage.dox
+    ${CMAKE_BINARY_DIR}/release-notes.dox ${QPP_DOX_SOURCES})
 qore_external_binary_module(${module_name} "${PROJECT_VERSION}")
 
 qore_user_modules("${QMOD}")
@@ -175,7 +179,7 @@ if (DOXYGEN_FOUND)
 
     # Add NcursesReplUi tag to NcursesUi docs so NcursesUi can cross-reference NcursesReplUi types
     file(APPEND ${CMAKE_BINARY_DIR}/doxygen/Doxyfile.NcursesUi
-        "\n# Add NcursesReplUi tag for cross-module references\nTAGFILES += ${CMAKE_BINARY_DIR}/NcursesReplUi.tag=../../NcursesReplUi/html\n")
+        "\n# Add NcursesReplUi tag for cross-module references\nTAGFILES += \"${CMAKE_BINARY_DIR}/NcursesReplUi.tag=../../NcursesReplUi/html\"\n")
 
     # NcursesReplUi must build before NcursesUi so that NcursesReplUi.tag is available
     add_dependencies(docs-NcursesUi docs-NcursesReplUi)
@@ -184,7 +188,7 @@ if (DOXYGEN_FOUND)
     # (copy + append, NOT configure_file with user module template which has wrong INPUT)
     file(COPY_FILE ${CMAKE_BINARY_DIR}/Doxyfile ${CMAKE_BINARY_DIR}/Doxyfile.final)
     file(APPEND ${CMAKE_BINARY_DIR}/Doxyfile.final
-        "\n# Final pass: enable user module cross-references and re-enable doc error warnings\nTAGFILES = ${CMAKE_BINARY_DIR}/NcursesUi.tag=../NcursesUi/html ${CMAKE_BINARY_DIR}/NcursesReplUi.tag=../NcursesReplUi/html\nWARN_IF_DOC_ERROR = YES\n")
+        "\n# Final pass: enable user module cross-references and re-enable doc error warnings\nTAGFILES += \"${CMAKE_BINARY_DIR}/NcursesUi.tag=../../NcursesUi/html\" \"${CMAKE_BINARY_DIR}/NcursesReplUi.tag=../../NcursesReplUi/html\"\nWARN_IF_DOC_ERROR = YES\n")
 
     add_custom_target(docs-module-final
         COMMAND ${DOXYGEN_EXECUTABLE} ${CMAKE_BINARY_DIR}/Doxyfile.final

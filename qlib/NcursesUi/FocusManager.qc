@@ -21,6 +21,7 @@
     DEALINGS IN THE SOFTWARE.
 */
 
+public namespace NcursesUi {
 /** Focus traversal manager for the widget tree.
 
     Tracks the currently focused widget and implements Tab/Shift+Tab
@@ -28,7 +29,6 @@
 
     @since ncurses 2.0
 */
-public namespace NcursesUi {
 public class FocusManager {
     private {
         #! the currently focused widget (or NOTHING)

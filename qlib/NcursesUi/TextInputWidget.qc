@@ -21,6 +21,7 @@
     DEALINGS IN THE SOFTWARE.
 */
 
+public namespace NcursesUi {
 /** Single-line text input widget with cursor, editing, and history.
 
     Wraps @ref NcursesReplUi::InputBuffer for editing and optionally
@@ -31,7 +32,6 @@
 
     @since ncurses 2.0
 */
-public namespace NcursesUi {
 public class TextInputWidget inherits NcursesUi::Widget {
     private {
         #! the input buffer

@@ -21,6 +21,7 @@
     DEALINGS IN THE SOFTWARE.
 */
 
+public namespace NcursesUi {
 /** Selectable list widget with keyboard and mouse support.
 
     Displays a scrollable list of items with selection highlighting.
@@ -32,7 +33,6 @@
 
     @since ncurses 2.0
 */
-public namespace NcursesUi {
 public class ListWidget inherits NcursesUi::Widget {
     private {
         #! list of item hashes
@@ -51,9 +51,9 @@ public class ListWidget inherits NcursesUi::Widget {
         *code on_select;
         #! callback on activation (Enter/double-click)
         *code on_activate;
-        #! custom render callback: string sub(hash<auto> item, int index, bool is_selected)
+        #! custom render callback: @c "string sub(hash<auto> item, int index, bool is_selected)"
         *code render_item;
-        #! custom style callback: *hash<auto> sub(hash<auto> item, int index, bool is_selected)
+        #! custom style callback: @c "*hash<auto> sub(hash<auto> item, int index, bool is_selected)"
         *code render_item_style;
         #! selected item style
         hash<auto> selected_style = {"attrs": Ncurses::Attr::Reverse};

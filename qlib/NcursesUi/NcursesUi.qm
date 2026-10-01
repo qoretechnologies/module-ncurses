@@ -213,7 +213,7 @@ bar.setSegments((
 
     @section ncursesui_testing Testing with TestHarness
 
-    @ref NcursesUi::TestHarness "TestHarness" wraps a
+    The example helper @c NcursesUi::TestHarness from @c test/TestHarness.qc wraps a
     @ref Qore::Ncurses::TestTerminal "TestTerminal" and Session to provide a
     headless testing environment. It creates a PTY-backed session and
     Application instance suitable for automated tests.
@@ -224,6 +224,7 @@ bar.setSegments((
 %requires ncurses
 %requires NcursesUi
 %requires QUnit
+%include test/TestHarness.qc
 
 NcursesUi::TestHarness th(24, 80);
 NcursesUi::Widget root();

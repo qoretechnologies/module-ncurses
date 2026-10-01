@@ -21,6 +21,7 @@
     DEALINGS IN THE SOFTWARE.
 */
 
+public namespace NcursesUi {
 /** Horizontal menu bar widget with dropdown support.
 
     Displays a row of menu items. Click or navigate to open
@@ -37,7 +38,6 @@
 
     @since ncurses 2.0
 */
-public namespace NcursesUi {
 public class MenuBarWidget inherits NcursesUi::Widget {
     private {
         #! list of menu definitions

@@ -21,6 +21,7 @@
     DEALINGS IN THE SOFTWARE.
 */
 
+public namespace NcursesUi {
 /** Two-pane split layout manager.
 
     Splits the container into two panes using either a ratio or a
@@ -39,7 +40,6 @@
 
     @since ncurses 2.0
 */
-public namespace NcursesUi {
 public class SplitLayout {
     private {
         #! layout orientation

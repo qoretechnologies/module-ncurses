@@ -21,6 +21,7 @@
     DEALINGS IN THE SOFTWARE.
 */
 
+public namespace NcursesUi {
 /** Dropdown menu popup widget.
 
     Displays a vertical list of menu items in a floating panel.
@@ -35,7 +36,6 @@
 
     @since ncurses 2.0
 */
-public namespace NcursesUi {
 public class DropdownMenuWidget inherits NcursesUi::PanelWidget {
     private {
         #! list of menu item hashes

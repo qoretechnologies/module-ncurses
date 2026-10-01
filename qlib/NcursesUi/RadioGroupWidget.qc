@@ -21,6 +21,7 @@
     DEALINGS IN THE SOFTWARE.
 */
 
+public namespace NcursesUi {
 /** Radio button group widget.
 
     Displays a list of labeled radio buttons where exactly one is
@@ -28,7 +29,6 @@
 
     @since ncurses 2.0
 */
-public namespace NcursesUi {
 public class RadioGroupWidget inherits NcursesUi::Widget {
     private {
         #! list of option labels
