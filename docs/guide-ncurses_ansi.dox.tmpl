@@ -1,0 +1,39 @@
+/* Copyright (C) 2026 Qore Technologies, s.r.o. */
+
+/** @page ncurses_ansiguide ANSI SGR Text
+
+    @tableofcontents
+
+    The module supports rendering text that contains ANSI SGR escape sequences
+    (e.g. output from compilers, test runners, or other tools). The
+    @ref Qore::Ncurses::Ansi "Ansi" class provides helpers for parsing and
+    measuring ANSI text, and the \c drawAnsi* family of Window methods render
+    it directly.
+
+    @par ANSI rendering example:
+    @code{.py}
+%modern
+%requires ncurses
+
+Ncurses::Session s();
+Ncurses::Window w = s.screen();
+w.clear();
+
+string esc = chr(27);
+string msg = esc + "[36mCyan title" + esc + "[0m " + esc + "[32mOK" + esc + "[0m";
+w.drawAnsiTextInsideLine(0, msg);
+w.refresh();
+
+w.readEvent();
+s.close();
+    @endcode
+
+    @par ANSI measurement:
+    @code{.py}
+# measure visible width (excludes escape sequences)
+int width = Ncurses::Ansi::visibleLength(msg);
+
+# strip ANSI codes entirely
+string plain = Ncurses::Ansi::strip(msg);
+    @endcode
+*/

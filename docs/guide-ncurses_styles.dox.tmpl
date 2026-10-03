@@ -1,0 +1,22 @@
+/* Copyright (C) 2026 Qore Technologies, s.r.o. */
+
+/** @page ncurses_stylesguide Style System
+
+    @tableofcontents
+
+    All drawing methods accept an optional \c style hash with keys from the
+    @ref Qore::Ncurses::Style "Style" hashdecl:
+    - \c fg: foreground color from @ref Qore::Ncurses::Color "Color" enum (e.g. \c Color::Cyan)
+    - \c bg: background color from @ref Qore::Ncurses::Color "Color" enum (e.g. \c Color::Blue)
+    - \c attrs: bitwise combination of @ref Qore::Ncurses::Attr "Attr" enum values (e.g. \c Attr::Bold)
+
+    @par Style example:
+    @code{.py}
+# yellow bold text on a blue background
+hash<auto> style = {"fg": Ncurses::Color::Yellow, "bg": Ncurses::Color::Blue, "attrs": Ncurses::Attr::Bold};
+w.drawText(0, 0, "Styled text", style);
+
+# cyan text with default background
+w.drawText(1, 0, "Cyan text", {"fg": Ncurses::Color::Cyan});
+    @endcode
+*/

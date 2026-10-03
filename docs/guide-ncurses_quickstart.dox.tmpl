@@ -1,0 +1,22 @@
+/* Copyright (C) 2026 Qore Technologies, s.r.o. */
+
+/** @page ncurses_quickstartguide Quick Start
+
+    @tableofcontents
+
+    @par Example:
+    @code{.py}
+%modern
+%requires ncurses
+
+Ncurses::Session s();
+Ncurses::Window w = s.screen();
+
+w.clear();
+w.drawText(1, 2, "Hello, Ncurses!", {fg: Ncurses::Color::Cyan, attrs: Ncurses::Attr::Bold});
+w.refresh();
+
+w.readEvent();
+s.close();
+    @endcode
+*/

@@ -1,0 +1,33 @@
+/* Copyright (C) 2026 Qore Technologies, s.r.o. */
+
+/** @page ncurses_apiguide API Overview
+
+    @tableofcontents
+
+    Helper classes:
+    |!Class|!Description
+    |@ref Qore::Ncurses::Session "Session"|Owns the terminal state and lifecycle
+    |@ref Qore::Ncurses::Window "Window"|Drawing and input on a surface
+    |@ref Qore::Ncurses::Panel "Panel"|Layered stacking for windows
+    |@ref Qore::Ncurses::TestTerminal "TestTerminal"|PTY-based helper for automated tests
+
+    Drawing helpers:
+    - @ref Qore::Ncurses::Window::drawTextClipped "Window::drawTextClipped()": clips to window bounds
+    - @ref Qore::Ncurses::Window::drawTextInside "Window::drawTextInside()": clips to the inner area of a boxed window
+    - @ref Qore::Ncurses::Window::drawTextInsideLine "Window::drawTextInsideLine()": clears and draws a line inside a box
+    - @ref Qore::Ncurses::Window::drawAnsiText "Window::drawAnsiText()": draws ANSI SGR colored text
+    - @ref Qore::Ncurses::Window::drawAnsiTextInside "Window::drawAnsiTextInside()": draws ANSI SGR text inside a box
+    - @ref Qore::Ncurses::Window::drawAnsiTextInsideLine "Window::drawAnsiTextInsideLine()": clears and draws ANSI SGR text
+    - @ref Qore::Ncurses::Window::clearInsideLine "Window::clearInsideLine()": clears a line inside a box
+
+    ANSI helpers:
+    - @ref Qore::Ncurses::Ansi "Ansi": parse, wrap, and measure ANSI SGR text
+
+    Refresh helpers:
+    - @ref Qore::Ncurses::Window::noutrefresh "Window::noutrefresh()": queue a window for refresh
+    - @ref Qore::Ncurses::Session::updatePanels "Session::updatePanels()": queue panel updates
+    - @ref Qore::Ncurses::Session::doupdate "Session::doupdate()": flush the virtual screen
+    - @ref Qore::Ncurses::Window::setLeaveOk "Window::setLeaveOk()": keep cursor position in other windows
+    - @ref Qore::Ncurses::Window::saveCursor "Window::saveCursor()": save the cursor position
+    - @ref Qore::Ncurses::Window::restoreCursor "Window::restoreCursor()": restore the cursor position
+*/

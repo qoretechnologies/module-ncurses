@@ -128,6 +128,15 @@ endif()
 set(QORE_DOX_TMPL_SRC
     docs/mainpage.dox.tmpl
     docs/release-notes.doxygen.tmpl
+    docs/guide-ncurses_ansi.dox.tmpl
+    docs/guide-ncurses_api.dox.tmpl
+    docs/guide-ncurses_examples.dox.tmpl
+    docs/guide-ncurses_mouse.dox.tmpl
+    docs/guide-ncurses_quickstart.dox.tmpl
+    docs/guide-ncurses_styles.dox.tmpl
+    docs/guide-ncurses_testing.dox.tmpl
+    docs/guide-ncurses_tools.dox.tmpl
+    docs/guide-ncurses_ui_widgets.dox.tmpl
 )
 
 set(QMOD
@@ -144,6 +153,17 @@ set(QORE_QJAR_COMMAND true)
 # Document public Qore declarations, excluding private C++ implementation bodies.
 set(MODULE_DOX_INPUT ${CMAKE_BINARY_DIR}/mainpage.dox
     ${CMAKE_BINARY_DIR}/release-notes.dox ${QPP_DOX_SOURCES})
+list(APPEND MODULE_DOX_INPUT
+    ${CMAKE_CURRENT_BINARY_DIR}/guide-ncurses_ansi.dox
+    ${CMAKE_CURRENT_BINARY_DIR}/guide-ncurses_api.dox
+    ${CMAKE_CURRENT_BINARY_DIR}/guide-ncurses_examples.dox
+    ${CMAKE_CURRENT_BINARY_DIR}/guide-ncurses_mouse.dox
+    ${CMAKE_CURRENT_BINARY_DIR}/guide-ncurses_quickstart.dox
+    ${CMAKE_CURRENT_BINARY_DIR}/guide-ncurses_styles.dox
+    ${CMAKE_CURRENT_BINARY_DIR}/guide-ncurses_testing.dox
+    ${CMAKE_CURRENT_BINARY_DIR}/guide-ncurses_tools.dox
+    ${CMAKE_CURRENT_BINARY_DIR}/guide-ncurses_ui_widgets.dox
+)
 qore_external_binary_module(${module_name} "${PROJECT_VERSION}")
 
 qore_user_modules("${QMOD}")
@@ -168,37 +188,7 @@ if (DOXYGEN_FOUND)
     add_custom_target(QORE_MOD_DOX_FILES DEPENDS ${QORE_DOX_SRC})
     add_dependencies(docs-module QORE_MOD_DOX_FILES)
 
-    # Two-phase doc build: the initial pass (docs-module) generates ncurses.tag with empty
-    # TAGFILES. User module docs (docs-NcursesUi, docs-NcursesReplUi) are then built using
-    # ncurses.tag, generating their own tag files. The final pass (docs-module-final) rebuilds
-    # the binary module docs with user module tag files in TAGFILES, enabling @ref
-    # cross-references from the mainpage into user module symbols.
-
-    # Suppress unresolved cross-reference warnings in the initial pass
-    file(APPEND ${CMAKE_BINARY_DIR}/Doxyfile "\n# Suppress warnings for initial pass (no user module TAGFILES available)\nWARN_IF_DOC_ERROR = NO\n")
-
-    # Add NcursesReplUi tag to NcursesUi docs so NcursesUi can cross-reference NcursesReplUi types
-    file(APPEND ${CMAKE_BINARY_DIR}/doxygen/Doxyfile.NcursesUi
-        "\n# Add NcursesReplUi tag for cross-module references\nTAGFILES += \"${CMAKE_BINARY_DIR}/NcursesReplUi.tag=../../NcursesReplUi/html\"\n")
-
-    # NcursesReplUi must build before NcursesUi so that NcursesReplUi.tag is available
-    add_dependencies(docs-NcursesUi docs-NcursesReplUi)
-
-    # Create final-pass Doxyfile from the binary module's Doxyfile with user module tag files
-    # (copy + append, NOT configure_file with user module template which has wrong INPUT)
-    file(COPY_FILE ${CMAKE_BINARY_DIR}/Doxyfile ${CMAKE_BINARY_DIR}/Doxyfile.final)
-    file(APPEND ${CMAKE_BINARY_DIR}/Doxyfile.final
-        "\n# Final pass: enable user module cross-references and re-enable doc error warnings\nTAGFILES += \"${CMAKE_BINARY_DIR}/NcursesUi.tag=../../NcursesUi/html\" \"${CMAKE_BINARY_DIR}/NcursesReplUi.tag=../../NcursesReplUi/html\"\nWARN_IF_DOC_ERROR = YES\n")
-
-    add_custom_target(docs-module-final
-        COMMAND ${DOXYGEN_EXECUTABLE} ${CMAKE_BINARY_DIR}/Doxyfile.final
-        COMMAND ${CMAKE_COMMAND} -E env ${QORE_DOCS_ENV} ${QORE_QDX_COMMAND} --post ${CMAKE_BINARY_DIR}/docs/${module_name}/html ${CMAKE_BINARY_DIR}/docs/${module_name}/html/search
-        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-        COMMENT "Generating API documentation with Doxygen (final pass with user module cross-references)"
-        VERBATIM
-    )
-    add_dependencies(docs-module-final docs-NcursesUi docs-NcursesReplUi)
-    add_dependencies(docs docs-module-final)
+    qore_binary_module_two_phase_docs(${module_name} "NcursesReplUi;NcursesUi")
 endif()
 
 # link libraries

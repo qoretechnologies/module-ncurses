@@ -1,0 +1,54 @@
+/* Copyright (C) 2026 Qore Technologies, s.r.o. */
+
+/** @page ncurses_testingguide Automated Testing with TestTerminal
+
+    @tableofcontents
+
+    @ref Qore::Ncurses::TestTerminal "TestTerminal" creates a pseudo-terminal
+    (PTY) that can be passed to
+    @ref Qore::Ncurses::Session "Session" for fully automated, headless tests.
+    The @c NcursesUi::TestHarness wrapper class from
+    @ref ncursesuiintro "NcursesUi" simplifies creating a Session + Application
+    pair for widget testing.
+
+    @par TestTerminal example:
+    @code{.py}
+%modern
+%requires ncurses
+
+# create a 24x80 pseudo-terminal
+Ncurses::TestTerminal tt(24, 80);
+
+# create a session on the test terminal
+Ncurses::Session s({"test_terminal": tt});
+Ncurses::Window w = s.screen();
+
+# inject input and verify output
+s.injectEvent({"type": Ncurses::InputType::Char, "ch": "x"});
+auto ev = w.readEvent(100, 25);
+# ev.ch == "x"
+
+# read back screen contents
+list<string> rows = s.snapshot();
+# rows[0] contains whatever was drawn on row 0
+
+s.close();
+    @endcode
+
+    @par TestHarness example:
+    @code{.py}
+%modern
+%requires ncurses
+%requires NcursesUi
+
+NcursesUi::TestHarness th(24, 80);
+
+# create and test widgets using th.session() and th.app()
+NcursesUi::Widget root();
+th.app().run(root, sub () {
+    # test code runs here with the event loop active
+});
+
+th.close();
+    @endcode
+*/

@@ -1,0 +1,74 @@
+/* Copyright (C) 2026 Qore Technologies, s.r.o. */
+
+/** @page ncurses_ui_widgetsguide UI Widget Toolkit (NcursesUi)
+
+    @tableofcontents
+
+    The @ref ncursesuiintro "NcursesUi" module provides a complete terminal UI
+    toolkit built on the ncurses binary module. Load it with:
+    @code{.py} %requires NcursesUi @endcode
+
+    @section ncurses_ui_arch Architecture
+
+    The toolkit is organized around a <b>widget tree</b>:
+    - @ref NcursesUi::Widget "Widget" is the base class; each widget has a parent, children,
+      geometry (@ref NcursesUi::Rect "Rect"), and focus state
+    - @ref NcursesUi::BoxLayout "BoxLayout" and @ref NcursesUi::SplitLayout "SplitLayout"
+      manage child geometry automatically
+    - @ref NcursesUi::Application "Application" owns the Session, root widget, and event loop
+    - @ref NcursesUi::EventDispatcher "EventDispatcher" routes keyboard and mouse events
+      through the widget tree with a modal stack for popups
+
+    @section ncurses_ui_app Application Pattern
+
+    @par Minimal NcursesUi application:
+    @code{.py}
+%modern
+%requires ncurses
+%requires NcursesUi
+
+NcursesUi::Application app();
+NcursesUi::Widget root();
+
+# add a vertical box layout with two children
+NcursesUi::BoxLayout layout(NcursesUi::Orientation::Vertical);
+root.addChild(layout);
+
+# add widgets to the layout...
+NcursesUi::StatusBarWidget bar();
+bar.setSegments(({"text": "Ready", "style": {"fg": Ncurses::Color::Cyan}}));
+layout.addChild(bar, NcursesUi::SizePolicy::Fixed);
+
+app.setRoot(root);
+app.run();
+    @endcode
+
+    @section ncurses_ui_panels Panel Widgets and Modal Dialogs
+
+    @ref NcursesUi::PanelWidget "PanelWidget" creates a floating overlay backed by an ncurses
+    Panel. @ref NcursesUi::DialogWidget "DialogWidget" extends it with a message and
+    configurable buttons. Push a panel as modal via
+    @ref NcursesUi::Application "Application::pushModal()" to capture all input until dismissed.
+
+    @section ncurses_ui_widgets_list Standard Widget Components
+
+    |!Widget|!Description
+    |@ref NcursesUi::ListWidget "ListWidget"|Selectable scrollable list with keyboard and mouse support
+    |@ref NcursesUi::TextInputWidget "TextInputWidget"|Single-line text input with cursor and optional history
+    |@ref NcursesUi::ScrollableWidget "ScrollableWidget"|Viewport wrapper with scrollbar rendering
+    |@ref NcursesUi::MenuBarWidget "MenuBarWidget"|Horizontal menu bar with dropdown support and Alt+key hotkeys
+    |@ref NcursesUi::DropdownMenuWidget "DropdownMenuWidget"|Popup menu for MenuBarWidget items
+    |@ref NcursesUi::StatusBarWidget "StatusBarWidget"|Status bar with styled left/right-aligned segments
+    |@ref NcursesUi::DialogWidget "DialogWidget"|Modal dialog with message and configurable buttons
+    |@ref NcursesUi::FileBrowserWidget "FileBrowserWidget"|Split-pane file system browser
+    |@ref NcursesUi::ComboBoxWidget "ComboBoxWidget"|Dropdown selector
+    |@ref NcursesUi::CheckboxWidget "CheckboxWidget"|Toggle checkbox
+    |@ref NcursesUi::RadioGroupWidget "RadioGroupWidget"|Mutually exclusive radio buttons
+    |@ref NcursesUi::TableWidget "TableWidget"|Column-based data table
+
+    @ref NcursesUi::TerminalText "TerminalText" provides Unicode-aware display-width
+    measurement, clipping at extended-grapheme boundaries, and right padding for
+    column-aligned terminal output.
+
+    For full documentation of each widget, see the @ref ncursesuiintro "NcursesUi module documentation".
+*/
