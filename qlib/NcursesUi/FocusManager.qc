@@ -27,7 +27,7 @@ public namespace NcursesUi {
     Tracks the currently focused widget and implements Tab/Shift+Tab
     navigation through focusable widgets.
 
-    @since ncurses 2.0
+    @since ncurses 1.0
 */
 public class FocusManager {
     private {
@@ -36,7 +36,7 @@ public class FocusManager {
     }
 
     /** Returns the currently focused widget.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     *NcursesUi::Widget getCurrentFocus() {
         return current_focus;
@@ -47,7 +47,7 @@ public class FocusManager {
         Unfocuses the old widget and focuses the new one.
 
         @param w the widget to focus (or NOTHING to unfocus all)
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setFocus(*NcursesUi::Widget w) {
         if (current_focus == w) {
@@ -70,7 +70,7 @@ public class FocusManager {
         @param root the root widget of the tree
         @param direction FocusDirection::Next or FocusDirection::Previous
         @return True if focus was moved
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     bool moveFocus(NcursesUi::Widget root, int direction) {
         list<NcursesUi::Widget> focusable = root.collectFocusable();
@@ -111,7 +111,7 @@ public class FocusManager {
         @param root the root widget of the tree
         @param ev the input event
         @return True if the event was consumed (Tab/Shift+Tab)
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     bool handleFocusEvent(NcursesUi::Widget root, hash<Ncurses::InputEvent> ev) {
         if (ev.type == Ncurses::InputType::Char && ord(ev.ch ?? "") == 0x09) {

@@ -29,7 +29,7 @@ public namespace NcursesUi {
     mouse wheel events. Draws a vertical scrollbar when content exceeds
     the viewport.
 
-    @since ncurses 2.0
+    @since ncurses 1.0
 */
 public class ScrollableWidget inherits NcursesUi::Widget {
     private {
@@ -49,7 +49,7 @@ public class ScrollableWidget inherits NcursesUi::Widget {
 
     /** Creates a new ScrollableWidget.
         @param c optional content provider
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     constructor(*NcursesUi::ScrollableContent c) {
         content = c;
@@ -58,7 +58,7 @@ public class ScrollableWidget inherits NcursesUi::Widget {
 
     /** Sets the content provider.
         @param c the content
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setContent(*NcursesUi::ScrollableContent c) {
         content = c;
@@ -68,21 +68,21 @@ public class ScrollableWidget inherits NcursesUi::Widget {
     }
 
     /** Returns the content provider.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     *NcursesUi::ScrollableContent getContent() {
         return content;
     }
 
     /** Returns the current vertical scroll offset.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     int getScrollY() {
         return scrollY;
     }
 
     /** Returns the current horizontal scroll offset.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     int getScrollX() {
         return scrollX;
@@ -90,7 +90,7 @@ public class ScrollableWidget inherits NcursesUi::Widget {
 
     /** Sets the vertical scroll offset directly.
         @param y the new scroll offset
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setScrollY(int y) {
         scrollY = clampScrollY(y);
@@ -99,7 +99,7 @@ public class ScrollableWidget inherits NcursesUi::Widget {
 
     /** Sets whether to show the vertical scrollbar.
         @param v True to show
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setShowScrollbar(bool v) {
         show_scrollbar = v;
@@ -109,21 +109,21 @@ public class ScrollableWidget inherits NcursesUi::Widget {
     /** Sets the cursor position to display within the content.
         @param line the content line index
         @param col the column position
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setCursorLine(int line, int col) {
         cursor_pos = {"line": line, "col": col};
     }
 
     /** Clears the cursor position (no cursor displayed).
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing clearCursorLine() {
         cursor_pos = NOTHING;
     }
 
     /** Returns the current cursor position, if set.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     *hash<auto> getCursorPos() {
         return cursor_pos;
@@ -132,7 +132,7 @@ public class ScrollableWidget inherits NcursesUi::Widget {
     /** Scrolls in the given direction.
         @param dir the scroll direction
         @param amount number of lines/pages to scroll (default 1)
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing scrollTo(int dir, int amount = 1) {
         hash<NcursesUi::Rect> cr = contentRect();
@@ -161,7 +161,7 @@ public class ScrollableWidget inherits NcursesUi::Widget {
 
     /** Draws the content and scrollbar.
         @param w the window to draw into
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing draw(Ncurses::Window w) {
         hash<NcursesUi::Rect> cr = contentRect();
@@ -204,7 +204,7 @@ public class ScrollableWidget inherits NcursesUi::Widget {
     /** Handles scroll-related events.
         @param ev the input event
         @return EventResult
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     hash<NcursesUi::EventResult> processEvent(hash<Ncurses::InputEvent> ev) {
         if (ev.type == Ncurses::InputType::Key) {

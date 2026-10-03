@@ -62,7 +62,7 @@ auto ev = w.readEvent(100, 25);
 s.close();
     @endcode
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 qclass TestTerminal [dom=TERMINAL_IO; arg=NcursesTestTerminal* term; ns=Qore::Ncurses];
 
@@ -75,7 +75,7 @@ qclass TestTerminal [dom=TERMINAL_IO; arg=NcursesTestTerminal* term; ns=Qore::Nc
     @param cols
     @param term_name optional TERM value
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 //! Creates a test terminal
 /**
@@ -83,7 +83,7 @@ qclass TestTerminal [dom=TERMINAL_IO; arg=NcursesTestTerminal* term; ns=Qore::Nc
     @param cols optional cols
     @param term_name optional TERM value
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 TestTerminal::constructor(*int rows, *int cols, *string term_name) [flags=NAMED_ARGS] {
     bool has_rows = args && args->size() > 0 && !args->retrieveEntry(0).isNothing();
@@ -95,7 +95,7 @@ TestTerminal::constructor(*int rows, *int cols, *string term_name) [flags=NAMED_
 
 //! Opens the pseudo-terminal
 /**
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 nothing TestTerminal::open() {
     term->ensureOpen(xsink);
@@ -107,7 +107,7 @@ nothing TestTerminal::open() {
     @param rows new rows
     @param cols new cols
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 nothing TestTerminal::resize(int rows, int cols) [flags=NAMED_ARGS] {
     term->resize(rows, cols, xsink);
@@ -118,7 +118,7 @@ nothing TestTerminal::resize(int rows, int cols) [flags=NAMED_ARGS] {
 /**
     @param data input data
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 nothing TestTerminal::writeInput(string data) [flags=NAMED_ARGS] {
     term->writeInput(data, xsink);
@@ -127,7 +127,7 @@ nothing TestTerminal::writeInput(string data) [flags=NAMED_ARGS] {
 
 //! Closes the test terminal
 /**
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 nothing TestTerminal::close() {
     term->close(xsink);
@@ -136,7 +136,7 @@ nothing TestTerminal::close() {
 
 //! Returns true if the test terminal is open
 /**
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 bool TestTerminal::isOpen() {
     return term && term->master_fd >= 0;
@@ -146,7 +146,7 @@ bool TestTerminal::isOpen() {
 /**
     @return slave device path (for use with Session::constructor \c tty_path)
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 string TestTerminal::getSlavePath() {
     term->ensureOpen(xsink);

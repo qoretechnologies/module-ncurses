@@ -30,7 +30,7 @@ public namespace NcursesUi {
     Backspace/Delete, arrow keys, and history navigation with
     Up/Down.
 
-    @since ncurses 2.0
+    @since ncurses 1.0
 */
 public class TextInputWidget inherits NcursesUi::Widget {
     private {
@@ -50,7 +50,7 @@ public class TextInputWidget inherits NcursesUi::Widget {
 
     /** Creates a new TextInputWidget.
         @param p the prompt string
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     constructor(string p = "") {
         prompt = p;
@@ -59,7 +59,7 @@ public class TextInputWidget inherits NcursesUi::Widget {
 
     /** Sets the prompt.
         @param p the prompt string
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setPrompt(string p) {
         prompt = p;
@@ -67,21 +67,21 @@ public class TextInputWidget inherits NcursesUi::Widget {
     }
 
     /** Returns the prompt.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     string getPrompt() {
         return prompt;
     }
 
     /** Returns the input buffer.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     NcursesReplUi::InputBuffer getBuffer() {
         return buffer;
     }
 
     /** Returns the current text.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     string getText() {
         return buffer.getText();
@@ -89,7 +89,7 @@ public class TextInputWidget inherits NcursesUi::Widget {
 
     /** Sets the text.
         @param t the text
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setText(string t) {
         buffer.setText(t);
@@ -98,14 +98,14 @@ public class TextInputWidget inherits NcursesUi::Widget {
 
     /** Sets a history instance.
         @param h the history
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setHistory(*QoreHistory::History h) {
         history = h;
     }
 
     /** Returns the history instance.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     *QoreHistory::History getHistory() {
         return history;
@@ -113,7 +113,7 @@ public class TextInputWidget inherits NcursesUi::Widget {
 
     /** Sets the submit callback.
         @param cb callback receiving the submitted text
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setOnSubmit(*code cb) {
         on_submit = cb;
@@ -121,14 +121,14 @@ public class TextInputWidget inherits NcursesUi::Widget {
 
     /** Sets the text change callback.
         @param cb callback receiving the current text
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setOnChange(*code cb) {
         on_change = cb;
     }
 
     /** Returns the cursor position.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     int getCursorPos() {
         return buffer.getCursor();
@@ -136,7 +136,7 @@ public class TextInputWidget inherits NcursesUi::Widget {
 
     /** Draws the text input.
         @param w the window
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing draw(Ncurses::Window w) {
         hash<NcursesUi::Rect> cr = contentRect();
@@ -177,7 +177,7 @@ public class TextInputWidget inherits NcursesUi::Widget {
     /** Handles input events.
         @param ev the input event
         @return EventResult
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     hash<NcursesUi::EventResult> processEvent(hash<Ncurses::InputEvent> ev) {
         if (ev.type == Ncurses::InputType::Key) {

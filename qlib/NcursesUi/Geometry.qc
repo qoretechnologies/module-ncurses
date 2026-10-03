@@ -24,7 +24,7 @@
 public namespace NcursesUi {
 /** Static geometry helper methods for @ref Rect and @ref Insets types.
 
-    @since ncurses 2.0
+    @since ncurses 1.0
 */
 public class Geometry {
     /** Check if a point is inside a Rect.
@@ -33,7 +33,7 @@ public class Geometry {
         @param px the column coordinate
         @return True if the point is inside the rectangle
 
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     static bool rectContains(hash<NcursesUi::Rect> rect, int py, int px) {
         return py >= rect.y && py < rect.y + rect.rows
@@ -47,7 +47,7 @@ public class Geometry {
         @param cols number of columns
         @return new Rect
 
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     static hash<NcursesUi::Rect> makeRect(int y, int x, int rows, int cols) {
         return <NcursesUi::Rect>{
@@ -65,7 +65,7 @@ public class Geometry {
         @param right right inset
         @return new Insets
 
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     static hash<NcursesUi::Insets> makeInsets(int top, int bottom, int left, int right) {
         return <NcursesUi::Insets>{
@@ -81,7 +81,7 @@ public class Geometry {
         @param insets the insets to apply
         @return new Rect that is the inner content area
 
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     static hash<NcursesUi::Rect> rectInset(hash<NcursesUi::Rect> rect, hash<NcursesUi::Insets> insets) {
         int y = rect.y + insets.top;

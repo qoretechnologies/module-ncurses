@@ -27,7 +27,7 @@ public namespace NcursesUi {
     Displays a labeled checkbox that can be toggled on/off with
     Space, Enter, or mouse click.
 
-    @since ncurses 2.0
+    @since ncurses 1.0
 */
 public class CheckboxWidget inherits NcursesUi::Widget {
     private {
@@ -42,7 +42,7 @@ public class CheckboxWidget inherits NcursesUi::Widget {
     /** Creates a new CheckboxWidget.
         @param lbl the label
         @param initial_checked initial state
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     constructor(string lbl, bool initial_checked = False) {
         label = lbl;
@@ -51,7 +51,7 @@ public class CheckboxWidget inherits NcursesUi::Widget {
     }
 
     /** Returns whether the checkbox is checked.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     bool isChecked() {
         return checked;
@@ -59,7 +59,7 @@ public class CheckboxWidget inherits NcursesUi::Widget {
 
     /** Sets the checked state.
         @param v the state
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setChecked(bool v) {
         checked = v;
@@ -67,7 +67,7 @@ public class CheckboxWidget inherits NcursesUi::Widget {
     }
 
     /** Toggles the checked state.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing toggle() {
         checked = !checked;
@@ -79,14 +79,14 @@ public class CheckboxWidget inherits NcursesUi::Widget {
 
     /** Sets the toggle callback.
         @param cb callback receiving the new checked state
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setOnToggle(*code cb) {
         on_toggle = cb;
     }
 
     /** Returns the label text.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     string getLabel() {
         return label;
@@ -94,7 +94,7 @@ public class CheckboxWidget inherits NcursesUi::Widget {
 
     /** Sets the label text.
         @param lbl the new label
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setLabel(string lbl) {
         label = lbl;
@@ -103,7 +103,7 @@ public class CheckboxWidget inherits NcursesUi::Widget {
 
     /** Draws the checkbox.
         @param w the window
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing draw(Ncurses::Window w) {
         hash<NcursesUi::Rect> cr = contentRect();
@@ -125,7 +125,7 @@ public class CheckboxWidget inherits NcursesUi::Widget {
     /** Handles toggle events.
         @param ev the input event
         @return EventResult
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     hash<NcursesUi::EventResult> processEvent(hash<Ncurses::InputEvent> ev) {
         if (ev.type == Ncurses::InputType::Char) {

@@ -11,7 +11,7 @@
 %exec-class NcursesTest
 
 class NcursesTest inherits Test {
-    constructor() : Test("NcursesTest", "2.0") {
+    constructor() : Test("NcursesTest", "1.0") {
         addTestCase("session open/close", \testSessionLifecycle());
         addTestCase("window draw and read", \testDrawAndRead());
         addTestCase("drawTextInside respects borders", \testDrawTextInside());

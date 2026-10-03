@@ -4,51 +4,103 @@
 
     @tableofcontents
 
-    The @ref ncursesuiintro "NcursesUi" module provides a complete terminal UI
-    toolkit built on the ncurses binary module. Load it with:
-    @code{.py} %requires NcursesUi @endcode
+    @ref ncursesuiintro "NcursesUi" builds reusable controls on the binary terminal API.
+    Use it when your program needs focus traversal, layout, menus, and event dispatch rather
+    than handling every drawing and input operation directly.
 
     @section ncurses_ui_arch Architecture
 
-    The toolkit is organized around a <b>widget tree</b>:
-    - @ref NcursesUi::Widget "Widget" is the base class; each widget has a parent, children,
-      geometry (@ref NcursesUi::Rect "Rect"), and focus state
-    - @ref NcursesUi::BoxLayout "BoxLayout" and @ref NcursesUi::SplitLayout "SplitLayout"
-      manage child geometry automatically
-    - @ref NcursesUi::Application "Application" owns the Session, root widget, and event loop
-    - @ref NcursesUi::EventDispatcher "EventDispatcher" routes keyboard and mouse events
-      through the widget tree with a modal stack for popups
+    @ref NcursesUi::Widget "Widget" owns children, geometry, focus state, and a dirty flag.
+    Add controls with @ref NcursesUi::Widget::addChild() "Widget::addChild()".
+    Layout managers are separate objects: @ref NcursesUi::BoxLayout "BoxLayout" distributes
+    space among a container's children; @ref NcursesUi::SplitLayout "SplitLayout" divides the
+    first two visible children by ratio or fixed size. They are not child widgets.
 
-    @section ncurses_ui_app Application Pattern
+    @ref NcursesUi::Application "Application" owns the session, root widget, and event loop.
+    Set a root layout with @ref NcursesUi::Application::setRootLayout() "Application::setRootLayout()"
+    before @ref NcursesUi::Application::setRoot() "Application::setRoot()" so the initial
+    geometry is computed with that layout. @ref NcursesUi::EventDispatcher "EventDispatcher"
+    routes input; @ref NcursesUi::FocusManager "FocusManager" handles focus traversal.
 
-    @par Minimal NcursesUi application:
+    @section ncurses_ui_app List and Status Application
+
+    This complete program places an expanding list above a one-row status bar. Arrow keys
+    change the selection; \c q exits. The session is closed even if drawing or a callback raises.
+
     @code{.py}
 %modern
 %requires ncurses
 %requires NcursesUi
 
-NcursesUi::Application app();
+Ncurses::Session session();
+on_exit session.close();
+NcursesUi::Application app(session);
 NcursesUi::Widget root();
-
-# add a vertical box layout with two children
+NcursesUi::ListWidget choices();
+choices.setItems(({"label": "Build"}, {"label": "Test"}, {"label": "Deploy"}));
+NcursesUi::StatusBarWidget status();
+status.setSegments(({"text": "Arrow keys select; q quits"},));
+root.addChild(choices);
+root.addChild(status);
 NcursesUi::BoxLayout layout(NcursesUi::Orientation::Vertical);
-root.addChild(layout);
-
-# add widgets to the layout...
-NcursesUi::StatusBarWidget bar();
-bar.setSegments(({"text": "Ready", "style": {"fg": Ncurses::Color::Cyan}}));
-layout.addChild(bar, NcursesUi::SizePolicy::Fixed);
-
+app.setRootLayout(layout);
 app.setRoot(root);
+choices.setFocused(True);
+app.setGlobalKeyHandler(hash<NcursesUi::EventResult> sub (hash<Ncurses::InputEvent> event) {
+    if (event.type == Ncurses::InputType::Char && event.ch == "q") {
+        app.quit();
+        return <NcursesUi::EventResult>{"handled": True};
+    }
+    return <NcursesUi::EventResult>{"handled": False};
+});
 app.run();
     @endcode
 
+    @ref NcursesUi::StatusBarWidget "StatusBarWidget" already requests a fixed height of one row.
+    Other controls can set their sizing preferences with
+    @ref NcursesUi::Widget::setVSizePolicy() "Widget::setVSizePolicy()" and
+    @ref NcursesUi::Widget::setPreferredSize() "Widget::setPreferredSize()".
+    @ref NcursesUi::Application::run() "Application::run()" draws dirty widgets, reads input,
+    dispatches events, and invokes registered tick callbacks until
+    @ref NcursesUi::Application::quit() "Application::quit()" is called.
+
     @section ncurses_ui_panels Panel Widgets and Modal Dialogs
 
-    @ref NcursesUi::PanelWidget "PanelWidget" creates a floating overlay backed by an ncurses
-    Panel. @ref NcursesUi::DialogWidget "DialogWidget" extends it with a message and
-    configurable buttons. Push a panel as modal via
-    @ref NcursesUi::Application "Application::pushModal()" to capture all input until dismissed.
+    @ref NcursesUi::PanelWidget "PanelWidget" draws in its own
+    @ref Qore::Ncurses::Panel "Panel". @ref NcursesUi::DialogWidget "DialogWidget" adds a
+    title, message, and buttons. Create it with the application's session, center it, and
+    register button/dismiss callbacks before @ref NcursesUi::Application::pushModal() "Application::pushModal()".
+    The button callback receives an integer index and string label. Always remove the modal
+    with @ref NcursesUi::Application::popModal() "Application::popModal()" when dismissing it.
+
+    This standalone confirmation example exits after either button or Escape:
+
+    @code{.py}
+%modern
+%requires ncurses
+%requires NcursesUi
+
+Ncurses::Session session();
+on_exit session.close();
+NcursesUi::Application app(session);
+NcursesUi::Widget root();
+app.setRoot(root);
+NcursesUi::DialogWidget dialog(session, "Confirm", "Continue?", ("Yes", "No"));
+hash<Ncurses::Size> size = session.screen().size();
+dialog.centerOn(size.rows, size.cols);
+dialog.setOnButton(sub (int index, string label) {
+    app.popModal();
+    dialog.hide();
+    app.quit();
+});
+dialog.setOnDismiss(sub () {
+    app.popModal();
+    dialog.hide();
+    app.quit();
+});
+app.pushModal(dialog);
+app.run();
+    @endcode
 
     @section ncurses_ui_widgets_list Standard Widget Components
 
@@ -66,9 +118,9 @@ app.run();
     |@ref NcursesUi::RadioGroupWidget "RadioGroupWidget"|Mutually exclusive radio buttons
     |@ref NcursesUi::TableWidget "TableWidget"|Column-based data table
 
-    @ref NcursesUi::TerminalText "TerminalText" provides Unicode-aware display-width
-    measurement, clipping at extended-grapheme boundaries, and right padding for
-    column-aligned terminal output.
 
-    For full documentation of each widget, see the @ref ncursesuiintro "NcursesUi module documentation".
+    @ref NcursesUi::TerminalText "TerminalText" measures display columns, clips at grapheme
+    boundaries, and pads Unicode strings for aligned output. See
+    @ref ncurses_stylesguide "Style System" for colors and
+    @ref ncurses_testingguide "Automated Testing" for deterministic widget tests.
 */

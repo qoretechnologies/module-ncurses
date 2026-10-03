@@ -27,7 +27,7 @@ public namespace NcursesUi {
     Displays a list of labeled radio buttons where exactly one is
     selected. Navigate with Up/Down, select with Space/Enter.
 
-    @since ncurses 2.0
+    @since ncurses 1.0
 */
 public class RadioGroupWidget inherits NcursesUi::Widget {
     private {
@@ -44,7 +44,7 @@ public class RadioGroupWidget inherits NcursesUi::Widget {
     /** Creates a new RadioGroupWidget.
         @param opts the option labels
         @param initial_index initially selected index
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     constructor(list<string> opts, int initial_index = 0) {
         options = opts;
@@ -56,14 +56,14 @@ public class RadioGroupWidget inherits NcursesUi::Widget {
     }
 
     /** Returns the selected index.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     int getSelectedIndex() {
         return selected_index;
     }
 
     /** Returns the selected option label.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     string getSelectedOption() {
         if (options.empty()) {
@@ -73,7 +73,7 @@ public class RadioGroupWidget inherits NcursesUi::Widget {
     }
 
     /** Returns the highlighted index.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     int getHighlightIndex() {
         return highlight_index;
@@ -81,7 +81,7 @@ public class RadioGroupWidget inherits NcursesUi::Widget {
 
     /** Sets the selected index.
         @param idx the index
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setSelectedIndex(int idx) {
         if (idx >= 0 && idx < options.size()) {
@@ -93,14 +93,14 @@ public class RadioGroupWidget inherits NcursesUi::Widget {
 
     /** Sets the selection callback.
         @param cb callback receiving the selected index
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setOnSelect(*code cb) {
         on_select = cb;
     }
 
     /** Returns the option labels.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     list<string> getOptions() {
         return options;
@@ -108,7 +108,7 @@ public class RadioGroupWidget inherits NcursesUi::Widget {
 
     /** Sets the options.
         @param opts the new options
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setOptions(list<string> opts) {
         options = opts;
@@ -123,7 +123,7 @@ public class RadioGroupWidget inherits NcursesUi::Widget {
 
     /** Draws the radio group.
         @param w the window
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing draw(Ncurses::Window w) {
         hash<NcursesUi::Rect> cr = contentRect();
@@ -148,7 +148,7 @@ public class RadioGroupWidget inherits NcursesUi::Widget {
     /** Handles navigation and selection events.
         @param ev the input event
         @return EventResult
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     hash<NcursesUi::EventResult> processEvent(hash<Ncurses::InputEvent> ev) {
         if (options.empty()) {

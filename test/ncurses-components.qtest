@@ -15,7 +15,26 @@
 %exec-class NcursesComponentsTest
 
 class NcursesComponentsTest inherits Test {
+    private {
+        string fixture_dir;
+    }
+
     constructor() : Test("NcursesComponentsTest", "1.0") {
+        # File browser tests must not inspect arbitrary files in the host's /tmp.
+        fixture_dir = "/tmp/ncurses-components-" + string(getpid());
+        mkdir(fixture_dir, 0700);
+        on_exit {
+            unlink(fixture_dir + "/example.txt");
+            unlink(fixture_dir + "/.hidden");
+            rmdir(fixture_dir);
+        }
+        foreach string name in (("example.txt", ".hidden")) {
+            File file();
+            file.open(fixture_dir + "/" + name, O_CREAT | O_WRONLY | O_EXCL, 0600);
+            file.write("fixture\n");
+            file.close();
+        }
+
         # CheckboxWidget tests
         addTestCase("TerminalText Unicode layout",
             \testTerminalTextUnicodeLayout());
@@ -2059,8 +2078,8 @@ class NcursesComponentsTest inherits Test {
         NcursesUi::TestHarness th(24, 80);
         on_exit th.close();
 
-        NcursesUi::FileBrowserWidget fb(th.session(), "/tmp");
-        assertEq("/tmp", fb.getCurrentDir());
+        NcursesUi::FileBrowserWidget fb(th.session(), fixture_dir);
+        assertEq(fixture_dir, fb.getCurrentDir());
         assertFalse(fb.isShowHidden());
         assertTrue(fb.getFileList().getItems().size() >= 1);  # at least ".."
 
@@ -2075,14 +2094,14 @@ class NcursesComponentsTest inherits Test {
 
         # title should include directory
         assertTrue(fb.getTitle().find("File Browser") >= 0);
-        assertTrue(fb.getTitle().find("/tmp") >= 0);
+        assertTrue(fb.getTitle().find(fixture_dir) >= 0);
     }
 
     testFileBrowserHidden() {
         NcursesUi::TestHarness th(24, 80);
         on_exit th.close();
 
-        NcursesUi::FileBrowserWidget fb(th.session(), "/tmp");
+        NcursesUi::FileBrowserWidget fb(th.session(), fixture_dir);
         int count_without = fb.getFileList().getItems().size();
 
         fb.toggleHidden();
@@ -2096,7 +2115,7 @@ class NcursesComponentsTest inherits Test {
         NcursesUi::TestHarness th(24, 80);
         on_exit th.close();
 
-        NcursesUi::FileBrowserWidget fb(th.session(), "/tmp");
+        NcursesUi::FileBrowserWidget fb(th.session(), fixture_dir);
         fb.setFrame(NcursesUi::Geometry::makeRect(2, 5, 20, 70));
         fb.createPanel();
 
@@ -2131,11 +2150,7 @@ class NcursesComponentsTest inherits Test {
         NcursesUi::TestHarness th(24, 80);
         on_exit th.close();
 
-        # use the project's test directory which has known files
-        string test_dir = getcwd() + "/test";
-        if (!is_dir(test_dir)) {
-            test_dir = "/tmp";
-        }
+        string test_dir = fixture_dir;
 
         NcursesUi::FileBrowserWidget fb(th.session(), test_dir);
 
@@ -2166,14 +2181,19 @@ class NcursesComponentsTest inherits Test {
         on_exit th.close();
 
         # create a temp directory structure for testing
-        string temp_dir = "/tmp/fb_tab_" + string(getpid());
+        string temp_dir = fixture_dir + "/fb_tab_" + string(getpid());
         string sub_dir = temp_dir + "/subdir";
         mkdir(temp_dir, 0755);
         mkdir(sub_dir, 0755);
         on_exit {
+            unlink(temp_dir + "/plain.txt");
             rmdir(sub_dir);
             rmdir(temp_dir);
         }
+        File file();
+        file.open(temp_dir + "/plain.txt", O_CREAT | O_WRONLY | O_EXCL, 0600);
+        file.write("fixture\n");
+        file.close();
 
         NcursesUi::FileBrowserWidget fb(th.session(), temp_dir);
         assertEq(0, fb.getFocusedPane());
@@ -2220,10 +2240,19 @@ class NcursesComponentsTest inherits Test {
         assertTrue(result.handled);
         assertEq("navigate_back", result.action);
 
-        # Tab on a non-directory item should not navigate
-        # select a non-dir entry if available, or just verify it's handled
+        # Select an actual file; leaving ".." selected would navigate outside the fixture.
+        int file_idx = -1;
+        for (int i = 0; i < fl.getItems().size(); ++i) {
+            if (fl.getItems()[i].label == "plain.txt") {
+                file_idx = i;
+                break;
+            }
+        }
+        assertTrue(file_idx >= 0);
+        fl.setSelectedIndex(file_idx);
         result = fb.processEvent(ev);
         assertTrue(result.handled, "Tab on non-dir should still be handled");
+        assertEq(original_dir, fb.getCurrentDir());
     }
 
     /** Test Qore file activation calls on_load callback. */
@@ -2232,7 +2261,7 @@ class NcursesComponentsTest inherits Test {
         on_exit th.close();
 
         # create a temp Qore file for testing
-        string temp_dir = "/tmp/fb_test_" + string(getpid());
+        string temp_dir = fixture_dir + "/fb_test_" + string(getpid());
         mkdir(temp_dir, 0755);
         on_exit {
             unlink(temp_dir + "/test.qr");
@@ -2280,7 +2309,7 @@ class NcursesComponentsTest inherits Test {
         NcursesUi::TestHarness th(24, 80);
         on_exit th.close();
 
-        NcursesUi::FileBrowserWidget fb(th.session(), "/tmp");
+        NcursesUi::FileBrowserWidget fb(th.session(), fixture_dir);
 
         bool dismissed = False;
         fb.setOnDismiss(sub () {
@@ -2301,7 +2330,7 @@ class NcursesComponentsTest inherits Test {
         NcursesUi::TestHarness th(24, 80);
         on_exit th.close();
 
-        NcursesUi::FileBrowserWidget fb(th.session(), "/tmp");
+        NcursesUi::FileBrowserWidget fb(th.session(), fixture_dir);
 
         # status text should contain keyboard hints
         string status = fb.getStatusText();
@@ -2323,7 +2352,7 @@ class NcursesComponentsTest inherits Test {
         NcursesUi::TestHarness th(24, 80);
         on_exit th.close();
 
-        NcursesUi::FileBrowserWidget fb(th.session(), "/tmp");
+        NcursesUi::FileBrowserWidget fb(th.session(), fixture_dir);
 
         assertTrue(fb.isQoreFile("test.q"));
         assertTrue(fb.isQoreFile("mod.qm"));
@@ -2341,7 +2370,7 @@ class NcursesComponentsTest inherits Test {
         NcursesUi::TestHarness th(24, 80);
         on_exit th.close();
 
-        NcursesUi::FileBrowserWidget fb(th.session(), "/tmp");
+        NcursesUi::FileBrowserWidget fb(th.session(), fixture_dir);
         assertFalse(fb.isShowHidden());
 
         hash<Ncurses::InputEvent> ev();
@@ -2363,7 +2392,7 @@ class NcursesComponentsTest inherits Test {
         on_exit th.close();
 
         # create a temp dir with files of binary extensions
-        string temp_dir = "/tmp/fb_binary_ext_" + string(getpid());
+        string temp_dir = fixture_dir + "/fb_binary_ext_" + string(getpid());
         mkdir(temp_dir, 0755);
         on_exit {
             unlink(temp_dir + "/test.o");
@@ -2414,7 +2443,7 @@ class NcursesComponentsTest inherits Test {
         NcursesUi::TestHarness th(24, 80);
         on_exit th.close();
 
-        string temp_dir = "/tmp/fb_binary_prev_" + string(getpid());
+        string temp_dir = fixture_dir + "/fb_binary_prev_" + string(getpid());
         mkdir(temp_dir, 0755);
         on_exit {
             unlink(temp_dir + "/test.o");
@@ -2454,7 +2483,7 @@ class NcursesComponentsTest inherits Test {
         NcursesUi::TestHarness th(24, 80);
         on_exit th.close();
 
-        string temp_dir = "/tmp/fb_binary_content_" + string(getpid());
+        string temp_dir = fixture_dir + "/fb_binary_content_" + string(getpid());
         mkdir(temp_dir, 0755);
         on_exit {
             unlink(temp_dir + "/sneaky_binary");
@@ -2494,7 +2523,7 @@ class NcursesComponentsTest inherits Test {
         NcursesUi::TestHarness th(24, 80);
         on_exit th.close();
 
-        string temp_dir = "/tmp/fb_dir_prev_" + string(getpid());
+        string temp_dir = fixture_dir + "/fb_dir_prev_" + string(getpid());
         mkdir(temp_dir, 0755);
         mkdir(temp_dir + "/subdir", 0755);
         on_exit {
@@ -2551,7 +2580,7 @@ class NcursesComponentsTest inherits Test {
         NcursesUi::TestHarness th(24, 80);
         on_exit th.close();
 
-        string temp_dir = "/tmp/fb_dir_empty_" + string(getpid());
+        string temp_dir = fixture_dir + "/fb_dir_empty_" + string(getpid());
         mkdir(temp_dir, 0755);
         mkdir(temp_dir + "/emptydir", 0755);
         on_exit {
@@ -2586,7 +2615,7 @@ class NcursesComponentsTest inherits Test {
         NcursesUi::TestHarness th(24, 80);
         on_exit th.close();
 
-        string temp_dir = "/tmp/fb_dir_hidden_" + string(getpid());
+        string temp_dir = fixture_dir + "/fb_dir_hidden_" + string(getpid());
         mkdir(temp_dir, 0755);
         mkdir(temp_dir + "/testdir", 0755);
         on_exit {
@@ -2754,7 +2783,7 @@ class NcursesComponentsTest inherits Test {
         NcursesUi::TestHarness th(24, 80);
         on_exit th.close();
 
-        string temp_dir = "/tmp/fb_color_" + string(getpid());
+        string temp_dir = fixture_dir + "/fb_color_" + string(getpid());
         mkdir(temp_dir, 0755);
         mkdir(temp_dir + "/mydir", 0755);
         on_exit {
@@ -2807,7 +2836,7 @@ class NcursesComponentsTest inherits Test {
         NcursesUi::TestHarness th(24, 80);
         on_exit th.close();
 
-        string temp_dir = "/tmp/fb_fip_" + string(getpid());
+        string temp_dir = fixture_dir + "/fb_fip_" + string(getpid());
         mkdir(temp_dir, 0755);
         on_exit {
             unlink(temp_dir + "/hello.txt");
@@ -2862,7 +2891,7 @@ class NcursesComponentsTest inherits Test {
         NcursesUi::TestHarness th(24, 80);
         on_exit th.close();
 
-        string temp_dir = "/tmp/fb_fip_bin_" + string(getpid());
+        string temp_dir = fixture_dir + "/fb_fip_bin_" + string(getpid());
         mkdir(temp_dir, 0755);
         on_exit {
             unlink(temp_dir + "/image.dat");
@@ -2905,7 +2934,7 @@ class NcursesComponentsTest inherits Test {
         NcursesUi::TestHarness th(24, 80);
         on_exit th.close();
 
-        string temp_dir = "/tmp/fb_fip_status_" + string(getpid());
+        string temp_dir = fixture_dir + "/fb_fip_status_" + string(getpid());
         mkdir(temp_dir, 0755);
         on_exit {
             unlink(temp_dir + "/data.json");
@@ -2948,7 +2977,7 @@ class NcursesComponentsTest inherits Test {
         NcursesUi::TestHarness th(24, 80);
         on_exit th.close();
 
-        string temp_dir = "/tmp/fb_fip_bprev_" + string(getpid());
+        string temp_dir = fixture_dir + "/fb_fip_bprev_" + string(getpid());
         mkdir(temp_dir, 0755);
         on_exit {
             unlink(temp_dir + "/photo.jpg");

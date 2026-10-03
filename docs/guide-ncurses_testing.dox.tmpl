@@ -4,51 +4,81 @@
 
     @tableofcontents
 
-    @ref Qore::Ncurses::TestTerminal "TestTerminal" creates a pseudo-terminal
-    (PTY) that can be passed to
-    @ref Qore::Ncurses::Session "Session" for fully automated, headless tests.
-    The @c NcursesUi::TestHarness wrapper class from
-    @ref ncursesuiintro "NcursesUi" simplifies creating a Session + Application
-    pair for widget testing.
+    @section ncursestestingterminal Headless Drawing and Input Tests
 
-    @par TestTerminal example:
+    @ref Qore::Ncurses::TestTerminal "TestTerminal" creates a pseudo-terminal with fixed dimensions.
+    Pass it through the \c test_terminal option to @ref Qore::Ncurses::Session "Session".
+    Tests can then draw, inspect text with @ref Qore::Ncurses::Window::readText() "Window::readText()",
+    or capture rows with @ref Qore::Ncurses::Session::snapshot() "Session::snapshot()".
+
+    @ref Qore::Ncurses::Session::injectEvent() "Session::injectEvent()" queues a typed event;
+    @ref Qore::Ncurses::Session::injectEvents() "Session::injectEvents()" queues a sequence.
+    Each event is delivered once, with mouse coordinates and button state preserved. A batch
+    is read in list order; separate injections push input ahead of already pending events.
+    @ref Qore::Ncurses::Session::flushInput() "Session::flushInput()" discards pending input.
+    Mouse injection raises \c NCURSES-ERROR if the native input queue is full; flush input
+    before retrying after that error. Keep batches small and consume them between injections.
+    Injection avoids keyboard timing and does not need a human-operated terminal. This complete
+    test covers drawing, character input, mouse input, and a timeout:
+
     @code{.py}
 %modern
 %requires ncurses
 
-# create a 24x80 pseudo-terminal
-Ncurses::TestTerminal tt(24, 80);
+Ncurses::TestTerminal terminal(24, 80);
+on_exit terminal.close();
+Ncurses::Session session({"test_terminal": terminal});
+on_exit session.close();
+Ncurses::Window window = session.screen();
+window.drawText(0, 0, "Ready");
+window.refresh();
+@assert(window.readText(0, 0, 5) == "Ready");
+@assert(session.snapshot(0, 1, 5)[0] == "Ready");
 
-# create a session on the test terminal
-Ncurses::Session s({"test_terminal": tt});
-Ncurses::Window w = s.screen();
-
-# inject input and verify output
-s.injectEvent({"type": Ncurses::InputType::Char, "ch": "x"});
-auto ev = w.readEvent(100, 25);
-# ev.ch == "x"
-
-# read back screen contents
-list<string> rows = s.snapshot();
-# rows[0] contains whatever was drawn on row 0
-
-s.close();
+session.injectEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "x"});
+*hash<Ncurses::InputEvent> event = window.readEvent(100, 25);
+@assert(event && event.type == Ncurses::InputType::Char && event.ch == "x");
+session.injectEvent(<Ncurses::InputEvent>{
+    "type": Ncurses::InputType::Mouse,
+    "mouse": <Ncurses::MouseEvent>{"x": 4, "y": 2, "button_state": Ncurses::BUTTON1_CLICKED},
+});
+event = window.readEvent(100, 25);
+@assert(event && event.type == Ncurses::InputType::Mouse && event.mouse.x == 4);
+@assert(!window.readEvent(25, 25));
     @endcode
 
-    @par TestHarness example:
+    @section ncursestestingwidgets Testing Widgets Without an Event Loop
+
+    Create @ref NcursesUi::Application "Application" with the test session, then call
+    @ref NcursesUi::Application::processEvent() "Application::processEvent()" and
+    @ref NcursesUi::Application::drawAll() "Application::drawAll()" directly. This lets assertions
+    run synchronously. The following test verifies checkbox input and state:
+
     @code{.py}
 %modern
 %requires ncurses
 %requires NcursesUi
 
-NcursesUi::TestHarness th(24, 80);
-
-# create and test widgets using th.session() and th.app()
-NcursesUi::Widget root();
-th.app().run(root, sub () {
-    # test code runs here with the event loop active
+Ncurses::TestTerminal terminal(24, 80);
+on_exit terminal.close();
+Ncurses::Session session({"test_terminal": terminal});
+on_exit session.close();
+NcursesUi::Application app(session);
+NcursesUi::CheckboxWidget checkbox("Enabled", False);
+app.setRoot(checkbox);
+checkbox.setFocused(True);
+@assert(!checkbox.isChecked());
+hash<NcursesUi::EventResult> result = app.processEvent(<Ncurses::InputEvent>{
+    "type": Ncurses::InputType::Char, "ch": " ",
 });
-
-th.close();
+@assert(result.handled);
+@assert(checkbox.isChecked());
+app.drawAll();
     @endcode
+
+    The source checkout also provides \c test/TestHarness.qc, a test-only wrapper for the terminal
+    and session with input/assertion helpers. It is not an installed class in
+    @ref ncursesuiintro "NcursesUi"; include that source explicitly when using the repository's
+    test harness. See @ref ncurses_mouseguide "Mouse Support" for event fields and
+    @ref ncurses_ui_widgetsguide "UI Widget Toolkit" for application lifecycle rules.
 */

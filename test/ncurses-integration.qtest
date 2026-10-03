@@ -1100,8 +1100,11 @@ class NcursesIntegrationTest inherits Test {
         NcursesUi::Widget root();
         app.setRoot(root);
 
-        # browse /tmp which always exists
-        NcursesUi::FileBrowserWidget fb(th.session(), "/tmp");
+        # Use a bounded fixture rather than inspecting arbitrary host files.
+        string fixture_dir = "/tmp/ncurses-integration-" + string(getpid());
+        mkdir(fixture_dir, 0700);
+        on_exit rmdir(fixture_dir);
+        NcursesUi::FileBrowserWidget fb(th.session(), fixture_dir);
         fb.setFrame(NcursesUi::Geometry::makeRect(0, 0, 20, 60));
         fb.createPanel();
         app.pushModal(fb);

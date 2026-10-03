@@ -29,14 +29,14 @@ public namespace NcursesUi {
     callbacks and global key handlers, then call run().
 
     @par Example
-    @code
+    @code{.py}
     NcursesUi::Application app({"mouse": True});
     NcursesUi::Widget root();
     app.setRoot(root);
     app.run();
     @endcode
 
-    @since ncurses 2.0
+    @since ncurses 1.0
 */
 public class Application {
     private {
@@ -62,7 +62,7 @@ public class Application {
 
     /** Creates a new Application with the given session options.
         @param opts session options (see Ncurses::Session constructor)
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     constructor(hash<auto> opts) {
         session = new Ncurses::Session(opts);
@@ -71,7 +71,7 @@ public class Application {
 
     /** Creates a new Application from an existing session.
         @param s the session to use
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     constructor(Ncurses::Session s) {
         session = s;
@@ -79,28 +79,28 @@ public class Application {
     }
 
     /** Returns the session.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     Ncurses::Session getSession() {
         return session;
     }
 
     /** Returns the event dispatcher.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     NcursesUi::EventDispatcher getDispatcher() {
         return dispatcher;
     }
 
     /** Returns the focus manager.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     NcursesUi::FocusManager getFocusManager() {
         return dispatcher.getFocusManager();
     }
 
     /** Returns the root widget.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     *NcursesUi::Widget getRoot() {
         return root;
@@ -108,7 +108,7 @@ public class Application {
 
     /** Sets the root widget and performs initial layout.
         @param w the root widget
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setRoot(NcursesUi::Widget w) {
         root = w;
@@ -117,7 +117,7 @@ public class Application {
 
     /** Sets a layout manager for the root widget.
         @param layout the layout to use
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setRootLayout(NcursesUi::BoxLayout layout) {
         root_layout = layout;
@@ -125,7 +125,7 @@ public class Application {
 
     /** Sets a global key handler.
         @param handler the handler callback
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setGlobalKeyHandler(*code<hash<NcursesUi::EventResult>(hash<Ncurses::InputEvent>)> handler) {
         dispatcher.setGlobalKeyHandler(handler);
@@ -133,7 +133,7 @@ public class Application {
 
     /** Adds a tick callback that fires after each event loop iteration.
         @param cb the callback
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing addTickCallback(code cb) {
         tick_callbacks += cb;
@@ -144,7 +144,7 @@ public class Application {
         Hides the cursor when the first modal is pushed.
 
         @param w the widget to make modal
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing pushModal(NcursesUi::Widget w) {
         if (!dispatcher.hasModal()) {
@@ -159,7 +159,7 @@ public class Application {
         Restores cursor visibility when the last modal is popped.
 
         @return the popped widget
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     *NcursesUi::Widget popModal() {
         *NcursesUi::Widget w = dispatcher.popModal();
@@ -172,7 +172,7 @@ public class Application {
 
     /** Sets the cursor visibility to restore when the last modal is popped.
         @param visibility cursor visibility (0=invisible, 1=normal, 2=very visible)
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setSavedCursor(int visibility) {
         saved_cursor = visibility;
@@ -181,7 +181,7 @@ public class Application {
     /** Sets the readEvent timeout parameters.
         @param timeout_ms total timeout in milliseconds
         @param poll poll interval in milliseconds
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setReadTimeout(int timeout_ms, int poll) {
         read_timeout_ms = timeout_ms;
@@ -189,7 +189,7 @@ public class Application {
     }
 
     /** Returns whether the event loop is running.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     bool isRunning() {
         return running;
@@ -200,7 +200,7 @@ public class Application {
         Loop: draw dirty widgets -> readEvent -> dispatch -> tick callbacks.
         Continues until quit() is called.
 
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing run() {
         if (!root) {
@@ -240,7 +240,7 @@ public class Application {
     /** Processes a single event (for testing without the event loop).
         @param ev the event to process
         @return EventResult
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     hash<NcursesUi::EventResult> processEvent(hash<Ncurses::InputEvent> ev) {
         if (!root) {
@@ -254,14 +254,14 @@ public class Application {
     }
 
     /** Stops the event loop.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing quit() {
         running = False;
     }
 
     /** Closes the session.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing close() {
         running = False;
@@ -271,7 +271,7 @@ public class Application {
     }
 
     /** Performs a full draw cycle.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing drawAll() {
         if (!root) {
@@ -288,7 +288,7 @@ public class Application {
     }
 
     /** Lays out the root widget to fill the terminal.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing layoutRoot() {
         if (!root) {
@@ -304,7 +304,7 @@ public class Application {
     }
 
     /** Handles a terminal resize event.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     private nothing handleResize() {
         layoutRoot();

@@ -36,7 +36,7 @@ public namespace NcursesUi {
     - \c label: display text in the bar
     - \c items: list of hashes with "label", "command", and optional "enabled"
 
-    @since ncurses 2.0
+    @since ncurses 1.0
 */
 public class MenuBarWidget inherits NcursesUi::Widget {
     private {
@@ -60,7 +60,7 @@ public class MenuBarWidget inherits NcursesUi::Widget {
     }
 
     /** Creates a new MenuBarWidget.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     constructor() {
         setFocusable(True);
@@ -71,7 +71,7 @@ public class MenuBarWidget inherits NcursesUi::Widget {
 
     /** Sets the application reference (enables dropdown popups).
         @param application the Application
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setApplication(NcursesUi::Application application) {
         app = application;
@@ -80,7 +80,7 @@ public class MenuBarWidget inherits NcursesUi::Widget {
     /** Adds a menu to the bar.
         @param label the menu label
         @param menu_items list of menu item hashes with "label" and "command" keys
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing addMenu(string label, list<hash<auto>> menu_items) {
         menus += {"label": label, "items": menu_items};
@@ -88,21 +88,21 @@ public class MenuBarWidget inherits NcursesUi::Widget {
     }
 
     /** Returns the menu definitions.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     list<hash<auto>> getMenus() {
         return menus;
     }
 
     /** Returns the active menu index (-1 for none).
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     int getActiveMenu() {
         return active_menu;
     }
 
     /** Returns whether a dropdown is open.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     bool isDropdownOpen() {
         return dropdown_open;
@@ -110,7 +110,7 @@ public class MenuBarWidget inherits NcursesUi::Widget {
 
     /** Sets the command callback.
         @param cb callback receiving the command string
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setOnCommand(*code cb) {
         on_command = cb;
@@ -118,7 +118,7 @@ public class MenuBarWidget inherits NcursesUi::Widget {
 
     /** Sets the menu bar background style.
         @param style the style hash
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setBarStyle(hash<auto> style) {
         bar_style = style;
@@ -127,7 +127,7 @@ public class MenuBarWidget inherits NcursesUi::Widget {
 
     /** Sets the active (highlighted) menu item style.
         @param style the style hash
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setActiveStyle(hash<auto> style) {
         active_style = style;
@@ -140,7 +140,7 @@ public class MenuBarWidget inherits NcursesUi::Widget {
         modal popup. Otherwise just highlights the menu label.
 
         @param idx the menu index
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing openMenu(int idx) {
         if (idx < 0 || idx >= menus.size()) {
@@ -163,7 +163,7 @@ public class MenuBarWidget inherits NcursesUi::Widget {
     }
 
     /** Closes any open menu and destroys the dropdown.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing closeMenu() {
         if (dropdown_open) {
@@ -177,7 +177,7 @@ public class MenuBarWidget inherits NcursesUi::Widget {
     /** Returns the x position for the menu at the given index.
         @param idx the menu index
         @return x position in the bar
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     int menuXPosition(int idx) {
         hash<NcursesUi::Rect> cr = contentRect();
@@ -191,7 +191,7 @@ public class MenuBarWidget inherits NcursesUi::Widget {
 
     /** Draws the menu bar.
         @param w the window
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing draw(Ncurses::Window w) {
         hash<NcursesUi::Rect> cr = contentRect();
@@ -225,7 +225,7 @@ public class MenuBarWidget inherits NcursesUi::Widget {
     /** Handles menu bar events.
         @param ev the input event
         @return EventResult
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     hash<NcursesUi::EventResult> processEvent(hash<Ncurses::InputEvent> ev) {
         if (ev.type == Ncurses::InputType::Key) {
@@ -300,7 +300,7 @@ public class MenuBarWidget inherits NcursesUi::Widget {
 
         @param ch the character pressed with Alt
         @return True if a menu was opened
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     bool processAltKey(string ch) {
         string lower_ch = ch.lwr();
@@ -323,7 +323,7 @@ public class MenuBarWidget inherits NcursesUi::Widget {
 
         @param ch the character pressed with Alt
         @return True if a matching item was found and its command was fired
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     bool processItemHotkey(string ch) {
         string lower_ch = ch.lwr();
@@ -350,7 +350,7 @@ public class MenuBarWidget inherits NcursesUi::Widget {
 
     /** Fires a command from a dropdown selection.
         @param command the command string
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing fireCommand(string command) {
         closeMenu();

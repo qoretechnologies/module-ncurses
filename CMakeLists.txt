@@ -5,7 +5,7 @@ project(qore-ncurses-module)
 include(GNUInstallDirs)
 set(CMAKE_INSTALL_BINDIR "bin")
 
-set(VERSION_MAJOR 2)
+set(VERSION_MAJOR 1)
 set(VERSION_MINOR 0)
 set(VERSION_PATCH 0)
 

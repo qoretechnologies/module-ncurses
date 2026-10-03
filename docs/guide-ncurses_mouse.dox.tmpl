@@ -4,8 +4,63 @@
 
     @tableofcontents
 
-    Mouse input is supported through @ref Qore::Ncurses::Window::readEvent "Window::readEvent()".
-    When enabled (the default), mouse events are reported as input events with
-    \c type = \c InputType::Mouse and a \c mouse hash containing coordinates and
-    button state.
+    @section ncursesmouseevents Events and Coordinates
+
+    Mouse reporting is enabled by default in @ref Qore::Ncurses::Session "Session"; the
+    \c mouse constructor option or @ref Qore::Ncurses::Session::setMouse() "Session::setMouse()"
+    controls it. The terminal emulator must support mouse reporting.
+
+    @ref Qore::Ncurses::Window::readEvent() "Window::readEvent()" returns
+    @ref Qore::Ncurses::InputEvent "InputEvent" values. When the event type is
+    @ref Qore::Ncurses::InputType "InputType::Mouse", its \c mouse field contains a
+    @ref Qore::Ncurses::MouseEvent "MouseEvent": zero-based screen coordinates \c x and \c y,
+    and a \c button_state bitmask. Coordinates are relative to the terminal, even when input
+    is read through a smaller window; subtract @ref Qore::Ncurses::Window::position() "Window::position()"
+    before treating them as local drawing coordinates.
+
+    Test button flags with bitwise AND, for example
+    @ref Qore::Ncurses::BUTTON1_CLICKED "BUTTON1_CLICKED" for a left click or
+    @ref Qore::Ncurses::BUTTON4_PRESSED "BUTTON4_PRESSED" for a wheel-up event.
+    See @ref ncurses_constants "key and mouse constants" for the available masks.
+
+    @section ncursesmouseexample Mouse and Keyboard Loop
+
+    This program displays left-click coordinates and redraws after a resize. Press \c q to exit.
+    The timeout keeps control in the application when no event is available.
+
+    @code{.py}
+%modern
+%requires ncurses
+
+Ncurses::Session session();
+on_exit session.close();
+Ncurses::Window window = session.screen();
+window.clear();
+window.drawTextClipped(0, 0, "Left-click anywhere; q quits");
+window.refresh();
+while (True) {
+    *hash<Ncurses::InputEvent> event = window.readEvent(100, 25);
+    if (!event) {
+        continue;
+    }
+    if (event.type == Ncurses::InputType::Char && event.ch == "q") {
+        break;
+    }
+    if (event.type == Ncurses::InputType::Mouse
+            && (event.mouse.button_state & Ncurses::BUTTON1_CLICKED)) {
+        window.clear();
+        window.drawTextClipped(0, 0, sprintf("Click at row %d, column %d; q quits",
+            event.mouse.y, event.mouse.x));
+    } else if (event.type == Ncurses::InputType::Resize) {
+        window.clear();
+        window.drawTextClipped(0, 0, "Terminal resized; q quits");
+    }
+    window.refresh();
+}
+    @endcode
+
+    Widget applications use @ref NcursesUi::EventDispatcher "EventDispatcher" for hit-testing
+    and focus routing instead of implementing these rules for each widget. See
+    @ref ncurses_ui_widgetsguide "UI Widget Toolkit" and
+    @ref ncurses_testingguide "Automated Testing" for injecting mouse events in tests.
 */

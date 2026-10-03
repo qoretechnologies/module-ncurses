@@ -1,4 +1,5 @@
 /* -*- mode: c++; indent-tabs-mode: nil -*- */
+/* Copyright (C) 2026 Qore Technologies, s.r.o. */
 #ifndef _QORE_NCURSES_INTERNAL_H
 #define _QORE_NCURSES_INTERNAL_H
 
@@ -6,6 +7,7 @@
 #include <qore/QoreSandboxManager.h>
 
 #include <map>
+#include <new>
 #include <utility>
 #include <vector>
 
@@ -45,6 +47,10 @@ constexpr int NC_INPUT_MOUSE = 3;
 constexpr int NC_INPUT_RESIZE = 4;
 constexpr int NC_INPUT_ALT = 5;
 
+// Private input marker outside ncurses/Unicode key ranges. Mouse payloads must
+// follow ungetch's LIFO ordering, not ncurses's separate mouse-event ring.
+constexpr int NC_INJECTED_MOUSE = 0x40000000;
+
 struct StyleSpec {
     bool has_fg = false;
     bool has_bg = false;
@@ -72,6 +78,7 @@ public:
     int cursor_y = 0;
     int cursor_x = 0;
     bool cursor_set = false;
+    std::vector<MEVENT> injected_mouse;
 
     FILE* in_file = nullptr;
     FILE* out_file = nullptr;
@@ -82,6 +89,8 @@ public:
     void close(ExceptionSink* xsink);
     void checkOpen(ExceptionSink* xsink) const;
     short getColorPair(int fg, int bg, ExceptionSink* xsink);
+    // Caller holds NcursesCallGuard for this session.
+    void injectMouse(const MEVENT& event, ExceptionSink* xsink);
 };
 
 class NcursesWindow : public AbstractPrivateData {

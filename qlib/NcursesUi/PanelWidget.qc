@@ -31,7 +31,7 @@ public namespace NcursesUi {
     The panel is created when the widget is shown and destroyed when
     hidden or closed.
 
-    @since ncurses 2.0
+    @since ncurses 1.0
 */
 public class PanelWidget inherits NcursesUi::Widget {
     private {
@@ -58,7 +58,7 @@ public class PanelWidget inherits NcursesUi::Widget {
     /** Creates a new PanelWidget.
         @param s the ncurses session
         @param t optional title
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     constructor(Ncurses::Session s, *string t) {
         session = s;
@@ -70,14 +70,14 @@ public class PanelWidget inherits NcursesUi::Widget {
     }
 
     /** Returns the panel's window, or NOTHING if not created.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     *Ncurses::Window getWindow() {
         return win;
     }
 
     /** Returns the ncurses session.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     Ncurses::Session getSession() {
         return session;
@@ -90,7 +90,7 @@ public class PanelWidget inherits NcursesUi::Widget {
         (0,0 = top-left of the panel window). Use this when drawing into
         the panel's own window.
 
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     hash<NcursesUi::Rect> localContentRect() {
         hash<NcursesUi::Rect> cr = contentRect();
@@ -100,7 +100,7 @@ public class PanelWidget inherits NcursesUi::Widget {
 
     /** Sets the title.
         @param t the new title
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setTitle(*string t) {
         title = t;
@@ -108,7 +108,7 @@ public class PanelWidget inherits NcursesUi::Widget {
     }
 
     /** Returns the title.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     *string getTitle() {
         return title;
@@ -116,7 +116,7 @@ public class PanelWidget inherits NcursesUi::Widget {
 
     /** Sets whether the title is centered in the border.
         @param v True to center the title
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setCenterTitle(bool v) {
         center_title = v;
@@ -124,7 +124,7 @@ public class PanelWidget inherits NcursesUi::Widget {
     }
 
     /** Returns whether the title is centered.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     bool getCenterTitle() {
         return center_title;
@@ -132,7 +132,7 @@ public class PanelWidget inherits NcursesUi::Widget {
 
     /** Sets whether a border is drawn.
         @param v True to draw a border
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setHasBorder(bool v) {
         has_border = v;
@@ -145,7 +145,7 @@ public class PanelWidget inherits NcursesUi::Widget {
     }
 
     /** Returns whether a border is drawn.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     bool getHasBorder() {
         return has_border;
@@ -153,7 +153,7 @@ public class PanelWidget inherits NcursesUi::Widget {
 
     /** Sets whether the panel shows a close button [X].
         @param v True to show close button
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setClosable(bool v) {
         closable = v;
@@ -161,14 +161,14 @@ public class PanelWidget inherits NcursesUi::Widget {
     }
 
     /** Returns whether the panel is closable.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     bool isClosable() {
         return closable;
     }
 
     /** Creates the ncurses panel at the current frame position.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing createPanel() {
         destroyPanel();
@@ -187,7 +187,7 @@ public class PanelWidget inherits NcursesUi::Widget {
     }
 
     /** Destroys the ncurses panel.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing destroyPanel() {
         if (panel) {
@@ -201,7 +201,7 @@ public class PanelWidget inherits NcursesUi::Widget {
 
     /** Shows the panel and brings it to the front.
         If the panel doesn't exist yet, creates it.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing show() {
         if (!panel) {
@@ -214,7 +214,7 @@ public class PanelWidget inherits NcursesUi::Widget {
     }
 
     /** Hides the panel.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing hide() {
         if (panel) {
@@ -224,7 +224,7 @@ public class PanelWidget inherits NcursesUi::Widget {
     }
 
     /** Brings the panel to the front of the panel stack.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing bringToFront() {
         if (panel) {
@@ -235,7 +235,7 @@ public class PanelWidget inherits NcursesUi::Widget {
     /** Resizes the panel to a new frame.
         Destroys and recreates the panel.
         @param r the new frame rectangle
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing resize(hash<NcursesUi::Rect> r) {
         setFrame(r);
@@ -247,7 +247,7 @@ public class PanelWidget inherits NcursesUi::Widget {
 
     /** Draws the panel border and title.
         @param w the window to draw into (ignored; uses own window)
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing draw(Ncurses::Window w) {
         if (!win) {
@@ -286,7 +286,7 @@ public class PanelWidget inherits NcursesUi::Widget {
     /** Draws this panel widget and all visible children.
         Uses the panel's own window instead of the parent's.
         @param w the parent window (ignored)
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing drawTree(Ncurses::Window w) {
         if (!isVisible() || !win) {
@@ -306,7 +306,7 @@ public class PanelWidget inherits NcursesUi::Widget {
         @param mx the column coordinate (absolute)
         @param my_row the row coordinate (absolute)
         @return True if the close button was hit
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     bool isCloseHit(int mx, int my_row) {
         if (!closable || close_col < 0 || close_len <= 0) {

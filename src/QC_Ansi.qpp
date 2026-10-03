@@ -31,7 +31,7 @@
 //! ANSI text helper class
 /** Helpers for parsing and wrapping ANSI SGR colored text.
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 qclass Ansi [dom=TERMINAL_IO; arg=void* na; ns=Qore::Ncurses];
 
@@ -39,7 +39,7 @@ qclass Ansi [dom=TERMINAL_IO; arg=void* na; ns=Qore::Ncurses];
 /** @param text text with ANSI SGR color codes
     @return list of segments with keys: \c text and \c style
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 static list<hash> Ansi::parse(string text) [flags=CONSTANT,NAMED_ARGS] {
     std::vector<AnsiSegment> segs;
@@ -71,7 +71,7 @@ static list<hash> Ansi::parse(string text) [flags=CONSTANT,NAMED_ARGS] {
 /** @param text text with ANSI SGR color codes
     @return terminal display columns occupied by the text (ANSI codes excluded)
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 static int Ansi::len(string text) [flags=CONSTANT,NAMED_ARGS] {
     std::vector<AnsiSegment> segs;
@@ -93,7 +93,7 @@ static int Ansi::len(string text) [flags=CONSTANT,NAMED_ARGS] {
     @param mode wrap mode (default: @ref Qore::Ncurses::WrapMode "WrapMode::Word")
     @return list of wrapped lines with ANSI codes preserved
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 static list<string> Ansi::wrap(string text, int width, enum<WrapMode> mode = WrapMode::Word) [flags=RET_VALUE_ONLY,NAMED_ARGS] {
     ReferenceHolder<QoreListNode> list(new QoreListNode(stringTypeInfo), xsink);

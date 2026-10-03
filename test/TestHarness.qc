@@ -31,7 +31,7 @@
     testing.
 
     @par Example
-    @code
+    @code{.py}
     NcursesUi::TestHarness th(24, 80);
     th.session().screen().drawText(0, 0, "Hello", {});
     th.session().screen().refresh();
@@ -39,7 +39,7 @@
     th.close();
     @endcode
 
-    @since ncurses 2.0
+    @since ncurses 1.0
 */
 public namespace NcursesUi {
 public class TestHarness {
@@ -56,7 +56,7 @@ public class TestHarness {
         @param cols terminal columns (default 80)
         @param opts optional session options to override defaults
 
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     constructor(int rows = 24, int cols = 80, *hash<auto> opts) {
         term_rows = rows;
@@ -81,35 +81,35 @@ public class TestHarness {
     }
 
     /** Returns the session.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     Ncurses::Session session() {
         return sess;
     }
 
     /** Returns the screen window.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     Ncurses::Window screen() {
         return sess.screen();
     }
 
     /** Returns the terminal rows.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     int rows() {
         return term_rows;
     }
 
     /** Returns the terminal columns.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     int cols() {
         return term_cols;
     }
 
     /** Closes the session and terminal.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing close() {
         if (sess.isOpen()) {
@@ -118,7 +118,7 @@ public class TestHarness {
     }
 
     /** Performs a full draw cycle: updatePanels + doupdate.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing refresh() {
         sess.updatePanels();
@@ -131,7 +131,7 @@ public class TestHarness {
         @param ncols number of columns (default all)
         @return list of strings, one per row
 
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     list<string> snapshot(*int y, *int rows, *int ncols) {
         return sess.snapshot(y, rows, ncols);
@@ -146,7 +146,7 @@ public class TestHarness {
         @param expected the expected text
         @param msg optional message
 
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing assertTextAt(QUnit::Test test, int row, int col, string expected, *string msg) {
         Ncurses::Window w = sess.screen();
@@ -160,7 +160,7 @@ public class TestHarness {
         @param pattern the regex pattern to match
         @param msg optional message
 
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing assertRowContains(QUnit::Test test, int row, string pattern, *string msg) {
         list<string> lines = sess.snapshot(row, 1, term_cols);
@@ -174,7 +174,7 @@ public class TestHarness {
         @param row the row to check
         @param msg optional message
 
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing assertRowEmpty(QUnit::Test test, int row, *string msg) {
         list<string> lines = sess.snapshot(row, 1, term_cols);
@@ -188,7 +188,7 @@ public class TestHarness {
     /** Injects a key event.
         @param code the key code (e.g. Ncurses::KEY_UP)
 
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing injectKey(int code) {
         hash<Ncurses::InputEvent> ev();
@@ -200,7 +200,7 @@ public class TestHarness {
     /** Injects a character event.
         @param ch the character string
 
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing injectChar(string ch) {
         hash<Ncurses::InputEvent> ev();
@@ -214,7 +214,7 @@ public class TestHarness {
         @param y the row
         @param button_state the button state mask
 
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing injectMouse(int x, int y, int button_state) {
         hash<Ncurses::MouseEvent> mouse();
@@ -231,7 +231,7 @@ public class TestHarness {
         @param x the column
         @param y the row
 
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing injectWheelUp(int x, int y) {
         injectMouse(x, y, Ncurses::BUTTON4_PRESSED);
@@ -241,14 +241,14 @@ public class TestHarness {
         @param x the column
         @param y the row
 
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing injectWheelDown(int x, int y) {
         injectMouse(x, y, Ncurses::BUTTON5_PRESSED);
     }
 
     /** Injects a resize event.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing injectResize() {
         hash<Ncurses::InputEvent> ev();
@@ -261,7 +261,7 @@ public class TestHarness {
         @param poll_ms poll interval in milliseconds (default 25)
         @return the event or NOTHING on timeout
 
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     *hash<Ncurses::InputEvent> readEvent(int timeout_ms = 500, int poll_ms = 25) {
         return sess.screen().readEvent(timeout_ms, poll_ms);
@@ -272,7 +272,7 @@ public class TestHarness {
         @param timeout_ms timeout for reading (default 500)
         @return the event or NOTHING on timeout
 
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     *hash<Ncurses::InputEvent> injectAndReadKey(int code, int timeout_ms = 500) {
         injectKey(code);
@@ -284,7 +284,7 @@ public class TestHarness {
         @param timeout_ms timeout for reading (default 500)
         @return the event or NOTHING on timeout
 
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     *hash<Ncurses::InputEvent> injectAndReadChar(string ch, int timeout_ms = 500) {
         injectChar(ch);

@@ -40,7 +40,7 @@ public namespace NcursesUi {
     - @ref setOnFileSelect() — called on file selection change
     - @ref setOnFileActivate() — called on non-Qore file activation
 
-    @since ncurses 2.0
+    @since ncurses 1.0
 */
 public class FileBrowserWidget inherits NcursesUi::PanelWidget {
     private {
@@ -88,7 +88,7 @@ public class FileBrowserWidget inherits NcursesUi::PanelWidget {
     /** Creates a new FileBrowserWidget.
         @param s the session
         @param dir the initial directory
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     constructor(Ncurses::Session s, string dir = getcwd())
             : PanelWidget(s, "File Browser - " + dir) {
@@ -128,7 +128,7 @@ public class FileBrowserWidget inherits NcursesUi::PanelWidget {
     }
 
     /** Returns the current directory.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     string getCurrentDir() {
         return current_dir;
@@ -136,7 +136,7 @@ public class FileBrowserWidget inherits NcursesUi::PanelWidget {
 
     /** Navigates to a directory.
         @param dir the directory path
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing navigateTo(string dir) {
         try {
@@ -157,7 +157,7 @@ public class FileBrowserWidget inherits NcursesUi::PanelWidget {
 
     /** Navigates back to the previous directory in history.
         @return True if navigation occurred, False if no history
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     bool navigateBack() {
         if (dir_history.empty()) {
@@ -184,14 +184,14 @@ public class FileBrowserWidget inherits NcursesUi::PanelWidget {
     }
 
     /** Returns the directory navigation history.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     list<string> getDirHistory() {
         return dir_history;
     }
 
     /** Toggles hidden file visibility.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing toggleHidden() {
         show_hidden = !show_hidden;
@@ -199,7 +199,7 @@ public class FileBrowserWidget inherits NcursesUi::PanelWidget {
     }
 
     /** Returns whether hidden files are shown.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     bool isShowHidden() {
         return show_hidden;
@@ -207,7 +207,7 @@ public class FileBrowserWidget inherits NcursesUi::PanelWidget {
 
     /** Sets the file selection callback.
         @param cb callback(hash<auto> item)
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setOnFileSelect(*code cb) {
         on_file_select = cb;
@@ -215,7 +215,7 @@ public class FileBrowserWidget inherits NcursesUi::PanelWidget {
 
     /** Sets the file activation callback (for non-Qore files).
         @param cb callback(hash<auto> item)
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setOnFileActivate(*code cb) {
         on_file_activate = cb;
@@ -223,7 +223,7 @@ public class FileBrowserWidget inherits NcursesUi::PanelWidget {
 
     /** Sets the load callback (for Qore file activation).
         @param cb callback(hash<auto> item)
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setOnLoad(*code cb) {
         on_load = cb;
@@ -231,7 +231,7 @@ public class FileBrowserWidget inherits NcursesUi::PanelWidget {
 
     /** Sets the dismiss callback (Escape/close).
         @param cb callback()
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setOnDismiss(*code cb) {
         on_dismiss = cb;
@@ -247,56 +247,56 @@ public class FileBrowserWidget inherits NcursesUi::PanelWidget {
         file identification, and richer status/preview information.
 
         @param cb the file info provider callback, or NOTHING to disable
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setFileInfoProvider(*code<*hash<auto>(string)> cb) {
         file_info_provider = cb;
     }
 
     /** Returns the file list widget.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     NcursesUi::ListWidget getFileList() {
         return file_list;
     }
 
     /** Returns the preview widget.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     NcursesUi::ScrollableWidget getPreviewWidget() {
         return preview_widget;
     }
 
     /** Returns the preview content.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     NcursesUi::LineListContent getPreviewContent() {
         return preview_content;
     }
 
     /** Returns the selected file item.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     *hash<auto> getSelectedFile() {
         return file_list.getSelectedItem();
     }
 
     /** Returns which pane has focus (0 = file list, 1 = preview).
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     int getFocusedPane() {
         return focused_pane;
     }
 
     /** Returns the current status line text.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     string getStatusText() {
         return status_text;
     }
 
     /** Returns whether the selected file can be loaded.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     bool getCanLoad() {
         return can_load;
@@ -304,7 +304,7 @@ public class FileBrowserWidget inherits NcursesUi::PanelWidget {
 
     /** Draws the split-pane file browser.
         @param w the window
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing draw(Ncurses::Window w) {
         PanelWidget::draw(w);
@@ -357,7 +357,7 @@ public class FileBrowserWidget inherits NcursesUi::PanelWidget {
     /** Delegates events to the focused pane.
         @param ev the input event
         @return EventResult
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     hash<NcursesUi::EventResult> processEvent(hash<Ncurses::InputEvent> ev) {
         if (ev.type == Ncurses::InputType::Char) {
@@ -483,7 +483,7 @@ public class FileBrowserWidget inherits NcursesUi::PanelWidget {
 
     /** Loads a file preview into the preview pane.
         @param item the file item hash with path, type, size, etc.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     private nothing loadPreview(hash<auto> item) {
         preview_content.clear();
@@ -532,7 +532,7 @@ public class FileBrowserWidget inherits NcursesUi::PanelWidget {
     /** Loads a directory preview into the preview pane.
         Shows subdirectories first, then files with sizes.
         @param path the directory path
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     private nothing loadDirectoryPreview(string path) {
         preview_content.clear();
@@ -754,7 +754,7 @@ public class FileBrowserWidget inherits NcursesUi::PanelWidget {
         @param item the file item hash
         @param selected whether the item is selected
         @return the style hash
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     private hash<auto> getFileItemStyle(hash<auto> item, bool selected) {
         hash<auto> style;
@@ -788,7 +788,7 @@ public class FileBrowserWidget inherits NcursesUi::PanelWidget {
         @param path the file path
         @param item the file item hash (may contain \c file_info from provider)
         @return True if the file appears to be binary
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     private bool isBinaryContent(string path, *hash<auto> item) {
         # use magic info if available

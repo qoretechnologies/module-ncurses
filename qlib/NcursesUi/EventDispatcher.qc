@@ -31,7 +31,7 @@ public namespace NcursesUi {
     - Global key handlers for app-wide shortcuts
     - Escape handling (closes top modal/popup)
 
-    @since ncurses 2.0
+    @since ncurses 1.0
 */
 public class EventDispatcher {
     private {
@@ -44,14 +44,14 @@ public class EventDispatcher {
     }
 
     /** Creates a new EventDispatcher.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     constructor() {
         focus_mgr = new NcursesUi::FocusManager();
     }
 
     /** Returns the focus manager.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     NcursesUi::FocusManager getFocusManager() {
         return focus_mgr;
@@ -62,7 +62,7 @@ public class EventDispatcher {
         While a modal is active, ALL events are routed to it.
 
         @param w the widget to make modal
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing pushModal(NcursesUi::Widget w) {
         modal_stack += w;
@@ -70,7 +70,7 @@ public class EventDispatcher {
 
     /** Pops the topmost modal widget.
         @return the popped widget, or NOTHING if no modals
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     *NcursesUi::Widget popModal() {
         if (!modal_stack.size()) {
@@ -87,7 +87,7 @@ public class EventDispatcher {
 
     /** Returns the topmost modal widget.
         @return the top modal or NOTHING
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     *NcursesUi::Widget topModal() {
         if (!modal_stack.size()) {
@@ -97,7 +97,7 @@ public class EventDispatcher {
     }
 
     /** Returns whether there are active modals.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     bool hasModal() {
         return modal_stack.size() > 0;
@@ -105,7 +105,7 @@ public class EventDispatcher {
 
     /** Returns the modal stack (for drawing).
         @return list of modal widgets, bottom-to-top
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     list<NcursesUi::Widget> getModalStack() {
         return modal_stack;
@@ -117,7 +117,7 @@ public class EventDispatcher {
         handled=True, normal dispatch is skipped.
 
         @param handler callback that receives InputEvent and returns EventResult
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setGlobalKeyHandler(*code<hash<NcursesUi::EventResult>(hash<Ncurses::InputEvent>)> handler) {
         global_key_handler = handler;
@@ -135,7 +135,7 @@ public class EventDispatcher {
         @param root the root widget of the tree
         @param ev the input event
         @return EventResult indicating whether the event was handled
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     hash<NcursesUi::EventResult> dispatch(NcursesUi::Widget root, hash<Ncurses::InputEvent> ev) {
         # 1. try global key handler first (for all event types except Resize)
@@ -193,7 +193,7 @@ public class EventDispatcher {
         @param py the row coordinate
         @param px the column coordinate
         @return the hit widget or NOTHING
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     private *NcursesUi::Widget hitTestTree(NcursesUi::Widget w, int py, int px) {
         if (!w.isVisible() || !w.hitTest(py, px)) {

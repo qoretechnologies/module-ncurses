@@ -31,7 +31,7 @@ public namespace NcursesUi {
     longer than the visible width are wrapped at word boundaries. The scroll
     position and total row count account for wrapped lines transparently.
 
-    @since ncurses 2.0
+    @since ncurses 1.0
 */
 public class LineListContent inherits NcursesUi::ScrollableContent {
     private {
@@ -50,7 +50,7 @@ public class LineListContent inherits NcursesUi::ScrollableContent {
     }
 
     /** Returns the total number of display rows (accounts for wrapping).
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     int totalRows() {
         if (word_wrap && last_wrap_width > 0) {
@@ -61,7 +61,7 @@ public class LineListContent inherits NcursesUi::ScrollableContent {
     }
 
     /** Returns the maximum line width.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     int totalCols() {
         return max_width;
@@ -69,7 +69,7 @@ public class LineListContent inherits NcursesUi::ScrollableContent {
 
     /** Enables or disables word-wrap.
         @param enabled True to enable word-wrap
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setWordWrap(bool enabled) {
         if (word_wrap != enabled) {
@@ -79,7 +79,7 @@ public class LineListContent inherits NcursesUi::ScrollableContent {
     }
 
     /** Returns whether word-wrap is enabled.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     bool getWordWrap() {
         return word_wrap;
@@ -91,7 +91,7 @@ public class LineListContent inherits NcursesUi::ScrollableContent {
         Without word-wrap, returns the line index unchanged.
         @param line_idx the logical line index
         @return the display row index
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     int displayRowForLine(int line_idx) {
         if (!word_wrap || last_wrap_width <= 0) {
@@ -109,7 +109,7 @@ public class LineListContent inherits NcursesUi::ScrollableContent {
 
     /** Sets all lines at once.
         @param l the lines to set
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setLines(list<string> l) {
         lines = l;
@@ -118,7 +118,7 @@ public class LineListContent inherits NcursesUi::ScrollableContent {
     }
 
     /** Returns all lines.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     list<string> getLines() {
         return lines;
@@ -126,7 +126,7 @@ public class LineListContent inherits NcursesUi::ScrollableContent {
 
     /** Appends a line.
         @param line the line to append
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing appendLine(string line) {
         lines += line;
@@ -138,7 +138,7 @@ public class LineListContent inherits NcursesUi::ScrollableContent {
     }
 
     /** Clears all lines.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing clear() {
         lines = ();
@@ -148,7 +148,7 @@ public class LineListContent inherits NcursesUi::ScrollableContent {
     }
 
     /** Returns the number of logical lines.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     int lineCount() {
         return lines.size();
@@ -157,7 +157,7 @@ public class LineListContent inherits NcursesUi::ScrollableContent {
     /** Replaces a line at the given index.
         @param idx the line index (0-based)
         @param text the new text for the line
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setLine(int idx, string text) {
         if (idx >= 0 && idx < lines.size()) {
@@ -172,7 +172,7 @@ public class LineListContent inherits NcursesUi::ScrollableContent {
 
     /** Removes a line at the given index, shifting subsequent lines up.
         @param idx the line index (0-based)
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing removeLine(int idx) {
         if (idx >= 0 && idx < lines.size()) {
@@ -185,7 +185,7 @@ public class LineListContent inherits NcursesUi::ScrollableContent {
     /** Inserts a line at the given index, shifting subsequent lines down.
         @param idx the insertion index (0-based); clamped to valid range
         @param text the text to insert
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing insertLine(int idx, string text) {
         if (idx < 0) {
@@ -211,7 +211,7 @@ public class LineListContent inherits NcursesUi::ScrollableContent {
         @param visibleCols number of visible columns
         @param startY the window row to start drawing at
         @param startX the window column to start drawing at
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing drawContent(Ncurses::Window w, int scrollY, int scrollX,
             int visibleRows, int visibleCols, int startY, int startX) {

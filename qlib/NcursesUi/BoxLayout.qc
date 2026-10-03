@@ -31,12 +31,12 @@ public namespace NcursesUi {
     - Hidden children receive no space.
 
     @par Example
-    @code
+    @code{.py}
     NcursesUi::BoxLayout layout(NcursesUi::Orientation::Vertical, 0);
     layout.apply(container);
     @endcode
 
-    @since ncurses 2.0
+    @since ncurses 1.0
 */
 public class BoxLayout {
     private {
@@ -49,7 +49,7 @@ public class BoxLayout {
     /** Creates a new BoxLayout.
         @param orient Orientation::Vertical or Orientation::Horizontal
         @param sp spacing in rows/columns between children (default 0)
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     constructor(int orient = NcursesUi::Orientation::Vertical, int sp = 0) {
         orientation = orient;
@@ -57,14 +57,14 @@ public class BoxLayout {
     }
 
     /** Returns the orientation.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     int getOrientation() {
         return orientation;
     }
 
     /** Returns the spacing.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     int getSpacing() {
         return spacing;
@@ -76,7 +76,7 @@ public class BoxLayout {
         the layout axis. Each child's frame is set accordingly.
 
         @param container the widget whose children should be laid out
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing apply(NcursesUi::Widget container) {
         list<NcursesUi::Widget> kids = container.getChildren();

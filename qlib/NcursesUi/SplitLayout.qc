@@ -32,13 +32,13 @@ public namespace NcursesUi {
     container. Additional children are ignored.
 
     @par Example
-    @code
+    @code{.py}
     NcursesUi::SplitLayout split(NcursesUi::Orientation::Vertical);
     split.setSplitRatio(0.7);
     split.apply(container);
     @endcode
 
-    @since ncurses 2.0
+    @since ncurses 1.0
 */
 public class SplitLayout {
     private {
@@ -54,14 +54,14 @@ public class SplitLayout {
 
     /** Creates a new SplitLayout.
         @param orient Orientation::Vertical or Orientation::Horizontal
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     constructor(int orient = NcursesUi::Orientation::Vertical) {
         orientation = orient;
     }
 
     /** Returns the orientation.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     int getOrientation() {
         return orientation;
@@ -73,7 +73,7 @@ public class SplitLayout {
         Clears any fixed size setting.
 
         @param ratio value between 0.0 and 1.0
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setSplitRatio(float ratio) {
         if (ratio < 0.0) {
@@ -87,7 +87,7 @@ public class SplitLayout {
     }
 
     /** Returns the split ratio.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     float getSplitRatio() {
         return split_ratio;
@@ -99,7 +99,7 @@ public class SplitLayout {
 
         @param size fixed size in rows (vertical) or cols (horizontal)
         @param pane which pane has fixed size (0 or 1)
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setFixedSize(int size, int pane) {
         fixed_size = max(0, size);
@@ -108,7 +108,7 @@ public class SplitLayout {
 
     /** Applies this layout to a container widget's first two visible children.
         @param container the widget whose children should be laid out
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing apply(NcursesUi::Widget container) {
         list<NcursesUi::Widget> kids = container.getChildren();

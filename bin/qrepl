@@ -5105,7 +5105,7 @@ class QRepl {
     matching the improved layout from qore --version-animation.
     Dismisses on Escape, Enter, Space, or any mouse click.
 
-    @since ncurses 2.0
+    @since ncurses 1.0
 */
 class AboutDialogWidget inherits NcursesUi::PanelWidget {
     private {

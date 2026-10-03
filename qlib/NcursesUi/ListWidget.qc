@@ -31,7 +31,7 @@ public namespace NcursesUi {
     Items are hashes with at least a "label" key. Additional keys
     can be used for custom rendering and activation data.
 
-    @since ncurses 2.0
+    @since ncurses 1.0
 */
 public class ListWidget inherits NcursesUi::Widget {
     private {
@@ -62,7 +62,7 @@ public class ListWidget inherits NcursesUi::Widget {
     }
 
     /** Creates a new ListWidget.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     constructor() {
         setFocusable(True);
@@ -70,7 +70,7 @@ public class ListWidget inherits NcursesUi::Widget {
 
     /** Sets the items.
         @param new_items list of item hashes
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setItems(list<hash<auto>> new_items) {
         items = new_items;
@@ -85,21 +85,21 @@ public class ListWidget inherits NcursesUi::Widget {
     }
 
     /** Returns the items.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     list<hash<auto>> getItems() {
         return items;
     }
 
     /** Returns the selected index (-1 for none).
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     int getSelectedIndex() {
         return selected_index;
     }
 
     /** Returns the selected item or NOTHING.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     *hash<auto> getSelectedItem() {
         if (selected_index >= 0 && selected_index < items.size()) {
@@ -110,7 +110,7 @@ public class ListWidget inherits NcursesUi::Widget {
 
     /** Sets the selected index.
         @param idx the index
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setSelectedIndex(int idx) {
         if (items.empty()) {
@@ -134,7 +134,7 @@ public class ListWidget inherits NcursesUi::Widget {
 
     /** Sets the selection change callback.
         @param cb callback receiving the selected index
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setOnSelect(*code cb) {
         on_select = cb;
@@ -142,7 +142,7 @@ public class ListWidget inherits NcursesUi::Widget {
 
     /** Sets the activation callback (Enter/double-click).
         @param cb callback receiving the selected item hash
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setOnActivate(*code cb) {
         on_activate = cb;
@@ -150,7 +150,7 @@ public class ListWidget inherits NcursesUi::Widget {
 
     /** Sets a custom item render callback.
         @param cb callback: \c string \c sub(hash\<auto\> item, int index, bool is_selected)
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setRenderItem(*code cb) {
         render_item = cb;
@@ -158,7 +158,7 @@ public class ListWidget inherits NcursesUi::Widget {
 
     /** Sets a custom item style callback.
         @param cb callback: \c *hash\<auto\> \c sub(hash\<auto\> item, int index, bool is_selected)
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setRenderItemStyle(*code cb) {
         render_item_style = cb;
@@ -167,7 +167,7 @@ public class ListWidget inherits NcursesUi::Widget {
 
     /** Sets the selected item style.
         @param style the style hash
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setSelectedStyle(hash<auto> style) {
         selected_style = style;
@@ -176,21 +176,21 @@ public class ListWidget inherits NcursesUi::Widget {
 
     /** Sets whether mouse wheel moves selection instead of scrolling.
         @param enabled True to move selection, False to scroll
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setWheelMovesSelection(bool enabled) {
         wheel_moves_selection = enabled;
     }
 
     /** Returns whether mouse wheel moves selection.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     bool getWheelMovesSelection() {
         return wheel_moves_selection;
     }
 
     /** Returns the scroll offset.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     int getScrollOffset() {
         return scroll_offset;
@@ -198,7 +198,7 @@ public class ListWidget inherits NcursesUi::Widget {
 
     /** Draws the list.
         @param w the window
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing draw(Ncurses::Window w) {
         hash<NcursesUi::Rect> cr = contentRect();
@@ -249,7 +249,7 @@ public class ListWidget inherits NcursesUi::Widget {
     /** Handles keyboard and mouse events.
         @param ev the input event
         @return EventResult
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     hash<NcursesUi::EventResult> processEvent(hash<Ncurses::InputEvent> ev) {
         if (items.empty()) {

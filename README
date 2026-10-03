@@ -1,9 +1,9 @@
 ncurses module for Qore
-version 2.0 by David Nichols
+version 1.0 by David Nichols
 
 Requires qore 2.3+ and ncurses (wide-character) headers and libraries to build.
 
-See RELEASE-NOTES for a full description of the module's features.
+See README.md and the generated documentation for features and examples.
 
 If your ncurses is in a non-standard location, set the NCURSES_DIR environment variable
 before running cmake.

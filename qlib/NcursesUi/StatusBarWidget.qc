@@ -33,7 +33,7 @@ public namespace NcursesUi {
     - \c style: optional hash with fg, bg, attrs keys
     - \c align: "left" (default) or "right"
 
-    @since ncurses 2.0
+    @since ncurses 1.0
 */
 public class StatusBarWidget inherits NcursesUi::Widget {
     private {
@@ -46,7 +46,7 @@ public class StatusBarWidget inherits NcursesUi::Widget {
     }
 
     /** Creates a new StatusBarWidget.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     constructor() {
         setVSizePolicy(NcursesUi::SizePolicy::Fixed);
@@ -56,7 +56,7 @@ public class StatusBarWidget inherits NcursesUi::Widget {
 
     /** Sets the segments.
         @param segs list of segment hashes
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setSegments(list<hash<auto>> segs) {
         segments = segs;
@@ -64,7 +64,7 @@ public class StatusBarWidget inherits NcursesUi::Widget {
     }
 
     /** Returns the segments.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     list<hash<auto>> getSegments() {
         return segments;
@@ -72,7 +72,7 @@ public class StatusBarWidget inherits NcursesUi::Widget {
 
     /** Sets the background style.
         @param style the style hash
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setBackgroundStyle(hash<auto> style) {
         bg_style = style;
@@ -81,7 +81,7 @@ public class StatusBarWidget inherits NcursesUi::Widget {
 
     /** Sets the spacing between consecutive segments.
         @param spacing number of columns between segments
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setSegmentSpacing(int spacing) {
         segment_spacing = spacing;
@@ -89,7 +89,7 @@ public class StatusBarWidget inherits NcursesUi::Widget {
     }
 
     /** Returns the segment spacing.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     int getSegmentSpacing() {
         return segment_spacing;
@@ -97,7 +97,7 @@ public class StatusBarWidget inherits NcursesUi::Widget {
 
     /** Draws the status bar.
         @param w the window
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing draw(Ncurses::Window w) {
         hash<NcursesUi::Rect> cr = contentRect();

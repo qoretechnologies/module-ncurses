@@ -1,4 +1,5 @@
 /* -*- mode: c++; indent-tabs-mode: nil -*- */
+/* Copyright (C) 2026 Qore Technologies, s.r.o. */
 #include "ncurses-internal.h"
 
 #include <assert.h>
@@ -104,6 +105,22 @@ private:
 
 NcursesSession::NcursesSession() = default;
 
+void NcursesSession::injectMouse(const MEVENT& event, ExceptionSink* xsink) {
+    // Keep synthetic payloads in the same order as their markers. ungetmouse()
+    // has a separate bounded ring, so batches can otherwise reverse payloads
+    // or overwrite pending events even when the input queue still has room.
+    try {
+        injected_mouse.push_back(event);
+    } catch (const std::bad_alloc&) {
+        xsink->raiseException("NCURSES-ERROR", "cannot allocate an injected mouse event");
+        return;
+    }
+    if (ungetch(NC_INJECTED_MOUSE) == ERR) {
+        injected_mouse.pop_back();
+        xsink->raiseException("NCURSES-ERROR", "input queue is full while injecting a mouse event");
+    }
+}
+
 NcursesSession::~NcursesSession() {
     close(nullptr);
     // delscreen runs only in the dtor — by which time NcursesPanel and
@@ -151,6 +168,7 @@ void NcursesSession::close(ExceptionSink* xsink) {
     }
     cursor_win = nullptr;
     cursor_set = false;
+    injected_mouse.clear();
     closed = true;
 }
 

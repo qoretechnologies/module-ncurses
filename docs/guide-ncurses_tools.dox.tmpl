@@ -1,11 +1,51 @@
 /* Copyright (C) 2026 Qore Technologies, s.r.o. */
 
-/** @page ncurses_toolsguide Tools
+/** @page ncurses_toolsguide Tools and REPL Helpers
 
     @tableofcontents
 
-    The module installs a full-screen ncurses REPL frontend backed by the
-    %QoreRepl module:
-    - \c qrepl — interactive Qore REPL with menus, file browser, output capture, scrollable
-      output, and an animated About dialog
+    @section ncursestoolsqrepl Full-Screen Qore REPL
+
+    The installed \c qrepl command provides an interactive %Qore console with menus, a file
+    browser, captured output, history, and a scrollable output pane. Start it in a terminal:
+    @verbatim
+qrepl --help
+qrepl
+    @endverbatim
+
+    Enter evaluates the input; Up/Down navigate history; Left/Right and Home/End move the cursor.
+    Use <tt>/help</tt> for console commands. Ctrl+Q or Escape opens the exit confirmation.
+    Click the output pane to focus it, then use the mouse wheel, arrow keys, PgUp/PgDn, or
+    Home/End to scroll. Alt-key menu shortcuts provide access to file, edit, view, and help actions.
+    Command history is persisted in <tt>~/.qore-repl-history</tt>.
+
+    @section ncursestoolshelpers Building a Custom Console
+
+    @ref ncursesrepluiintro "NcursesReplUi" provides editing primitives independently of the
+    full-screen program. @ref NcursesReplUi::InputBuffer "InputBuffer" tracks text and cursor
+    position, while @ref QoreHistory::History "History" stores commands. The module reexports
+    the history API. This example edits a command and saves it without opening a terminal:
+
+    @code{.py}
+%modern
+%requires NcursesReplUi
+
+NcursesReplUi::InputBuffer buffer();
+buffer.insertChar("1 + 2");
+buffer.moveHome();
+buffer.insertChar("print ");
+@assert(buffer.getText() == "print 1 + 2");
+QoreHistory::History history();
+history.add(buffer.getText());
+@assert(history.prev() == "print 1 + 2");
+hash<auto> layout = NcursesReplUi::LayoutCalc::calcLayout(24, 80);
+@assert(layout.output_rows == 21);
+    @endcode
+
+    @ref NcursesReplUi::LayoutCalc::calcLayout() "LayoutCalc::calcLayout()" divides terminal
+    dimensions into output, input, and information panes;
+    @ref NcursesReplUi::ScrollCalc "ScrollCalc" computes bottom-anchored scrolling positions.
+    Pair these helpers with @ref NcursesUi::ScrollableWidget "ScrollableWidget" and
+    @ref NcursesUi::StatusBarWidget "StatusBarWidget" as described in
+    @ref ncurses_ui_widgetsguide "UI Widget Toolkit".
 */

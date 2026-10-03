@@ -1,0 +1,168 @@
+#!/usr/bin/env qore
+# Copyright (C) 2026 Qore Technologies, s.r.o.
+# SPDX-License-Identifier: MIT
+
+%modern
+%requires ncurses
+%requires QUnit
+%exec-class InjectedMouseTest
+
+class InjectedMouseTest inherits Test {
+    constructor() : Test("InjectedMouseTest", "1.0") {
+        addTestCase("one mouse event produces one input event", \testSingle());
+        addTestCase("mixed batch preserves input order", \testBatch());
+        addTestCase("separate injections preserve mouse payloads", \testRepeated());
+        addTestCase("empty batch leaves input empty", \testEmpty());
+        addTestCase("invalid event is rejected without input", \testInvalid());
+        addTestCase("pending injections follow stack order", \testPending());
+        addTestCase("flush removes pending payloads", \testFlush());
+        addTestCase("full input queue reports failure and recovers after flush", \testFull());
+        set_return_value(main());
+    }
+
+    private hash<Ncurses::InputEvent> mouse(int x, int y) {
+        return <Ncurses::InputEvent>{
+            "type": Ncurses::InputType::Mouse,
+            "mouse": <Ncurses::MouseEvent>{
+                "x": x, "y": y, "button_state": Ncurses::BUTTON1_CLICKED,
+            },
+        };
+    }
+
+    testSingle() {
+        Ncurses::TestTerminal terminal(24, 80);
+        on_exit terminal.close();
+        Ncurses::Session session({"test_terminal": terminal});
+        on_exit session.close();
+        session.injectEvent(mouse(4, 2));
+        *hash<Ncurses::InputEvent> event = session.screen().readEvent(25, 25);
+        assertTrue(exists event);
+        assertEq(Ncurses::InputType::Mouse, event.type);
+        assertEq(4, event.mouse.x);
+        assertEq(2, event.mouse.y);
+        assertEq(Ncurses::BUTTON1_CLICKED, event.mouse.button_state);
+        assertFalse(exists session.screen().readEvent(25, 25));
+    }
+
+    testBatch() {
+        Ncurses::TestTerminal terminal(24, 80);
+        on_exit terminal.close();
+        Ncurses::Session session({"test_terminal": terminal});
+        on_exit session.close();
+        list<hash<Ncurses::InputEvent>> events = (
+            <Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "a"},
+            mouse(1, 2),
+            <Ncurses::InputEvent>{"type": Ncurses::InputType::Key, "code": Ncurses::KEY_DOWN},
+            mouse(3, 4),
+            <Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "z"},
+        );
+        session.injectEvents(events);
+        foreach hash<Ncurses::InputEvent> expected in (events) {
+            *hash<Ncurses::InputEvent> event = session.screen().readEvent(25, 25);
+            assertTrue(exists event);
+            assertEq(expected.type, event.type);
+            if (expected.type == Ncurses::InputType::Mouse) {
+                assertEq(expected.mouse, event.mouse);
+            } else if (expected.type == Ncurses::InputType::Char) {
+                assertEq(expected.ch, event.ch);
+            } else {
+                assertEq(expected.code, event.code);
+            }
+        }
+        assertFalse(exists session.screen().readEvent(25, 25));
+    }
+
+    testRepeated() {
+        Ncurses::TestTerminal terminal(24, 80);
+        on_exit terminal.close();
+        Ncurses::Session session({"test_terminal": terminal});
+        on_exit session.close();
+        for (int i = 0; i < 3; ++i) {
+            session.injectEvent(mouse(i, i));
+            *hash<Ncurses::InputEvent> event = session.screen().readEvent(25, 25);
+            assertTrue(exists event);
+            assertEq(i, event.mouse.x);
+            assertEq(i, event.mouse.y);
+            assertFalse(exists session.screen().readEvent(25, 25));
+        }
+    }
+
+    testEmpty() {
+        Ncurses::TestTerminal terminal(24, 80);
+        on_exit terminal.close();
+        Ncurses::Session session({"test_terminal": terminal});
+        on_exit session.close();
+        list<hash<Ncurses::InputEvent>> events = ();
+        session.injectEvents(events);
+        assertFalse(exists session.screen().readEvent(25, 25));
+    }
+
+    testInvalid() {
+        Ncurses::TestTerminal terminal(24, 80);
+        on_exit terminal.close();
+        Ncurses::Session session({"test_terminal": terminal});
+        on_exit session.close();
+        assertThrows("NCURSES-ERROR", sub () {
+            session.injectEvent(<Ncurses::InputEvent>{"type": 999});
+        });
+        assertThrows("NCURSES-ERROR", sub () {
+            session.injectEvents((<Ncurses::InputEvent>{"type": 999},));
+        });
+        assertFalse(exists session.screen().readEvent(25, 25));
+    }
+
+    testPending() {
+        Ncurses::TestTerminal terminal(24, 80);
+        on_exit terminal.close();
+        Ncurses::Session session({"test_terminal": terminal});
+        on_exit session.close();
+        session.injectEvent(mouse(1, 2));
+        session.injectEvent(mouse(3, 4));
+        assertEq(3, session.screen().readEvent(25, 25).mouse.x);
+        assertEq(1, session.screen().readEvent(25, 25).mouse.x);
+        assertFalse(exists session.screen().readEvent(25, 25));
+    }
+
+    testFlush() {
+        Ncurses::TestTerminal terminal(24, 80);
+        on_exit terminal.close();
+        Ncurses::Session session({"test_terminal": terminal});
+        on_exit session.close();
+        session.injectEvents((mouse(1, 2), mouse(3, 4)));
+        session.flushInput();
+        assertFalse(exists session.screen().readEvent(25, 25));
+        session.injectEvent(mouse(5, 6));
+        assertEq(5, session.screen().readEvent(25, 25).mouse.x);
+        assertFalse(exists session.screen().readEvent(25, 25));
+    }
+
+    testFull() {
+        Ncurses::TestTerminal terminal(24, 80);
+        on_exit terminal.close();
+        Ncurses::Session session({"test_terminal": terminal});
+        on_exit session.close();
+        int accepted = 0;
+        bool full = False;
+        while (accepted < 4096) {
+            try {
+                session.injectEvent(mouse(accepted, 0));
+                ++accepted;
+            } catch (hash<ExceptionInfo> error) {
+                assertEq("NCURSES-ERROR", error.err);
+                full = True;
+                break;
+            }
+        }
+        assertTrue(full);
+        assertTrue(accepted > 0);
+        # ncurses does not guarantee preservation of the input queue after an
+        # overflow. Flush both pending markers and payloads before retrying.
+        session.flushInput();
+        session.injectEvent(mouse(7, 8));
+        *hash<Ncurses::InputEvent> event = session.screen().readEvent(25, 25);
+        assertTrue(exists event);
+        assertEq(7, event.mouse.x);
+        assertEq(8, event.mouse.y);
+        assertFalse(exists session.screen().readEvent(25, 25));
+    }
+}

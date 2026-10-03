@@ -20,7 +20,7 @@
     is the last line of the ScrollableWidget content, and all keyboard
     input is handled via the global key handler using InputBuffer/History.
 
-    @since ncurses 2.0
+    @since ncurses 1.0
 */
 class NcursesQreplTest inherits QUnit::Test {
     constructor() : QUnit::Test("NcursesQreplTest", "1.0") {

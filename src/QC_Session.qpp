@@ -29,7 +29,7 @@
 //! Cursor visibility enum
 /** Cursor visibility modes.
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 enum Qore::Ncurses::CursorVisibility : int {
     Hidden = 0,
@@ -40,7 +40,7 @@ enum Qore::Ncurses::CursorVisibility : int {
 //! Input event type enum
 /** Input event types produced by @ref Qore::Ncurses::Window::readEvent() "Window::readEvent()".
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 enum Qore::Ncurses::InputType : int {
     None = 0,
@@ -54,7 +54,7 @@ enum Qore::Ncurses::InputType : int {
 //! Color enum
 /** Basic ncurses colors.
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 enum Qore::Ncurses::Color : int {
     Default = -1,
@@ -71,7 +71,7 @@ enum Qore::Ncurses::Color : int {
 //! Text attribute enum
 /** Text attributes used with @ref Ncurses::Style.
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 enum Qore::Ncurses::Attr : int {
     NormalAttr = A_NORMAL,
@@ -86,7 +86,7 @@ enum Qore::Ncurses::Attr : int {
 //! Text wrapping mode enum
 /** Controls how text is wrapped when rendering in panels or windows.
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 enum Qore::Ncurses::WrapMode : int {
     //! No wrapping; text is clipped to the line width
@@ -100,7 +100,7 @@ enum Qore::Ncurses::WrapMode : int {
 //! Style hashdecl
 /** Style definition for text and backgrounds.
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 hashdecl Qore::Ncurses::Style {
     //! Foreground color (Ncurses::Color)
@@ -114,7 +114,7 @@ hashdecl Qore::Ncurses::Style {
 //! Size hashdecl
 /** Size hashdecl.
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 hashdecl Qore::Ncurses::Size {
     //! Number of rows
@@ -126,7 +126,7 @@ hashdecl Qore::Ncurses::Size {
 //! Position hashdecl
 /** Position hashdecl.
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 hashdecl Qore::Ncurses::Position {
     //! Row (y)
@@ -138,7 +138,7 @@ hashdecl Qore::Ncurses::Position {
 //! Mouse event hashdecl
 /** Mouse event information.
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 hashdecl Qore::Ncurses::MouseEvent {
     //! Column (x)
@@ -152,7 +152,7 @@ hashdecl Qore::Ncurses::MouseEvent {
 //! Input event hashdecl
 /** Input event information.
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 hashdecl Qore::Ncurses::InputEvent {
     //! Ncurses::InputType
@@ -294,7 +294,7 @@ w.readEvent();
 s.close();
     @endcode
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 qclass Session [dom=TERMINAL_IO; arg=NcursesSession* session; ns=Qore::Ncurses];
 
@@ -320,7 +320,7 @@ qclass Session [dom=TERMINAL_IO; arg=NcursesSession* session; ns=Qore::Ncurses];
     - \c unbuffered_stdio (bool, default true when \c use_tty is true) to disable stdio buffering on
       stdout/stderr when using a dedicated TTY (useful for output capture)
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 Session::constructor(*hash options) [flags=NAMED_ARGS] {
     NcursesSession* s = new NcursesSession();
@@ -508,7 +508,7 @@ Session::constructor(*hash options) [flags=NAMED_ARGS] {
 /**
     @param enabled true to enable mouse events, false to disable
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 nothing Session::setMouse(bool enabled) [flags=NAMED_ARGS] {
     session->checkOpen(xsink);
@@ -524,7 +524,7 @@ nothing Session::setMouse(bool enabled) [flags=NAMED_ARGS] {
 /**
     @param file target file
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 nothing Session::redirectStdout(File[File] file) [flags=NAMED_ARGS] {
     if (*xsink) {
@@ -558,7 +558,7 @@ nothing Session::redirectStdout(File[File] file) [flags=NAMED_ARGS] {
 /**
     @param file target file
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 nothing Session::redirectStderr(File[File] file) [flags=NAMED_ARGS] {
     if (*xsink) {
@@ -593,7 +593,7 @@ nothing Session::redirectStderr(File[File] file) [flags=NAMED_ARGS] {
     file descriptor.  Call this after evaluating user code to ensure all
     output reaches the capture pipe.
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 nothing Session::flushStdio() {
     fflush(stdout);
@@ -603,7 +603,7 @@ nothing Session::flushStdio() {
 
 //! Closes the session
 /**
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 nothing Session::close() {
     session->close(xsink);
@@ -611,7 +611,7 @@ nothing Session::close() {
 
 //! Returns true if the session is open
 /**
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 bool Session::isOpen() {
     return session && !session->closed;
@@ -619,7 +619,7 @@ bool Session::isOpen() {
 
 //! Returns the screen window
 /**
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 Window Session::screen() {
     session->checkOpen(xsink);
@@ -638,7 +638,7 @@ Window Session::screen() {
 
     @return list of strings (one per row)
 
-    @since %ncurses 2.1
+    @since %ncurses 1.0
 */
 list<string> Session::snapshot(*int y, *int rows, *int cols) [flags=NAMED_ARGS] {
     session->checkOpen(xsink);
@@ -690,7 +690,7 @@ list<string> Session::snapshot(*int y, *int rows, *int cols) [flags=NAMED_ARGS] 
 
 //! Returns true if colors are enabled
 /**
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 bool Session::supportsColor() {
     return session && session->colors_enabled;
@@ -700,7 +700,7 @@ bool Session::supportsColor() {
 /**
     @param visibility one of @ref CursorVisibility values
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 nothing Session::setCursor(int visibility) [flags=NAMED_ARGS] {
     session->checkOpen(xsink);
@@ -717,7 +717,7 @@ nothing Session::setCursor(int visibility) [flags=NAMED_ARGS] {
     @param delay_ms delay in milliseconds (values < 0 are treated as 0)
     @return previous delay value if available, otherwise 0
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 int Session::setEscDelay(int delay_ms) [flags=NAMED_ARGS] {
     session->checkOpen(xsink);
@@ -745,7 +745,7 @@ int Session::setEscDelay(int delay_ms) [flags=NAMED_ARGS] {
 /**
     @return the number of colors the terminal supports (typically 8, 256, or more)
 
-    @since %ncurses 2.1
+    @since %ncurses 1.0
 */
 int Session::maxColors() {
     session->checkOpen(xsink);
@@ -762,7 +762,7 @@ int Session::maxColors() {
 
     @return true if the terminal supports redefining colors
 
-    @since %ncurses 2.1
+    @since %ncurses 1.0
 */
 bool Session::canChangeColor() {
     session->checkOpen(xsink);
@@ -784,7 +784,7 @@ bool Session::canChangeColor() {
 
     @note The terminal must support color redefinition (@ref canChangeColor() returns true)
 
-    @since %ncurses 2.1
+    @since %ncurses 1.0
 */
 nothing Session::initColor(int color, int red, int green, int blue) [flags=NAMED_ARGS] {
     session->checkOpen(xsink);
@@ -812,7 +812,7 @@ nothing Session::initColor(int color, int red, int green, int blue) [flags=NAMED
 
 //! Flushes pending input
 /**
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 nothing Session::flushInput() {
     session->checkOpen(xsink);
@@ -821,12 +821,13 @@ nothing Session::flushInput() {
     }
     NcursesCallGuard guard(session);
     flushinp();
+    session->injected_mouse.clear();
     return nothing();
 }
 
 //! Queues panel updates
 /**
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 nothing Session::updatePanels() {
     session->checkOpen(xsink);
@@ -843,7 +844,7 @@ nothing Session::updatePanels() {
     Applies the most recent cursor position set with @ref Ncurses::Window::moveCursor
     or @ref Ncurses::Window::restoreCursor before updating the terminal.
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 nothing Session::doupdate() {
     session->checkOpen(xsink);
@@ -861,7 +862,7 @@ nothing Session::doupdate() {
 
 //! Emits a terminal beep
 /**
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 nothing Session::beep() {
     session->checkOpen(xsink);
@@ -875,7 +876,7 @@ nothing Session::beep() {
 
 //! Flashes the terminal
 /**
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 nothing Session::flash() {
     session->checkOpen(xsink);
@@ -894,7 +895,7 @@ nothing Session::flash() {
 
     @return the callback result
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 auto Session::withLock(code callback, *list callback_args) [flags=NAMED_ARGS] {
     session->checkOpen(xsink);
@@ -914,7 +915,7 @@ auto Session::withLock(code callback, *list callback_args) [flags=NAMED_ARGS] {
 /**
     @param data input characters to inject
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 nothing Session::injectInput(string data) [flags=NAMED_ARGS] {
     session->checkOpen(xsink);
@@ -941,7 +942,7 @@ nothing Session::injectInput(string data) [flags=NAMED_ARGS] {
     - ch (string) for Char events
     - mouse (hash) for Mouse events with keys: x, y, button_state
 
-    @since %ncurses 2.1
+    @since %ncurses 1.0
 */
 nothing Session::injectEvent(hash<InputEvent> event) [flags=NAMED_ARGS] {
     session->checkOpen(xsink);
@@ -1021,8 +1022,7 @@ nothing Session::injectEvent(hash<InputEvent> event) [flags=NAMED_ARGS] {
         me.x = mx;
         me.y = my;
         me.bstate = (mmask_t)bs;
-        ungetmouse(&me);
-        ungetch(KEY_MOUSE);
+        session->injectMouse(me, xsink);
         return nothing();
     } else if (type == NC_INPUT_RESIZE) {
         ungetch(KEY_RESIZE);
@@ -1051,7 +1051,7 @@ nothing Session::injectEvent(hash<InputEvent> event) [flags=NAMED_ARGS] {
 /**
     @param events list of @ref InputEvent hashes
 
-    @since %ncurses 2.1
+    @since %ncurses 1.0
 */
 nothing Session::injectEvents(list<hash<InputEvent>> events) [flags=NAMED_ARGS] {
     session->checkOpen(xsink);
@@ -1136,8 +1136,7 @@ nothing Session::injectEvents(list<hash<InputEvent>> events) [flags=NAMED_ARGS] 
             me.x = mx;
             me.y = my;
             me.bstate = (mmask_t)bs;
-            ungetmouse(&me);
-            ungetch(KEY_MOUSE);
+            session->injectMouse(me, xsink);
         } else if (type == NC_INPUT_RESIZE) {
             ungetch(KEY_RESIZE);
         } else if (type == NC_INPUT_ALT) {

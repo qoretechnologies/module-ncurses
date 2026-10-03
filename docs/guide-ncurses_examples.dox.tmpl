@@ -4,10 +4,56 @@
 
     @tableofcontents
 
-    The source distribution includes:
-    - \c examples/dashboard.qr: lightweight ticking status dashboard demonstrating
-      Session, Window, drawText() with styles, and readEvent() polling
-    - \c examples/panels.qr: panel stacking and z-order toggling with Panel.top()
-    - \c examples/threaded_input.qr: multi-threaded terminal I/O with a background
-      reader thread and Mutex synchronization
+    @section ncursesexamplessources Runnable Source Examples
+
+    Run the supplied programs from the source checkout after building/installing the module:
+    @verbatim
+qore --enable-debug examples/dashboard.qr
+qore --enable-debug examples/panels.qr
+qore --enable-debug examples/threaded_input.qr
+    @endverbatim
+
+    - \c examples/dashboard.qr updates a status display with
+      @ref Qore::Ncurses::Window::drawText() "Window::drawText()" and bounded
+      @ref Qore::Ncurses::Window::readEvent() "Window::readEvent()" calls. Press \c q to exit.
+    - \c examples/panels.qr stacks two surfaces with @ref Qore::Ncurses::Panel "Panel".
+      Press \c t to change which panel is on top and \c q to exit.
+    - \c examples/threaded_input.qr runs input in a background thread, shares state through a
+      mutex, and joins the reader before closing the session. See @ref ncurses_threads "Threading".
+
+    For an uninstalled build, prefix commands with <tt>QORE_MODULE_DIR=build:qlib</tt>.
+    See @ref ncurses_quickstartguide "Quick Start" for terminal setup and
+    @ref ncurses_testingguide "Automated Testing" for headless execution.
+
+    @section ncursesexamplespanels Overlapping Panels
+
+    A @ref Qore::Ncurses::Panel "Panel" owns a drawable
+    @ref Qore::Ncurses::Panel::window() "window" and a position in the stacking order.
+    @ref Qore::Ncurses::Panel::top() "Panel::top()" brings it forward;
+    @ref Qore::Ncurses::Panel::hide() "Panel::hide()" hides it without discarding its contents.
+    Queue panel changes with @ref Qore::Ncurses::Session::updatePanels() "Session::updatePanels()"
+    and flush them with @ref Qore::Ncurses::Session::doupdate() "Session::doupdate()".
+    Run this example in a terminal at least 12 rows by 50 columns:
+
+    @code{.py}
+%modern
+%requires ncurses
+
+Ncurses::Session session();
+on_exit session.close();
+Ncurses::Panel first(session, 6, 28, 1, 2);
+Ncurses::Panel second(session, 6, 28, 3, 10);
+first.window().box();
+first.window().drawTextInsideLine(0, "First panel");
+second.window().box();
+second.window().drawTextInsideLine(0, "Second panel");
+first.top();
+session.updatePanels();
+session.doupdate();
+session.screen().readEvent();
+    @endcode
+
+    For controls inside overlays and modal input routing, use
+    @ref NcursesUi::PanelWidget "PanelWidget" and @ref NcursesUi::DialogWidget "DialogWidget";
+    see @ref ncurses_ui_widgetsguide "UI Widget Toolkit".
 */

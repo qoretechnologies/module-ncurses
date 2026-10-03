@@ -4,19 +4,50 @@
 
     @tableofcontents
 
-    @par Example:
+    @section ncursesquickstartsetup Terminal and Session
+
+    Run interactive programs in a terminal with a valid \c TERM setting and a UTF-8 locale.
+    Load the binary module with <tt>%requires ncurses</tt>, create a
+    @ref Qore::Ncurses::Session "Session", and obtain its root surface with
+    @ref Qore::Ncurses::Session::screen() "Session::screen()". Coordinates are zero-based:
+    drawing methods take the row before the column.
+
+    @ref Qore::Ncurses::Session::close() "Session::close()" restores the terminal. Register it
+    with <tt>on_exit</tt> immediately after opening a session so exceptions also restore the terminal.
+    Windows and panels belong to their session and must not be used after it closes.
+
+    @section ncursesquickstartexample First Program
+
+    Save this program as \c hello.qr and run <tt>qore --enable-debug hello.qr</tt>.
+    It draws a greeting and waits for one input event:
+
     @code{.py}
 %modern
 %requires ncurses
 
-Ncurses::Session s();
-Ncurses::Window w = s.screen();
-
-w.clear();
-w.drawText(1, 2, "Hello, Ncurses!", {fg: Ncurses::Color::Cyan, attrs: Ncurses::Attr::Bold});
-w.refresh();
-
-w.readEvent();
-s.close();
+Ncurses::Session session();
+on_exit session.close();
+Ncurses::Window window = session.screen();
+window.clear();
+window.drawText(1, 2, "Hello, Ncurses!", {
+    "fg": Ncurses::Color::Cyan,
+    "attrs": Ncurses::Attr::Bold,
+});
+window.drawText(3, 2, "Press a key to close");
+window.refresh();
+window.readEvent();
     @endcode
+
+    @section ncursesquickstartinput Input and Next Steps
+
+    @ref Qore::Ncurses::Window::readEvent() "Window::readEvent()" returns an
+    @ref Qore::Ncurses::InputEvent "InputEvent" describing a character, special key, mouse action,
+    or resize. With an explicit timeout it returns \c NOTHING when no event arrives;
+    test the result before reading its fields. See @ref ncurses_mouseguide "Mouse Support"
+    for an event loop and @ref ncurses_ui_widgetsguide "UI Widget Toolkit" for automatic dispatch.
+
+    Session options control echo, raw/cbreak mode, mouse reporting, colors, and cursor visibility.
+    The \c use_tty option opens a dedicated terminal device when standard output is being captured;
+    see @ref Qore::Ncurses::Session::constructor() "Session options".
+    For headless tests use @ref ncurses_testingguide "Automated Testing".
 */

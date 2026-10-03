@@ -56,7 +56,7 @@ root.readEvent();
 s.close();
     @endcode
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 qclass Panel [dom=TERMINAL_IO; arg=NcursesPanel* panel; ns=Qore::Ncurses];
 
@@ -68,7 +68,7 @@ qclass Panel [dom=TERMINAL_IO; arg=NcursesPanel* panel; ns=Qore::Ncurses];
 /**
     @param window the window to wrap
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 Panel::constructor(Qore::Ncurses::Window[NcursesWindow] window) [flags=NAMED_ARGS] {
     if (*xsink) {
@@ -96,7 +96,7 @@ Panel::constructor(Qore::Ncurses::Window[NcursesWindow] window) [flags=NAMED_ARG
     @param y top row
     @param x left column
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 Panel::constructor(Qore::Ncurses::Session[NcursesSession] session, int rows, int cols, int y, int x) [flags=NAMED_ARGS] {
     if (*xsink) {
@@ -126,7 +126,7 @@ Panel::constructor(Qore::Ncurses::Session[NcursesSession] session, int rows, int
 
 //! Shows the panel
 /**
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 nothing Panel::show() {
     panel->checkOpen(xsink);
@@ -140,7 +140,7 @@ nothing Panel::show() {
 
 //! Hides the panel
 /**
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 nothing Panel::hide() {
     panel->checkOpen(xsink);
@@ -154,7 +154,7 @@ nothing Panel::hide() {
 
 //! Moves the panel to the top
 /**
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 nothing Panel::top() {
     panel->checkOpen(xsink);
@@ -168,7 +168,7 @@ nothing Panel::top() {
 
 //! Moves the panel to the bottom
 /**
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 nothing Panel::bottom() {
     panel->checkOpen(xsink);
@@ -185,7 +185,7 @@ nothing Panel::bottom() {
     @param y top row
     @param x left column
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 nothing Panel::move(int y, int x) [flags=NAMED_ARGS] {
     panel->checkOpen(xsink);
@@ -199,7 +199,7 @@ nothing Panel::move(int y, int x) [flags=NAMED_ARGS] {
 
 //! Updates panel stacking
 /**
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 nothing Panel::update() {
     panel->checkOpen(xsink);
@@ -214,7 +214,7 @@ nothing Panel::update() {
 
 //! Returns the panel's window
 /**
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 Window Panel::window() {
     panel->checkOpen(xsink);
@@ -231,7 +231,7 @@ Window Panel::window() {
 /**
     @param mode wrap mode
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 nothing Panel::setWrapMode(enum<WrapMode> mode) [flags=NAMED_ARGS] {
     panel->checkOpen(xsink);
@@ -258,7 +258,7 @@ nothing Panel::setWrapMode(enum<WrapMode> mode) [flags=NAMED_ARGS] {
 /**
     @return @ref Qore::Ncurses::WrapMode "WrapMode" value
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 enum<WrapMode> Panel::getWrapMode() [flags=CONSTANT] {
     panel->checkOpen(xsink);

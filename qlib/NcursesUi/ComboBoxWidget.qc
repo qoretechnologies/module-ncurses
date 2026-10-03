@@ -28,7 +28,7 @@ public namespace NcursesUi {
     Type to filter options, use Up/Down to navigate the dropdown,
     Enter to select.
 
-    @since ncurses 2.0
+    @since ncurses 1.0
 */
 public class ComboBoxWidget inherits NcursesUi::Widget {
     private {
@@ -60,7 +60,7 @@ public class ComboBoxWidget inherits NcursesUi::Widget {
 
     /** Creates a new ComboBoxWidget.
         @param options the available options
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     constructor(list<string> options = ()) {
         all_options = options;
@@ -70,7 +70,7 @@ public class ComboBoxWidget inherits NcursesUi::Widget {
 
     /** Sets the options.
         @param options the available options
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setOptions(list<string> options) {
         all_options = options;
@@ -79,14 +79,14 @@ public class ComboBoxWidget inherits NcursesUi::Widget {
     }
 
     /** Returns all options.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     list<string> getOptions() {
         return all_options;
     }
 
     /** Returns the current text.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     string getText() {
         return text;
@@ -94,7 +94,7 @@ public class ComboBoxWidget inherits NcursesUi::Widget {
 
     /** Sets the text.
         @param t the text
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setText(string t) {
         text = t;
@@ -104,21 +104,21 @@ public class ComboBoxWidget inherits NcursesUi::Widget {
     }
 
     /** Returns whether the dropdown is open.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     bool isDropdownOpen() {
         return dropdown_open;
     }
 
     /** Returns the highlighted index in the dropdown.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     int getHighlightIndex() {
         return highlight_index;
     }
 
     /** Returns the filtered options.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     list<string> getFilteredOptions() {
         return filtered_options;
@@ -126,7 +126,7 @@ public class ComboBoxWidget inherits NcursesUi::Widget {
 
     /** Sets the selection callback.
         @param cb callback(string selected_text)
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setOnSelect(*code cb) {
         on_select = cb;
@@ -134,7 +134,7 @@ public class ComboBoxWidget inherits NcursesUi::Widget {
 
     /** Sets the text change callback.
         @param cb callback(string text)
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setOnChange(*code cb) {
         on_change = cb;
@@ -142,7 +142,7 @@ public class ComboBoxWidget inherits NcursesUi::Widget {
 
     /** Draws the combo box.
         @param w the window
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing draw(Ncurses::Window w) {
         hash<NcursesUi::Rect> cr = contentRect();
@@ -186,7 +186,7 @@ public class ComboBoxWidget inherits NcursesUi::Widget {
     /** Handles events.
         @param ev the input event
         @return EventResult
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     hash<NcursesUi::EventResult> processEvent(hash<Ncurses::InputEvent> ev) {
         if (ev.type == Ncurses::InputType::Key) {

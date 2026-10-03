@@ -11,7 +11,7 @@
 %bcond_without tests
 %bcond_without docs
 Name: qore-ncurses-module
-Version: 2.0.0
+Version: 1.0.0
 Release: 1%{?dist}
 Summary: Terminal widgets and an interactive shell for Qore
 License: MIT
@@ -126,5 +126,7 @@ python3 -B -W error test/test_docs.py build -v
 %doc %{_docdir}/%{name}-doc/
 %endif
 %changelog
+* Sat Oct 03 2026 David Nichols <david@qore.org> - 1.0.0-1
+- Keep the initial release at 1.0.0 and expand the documentation and tested examples.
 * Thu Oct 01 2026 David Nichols <david@qore.org> - 2.0.0-1
 - Package native and compiled UI modules, qrepl, documentation and headless tests.

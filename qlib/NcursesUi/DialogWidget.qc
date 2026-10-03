@@ -32,7 +32,7 @@ public namespace NcursesUi {
     - @ref confirm() - confirmation dialog with OK/Cancel
     - @ref error() - error dialog with OK button
 
-    @since ncurses 2.0
+    @since ncurses 1.0
 */
 public class DialogWidget inherits NcursesUi::PanelWidget {
     private {
@@ -60,7 +60,7 @@ public class DialogWidget inherits NcursesUi::PanelWidget {
         @param title_text the dialog title
         @param msg the message text (newlines create multiple lines)
         @param btn_labels button labels
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     constructor(Ncurses::Session s, string title_text, string msg, list<string> btn_labels = ("OK",))
             : PanelWidget(s, title_text) {
@@ -72,7 +72,7 @@ public class DialogWidget inherits NcursesUi::PanelWidget {
 
     /** Sets the message text.
         @param msg the message
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setMessage(string msg) {
         message_lines = msg.split("\n");
@@ -80,7 +80,7 @@ public class DialogWidget inherits NcursesUi::PanelWidget {
     }
 
     /** Returns the message lines.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     list<string> getMessageLines() {
         return message_lines;
@@ -88,7 +88,7 @@ public class DialogWidget inherits NcursesUi::PanelWidget {
 
     /** Sets the buttons.
         @param btn_labels the button labels
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setButtons(list<string> btn_labels) {
         buttons = btn_labels;
@@ -99,14 +99,14 @@ public class DialogWidget inherits NcursesUi::PanelWidget {
     }
 
     /** Returns the button labels.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     list<string> getButtons() {
         return buttons;
     }
 
     /** Returns the focused button index.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     int getFocusedButton() {
         return focused_button;
@@ -114,7 +114,7 @@ public class DialogWidget inherits NcursesUi::PanelWidget {
 
     /** Sets the button press callback.
         @param cb callback(int index, string label)
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setOnButton(*code cb) {
         on_button = cb;
@@ -122,7 +122,7 @@ public class DialogWidget inherits NcursesUi::PanelWidget {
 
     /** Sets the dismiss (Escape) callback.
         @param cb callback
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setOnDismiss(*code cb) {
         on_dismiss = cb;
@@ -131,7 +131,7 @@ public class DialogWidget inherits NcursesUi::PanelWidget {
     /** Centers the dialog within the given screen dimensions.
         @param screen_rows terminal rows
         @param screen_cols terminal columns
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing centerOn(int screen_rows, int screen_cols) {
         # inner padding inside the content rect (inside border)
@@ -180,7 +180,7 @@ public class DialogWidget inherits NcursesUi::PanelWidget {
     }
 
     /** Returns the button rects in panel-local coordinates.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     list<hash<NcursesUi::Rect>> getButtonRects() {
         return button_rects;
@@ -188,7 +188,7 @@ public class DialogWidget inherits NcursesUi::PanelWidget {
 
     /** Draws the dialog content (message + buttons).
         @param w the window
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing draw(Ncurses::Window w) {
         # draw border and title via PanelWidget
@@ -260,7 +260,7 @@ public class DialogWidget inherits NcursesUi::PanelWidget {
     /** Handles dialog events.
         @param ev the input event
         @return EventResult
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     hash<NcursesUi::EventResult> processEvent(hash<Ncurses::InputEvent> ev) {
         if (ev.type == Ncurses::InputType::Mouse) {
@@ -343,7 +343,7 @@ public class DialogWidget inherits NcursesUi::PanelWidget {
         @param msg the message
         @param cb callback(int index, string label)
         @return the dialog widget
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     static NcursesUi::DialogWidget confirm(Ncurses::Session s, string title_text, string msg,
             *code cb) {
@@ -357,7 +357,7 @@ public class DialogWidget inherits NcursesUi::PanelWidget {
         @param title_text the title
         @param msg the message
         @return the dialog widget
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     static NcursesUi::DialogWidget error(Ncurses::Session s, string title_text, string msg) {
         return new NcursesUi::DialogWidget(s, title_text, msg, ("OK",));

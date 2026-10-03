@@ -4,19 +4,54 @@
 
     @tableofcontents
 
-    All drawing methods accept an optional \c style hash with keys from the
-    @ref Qore::Ncurses::Style "Style" hashdecl:
-    - \c fg: foreground color from @ref Qore::Ncurses::Color "Color" enum (e.g. \c Color::Cyan)
-    - \c bg: background color from @ref Qore::Ncurses::Color "Color" enum (e.g. \c Color::Blue)
-    - \c attrs: bitwise combination of @ref Qore::Ncurses::Attr "Attr" enum values (e.g. \c Attr::Bold)
+    @section ncursesstylesfields Colors and Attributes
 
-    @par Style example:
+    Drawing methods accept a @ref Qore::Ncurses::Style "Style" hash:
+    - \c fg: foreground color from @ref Qore::Ncurses::Color "Color".
+    - \c bg: background color from @ref Qore::Ncurses::Color "Color".
+    - \c attrs: bitwise OR of @ref Qore::Ncurses::Attr "Attr" values, such as bold and underline.
+
+    Omit unused fields. @ref Qore::Ncurses::Session::supportsColor() "Session::supportsColor()"
+    reports whether colors are active. @ref Qore::Ncurses::Color "Color::Default" selects the
+    terminal default when the session enables default colors. The available palette depends
+    on the terminal; inspect @ref Qore::Ncurses::Session::maxColors() "Session::maxColors()"
+    before using additional color indexes.
+
+    @section ncursesstylesexample Borders and Styled Lines
+
+    @ref Qore::Ncurses::Window::box() "Window::box()" draws a border. The
+    @ref Qore::Ncurses::Window::drawTextInsideLine() "Window::drawTextInsideLine()" helper uses
+    coordinates inside that border and clears the unused part of the line, so shorter updates
+    do not leave old characters behind. Run this example in a terminal at least 5 rows high:
+
     @code{.py}
-# yellow bold text on a blue background
-hash<auto> style = {"fg": Ncurses::Color::Yellow, "bg": Ncurses::Color::Blue, "attrs": Ncurses::Attr::Bold};
-w.drawText(0, 0, "Styled text", style);
+%modern
+%requires ncurses
 
-# cyan text with default background
-w.drawText(1, 0, "Cyan text", {"fg": Ncurses::Color::Cyan});
+Ncurses::Session session();
+on_exit session.close();
+Ncurses::Window window = session.screen();
+hash<Ncurses::Style> heading = <Ncurses::Style>{
+    "fg": Ncurses::Color::Yellow,
+    "bg": Ncurses::Color::Blue,
+    "attrs": Ncurses::Attr::Bold | Ncurses::Attr::Underline,
+};
+window.clear();
+window.box({"fg": Ncurses::Color::Cyan});
+window.drawTextInsideLine(0, "Service status", heading);
+window.drawTextInsideLine(1, "Ready", {"fg": Ncurses::Color::Green});
+window.drawTextInsideLine(2, "Press a key to close");
+window.refresh();
+window.readEvent();
     @endcode
+
+    @section ncursesstyleswrapping Clipping and Wrapping
+
+    Use @ref Qore::Ncurses::Window::drawTextClipped() "Window::drawTextClipped()" for text that
+    may exceed the surface, and @ref Qore::Ncurses::Window::drawTextInside() "Window::drawTextInside()"
+    to preserve a border. Set multiline wrapping with
+    @ref Qore::Ncurses::Window::setWrapMode() "Window::setWrapMode()" and
+    @ref Qore::Ncurses::WrapMode "WrapMode" (none, hard wrap, or word wrap).
+    See @ref ncurses_ansiguide "ANSI SGR Text" for colors embedded in strings and
+    @ref NcursesUi::TerminalText "TerminalText" for Unicode-aware plain-text alignment.
 */

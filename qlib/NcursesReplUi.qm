@@ -44,7 +44,7 @@ module NcursesReplUi {
     tool and can be used independently for custom REPL applications.
 
     To use the module:
-    @code %requires NcursesReplUi @endcode
+    @code{.py} %requires NcursesReplUi @endcode
 
     @section ncursesrepluiinputbuffer InputBuffer
 
@@ -121,14 +121,14 @@ int start_idx = NcursesReplUi::ScrollCalc::scrollStart(100, 20, 5);
 # start_idx == 75 (show lines 75-94)
     @endcode
 
-    @since ncurses 2.0
+    @since ncurses 1.0
 */
 
 public namespace NcursesReplUi {
 
 /** Input buffer with cursor tracking.
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 public class InputBuffer {
     private {
@@ -137,7 +137,7 @@ public class InputBuffer {
     }
 
     /** Clears the buffer.
-        @since %ncurses 2.0
+        @since %ncurses 1.0
     */
     nothing reset() {
         text = "";
@@ -145,7 +145,7 @@ public class InputBuffer {
     }
 
     /** Sets the buffer content and moves the cursor to the end.
-        @since %ncurses 2.0
+        @since %ncurses 1.0
     */
     nothing setText(string t) {
         text = t ?? "";
@@ -153,14 +153,14 @@ public class InputBuffer {
     }
 
     /** Returns the current buffer text.
-        @since %ncurses 2.0
+        @since %ncurses 1.0
     */
     string getText() {
         return text;
     }
 
     /** Returns the current cursor position.
-        @since %ncurses 2.0
+        @since %ncurses 1.0
     */
     int getCursor() {
         return cursor;
@@ -168,7 +168,7 @@ public class InputBuffer {
 
     /** Sets the cursor position.
         @param pos the new cursor position (clamped to buffer length)
-        @since %ncurses 2.0
+        @since %ncurses 1.0
     */
     nothing setCursor(int pos) {
         if (pos < 0) {
@@ -181,7 +181,7 @@ public class InputBuffer {
     }
 
     /** Inserts a character at the cursor.
-        @since %ncurses 2.0
+        @since %ncurses 1.0
     */
     nothing insertChar(string ch) {
         if (!exists ch || ch == "") {
@@ -192,7 +192,7 @@ public class InputBuffer {
     }
 
     /** Deletes the character before the cursor.
-        @since %ncurses 2.0
+        @since %ncurses 1.0
     */
     nothing backspace() {
         if (cursor <= 0) {
@@ -203,7 +203,7 @@ public class InputBuffer {
     }
 
     /** Deletes the character at the cursor.
-        @since %ncurses 2.0
+        @since %ncurses 1.0
     */
     nothing deleteChar() {
         if (cursor >= text.length()) {
@@ -213,7 +213,7 @@ public class InputBuffer {
     }
 
     /** Moves the cursor left.
-        @since %ncurses 2.0
+        @since %ncurses 1.0
     */
     nothing moveLeft() {
         if (cursor > 0) {
@@ -222,7 +222,7 @@ public class InputBuffer {
     }
 
     /** Moves the cursor right.
-        @since %ncurses 2.0
+        @since %ncurses 1.0
     */
     nothing moveRight() {
         if (cursor < text.length()) {
@@ -231,21 +231,21 @@ public class InputBuffer {
     }
 
     /** Moves the cursor to the start.
-        @since %ncurses 2.0
+        @since %ncurses 1.0
     */
     nothing moveHome() {
         cursor = 0;
     }
 
     /** Moves the cursor to the end.
-        @since %ncurses 2.0
+        @since %ncurses 1.0
     */
     nothing moveEnd() {
         cursor = text.length();
     }
 
     /** Deletes from the cursor to the end of the line.
-        @since %ncurses 2.0
+        @since %ncurses 1.0
     */
     nothing killToEnd() {
         if (cursor >= text.length()) {
@@ -255,7 +255,7 @@ public class InputBuffer {
     }
 
     /** Deletes from the start of the line to the cursor.
-        @since %ncurses 2.0
+        @since %ncurses 1.0
     */
     nothing killToStart() {
         if (cursor <= 0) {
@@ -266,7 +266,7 @@ public class InputBuffer {
     }
 
     /** Clears the entire line.
-        @since %ncurses 2.0
+        @since %ncurses 1.0
     */
     nothing killLine() {
         text = "";
@@ -280,7 +280,7 @@ public class InputBuffer {
 
         @param indent_str the indent string to remove (e.g. "    " for 4-space indent)
         @return True if a dedent was performed
-        @since %ncurses 2.0
+        @since %ncurses 1.0
     */
     bool autoDedent(string indent_str) {
         if (indent_str == "") {
@@ -316,7 +316,7 @@ public class InputBuffer {
         Skips whitespace backward, then skips non-whitespace backward,
         mimicking the standard readline Alt+B behavior.
 
-        @since %ncurses 2.0
+        @since %ncurses 1.0
     */
     nothing moveWordLeft() {
         if (cursor <= 0) {
@@ -348,7 +348,7 @@ public class InputBuffer {
         Skips non-whitespace forward, then skips whitespace forward,
         mimicking the standard readline Alt+F behavior.
 
-        @since %ncurses 2.0
+        @since %ncurses 1.0
     */
     nothing moveWordRight() {
         if (cursor >= text.length()) {
@@ -380,7 +380,7 @@ public class InputBuffer {
         Mimics the standard readline Alt+D behavior: deletes non-whitespace
         forward, then whitespace forward.
 
-        @since %ncurses 2.0
+        @since %ncurses 1.0
     */
     nothing deleteWordForward() {
         if (cursor >= text.length()) {
@@ -408,7 +408,7 @@ public class InputBuffer {
     }
 
     /** Deletes the previous word.
-        @since %ncurses 2.0
+        @since %ncurses 1.0
     */
     nothing deleteWordBack() {
         if (cursor <= 0) {
@@ -453,7 +453,7 @@ public class InputBuffer {
         @param ev the input event from the ncurses event loop
         @return True if the event was handled (buffer was modified or cursor moved)
 
-        @since %ncurses 2.0
+        @since %ncurses 1.0
     */
     bool processEvent(hash<Ncurses::InputEvent> ev) {
         if (ev.type == Ncurses::InputType::Char) {
@@ -556,7 +556,7 @@ public class InputBuffer {
     @deprecated Use @ref QoreHistory::History "QoreHistory::History" directly.
     This class is a backward-compatibility alias.
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 public class History inherits QoreHistory::History {
     #! Backward-compatible constructor
@@ -565,7 +565,7 @@ public class History inherits QoreHistory::History {
 }
 
 /** Static layout calculation helpers.
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 public class LayoutCalc {
     /** Calculates basic layout sizes.
@@ -576,7 +576,7 @@ public class LayoutCalc {
 
         @return hash with keys: main_cols, info_cols, input_rows, output_rows
 
-        @since %ncurses 2.0
+        @since %ncurses 1.0
     */
     static hash<auto> calcLayout(int rows, int cols, int info_cols = 28, int input_rows = 3) {
         int min_main = 24;
@@ -600,7 +600,7 @@ public class LayoutCalc {
 }
 
 /** Static scroll calculation helpers.
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 public class ScrollCalc {
     /** Clamps a scroll offset to valid bounds.
@@ -610,7 +610,7 @@ public class ScrollCalc {
 
         @return clamped scroll offset
 
-        @since %ncurses 2.0
+        @since %ncurses 1.0
     */
     static int clampScroll(int total_lines, int visible_lines, int scroll) {
         if (visible_lines <= 0) {
@@ -633,7 +633,7 @@ public class ScrollCalc {
 
         @return starting index in the line list
 
-        @since %ncurses 2.0
+        @since %ncurses 1.0
     */
     static int scrollStart(int total_lines, int visible_lines, int scroll) {
         if (visible_lines <= 0) {

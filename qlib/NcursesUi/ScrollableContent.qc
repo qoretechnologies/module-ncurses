@@ -28,16 +28,16 @@ public namespace NcursesUi {
     The @ref ScrollableWidget handles viewport management and scrollbar
     rendering.
 
-    @since ncurses 2.0
+    @since ncurses 1.0
 */
 public class ScrollableContent {
     /** Returns the total number of content rows.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     abstract int totalRows();
 
     /** Returns the total number of content columns.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     abstract int totalCols();
 
@@ -49,7 +49,7 @@ public class ScrollableContent {
         @param visibleCols number of visible columns
         @param startY the window row to start drawing at
         @param startX the window column to start drawing at
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     abstract nothing drawContent(Ncurses::Window w, int scrollY, int scrollX,
         int visibleRows, int visibleCols, int startY, int startX);

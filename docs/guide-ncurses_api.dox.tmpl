@@ -4,30 +4,64 @@
 
     @tableofcontents
 
-    Helper classes:
-    |!Class|!Description
-    |@ref Qore::Ncurses::Session "Session"|Owns the terminal state and lifecycle
-    |@ref Qore::Ncurses::Window "Window"|Drawing and input on a surface
-    |@ref Qore::Ncurses::Panel "Panel"|Layered stacking for windows
-    |@ref Qore::Ncurses::TestTerminal "TestTerminal"|PTY-based helper for automated tests
+    @section ncursesapilifecycle Lifecycle and Data Types
 
-    Drawing helpers:
-    - @ref Qore::Ncurses::Window::drawTextClipped "Window::drawTextClipped()": clips to window bounds
-    - @ref Qore::Ncurses::Window::drawTextInside "Window::drawTextInside()": clips to the inner area of a boxed window
-    - @ref Qore::Ncurses::Window::drawTextInsideLine "Window::drawTextInsideLine()": clears and draws a line inside a box
-    - @ref Qore::Ncurses::Window::drawAnsiText "Window::drawAnsiText()": draws ANSI SGR colored text
-    - @ref Qore::Ncurses::Window::drawAnsiTextInside "Window::drawAnsiTextInside()": draws ANSI SGR text inside a box
-    - @ref Qore::Ncurses::Window::drawAnsiTextInsideLine "Window::drawAnsiTextInsideLine()": clears and draws ANSI SGR text
-    - @ref Qore::Ncurses::Window::clearInsideLine "Window::clearInsideLine()": clears a line inside a box
+    |!API|!Purpose
+    |@ref Qore::Ncurses::Session "Session"|Terminal ownership, colors, cursor, input injection, and cleanup
+    |@ref Qore::Ncurses::Window "Window"|Drawing surface, geometry, text inspection, and input events
+    |@ref Qore::Ncurses::Panel "Panel"|Overlapping windows with explicit stacking order
+    |@ref Qore::Ncurses::TestTerminal "TestTerminal"|Pseudo-terminal for automated tests
+    |@ref Qore::Ncurses::Ansi "Ansi"|SGR text parsing, display-width measurement, and wrapping
+    |@ref Qore::Ncurses::Style "Style"|Foreground, background, and attribute values
+    |@ref Qore::Ncurses::InputEvent "InputEvent"|Typed keyboard, mouse, and resize event data
+    |@ref Qore::Ncurses::Size "Size" and @ref Qore::Ncurses::Position "Position"|Terminal rows/columns and coordinates
 
-    ANSI helpers:
-    - @ref Qore::Ncurses::Ansi "Ansi": parse, wrap, and measure ANSI SGR text
+    Obtain the screen with @ref Qore::Ncurses::Session::screen() "Session::screen()" or create a
+    @ref Qore::Ncurses::Window "Window" with explicit dimensions. Close the session after its
+    windows and panels are no longer in use. See @ref ncurses_quickstartguide "Quick Start".
 
-    Refresh helpers:
-    - @ref Qore::Ncurses::Window::noutrefresh "Window::noutrefresh()": queue a window for refresh
-    - @ref Qore::Ncurses::Session::updatePanels "Session::updatePanels()": queue panel updates
-    - @ref Qore::Ncurses::Session::doupdate "Session::doupdate()": flush the virtual screen
-    - @ref Qore::Ncurses::Window::setLeaveOk "Window::setLeaveOk()": keep cursor position in other windows
-    - @ref Qore::Ncurses::Window::saveCursor "Window::saveCursor()": save the cursor position
-    - @ref Qore::Ncurses::Window::restoreCursor "Window::restoreCursor()": restore the cursor position
+    @section ncursesapidrawing Selecting a Drawing Method
+
+    - @ref Qore::Ncurses::Window::drawText() "Window::drawText()": draw at a row and column.
+    - @ref Qore::Ncurses::Window::drawTextClipped() "Window::drawTextClipped()": clip to surface bounds.
+    - @ref Qore::Ncurses::Window::drawTextInside() "Window::drawTextInside()": preserve a border.
+    - @ref Qore::Ncurses::Window::drawTextInsideLine() "Window::drawTextInsideLine()": clear and replace an inner line.
+    - @ref Qore::Ncurses::Window::clearInsideLine() "Window::clearInsideLine()": erase an inner line.
+    - @ref Qore::Ncurses::Window::drawAnsiText() "Window::drawAnsiText()" and
+      @ref Qore::Ncurses::Window::drawAnsiTextInsideLine() "Window::drawAnsiTextInsideLine()": render SGR colors.
+
+    See @ref ncurses_stylesguide "Style System" and @ref ncurses_ansiguide "ANSI SGR Text"
+    for complete examples. @ref Qore::Ncurses::Window::readEvent() "Window::readEvent()" handles
+    input separately; event handling is explained in @ref ncurses_mouseguide "Mouse Support".
+
+    @section ncursesapirefresh Batched Refresh and Cursor Ownership
+
+    @ref Qore::Ncurses::Window::refresh() "Window::refresh()" updates one window immediately.
+    For multiple surfaces, queue each update with
+    @ref Qore::Ncurses::Window::noutrefresh() "Window::noutrefresh()", update panel stacking with
+    @ref Qore::Ncurses::Session::updatePanels() "Session::updatePanels()", and call
+    @ref Qore::Ncurses::Session::doupdate() "Session::doupdate()" once. This avoids flushing
+    intermediate drawing states to the terminal:
+
+    @code{.py}
+%modern
+%requires ncurses
+
+Ncurses::Session session();
+on_exit session.close();
+Ncurses::Window window = session.screen();
+window.clear();
+window.drawText(0, 0, "Batched update");
+window.noutrefresh();
+session.updatePanels();
+session.doupdate();
+window.readEvent();
+    @endcode
+
+    @ref Qore::Ncurses::Window::setLeaveOk() "Window::setLeaveOk()" allows auxiliary windows
+    to refresh without taking cursor ownership. Use
+    @ref Qore::Ncurses::Window::saveCursor() "Window::saveCursor()" and
+    @ref Qore::Ncurses::Window::restoreCursor() "Window::restoreCursor()" around drawing that
+    would otherwise move an input cursor. For coordinated calls from multiple threads, see
+    @ref ncurses_threads "Threading".
 */

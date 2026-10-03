@@ -4,36 +4,56 @@
 
     @tableofcontents
 
-    The module supports rendering text that contains ANSI SGR escape sequences
-    (e.g. output from compilers, test runners, or other tools). The
-    @ref Qore::Ncurses::Ansi "Ansi" class provides helpers for parsing and
-    measuring ANSI text, and the \c drawAnsi* family of Window methods render
-    it directly.
+    @section ncursesansiformat Rendering Colored Output
 
-    @par ANSI rendering example:
+    ANSI SGR sequences encode text colors and attributes. Use
+    @ref Qore::Ncurses::Window::drawAnsiText() "Window::drawAnsiText()" to display such strings;
+    @ref Qore::Ncurses::Window::drawAnsiTextInside() "Window::drawAnsiTextInside()" and
+    @ref Qore::Ncurses::Window::drawAnsiTextInsideLine() "Window::drawAnsiTextInsideLine()"
+    preserve a window border. SGR handling is for styled text, not a general terminal emulator:
+    cursor-movement and screen-control sequences are not a replacement for the drawing API.
+
     @code{.py}
 %modern
 %requires ncurses
 
-Ncurses::Session s();
-Ncurses::Window w = s.screen();
-w.clear();
+Ncurses::Session session();
+on_exit session.close();
+Ncurses::Window window = session.screen();
+string esc = chr(27);
+string message = esc + "[36mBuild: " + esc + "[32mOK" + esc + "[0m";
+window.clear();
+window.box();
+window.drawAnsiTextInsideLine(0, message);
+window.refresh();
+window.readEvent();
+    @endcode
+
+    @section ncursesansihelpers Measurement, Parsing, and Wrapping
+
+    @ref Qore::Ncurses::Ansi::len() "Ansi::len()" measures visible terminal columns, excluding
+    SGR escapes. @ref Qore::Ncurses::Ansi::wrap() "Ansi::wrap()" wraps at that display width
+    while retaining styles. @ref Qore::Ncurses::Ansi::parse() "Ansi::parse()" returns text/style
+    segments; concatenate their text fields when plain text is needed. These helpers do not
+    require opening a terminal session:
+
+    @code{.py}
+%modern
+%requires ncurses
 
 string esc = chr(27);
-string msg = esc + "[36mCyan title" + esc + "[0m " + esc + "[32mOK" + esc + "[0m";
-w.drawAnsiTextInsideLine(0, msg);
-w.refresh();
-
-w.readEvent();
-s.close();
+string message = esc + "[32mBuild succeeded" + esc + "[0m";
+int columns = Ncurses::Ansi::len(message);
+list<string> lines = Ncurses::Ansi::wrap(message, 9, Ncurses::WrapMode::Word);
+string plain;
+foreach hash<auto> segment in (Ncurses::Ansi::parse(message)) {
+    plain += segment.text;
+}
+@assert(columns == 15);
+@assert(plain == "Build succeeded");
+@assert(lines.size() == 2);
     @endcode
 
-    @par ANSI measurement:
-    @code{.py}
-# measure visible width (excludes escape sequences)
-int width = Ncurses::Ansi::visibleLength(msg);
-
-# strip ANSI codes entirely
-string plain = Ncurses::Ansi::strip(msg);
-    @endcode
+    Use @ref ncurses_stylesguide "Style System" when colors are supplied separately from text,
+    or @ref NcursesUi::TerminalText "TerminalText" for clipping and padding plain Unicode strings.
 */

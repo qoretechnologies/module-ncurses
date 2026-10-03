@@ -49,7 +49,7 @@ w.readEvent();
 s.close();
     @endcode
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 qclass Window [dom=TERMINAL_IO; arg=NcursesWindow* win; ns=Qore::Ncurses];
 
@@ -64,7 +64,7 @@ qclass Window [dom=TERMINAL_IO; arg=NcursesWindow* win; ns=Qore::Ncurses];
     @param y top position
     @param x left position
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 //! Creates a new window
 /**
@@ -74,7 +74,7 @@ qclass Window [dom=TERMINAL_IO; arg=NcursesWindow* win; ns=Qore::Ncurses];
     @param y top position
     @param x left position
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 Window::constructor(Qore::Ncurses::Session[NcursesSession] session, int rows, int cols, int y, int x) [flags=NAMED_ARGS] {
     if (*xsink) {
@@ -95,7 +95,7 @@ Window::constructor(Qore::Ncurses::Session[NcursesSession] session, int rows, in
 
 //! Clears the window
 /**
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 nothing Window::clear() {
     win->checkOpen(xsink);
@@ -109,7 +109,7 @@ nothing Window::clear() {
 
 //! Erases the window contents
 /**
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 nothing Window::erase() {
     win->checkOpen(xsink);
@@ -123,7 +123,7 @@ nothing Window::erase() {
 
 //! Refreshes the window
 /**
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 nothing Window::refresh() {
     win->checkOpen(xsink);
@@ -137,7 +137,7 @@ nothing Window::refresh() {
 
 //! Queues the window for refresh
 /**
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 nothing Window::noutrefresh() {
     win->checkOpen(xsink);
@@ -154,7 +154,7 @@ nothing Window::noutrefresh() {
     @param y row
     @param x column
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 nothing Window::moveCursor(int y, int x) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);
@@ -174,7 +174,7 @@ nothing Window::moveCursor(int y, int x) [flags=NAMED_ARGS] {
 
 //! Returns the current cursor position
 /**
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 hash<Position> Window::cursor() {
     win->checkOpen(xsink);
@@ -193,7 +193,7 @@ hash<Position> Window::cursor() {
 
 //! Returns the window size
 /**
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 hash<Size> Window::size() {
     win->checkOpen(xsink);
@@ -212,7 +212,7 @@ hash<Size> Window::size() {
 
 //! Returns the window position
 /**
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 hash<Position> Window::position() {
     win->checkOpen(xsink);
@@ -235,7 +235,7 @@ hash<Position> Window::position() {
     @param text text to draw
     @param style optional style hash
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 //! Draws text at a position
 /**
@@ -244,7 +244,7 @@ hash<Position> Window::position() {
     @param text text to draw
     @param style optional style hash
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 nothing Window::drawText(int y, int x, string text, *hash style) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);
@@ -279,7 +279,7 @@ nothing Window::drawText(int y, int x, string text, *hash style) [flags=NAMED_AR
     writes. If the text would start before column 0, the leading characters are
     skipped.
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 nothing Window::drawTextClipped(int y, int x, string text, *hash style) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);
@@ -340,7 +340,7 @@ nothing Window::drawTextClipped(int y, int x, string text, *hash style) [flags=N
     The text is clipped to the area inside a border (excluding rows/cols 0 and
     max-1). This prevents accidental overwriting of box borders.
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 nothing Window::drawTextInside(int y, int x, string text, *hash style) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);
@@ -401,7 +401,7 @@ nothing Window::drawTextInside(int y, int x, string text, *hash style) [flags=NA
     @param y row inside the content area (0 = first row inside the border)
     @param style optional style hash
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 nothing Window::clearInsideLine(int y, *hash style) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);
@@ -444,7 +444,7 @@ nothing Window::clearInsideLine(int y, *hash style) [flags=NAMED_ARGS] {
 
     The line is cleared before writing to ensure no old text remains.
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 nothing Window::drawTextInsideLine(int y, string text, *hash style) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);
@@ -493,7 +493,7 @@ nothing Window::drawTextInsideLine(int y, string text, *hash style) [flags=NAMED
     @param text text to draw (may contain ANSI SGR color codes)
     @param style optional base style hash
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 nothing Window::drawAnsiText(int y, int x, string text, *hash style) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);
@@ -528,7 +528,7 @@ nothing Window::drawAnsiText(int y, int x, string text, *hash style) [flags=NAME
     @param text text to draw (may contain ANSI SGR color codes)
     @param style optional base style hash
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 nothing Window::drawAnsiTextInside(int y, int x, string text, *hash style) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);
@@ -562,7 +562,7 @@ nothing Window::drawAnsiTextInside(int y, int x, string text, *hash style) [flag
     @param text text to draw (may contain ANSI SGR color codes)
     @param style optional base style hash
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 nothing Window::drawAnsiTextInsideLine(int y, string text, *hash style) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);
@@ -594,7 +594,7 @@ nothing Window::drawAnsiTextInsideLine(int y, string text, *hash style) [flags=N
 /**
     @param mode wrap mode
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 nothing Window::setWrapMode(enum<WrapMode> mode) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);
@@ -614,7 +614,7 @@ nothing Window::setWrapMode(enum<WrapMode> mode) [flags=NAMED_ARGS] {
 /**
     @return @ref Qore::Ncurses::WrapMode "WrapMode" value
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 enum<WrapMode> Window::getWrapMode() [flags=CONSTANT] {
     win->checkOpen(xsink);
@@ -628,7 +628,7 @@ enum<WrapMode> Window::getWrapMode() [flags=CONSTANT] {
 /**
     @param enabled True to disable cursor positioning for this window
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 nothing Window::setLeaveOk(bool enabled) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);
@@ -649,7 +649,7 @@ nothing Window::setLeaveOk(bool enabled) [flags=NAMED_ARGS] {
 /**
     @return hash<@ref Position>
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 hash<Position> Window::saveCursor() {
     win->checkOpen(xsink);
@@ -670,7 +670,7 @@ hash<Position> Window::saveCursor() {
 /**
     @param position hash with keys \c y and \c x
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 nothing Window::restoreCursor(hash position) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);
@@ -697,7 +697,7 @@ nothing Window::restoreCursor(hash position) [flags=NAMED_ARGS] {
     @param text text to write
     @param style optional style hash
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 nothing Window::write(string text, *hash style) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);
@@ -730,7 +730,7 @@ nothing Window::write(string text, *hash style) [flags=NAMED_ARGS] {
     @param character optional fill character
     @param style optional style hash
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 nothing Window::fillRect(int y, int x, int rows, int cols, *string character, *hash style) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);
@@ -764,7 +764,7 @@ nothing Window::fillRect(int y, int x, int rows, int cols, *string character, *h
 /**
     @param style optional style hash
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 nothing Window::box(*hash style) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);
@@ -797,7 +797,7 @@ nothing Window::box(*hash style) [flags=NAMED_ARGS] {
     @param bottom_right bottom-right corner character
     @param style optional style hash
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 nothing Window::border(*string left_side, *string right_side, *string top_side, *string bottom_side,
         *string top_left, *string top_right, *string bottom_left, *string bottom_right,
@@ -839,7 +839,7 @@ nothing Window::border(*string left_side, *string right_side, *string top_side, 
     @param character optional character
     @param style optional style hash
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 nothing Window::drawHLine(int y, int x, int length, *string character, *hash style) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);
@@ -872,7 +872,7 @@ nothing Window::drawHLine(int y, int x, int length, *string character, *hash sty
     @param character optional character
     @param style optional style hash
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 nothing Window::drawVLine(int y, int x, int length, *string character, *hash style) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);
@@ -904,7 +904,7 @@ nothing Window::drawVLine(int y, int x, int length, *string character, *hash sty
     @param character character
     @param style optional style hash
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 nothing Window::addChar(int y, int x, string character, *hash style) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);
@@ -936,7 +936,7 @@ nothing Window::addChar(int y, int x, string character, *hash style) [flags=NAME
     @param y new top row
     @param x new left column
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 nothing Window::move(int y, int x) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);
@@ -953,7 +953,7 @@ nothing Window::move(int y, int x) [flags=NAMED_ARGS] {
     @param rows new height
     @param cols new width
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 nothing Window::resize(int rows, int cols) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);
@@ -972,7 +972,7 @@ nothing Window::resize(int rows, int cols) [flags=NAMED_ARGS] {
     @param y row
     @param style optional style hash
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 nothing Window::clearLine(int y, *hash style) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);
@@ -1001,7 +1001,7 @@ nothing Window::clearLine(int y, *hash style) [flags=NAMED_ARGS] {
 /**
     @param lines number of lines to scroll
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 nothing Window::scroll(int lines) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);
@@ -1017,7 +1017,7 @@ nothing Window::scroll(int lines) [flags=NAMED_ARGS] {
 /**
     @param enabled enable scrolling when true
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 nothing Window::enableScroll(bool enabled) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);
@@ -1033,7 +1033,7 @@ nothing Window::enableScroll(bool enabled) [flags=NAMED_ARGS] {
 /**
     @param enabled enable keypad decoding when true
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 nothing Window::enableKeypad(bool enabled) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);
@@ -1051,7 +1051,7 @@ nothing Window::enableKeypad(bool enabled) [flags=NAMED_ARGS] {
     @param x column
     @param length length
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 string Window::readText(int y, int x, int length) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);
@@ -1077,7 +1077,7 @@ string Window::readText(int y, int x, int length) [flags=NAMED_ARGS] {
 
     @return list of strings (one per row)
 
-    @since %ncurses 2.1
+    @since %ncurses 1.0
 */
 list<string> Window::readLines(*int y, *int rows, *int cols) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);
@@ -1137,7 +1137,7 @@ list<string> Window::readLines(*int y, *int rows, *int cols) [flags=NAMED_ARGS] 
     @param y top row
     @param x left column
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 Window Window::subWindow(int rows, int cols, int y, int x) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);
@@ -1160,14 +1160,14 @@ Window Window::subWindow(int rows, int cols, int y, int x) [flags=NAMED_ARGS] {
 
     @return hash<@ref InputEvent> or @ref nothing on timeout
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 //! Reads an input event
 /**
     @param timeout_ms optional overall timeout in milliseconds
     @param poll_ms optional poll interval in milliseconds
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 hash<InputEvent> Window::readEvent(*int timeout_ms, *int poll_ms) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);
@@ -1200,10 +1200,22 @@ hash<InputEvent> Window::readEvent(*int timeout_ms, *int poll_ms) [flags=NAMED_A
             }
         } else {
             ReferenceHolder<QoreHashNode> h(new QoreHashNode(hashdeclInputEvent, xsink), xsink);
-            h->setKeyValue("code", rc, xsink);
-            if (rc == KEY_MOUSE) {
-                MEVENT ev;
-                if (getmouse(&ev) == OK) {
+            h->setKeyValue("code", rc == NC_INJECTED_MOUSE ? KEY_MOUSE : rc, xsink);
+            if (rc == KEY_MOUSE || rc == NC_INJECTED_MOUSE) {
+                MEVENT ev = {};
+                bool have_event;
+                if (rc == NC_INJECTED_MOUSE) {
+                    if (win->session->injected_mouse.empty()) {
+                        xsink->raiseException("NCURSES-ERROR", "injected mouse marker has no event data");
+                        return nothing();
+                    }
+                    ev = win->session->injected_mouse.back();
+                    win->session->injected_mouse.pop_back();
+                    have_event = true;
+                } else {
+                    have_event = getmouse(&ev) == OK;
+                }
+                if (have_event) {
                     h->setKeyValue("type", NC_INPUT_MOUSE, xsink);
                     ReferenceHolder<QoreHashNode> mh(new QoreHashNode(hashdeclMouseEvent, xsink), xsink);
                     mh->setKeyValue("x", ev.x, xsink);
@@ -1298,7 +1310,7 @@ hash<InputEvent> Window::readEvent(*int timeout_ms, *int poll_ms) [flags=NAMED_A
 /**
     @param style optional style hash
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 nothing Window::setBackground(*hash style) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);

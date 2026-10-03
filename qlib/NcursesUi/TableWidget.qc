@@ -34,7 +34,7 @@ public namespace NcursesUi {
     - \c width: optional fixed width (0 = auto-distribute)
     - \c align: "left" (default) or "right"
 
-    @since ncurses 2.0
+    @since ncurses 1.0
 */
 public class TableWidget inherits NcursesUi::Widget {
     private {
@@ -65,7 +65,7 @@ public class TableWidget inherits NcursesUi::Widget {
     }
 
     /** Creates a new TableWidget.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     constructor() {
         setFocusable(True);
@@ -73,7 +73,7 @@ public class TableWidget inherits NcursesUi::Widget {
 
     /** Sets the column definitions.
         @param cols list of column definition hashes
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setColumns(list<hash<auto>> cols) {
         columns = cols;
@@ -82,7 +82,7 @@ public class TableWidget inherits NcursesUi::Widget {
     }
 
     /** Returns the column definitions.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     list<hash<auto>> getColumns() {
         return columns;
@@ -90,7 +90,7 @@ public class TableWidget inherits NcursesUi::Widget {
 
     /** Sets the row data.
         @param data list of row hashes
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setRows(list<hash<auto>> data) {
         rows = data;
@@ -106,21 +106,21 @@ public class TableWidget inherits NcursesUi::Widget {
     }
 
     /** Returns the row data.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     list<hash<auto>> getRows() {
         return rows;
     }
 
     /** Returns the selected row index (-1 for none).
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     int getSelectedRow() {
         return selected_row;
     }
 
     /** Returns the selected row data or NOTHING.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     *hash<auto> getSelectedRowData() {
         if (selected_row >= 0 && selected_row < rows.size()) {
@@ -131,7 +131,7 @@ public class TableWidget inherits NcursesUi::Widget {
 
     /** Sets the row selection callback.
         @param cb callback(int index)
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setOnSelect(*code cb) {
         on_select = cb;
@@ -139,7 +139,7 @@ public class TableWidget inherits NcursesUi::Widget {
 
     /** Sets the row activation callback.
         @param cb callback(hash<auto> row)
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setOnActivate(*code cb) {
         on_activate = cb;
@@ -148,7 +148,7 @@ public class TableWidget inherits NcursesUi::Widget {
     /** Sorts by the given column key.
         @param key the column key
         @param ascending sort direction
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setSortColumn(string key, bool ascending = True) {
         sort_key = key;
@@ -159,7 +159,7 @@ public class TableWidget inherits NcursesUi::Widget {
 
     /** Draws the table.
         @param w the window
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing draw(Ncurses::Window w) {
         hash<NcursesUi::Rect> cr = contentRect();
@@ -193,7 +193,7 @@ public class TableWidget inherits NcursesUi::Widget {
     /** Handles keyboard and mouse events.
         @param ev the input event
         @return EventResult
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     hash<NcursesUi::EventResult> processEvent(hash<Ncurses::InputEvent> ev) {
         if (rows.empty()) {

@@ -34,7 +34,7 @@ public namespace NcursesUi {
     - \c isCallable: optional bool indicating a callable item
     - \c detail: optional detail text
 
-    @since %ncurses 2.0
+    @since %ncurses 1.0
 */
 public class CompletionPopupWidget inherits NcursesUi::PanelWidget {
     private {
@@ -63,7 +63,7 @@ public class CompletionPopupWidget inherits NcursesUi::PanelWidget {
         @param s the session
         @param items the completion items
         @param max_vis maximum number of visible items (default 10)
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     constructor(Ncurses::Session s, list<hash<auto>> items, int max_vis = 10)
             : PanelWidget(s) {
@@ -75,7 +75,7 @@ public class CompletionPopupWidget inherits NcursesUi::PanelWidget {
 
     /** Sets the selection callback.
         @param cb callback receiving the selected item hash
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setOnSelect(*code cb) {
         on_select = cb;
@@ -83,21 +83,21 @@ public class CompletionPopupWidget inherits NcursesUi::PanelWidget {
 
     /** Sets the dismiss callback.
         @param cb callback called when the popup is dismissed
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setOnDismiss(*code cb) {
         on_dismiss = cb;
     }
 
     /** Returns the completion items.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     list<hash<auto>> getItems() {
         return completion_items;
     }
 
     /** Returns the highlighted index.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     int getHighlightIndex() {
         return highlight_index;
@@ -111,7 +111,7 @@ public class CompletionPopupWidget inherits NcursesUi::PanelWidget {
     /** Returns a single-character kind indicator for a completion item.
         @param item the completion item
         @return a single character representing the kind
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     static string kindIndicator(hash<auto> item) {
         *string kind = item.kind;
@@ -149,7 +149,7 @@ public class CompletionPopupWidget inherits NcursesUi::PanelWidget {
         @param anchor_x the column to start at
         @param screen_rows terminal rows
         @param screen_cols terminal columns
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing positionAt(int anchor_y, int anchor_x, int screen_rows, int screen_cols) {
         int vis = visibleCount();
@@ -206,7 +206,7 @@ public class CompletionPopupWidget inherits NcursesUi::PanelWidget {
 
     /** Draws the completion popup content.
         @param w the window
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing draw(Ncurses::Window w) {
         PanelWidget::draw(w);
@@ -282,7 +282,7 @@ public class CompletionPopupWidget inherits NcursesUi::PanelWidget {
     /** Handles completion popup events.
         @param ev the input event
         @return EventResult
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     hash<NcursesUi::EventResult> processEvent(hash<Ncurses::InputEvent> ev) {
         if (ev.type == Ncurses::InputType::Key) {

@@ -4,7 +4,7 @@ Modern, thread-safe terminal UI support for Qore 2.3 using the system ncurses li
 
 ## Status
 
-This module is a complete redesign with a clean, high-level API. It is not backward-compatible with the legacy module.
+Version 1.0 is the initial release, providing a high-level terminal API and reusable UI widgets.
 
 ## Requirements
 

@@ -1,50 +1,74 @@
+/* Copyright (C) 2026 Qore Technologies, s.r.o. */
+
 /** @mainpage Qore ncurses Module
 
     @tableofcontents
 
     @section ncursesintro ncurses Module Introduction
 
-    The \c ncurses module provides a modern, thread-safe terminal UI API for %Qore
-    based on the system ncurses library. The API focuses on clear, high-level
-    primitives rather than exposing the entire low-level curses surface.
+    The \c ncurses module provides terminal user interfaces for %Qore: colored text,
+    keyboard and mouse input, overlapping panels, and reusable widgets. Its API wraps
+    the system ncurses library and serializes terminal calls across threads.
 
-    The module has three layers:
-    - <b>C++ binary module</b> (\c ncurses): Session, Window, Panel, TestTerminal, and Ansi classes
-    - <b>@ref ncursesuiintro "NcursesUi" toolkit</b>: a complete widget tree with layouts, event
-      dispatch, and standard components (load with \c %%requires \c NcursesUi)
-    - <b>@ref ncursesrepluiintro "NcursesReplUi" helpers</b>: InputBuffer, History, LayoutCalc,
-      and ScrollCalc for building REPL-style UIs (load with \c %%requires \c NcursesReplUi)
+    Choose the layer that fits your application:
+    - <b>Direct terminal drawing:</b> @ref Qore::Ncurses::Session "Session" manages the terminal,
+      @ref Qore::Ncurses::Window "Window" draws and reads input, and
+      @ref Qore::Ncurses::Panel "Panel" manages overlapping surfaces. Use these for dashboards
+      or custom interfaces; start with @ref ncurses_quickstartguide "Quick Start".
+    - <b>Widget applications:</b> @ref ncursesuiintro "NcursesUi" supplies lists, editable text,
+      menus, dialogs, tables, a file browser, layout managers, and an event loop. See
+      @ref ncurses_ui_widgetsguide "UI Widget Toolkit" for a complete application.
+    - <b>Interactive consoles:</b> @ref ncursesrepluiintro "NcursesReplUi" supplies input editing,
+      command history, and layout/scroll calculations. The included \c qrepl program combines
+      these with the widget toolkit; see @ref ncurses_toolsguide "Tools and REPL Helpers".
 
-    This module is released under the LGPL 2.1 license.
+    @ref Qore::Ncurses::Ansi "Ansi" handles colored tool output, while
+    @ref Qore::Ncurses::TestTerminal "TestTerminal" supports automated tests without an
+    interactive terminal. Terminal operations participate in %Qore sandbox and interruption checks.
+    This is the module's initial 1.0 release. License terms are included in \c COPYING
+    in the source distribution.
 
-    To use the module in a %Qore script, use the \c %%requires directive:
-    @code{.py} %requires ncurses @endcode
-
-    @section ncursesqlibmodules Qore User Modules
-
-    - @ref ncursesrepluiintro "NcursesReplUi" — Helpers for building ncurses-based REPL UIs
-    - @ref ncursesuiintro "NcursesUi" — Ncurses terminal UI toolkit
+    Load the binary API with <tt>%requires ncurses</tt>. A minimal program and its terminal
+    cleanup are explained in @ref ncurses_quickstartguide "Quick Start".
 
     @section ncursesdocumentation Documentation
 
-    - @anchor ncurses_quickstart @subpage ncurses_quickstartguide
-    - @anchor ncurses_mouse @subpage ncurses_mouseguide
-    - @anchor ncurses_styles @subpage ncurses_stylesguide
-    - @anchor ncurses_ansi @subpage ncurses_ansiguide
-    - @anchor ncurses_tools @subpage ncurses_toolsguide
-    - @anchor ncurses_ui_widgets @subpage ncurses_ui_widgetsguide
-    - @anchor ncurses_testing @subpage ncurses_testingguide
-    - @anchor ncurses_examples @subpage ncurses_examplesguide
-    - @anchor ncurses_api @subpage ncurses_apiguide
+    - @anchor ncurses_quickstart @ref ncurses_quickstartguide "Quick Start": create a session, draw
+      a greeting, handle input, and restore the terminal on both normal and exceptional exits.
+    - @anchor ncurses_mouse @ref ncurses_mouseguide "Mouse Support": enable reporting, interpret
+      coordinates and button masks, and handle mouse, keyboard, and resize events in one loop.
+    - @anchor ncurses_styles @ref ncurses_stylesguide "Style System": combine foreground/background
+      colors and attributes, preserve borders, and choose wrapping behavior, with a styled-screen example.
+    - @anchor ncurses_ansi @ref ncurses_ansiguide "ANSI SGR Text": render colored output, measure
+      display width, parse styled segments, and wrap text without counting escape sequences.
+    - @anchor ncurses_ui_widgets @ref ncurses_ui_widgetsguide "UI Widget Toolkit": build a list/status
+      application with layout, focus, a quit handler, and modal dialog callbacks.
+    - @anchor ncurses_testing @ref ncurses_testingguide "Automated Testing": create a headless terminal,
+      inject typed events, assert screen contents, and test widgets without timing-dependent input.
+    - @anchor ncurses_tools @ref ncurses_toolsguide "Tools and REPL Helpers": run \c qrepl, learn its
+      controls, and use the input-buffer and history APIs in your own console.
+    - @anchor ncurses_examples @ref ncurses_examplesguide "Examples": run the supplied dashboard,
+      panels, and threaded-input demos, and follow a complete overlapping-panel example.
+    - @anchor ncurses_api @ref ncurses_apiguide "API Overview": find lifecycle, drawing, input,
+      style, and refresh APIs, including an example of batching screen updates.
+    - @anchor ncursesreleasenotes_link @anchor ncursesreleasenotes_intro
+      @ref ncursesreleasenotes "Release Notes": module version history.
+
+    @section ncursesqlibmodules Qore User Modules
+
+    - @ref ncursesuiintro "NcursesUi": widget tree, layouts, event dispatch, focus management,
+      standard controls, and Unicode-aware terminal text helpers.
+    - @ref ncursesrepluiintro "NcursesReplUi": input editing with
+      @ref NcursesReplUi::InputBuffer "InputBuffer", history with
+      @ref NcursesReplUi::History "History", and
+      @ref NcursesReplUi::LayoutCalc "LayoutCalc" / @ref NcursesReplUi::ScrollCalc "ScrollCalc" helpers.
 
     @section ncurses_threads Threading
 
-    All ncurses calls are serialized by a module-level recursive lock. Input
-    calls release the lock between polling cycles so other threads can draw
-    while one thread waits for input.
-
-    @section ncursesreleasenotes_link Release Notes
-
-    See @subpage ncursesreleasenotes for release notes and version history.
-
+    Terminal calls are serialized by a module-level recursive lock.
+    @ref Qore::Ncurses::Window::readEvent() "Window::readEvent()" releases that lock between
+    input checks so other threads can draw. Use @ref Qore::Ncurses::Session::withLock() "Session::withLock()"
+    for a short group of related drawing operations; protect application-owned data separately.
+    Stop background readers before closing the session. See @ref ncurses_examplesguide "Examples"
+    for the threaded-input demo and @ref ncurses_apiguide "API Overview" for batched refreshes.
 */

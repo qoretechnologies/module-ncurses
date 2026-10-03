@@ -34,7 +34,7 @@ public namespace NcursesUi {
     - \c enabled: optional bool (default True)
     - \c separator: if True, draws a horizontal line
 
-    @since ncurses 2.0
+    @since ncurses 1.0
 */
 public class DropdownMenuWidget inherits NcursesUi::PanelWidget {
     private {
@@ -60,7 +60,7 @@ public class DropdownMenuWidget inherits NcursesUi::PanelWidget {
     /** Creates a new DropdownMenuWidget.
         @param s the session
         @param items the menu items
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     constructor(Ncurses::Session s, list<hash<auto>> items)
             : PanelWidget(s) {
@@ -77,7 +77,7 @@ public class DropdownMenuWidget inherits NcursesUi::PanelWidget {
 
     /** Sets the menu items.
         @param items the items
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setMenuItems(list<hash<auto>> items) {
         menu_items = items;
@@ -86,14 +86,14 @@ public class DropdownMenuWidget inherits NcursesUi::PanelWidget {
     }
 
     /** Returns the menu items.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     list<hash<auto>> getMenuItems() {
         return menu_items;
     }
 
     /** Returns the highlighted index.
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     int getHighlightIndex() {
         return highlight_index;
@@ -101,7 +101,7 @@ public class DropdownMenuWidget inherits NcursesUi::PanelWidget {
 
     /** Sets the selection callback.
         @param cb callback receiving the selected item hash
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setOnSelect(*code cb) {
         on_select = cb;
@@ -109,7 +109,7 @@ public class DropdownMenuWidget inherits NcursesUi::PanelWidget {
 
     /** Sets the close callback.
         @param cb callback
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setOnClose(*code cb) {
         on_close = cb;
@@ -121,7 +121,7 @@ public class DropdownMenuWidget inherits NcursesUi::PanelWidget {
         The callback receives the character and should return True if handled.
 
         @param cb callback receiving the character string
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setOnAltKey(*code cb) {
         on_alt_key = cb;
@@ -133,7 +133,7 @@ public class DropdownMenuWidget inherits NcursesUi::PanelWidget {
         menus in a menu bar. The callback receives "left" or "right".
 
         @param cb callback receiving the direction string
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing setOnNavigate(*code cb) {
         on_navigate = cb;
@@ -144,7 +144,7 @@ public class DropdownMenuWidget inherits NcursesUi::PanelWidget {
         @param anchor_x column of the anchor
         @param screen_rows terminal rows
         @param screen_cols terminal columns
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing positionAt(int anchor_y, int anchor_x, int screen_rows, int screen_cols) {
         int max_label = 0;
@@ -199,7 +199,7 @@ public class DropdownMenuWidget inherits NcursesUi::PanelWidget {
 
     /** Draws the dropdown menu content.
         @param w the window
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     nothing draw(Ncurses::Window w) {
         PanelWidget::draw(w);
@@ -287,7 +287,7 @@ public class DropdownMenuWidget inherits NcursesUi::PanelWidget {
     /** Handles dropdown events.
         @param ev the input event
         @return EventResult
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     hash<NcursesUi::EventResult> processEvent(hash<Ncurses::InputEvent> ev) {
         if (ev.type == Ncurses::InputType::Key) {
@@ -404,7 +404,7 @@ public class DropdownMenuWidget inherits NcursesUi::PanelWidget {
 
         @param ch the character pressed
         @return the item index, or -1 if no match
-        @since ncurses 2.0
+        @since ncurses 1.0
     */
     private int findHotkeyMatch(string ch) {
         string lower_ch = ch.lwr();
