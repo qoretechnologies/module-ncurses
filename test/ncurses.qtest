@@ -33,6 +33,10 @@ class NcursesTest inherits Test {
         addTestCase("named arguments", \testNamedArguments());
         addTestCase("Unicode ANSI width and wrapping",
             \testUnicodeAnsiWidthAndWrapping());
+        addTestCase("a test terminal session leaves the environment as it is",
+            \testTestTerminalEnvironment());
+        addTestCase("sessions are created while another thread changes the environment",
+            \testSessionsWithEnvironmentChanges());
 
         set_return_value(main());
     }
@@ -562,6 +566,82 @@ class NcursesTest inherits Test {
             rethrow;
         }
         s.close();
+    }
+
+    #! Opens a session on a test terminal of the given type and returns the number of colors that it supports
+    private int getTestTerminalColors(string term_name) {
+        Ncurses::TestTerminal tt = new Ncurses::TestTerminal(24, 80, term_name);
+        tt.open();
+        on_exit tt.close();
+        Ncurses::Session s = makeSession(tt);
+        on_exit s.close();
+        return s.maxColors();
+    }
+
+    #! A session uses the type of its test terminal, and the TERM variable of the process stays as it is
+    testTestTerminalEnvironment() {
+        *string old_term = getenv("TERM");
+        on_exit {
+            if (exists old_term) {
+                setenv("TERM", old_term);
+            } else {
+                unsetenv("TERM");
+            }
+        }
+
+        # a terminal type without colors in the environment, one with 256 colors for the session
+        assertEq(0, setenv("TERM", "vt100"));
+        assertEq(256, getTestTerminalColors("xterm-256color"), "the session uses the test terminal's type");
+        assertEq("vt100", getenv("TERM"), "the session does not change TERM");
+
+        # and the other way around
+        assertEq(0, setenv("TERM", "xterm-256color"));
+        assertEq(0, getTestTerminalColors("vt100"), "the session uses the test terminal's type");
+        assertEq("xterm-256color", getenv("TERM"), "the session does not change TERM");
+
+        # TERM is not needed, and it is not set
+        assertEq(0, unsetenv("TERM"));
+        assertEq(256, getTestTerminalColors("xterm-256color"), "the session uses the test terminal's type");
+        assertFalse(exists getenv("TERM"), "the session does not set TERM");
+
+        # a terminal type that does not exist is an error, and the environment stays as it is
+        assertEq(0, setenv("TERM", "vt100"));
+        assertThrows("NCURSES-ERROR", "qore-no-such-terminal", \getTestTerminalColors(), "qore-no-such-terminal");
+        assertEq("vt100", getenv("TERM"), "a failed session does not change TERM");
+    }
+
+    #! Sessions are created while another thread changes the environment that ncurses reads when they are created
+    /** ncurses reads the environment when a session is created (TERM, TERMINFO, LINES, COLUMNS, ESCDELAY, ...); the
+        other thread adds and removes a variable that ncurses reads, so the environment's array of variables is
+        reallocated while the sessions are created, and its value is the default, so the sessions are the same
+    */
+    testSessionsWithEnvironmentChanges() {
+        *string old_delay = getenv("ESCDELAY");
+        on_exit {
+            if (exists old_delay) {
+                setenv("ESCDELAY", old_delay);
+            } else {
+                unsetenv("ESCDELAY");
+            }
+        }
+
+        bool stop;
+        Counter running(1);
+        background sub () {
+            on_exit running.dec();
+            while (!stop) {
+                setenv("ESCDELAY", "1000");
+                unsetenv("ESCDELAY");
+            }
+        }();
+        on_exit {
+            stop = True;
+            running.waitForZero();
+        }
+
+        for (int i = 0; i < 50; ++i) {
+            assertEq(256, getTestTerminalColors("xterm-256color"));
+        }
     }
 
     testUnicodeAnsiWidthAndWrapping() {

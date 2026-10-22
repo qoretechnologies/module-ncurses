@@ -28,6 +28,18 @@ extern struct panelhook_compat* _nc_panelhook_sp(SCREEN*);
 
 QoreRecursiveThreadLock ncurses_lock;
 
+SCREEN* nc_newterm(const char* type, FILE* out, FILE* in) {
+    // ncurses reads the environment here; Qore changes it only with this lock held exclusively
+    QoreEnvironmentReadLock env_lock;
+    // the type is not changed; older ncurses headers declare the parameter without const
+    return newterm(const_cast<char*>(type), out, in);
+}
+
+mmask_t nc_mousemask(mmask_t mask) {
+    QoreEnvironmentReadLock env_lock;
+    return mousemask(mask, nullptr);
+}
+
 // Background reader for an NcursesTestTerminal's master PTY. Without it, the
 // kernel's PTY output queue (small on macOS, ~1-4 KB) fills up after a few
 // ncurses writes from the slave side and any further write — including the

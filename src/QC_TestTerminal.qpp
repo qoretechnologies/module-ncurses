@@ -70,18 +70,13 @@ qclass TestTerminal [dom=TERMINAL_IO; arg=NcursesTestTerminal* term; ns=Qore::Nc
 // TestTerminal implementation
 // ---------------------------------------------
 
-/**
-    @param rows
-    @param cols
-    @param term_name optional TERM value
-
-    @since %ncurses 1.0
-*/
 //! Creates a test terminal
 /**
     @param rows optional rows
     @param cols optional cols
-    @param term_name optional TERM value
+    @param term_name optional terminal type (default \c "xterm-256color") of a
+    @ref Qore::Ncurses::Session "Session" that uses the terminal; the session uses this type regardless of the
+    \c TERM environment variable, which is not changed
 
     @since %ncurses 1.0
 */

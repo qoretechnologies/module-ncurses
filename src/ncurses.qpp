@@ -61,16 +61,20 @@ QoreEnumDecl* enumWrapMode = nullptr;
 // Module initialization and teardown
 
 static void ncurses_module_init(QoreModuleInitContext& ctx, ExceptionSink& xsink) {
-    setlocale(LC_ALL, "");
+    {
+        // setlocale() reads the locale variables (LC_ALL, LC_*, LANG) of the environment
+        QoreEnvironmentReadLock env_lock;
+        setlocale(LC_ALL, "");
+    }
     // Ensure LC_CTYPE is UTF-8 — needed for ncurses wide-character support.
     // Some environments set LC_CTYPE=C while LANG=en_US.UTF-8, which
     // leaves ncurses in single-byte mode and breaks multi-byte rendering.
     const char* ctype = setlocale(LC_CTYPE, nullptr);
     if (ctype && (strcmp(ctype, "C") == 0 || strcmp(ctype, "POSIX") == 0)) {
-        // Try LANG-based UTF-8 locale, then common fallbacks
-        const char* lang = getenv("LANG");
-        if (lang && strstr(lang, "UTF-8")) {
-            setlocale(LC_CTYPE, lang);
+        // Try LANG-based UTF-8 locale, then common fallbacks; the value is copied under the environment lock
+        QoreEnvironmentValue lang("LANG");
+        if (lang && strstr(lang.c_str(), "UTF-8")) {
+            setlocale(LC_CTYPE, lang.c_str());
         } else if (!setlocale(LC_CTYPE, "C.UTF-8")) {
             setlocale(LC_CTYPE, "en_US.UTF-8");
         }

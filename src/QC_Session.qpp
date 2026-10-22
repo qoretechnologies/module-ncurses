@@ -396,7 +396,6 @@ Session::constructor(*hash options) [flags=NAMED_ARGS] {
             delete s;
             return;
         }
-        setenv("TERM", tterm_holder->term.c_str(), 1);
         FILE* in = fdopen(dup(tterm_holder->slave_fd), "r");
         FILE* out = fdopen(dup(tterm_holder->slave_fd), "w");
         if (!in || !out) {
@@ -408,10 +407,12 @@ Session::constructor(*hash options) [flags=NAMED_ARGS] {
         }
         s->in_file = in;
         s->out_file = out;
-        s->screen = newterm(nullptr, out, in);
+        // the session uses the test terminal's type; the process environment is not changed
+        s->screen = nc_newterm(tterm_holder->term.c_str(), out, in);
         if (!s->screen) {
             delete s;
-            xsink->raiseException("NCURSES-ERROR", "newterm() failed");
+            xsink->raiseException("NCURSES-ERROR", "newterm() failed for terminal type '%s'",
+                tterm_holder->term.c_str());
             return;
         }
         s->is_default = false;
@@ -437,7 +438,7 @@ Session::constructor(*hash options) [flags=NAMED_ARGS] {
         }
         s->in_file = in;
         s->out_file = out;
-        s->screen = newterm(nullptr, out, in);
+        s->screen = nc_newterm(nullptr, out, in);
         if (!s->screen) {
             delete s;
             xsink->raiseException("NCURSES-ERROR", "newterm() failed");
@@ -447,7 +448,7 @@ Session::constructor(*hash options) [flags=NAMED_ARGS] {
         set_term(s->screen);
         s->stdwin = stdscr;
     } else {
-        s->screen = newterm(nullptr, stdout, stdin);
+        s->screen = nc_newterm(nullptr, stdout, stdin);
         if (!s->screen) {
             delete s;
             xsink->raiseException("NCURSES-ERROR", "newterm() failed");
@@ -475,7 +476,7 @@ Session::constructor(*hash options) [flags=NAMED_ARGS] {
     keypad(s->stdwin, keypad_on ? TRUE : FALSE);
 
     if (mouse_on) {
-        mousemask(ALL_MOUSE_EVENTS, nullptr);
+        nc_mousemask(ALL_MOUSE_EVENTS);
     }
 
     if (colors_on && has_colors()) {
@@ -516,7 +517,7 @@ nothing Session::setMouse(bool enabled) [flags=NAMED_ARGS] {
         return nothing();
     }
     NcursesCallGuard guard(session);
-    mousemask(enabled ? ALL_MOUSE_EVENTS : 0, nullptr);
+    nc_mousemask(enabled ? ALL_MOUSE_EVENTS : 0);
     return nothing();
 }
 
