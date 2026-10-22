@@ -62,6 +62,10 @@ auto ev = w.readEvent(100, 25);
 s.close();
     @endcode
 
+    @note A thread reads the output of the pseudo-terminal while it is open.  In a child process created with
+    \c fork(), that thread of a terminal opened in the parent exists only in the parent, which it keeps serving:
+    closing or destroying the terminal in the child closes the child's descriptors only
+
     @since %ncurses 1.0
 */
 qclass TestTerminal [dom=TERMINAL_IO; arg=NcursesTestTerminal* term; ns=Qore::Ncurses];

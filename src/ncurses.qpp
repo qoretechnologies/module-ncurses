@@ -60,7 +60,19 @@ QoreEnumDecl* enumWrapMode = nullptr;
 
 // Module initialization and teardown
 
+// the registration of the fork handler of the module lock: the lock is held while a thread waits for terminal input
+// and while user callbacks run (Session::withLock()), so fork() does not wait for it (QFR_MODULE_RESET); the child
+// initializes it again and takes it as often as the forking thread held it (see ncurses_fork_child())
+static QoreForkHandlerRegistration* ncurses_fork_reg = nullptr;
+
 static void ncurses_module_init(QoreModuleInitContext& ctx, ExceptionSink& xsink) {
+    assert(!ncurses_fork_reg);
+    ncurses_fork_reg = qore_register_fork_handler(QFR_MODULE_RESET, "ncurses", nullptr, nullptr, ncurses_fork_child,
+        nullptr);
+    if (!ncurses_fork_reg) {
+        xsink.outOfMemory();
+        return;
+    }
     {
         // setlocale() reads the locale variables (LC_ALL, LC_*, LANG) of the environment
         QoreEnvironmentReadLock env_lock;
@@ -106,7 +118,8 @@ static void ncurses_module_ns_init(QoreNamespace* rns, QoreNamespace* qns, Excep
 }
 
 void ncurses_module_delete() {
-    // nothing to do here
+    qore_unregister_fork_handler(ncurses_fork_reg);
+    ncurses_fork_reg = nullptr;
 }
 
 extern "C" DLLEXPORT void ncurses_qore_module_desc(QoreModuleInfo& mod_info) {

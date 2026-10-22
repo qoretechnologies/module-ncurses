@@ -6,11 +6,13 @@
 #include <qore/Qore.h>
 #include <qore/QoreSandboxManager.h>
 
+#include <atomic>
 #include <map>
 #include <new>
 #include <utility>
 #include <vector>
 
+#include <assert.h>
 #include <stdlib.h>
 
 #include <ncurses.h>
@@ -26,7 +28,42 @@
 #include <unistd.h>
 #endif
 
+//! the lock of all ncurses calls; take it only with NcursesLockHelper
 extern QoreRecursiveThreadLock ncurses_lock;
+
+//! how many times the current thread holds ncurses_lock
+extern thread_local int ncurses_lock_depth;
+
+//! the number of fork() calls that created this process from the process that loaded the module
+/** Incremented by the fork handler of the module in the child (see ncurses_fork_child()); an object that records it
+    when it starts a thread knows whether the thread exists in the current process
+*/
+extern std::atomic<unsigned> ncurses_fork_generation;
+
+//! Holds ncurses_lock and counts the holds of the current thread
+/** The lock is held while a thread waits for terminal input and while user callbacks run (Session::withLock()), which
+    can call fork(); a child process created with fork() takes it again as often as the forking thread held it (see
+    ncurses_fork_child())
+*/
+class NcursesLockHelper {
+public:
+    DLLLOCAL NcursesLockHelper() {
+        ncurses_lock.lock();
+        ++ncurses_lock_depth;
+    }
+
+    DLLLOCAL ~NcursesLockHelper() {
+        --ncurses_lock_depth;
+        assert(ncurses_lock_depth >= 0);
+        ncurses_lock.unlock();
+    }
+
+    NcursesLockHelper(const NcursesLockHelper&) = delete;
+    NcursesLockHelper& operator=(const NcursesLockHelper&) = delete;
+};
+
+//! The child handler of the fork handler of the module; see ncurses_module_init()
+DLLLOCAL void ncurses_fork_child(void* arg);
 
 //! Creates an ncurses screen for the given terminal type, or for the type in \c TERM if @p type is nullptr
 /** newterm() reads the process environment (\c TERM, \c TERMINFO, \c TERMINFO_DIRS, \c HOME, \c LINES,
@@ -158,7 +195,7 @@ public:
 
 class NcursesCallGuard {
 public:
-    AutoLocker lock;
+    NcursesLockHelper lock;
     SCREEN* prev = nullptr;
 
     NcursesCallGuard(NcursesSession* s);

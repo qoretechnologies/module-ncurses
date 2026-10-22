@@ -1,0 +1,222 @@
+#!/usr/bin/env qore
+# -*- mode: qore; indent-tabs-mode: nil -*-
+# Copyright 2026 Qore Technologies, s.r.o.
+# SPDX-License-Identifier: MIT
+
+%prepend-module-path "${SCRIPT_DIR}/../build"
+
+%requires ncurses
+%requires QUnit
+%requires Util
+
+%try-module process
+%define NoProcess
+%endtry
+
+%modern
+
+%exec-class NcursesForkTest
+
+#! Tests child processes created with fork() by a process that uses the module
+/** A child process created with fork() runs only the thread that called fork().  The module lock is held while a
+    thread waits for terminal input and while a Session::withLock() callback runs: a child created meanwhile got the
+    lock held by a thread that does not exist in it and waited forever for it.  A test terminal reads the output of
+    its pseudo-terminal in a thread, which closing the terminal in a child woke through the pipe it shares with the
+    parent (stopping the parent's reader) and then waited forever for (on Linux; on macOS the join failed and ended
+    the child).  Each case runs a script that forks; the script waits for the child's PID and prints its exit code.
+*/
+class NcursesForkTest inherits Test {
+    public {
+        #! only turns a child that never exits into a failure; no case waits for a time to pass
+        const HangGuard = 10m;
+
+        #! the script; its argument is the name of the case
+        const Script = "%%modern
+%%requires ncurses
+%%requires process
+
+# in milliseconds
+const HangGuard = %d;
+
+Ncurses::Session sub make_session(Ncurses::TestTerminal tt) {
+    tt.open();
+    return new Ncurses::Session({\"test_terminal\": tt, \"echo\": False, \"raw\": True, \"cbreak\": False,
+        \"mouse\": False, \"cursor\": 0});
+}
+
+# draws the text on the session's screen and returns whether it can be read back
+bool sub draw(Ncurses::Session s, string text) {
+    Ncurses::Window w = s.screen();
+    w.clear();
+    w.drawText(0, 0, text);
+    w.refresh();
+    return w.readText(0, 0, text.size()) == text;
+}
+
+# uses the module in a terminal of its own
+string sub use_module() {
+    Ncurses::TestTerminal tt(24, 80);
+    Ncurses::Session s = make_session(tt);
+    on_exit {
+        s.close();
+        tt.close();
+    }
+    return draw(s, \"child\") ? \"OK\" : \"failed\";
+}
+
+# waits for the child and prints its exit code
+sub wait_child(int pid) {
+    Process p(pid);
+    p.detach();
+    if (!p.wait(HangGuard)) {
+        kill(pid, SIGKILL);
+        printf(\"child: did not exit\\n\");
+        exit(2);
+    }
+    printf(\"child: %%d\\n\", p.exitCode());
+}
+
+string mode = ARGV[0];
+Ncurses::TestTerminal tt(24, 80);
+Ncurses::Session s = make_session(tt);
+
+switch (mode) {
+    case \"lock\": {
+        # another thread holds the module lock while the process is copied
+        Counter held(1);
+        Counter release(1);
+        Counter done(1);
+        background sub () {
+            on_exit done.dec();
+            s.withLock(sub () {
+                held.dec();
+                release.waitForZero();
+            });
+        }();
+        held.waitForZero();
+        int pid = fork();
+        if (!pid) {
+            printf(\"child lock: %%s\\n\", use_module());
+            flush();
+            exit(0);
+        }
+        release.dec();
+        done.waitForZero();
+        wait_child(pid);
+        break;
+    }
+
+    case \"callback\": {
+        # the thread that calls fork() holds the module lock
+        int pid;
+        s.withLock(sub () {
+            pid = fork();
+            if (!pid) {
+                printf(\"child callback: %%s\\n\", use_module());
+                flush();
+                exit(0);
+            }
+        });
+        wait_child(pid);
+        break;
+    }
+
+    case \"terminal\": {
+        # the child closes the parent's session and terminal, whose output is read by a thread of the parent
+        int pid = fork();
+        if (!pid) {
+            s.close();
+            tt.close();
+            exit(0);
+        }
+        wait_child(pid);
+        break;
+    }
+}
+
+# the parent's terminal is still read: more output than the pseudo-terminal holds is written
+bool ok = True;
+Ncurses::Window w = s.screen();
+for (int i = 0; i < 200 && ok; ++i) {
+    for (int row = 0; row < 24; ++row) {
+        w.drawText(row, 0, sprintf(\"%%03d %%02d %%s\", i, row, strmul(chr(65 + (i + row) %% 26), 60)));
+    }
+    w.refresh();
+    ok = w.readText(0, 0, 6) == sprintf(\"%%03d 00\", i);
+}
+printf(\"parent: %%s\\n\", ok ? \"OK\" : \"failed\");
+s.close();
+tt.close();
+";
+    }
+
+    private {
+        #! the interpreter running this test, used to launch the scripts
+        string qore_exe;
+        #! the script file
+        string script;
+    }
+
+    constructor() : Test("ncurses fork test", "1.0") {
+        qore_exe = ENV.QORE_EXECUTABLE ?? ENV.QORE_BINARY ?? QORE_ARGV[0];
+        script = tmp_location() + DirSep + sprintf("ncurses-fork-%d.q", getpid());
+
+        addTestCase("a child created while another thread holds the module lock uses the module",
+            \childWhileLockHeld());
+        addTestCase("a child created in a withLock() callback uses the module", \childInCallback());
+        addTestCase("a child that closes the parent's test terminal ends, and the parent's terminal is still read",
+            \childClosesTerminal());
+
+        on_exit unlink(script);
+        {
+            File f();
+            f.open2(script, O_CREAT | O_TRUNC | O_WRONLY);
+            f.write(sprintf(Script, get_duration_milliseconds(HangGuard)));
+        }
+        set_return_value(main());
+    }
+
+    childWhileLockHeld() {
+        runChild("lock", "child lock: OK\n");
+    }
+
+    childInCallback() {
+        runChild("callback", "child callback: OK\n");
+    }
+
+    childClosesTerminal() {
+        runChild("terminal");
+    }
+
+    #! runs the script for the given case and checks its output
+    private runChild(string mode, string child_out = "") {
+%ifdef NoProcess
+        testSkip("no process module");
+%else
+        if (!Option::HAVE_FORK) {
+            testSkip("fork() is not available");
+        }
+        # the scripts load the module of this tree
+        hash<auto> env = {
+            "QORE_MODULE_DIR": get_script_dir() + "/../build:" + (getenv("QORE_MODULE_DIR") ?? ""),
+        };
+        Process p(qore_exe, ("-b", script, mode), {"env": ENV + env});
+        # the script waits for its child for HangGuard
+        if (!p.wait(2 * HangGuard)) {
+            p.terminate();
+            p.wait();
+            fail(sprintf("%s: the script did not exit", mode));
+        }
+        string out = "";
+        while (*string str = p.readStdout(4096)) {
+            out += str;
+        }
+        string err = "";
+        while (*string str = p.readStderr(4096)) {
+            err += str;
+        }
+        assertEq(child_out + "child: 0\nparent: OK\n", out, sprintf("%s; stderr: %s", mode, err));
+        assertEq(0, p.exitCode(), mode);
+%endif
+    }
+}

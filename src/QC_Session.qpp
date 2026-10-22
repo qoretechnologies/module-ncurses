@@ -388,7 +388,7 @@ Session::constructor(*hash options) [flags=NAMED_ARGS] {
         unbuffered_stdio = false;
     }
 
-    AutoLocker al(ncurses_lock);
+    NcursesLockHelper al;
 
     if (tterm_holder) {
         tterm_holder->ensureOpen(xsink);
@@ -895,6 +895,8 @@ nothing Session::flash() {
     @param callback_args optional list of arguments
 
     @return the callback result
+
+    @note The callback can call \c fork(): the child holds the lock as the callback did and can use the module
 
     @since %ncurses 1.0
 */

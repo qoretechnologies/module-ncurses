@@ -9,6 +9,7 @@
 #include <sys/select.h>
 #include <unistd.h>
 
+#include <memory>
 #include <thread>
 
 // libpanel allocates a per-SCREEN "pseudo panel" the first time new_panel() is
@@ -27,6 +28,19 @@ extern struct panelhook_compat* _nc_panelhook_sp(SCREEN*);
 }
 
 QoreRecursiveThreadLock ncurses_lock;
+thread_local int ncurses_lock_depth = 0;
+std::atomic<unsigned> ncurses_fork_generation{0};
+
+void ncurses_fork_child(void* arg) {
+    // the child runs only the thread that called fork(): the lock could have been held by another thread of the
+    // parent, and the forking thread itself can hold it (fork() in a Session::withLock() callback); takes no other
+    // lock and allocates no memory
+    ncurses_fork_generation.fetch_add(1, std::memory_order_relaxed);
+    qore_fork_reinit_recursive_thread_lock(ncurses_lock);
+    for (int i = 0; i < ncurses_lock_depth; ++i) {
+        ncurses_lock.lock();
+    }
+}
 
 SCREEN* nc_newterm(const char* type, FILE* out, FILE* in) {
     // ncurses reads the environment here; Qore changes it only with this lock held exclusively
@@ -46,29 +60,73 @@ mmask_t nc_mousemask(mmask_t mask) {
 // implicit tcsetattr(TCSADRAIN) inside endwin() — blocks forever. Linux's
 // queue is typically large enough for short tests to run to completion
 // without a reader, which is why CI passes on Linux but not macOS.
+//
+// In a child process created with fork(), the reader of a terminal opened in the parent does not exist, and its wake
+// pipe is shared with the parent's reader: stopping it there neither wakes nor joins the thread.
 class NcursesTestTerminalDrain {
 public:
-    NcursesTestTerminalDrain(int master_fd) : master_fd(master_fd) {
+    NcursesTestTerminalDrain(int master_fd) : master_fd(master_fd),
+            fork_generation(ncurses_fork_generation.load(std::memory_order_relaxed)) {
         if (pipe(wake_pipe) != 0) {
             wake_pipe[0] = wake_pipe[1] = -1;
             return;
         }
-        thr = std::thread(&NcursesTestTerminalDrain::run, this);
+        try {
+            thr.reset(new std::thread(&NcursesTestTerminalDrain::run, this));
+        } catch (const std::exception&) {
+            closePipe();
+        }
     }
 
     ~NcursesTestTerminalDrain() {
         stop();
     }
 
+    //! Returns true if the reader thread is running
+    bool running() const {
+        return (bool)thr;
+    }
+
     void stop() {
-        if (thr.joinable()) {
-            if (wake_pipe[1] >= 0) {
-                char b = 0;
-                ssize_t r = ::write(wake_pipe[1], &b, 1);
-                (void)r;
+        if (thr) {
+            if (fork_generation != ncurses_fork_generation.load(std::memory_order_relaxed)) {
+                // the thread was started before this process was created with fork(): it exists only in the
+                // parent, which it serves, and joining it would wait forever; the thread object is never destroyed,
+                // since destroying a joinable thread ends the process
+                std::thread* abandoned = thr.release();
+                (void)abandoned;
+            } else {
+                if (wake_pipe[1] >= 0) {
+                    char b = 0;
+                    ssize_t r = ::write(wake_pipe[1], &b, 1);
+                    (void)r;
+                }
+                try {
+                    thr->join();
+                } catch (const std::exception&) {
+                    // the thread cannot be joined; it is detached, so destroying the thread object does not end the
+                    // process
+                    try {
+                        thr->detach();
+                    } catch (const std::exception&) {
+                        std::thread* abandoned = thr.release();
+                        (void)abandoned;
+                    }
+                }
+                thr.reset();
             }
-            thr.join();
         }
+        closePipe();
+    }
+
+private:
+    int master_fd = -1;
+    int wake_pipe[2] = {-1, -1};
+    //! the fork generation of the process that started the thread
+    unsigned fork_generation;
+    std::unique_ptr<std::thread> thr;
+
+    void closePipe() {
         if (wake_pipe[0] >= 0) {
             ::close(wake_pipe[0]);
             wake_pipe[0] = -1;
@@ -78,11 +136,6 @@ public:
             wake_pipe[1] = -1;
         }
     }
-
-private:
-    int master_fd = -1;
-    int wake_pipe[2] = {-1, -1};
-    std::thread thr;
 
     void run() {
         char buf[4096];
@@ -141,7 +194,7 @@ NcursesSession::~NcursesSession() {
     // destructed after close() still safely call del_panel/delwin against
     // a live SCREEN.
     if (screen) {
-        AutoLocker al(ncurses_lock);
+        NcursesLockHelper al;
         // Free libpanel's per-screen pseudo panel; otherwise it leaks one
         // PANEL allocation per session that ever used a panel.
         if (panelhook_compat* ph = _nc_panelhook_sp(screen)) {
@@ -164,7 +217,7 @@ void NcursesSession::close(ExceptionSink* xsink) {
     if (closed) {
         return;
     }
-    AutoLocker al(ncurses_lock);
+    NcursesLockHelper al;
     if (screen) {
         set_term(screen);
         endwin();
@@ -222,7 +275,7 @@ NcursesWindow::NcursesWindow(NcursesSession* s, WINDOW* w, bool own) : session(s
 NcursesWindow::~NcursesWindow() {
     if (session) {
         if (win) {
-            AutoLocker al(ncurses_lock);
+            NcursesLockHelper al;
             // Only clear cursor tracking when an owned window is destroyed.
             // Non-owned windows (e.g. from Session::screen()) share the same
             // WINDOW* (stdscr) and must not clear cursor state on destruction.
@@ -264,7 +317,7 @@ NcursesPanel::NcursesPanel(NcursesSession* s, PANEL* p, QoreObject* wobj) : sess
 
 NcursesPanel::~NcursesPanel() {
     if (panel) {
-        AutoLocker al(ncurses_lock);
+        NcursesLockHelper al;
         // del_panel only touches libpanel's internal state, not the SCREEN,
         // so it is safe to call even after Session::close() has already run
         // delscreen() — and required, otherwise the PANEL leaks.
@@ -318,6 +371,11 @@ void NcursesTestTerminal::open(ExceptionSink* xsink) {
     master_fd = mfd;
     slave_fd = sfd;
     drain = new NcursesTestTerminalDrain(master_fd);
+    if (!drain->running()) {
+        xsink->raiseException("NCURSES-TEST-ERROR", "cannot start the thread that reads the output of the "
+            "pseudo-terminal");
+        close(xsink);
+    }
 }
 
 void NcursesTestTerminal::close(ExceptionSink* xsink) {
@@ -376,7 +434,7 @@ void NcursesTestTerminal::ensureOpen(ExceptionSink* xsink) {
     }
 }
 
-NcursesCallGuard::NcursesCallGuard(NcursesSession* s) : lock(ncurses_lock) {
+NcursesCallGuard::NcursesCallGuard(NcursesSession* s) {
     if (s && s->screen) {
         prev = set_term(s->screen);
     }
