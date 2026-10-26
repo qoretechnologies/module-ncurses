@@ -1,0 +1,46 @@
+#!/usr/bin/env qore
+# -*- mode: qore; indent-tabs-mode: nil -*-
+# Copyright (C) 2026 Qore Technologies, s.r.o.
+
+# Opening the TTY device of a session is checked against the filesystem policy of the code that calls it; code run
+# with the system policy (SandboxManager::createSystemPolicyCall()) is checked against the system policy.
+
+%modern
+%no-child-restrictions
+
+%requires QUnit
+%requires Util
+%requires ncurses
+
+%exec-class NcursesSandboxTest
+
+class NcursesSandboxTest inherits QUnit::Test {
+    constructor() : QUnit::Test("ncurses sandbox", "1.0", \ARGV) {
+        addTestCase("the TTY device follows the sandbox of the caller and the system policy in a capability",
+            \testTty());
+        set_return_value(main());
+    }
+
+    testTty() {
+        SandboxManager sm();
+        sm.setFilesystemDefaultPolicy(False);
+        Program p(PO_NEW_STYLE);
+        p.setSandboxManager(sm);
+        p.parse("auto sub through(code c) { return c(); }", "ncurses-sandbox");
+
+        # a TTY device that does not exist: no terminal is set up, and the outcome is the access check's or the
+        # open's
+        string tty = tmp_location() + DirSep + "qore-ncurses-sandbox-" + get_random_string(12);
+        code open = sub () {
+            Ncurses::Session s({"use_tty": True, "tty_path": tty});
+        };
+        # the same code called directly from the sandbox inherits the sandbox's policy
+        assertThrows("FILESYSTEM-ACCESS-DENIED", \p.callFunction(), ("through", open),
+            "the TTY device of a session opened directly from the sandbox is denied");
+        # a system-policy capability called from the sandbox is subject to the system policy, not the sandbox's: the
+        # access is allowed, and the device that does not exist cannot be opened
+        assertThrows("NCURSES-ERROR", "failed to open tty device", \p.callFunction(),
+            ("through", SandboxManager::createSystemPolicyCall(open)),
+            "the TTY device of a session opened in a system-policy capability is not denied by the sandbox");
+    }
+}

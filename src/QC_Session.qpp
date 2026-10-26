@@ -420,7 +420,7 @@ Session::constructor(*hash options) [flags=NAMED_ARGS] {
         s->stdwin = stdscr;
     } else if (use_tty) {
         // check sandbox filesystem access before opening TTY device
-        QoreSandboxManagerHelper smh;
+        QoreSandboxManagerHelper smh(QoreSandboxManagerHelper::Policy);
         if (smh) {
             if (!smh->checkFilesystemAccess(tty_path.c_str(), QSEC_READ | QSEC_WRITE, xsink)) {
                 delete s;
