@@ -1,0 +1,34 @@
+#!/usr/bin/env qore
+# Copyright 2026 Qore Technologies, s.r.o.
+%requires ncurses
+%requires NcursesUi
+
+Ncurses::Session session({"bracketed_paste": True, "raw": True, "mouse": True});
+on_exit session.close();
+NcursesUi::Application app(session);
+NcursesUi::Widget root();
+NcursesUi::TranscriptWidget output(); output.setVSizePolicy(NcursesUi::SizePolicy::Expanding);
+output.setRetentionLimit(1000);
+NcursesUi::TextEditorWidget editor(); editor.setAutoHeight(1, 6); editor.setPrompt("request> ");
+editor.setVSizePolicy(NcursesUi::SizePolicy::Fixed);
+NcursesUi::StatusBarWidget status();
+status.setSegments(({"text": "Enter: send | Alt-Enter: newline | Ctrl-Q: quit | PageUp/Down: output"},));
+root.addChild(output); root.addChild(editor); root.addChild(status);
+app.setRootLayout(new NcursesUi::BoxLayout(NcursesUi::Orientation::Vertical)); app.setRoot(root);
+app.getFocusManager().setFocus(editor);
+editor.setOnSubmit(sub (string text) {
+    output.appendBlock(split("\n", text, False, True), "input");
+    output.appendBlock(("Request accepted",), "response");
+});
+app.setGlobalKeyHandler(hash<NcursesUi::EventResult> sub (hash<Ncurses::InputEvent> event) {
+    if (event.type == Ncurses::InputType::Char && event.ch == "\x11") { app.quit(); }
+    else if ((event.type == Ncurses::InputType::Char && (event.ch == "\n" || event.ch == "\r"))
+            || (event.type == Ncurses::InputType::Key && event.name == "KEY_ENTER")) {
+        editor.submit(); editor.setText("");
+    } else if (event.type == Ncurses::InputType::Key && (event.name == "KEY_PPAGE" || event.name == "KEY_NPAGE")) {
+        output.scrollTo(event.name == "KEY_PPAGE" ? NcursesUi::ScrollDirection::PageUp : NcursesUi::ScrollDirection::PageDown);
+    } else { return <NcursesUi::EventResult>{"handled": False}; }
+    return <NcursesUi::EventResult>{"handled": True};
+});
+app.addTickCallback(sub () { app.layoutRoot(); });
+app.run();

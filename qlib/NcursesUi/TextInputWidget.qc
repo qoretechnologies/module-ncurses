@@ -204,7 +204,7 @@ public class TextInputWidget inherits NcursesUi::Widget {
                         | Ncurses::BUTTON1_DOUBLE_CLICKED | Ncurses::BUTTON1_TRIPLE_CLICKED))) {
                 updateScroll(inputColumns());
                 int col = scroll_x + ev.mouse.x - cr.x - TerminalText::displayWidth(prompt);
-                buffer.setCursor(NcursesReplUi::TextPosition::offsetForColumn(buffer.getText(), col));
+                buffer.setDisplayColumn(col);
                 markDirty();
                 return <NcursesUi::EventResult>{"handled": True};
             }
@@ -250,7 +250,7 @@ public class TextInputWidget inherits NcursesUi::Widget {
 
     private int cursorColumn() {
         return TerminalText::displayWidth(prompt)
-            + NcursesReplUi::TextPosition::columnForOffset(buffer.getText(), buffer.getCursor());
+            + buffer.getDisplayColumn();
     }
 
     private nothing updateScroll(int width) {

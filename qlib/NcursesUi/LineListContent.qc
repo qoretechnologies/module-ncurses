@@ -36,6 +36,112 @@ public hashdecl WrappedTextRow {
     string text;
 }
 
+# Internal segment index: logarithmic row lookup/update and constant-time maximum width.
+class TextExtentIndex {
+    private {
+        int capacity = 1;
+        int count = 0;
+        list<int> sums = (0, 0);
+        list<int> widths = (0, 0);
+    }
+    int size() { return count; }
+    int total() { return sums[1]; }
+    int maxWidth() { return widths[1]; }
+    nothing assign(list<int> row_counts, list<int> column_widths = ()) {
+        int next_capacity = 1;
+        while (next_capacity < row_counts.size()) { next_capacity *= 2; }
+        list<int> next_sums = (); list<int> next_widths = ();
+        for (int i = 0; i < next_capacity; ++i) { next_sums += 0; next_widths += 0; }
+        for (int i = 0; i < next_capacity; ++i) {
+            next_sums += i < row_counts.size() ? row_counts[i] : 0;
+            next_widths += i < column_widths.size() ? column_widths[i] : 0;
+        }
+        for (int i = next_capacity - 1; i > 0; --i) {
+            next_sums[i] = next_sums[2 * i] + next_sums[2 * i + 1];
+            next_widths[i] = max(next_widths[2 * i], next_widths[2 * i + 1]);
+        }
+        capacity = next_capacity; count = row_counts.size(); sums = next_sums; widths = next_widths;
+    }
+    nothing append(int rows, int width = 0) {
+        if (count == capacity) {
+            int next = capacity * 2;
+            list<int> next_sums = (); list<int> next_widths = ();
+            for (int i = 0; i < 2 * next; ++i) { next_sums += 0; next_widths += 0; }
+            for (int i = 0; i < count; ++i) {
+                next_sums[next + i] = sums[capacity + i];
+                next_widths[next + i] = widths[capacity + i];
+            }
+            for (int i = next - 1; i > 0; --i) {
+                next_sums[i] = next_sums[2 * i] + next_sums[2 * i + 1];
+                next_widths[i] = max(next_widths[2 * i], next_widths[2 * i + 1]);
+            }
+            sums = next_sums; widths = next_widths; capacity = next;
+        }
+        ++count; set(count - 1, rows, width);
+    }
+    nothing set(int index, int rows, int width = 0) {
+        @assert(index >= 0 && index < count);
+        int node = capacity + index; sums[node] = rows; widths[node] = width;
+        while (node > 1) {
+            node /= 2;
+            sums[node] = sums[2 * node] + sums[2 * node + 1];
+            widths[node] = max(widths[2 * node], widths[2 * node + 1]);
+        }
+    }
+    int prefix(int count) {
+        int left = capacity; int right = capacity + max(0, min(count, self.count)); int total = 0;
+        while (left < right) {
+            if (left % 2) { total += sums[left++]; }
+            if (right % 2) { total += sums[--right]; }
+            left /= 2; right /= 2;
+        }
+        return total;
+    }
+    int find(int row) {
+        if (row < 0 || row >= sums[1]) { return -1; }
+        int node = 1;
+        while (node < capacity) {
+            int left = 2 * node;
+            if (row < sums[left]) { node = left; }
+            else { row -= sums[left]; node = left + 1; }
+        }
+        return node - capacity;
+    }
+}
+
+class TextLineRecord {
+    public {
+        int id;
+        string text;
+        string plain;
+        int width;
+        bool visible = True;
+    }
+    constructor(int identity, string value) {
+        id = identity; text = value;
+        plain = NcursesUi::TerminalText::plainAnsi(value);
+        width = Ncurses::Ansi::len(value);
+    }
+}
+
+class TextLayoutCache {
+    public {
+        int width;
+        NcursesUi::TextExtentIndex index();
+        list<list<hash<NcursesUi::WrappedTextRow>>> rows = ();
+    }
+    constructor(int cols) { width = cols; }
+    nothing assign(list<list<hash<NcursesUi::WrappedTextRow>>> value) {
+        list<int> counts = map $1.size(), value; index.assign(counts); rows = value;
+    }
+    nothing append(list<hash<NcursesUi::WrappedTextRow>> value) {
+        rows += (value,); index.append(value.size());
+    }
+    nothing replace(int line, list<hash<NcursesUi::WrappedTextRow>> value) {
+        rows[line] = value; index.set(line, value.size());
+    }
+}
+
 /** ScrollableContent backed by a list of strings.
 
     Supports ANSI color codes in the text. Uses
@@ -50,318 +156,260 @@ public hashdecl WrappedTextRow {
 */
 public class LineListContent inherits NcursesUi::ScrollableContent {
     private {
-        #! the list of logical lines
-        list<string> lines = ();
-        #! maximum line width (for totalCols)
-        int max_width = 0;
-        #! word-wrap enabled
+        list<*NcursesUi::TextLineRecord> lines = ();
+        int first = 0;
+        int next_id = 1;
+        int revision = 0;
+        int retention = 0;
         bool word_wrap = False;
-        #! last known visible width for wrap calculations
+        bool insertion_rows = False;
         int last_wrap_width = 0;
-        #! cached display rows and source spans
-        list<hash<NcursesUi::WrappedTextRow>> display_rows = ();
-        #! whether display_rows cache is valid
-        bool display_cache_valid = False;
-        #! Keep both full-width and scrollbar-width layouts until content changes.
-        hash<string, list<hash<NcursesUi::WrappedTextRow>>> display_caches = {};
+        NcursesUi::TextExtentIndex extents();
+        hash<string, int> identities = {};
+        hash<string, NcursesUi::TextLayoutCache> layouts = {};
+        int wrap_count = 0;
     }
-
-    /** Returns the total number of display rows (accounts for wrapping).
-        @since ncurses 1.0
-    */
-    int totalRows() {
-        if (word_wrap && last_wrap_width > 0) {
-            rebuildDisplayCache(last_wrap_width);
-            return display_rows.size();
-        }
-        return lines.size();
-    }
-
-    /** Returns the maximum line width.
-        @since ncurses 1.0
-    */
-    int totalCols() {
-        return max_width;
-    }
-
-    /** Enables or disables word-wrap.
-        @param enabled True to enable word-wrap
-        @since ncurses 1.0
-    */
+    /** Returns display rows at the prepared width. @return wrapped row count */
+    int totalRows() { return layoutCache().index.total(); }
+    /** Returns the maximum width, including after edits/removal. @return terminal cells */
+    int totalCols() { return extents.maxWidth(); }
+    /** Enables word wrapping. @param enabled True to wrap long lines */
     nothing setWordWrap(bool enabled) {
-        if (word_wrap != enabled) {
-            word_wrap = enabled;
-            invalidateDisplayCache();
-        }
+        if (word_wrap != enabled) { word_wrap = enabled; layouts = {}; ++revision; }
     }
-
-    /** Returns whether word-wrap is enabled.
-        @since ncurses 1.0
+    /** Reserves an empty caret row after exact-width lines for multiline editors.
+        @param enabled True to include insertion rows in layout and hit testing
     */
-    bool getWordWrap() {
-        return word_wrap;
+    nothing setInsertionRows(bool enabled) {
+        if (insertion_rows != enabled) { insertion_rows = enabled; layouts = {}; ++revision; }
     }
-
-    /** Returns the display row index for a logical line index.
-        With word-wrap enabled, a logical line may span multiple display rows;
-        this returns the first display row for the given line.
-        Without word-wrap, returns the line index unchanged.
-        @param line_idx the logical line index
-        @return the display row index
-        @since ncurses 1.0
-    */
+    /** Returns wrapping state. @return True when word wrapping is enabled */
+    bool getWordWrap() { return word_wrap; }
+    /** Returns the content generation for repaint detection. @return monotonic revision */
+    int getRevision() { return revision; }
+    /** Returns a logical line's first display row. @param line_idx logical index @return display row */
     int displayRowForLine(int line_idx) {
-        if (!word_wrap || last_wrap_width <= 0) {
-            return line_idx;
-        }
-        rebuildDisplayCache(last_wrap_width);
-        for (int i = 0; i < display_rows.size(); ++i) {
-            if (display_rows[i].line_idx == line_idx) {
-                return i;
-            }
-        }
-        # Fallback: return end
-        return display_rows.size();
+        return layoutCache().index.prefix(first + max(0, min(line_idx, lineCount())));
     }
-
-    /** Sets all lines at once.
-        @param l the lines to set
-        @since ncurses 1.0
+    /** Atomically replaces all lines; replacement lines receive new identities.
+        @param values logical lines
     */
-    nothing setLines(list<string> l) {
-        lines = l;
-        recalcWidth();
-        invalidateDisplayCache();
+    nothing setLines(list<string> values) {
+        list<*NcursesUi::TextLineRecord> next = ();
+        int id = next_id;
+        foreach string value in (values) { next += new NcursesUi::TextLineRecord(id++, value); }
+        NcursesUi::TextExtentIndex index(); hash<string, int> ids = {};
+        list<int> counts = (); list<int> widths = ();
+        for (int i = 0; i < next.size(); ++i) { counts += 1; widths += next[i].width; ids{string(next[i].id)} = i; }
+        index.assign(counts, widths);
+        lines = next; extents = index; identities = ids; first = 0; next_id = id; layouts = {};
+        ++revision; trim();
     }
-
-    /** Returns all lines.
-        @since ncurses 1.0
-    */
+    /** Returns retained logical lines. @return source text including ANSI styles */
     list<string> getLines() {
-        return lines;
+        list<string> result = ();
+        for (int i = first; i < lines.size(); ++i) { result += lines[i].text; }
+        return result;
     }
-
-    /** Appends a line.
-        @param line the line to append
-        @since ncurses 1.0
+    /** Returns one logical line. @param index logical index @return text or NOTHING */
+    *string getLine(int index) { return index >= 0 && index < lineCount() ? lines[first + index].text : NOTHING; }
+    /** Appends one logical line. @param line source text */
+    nothing appendLine(string line) { appendLines((line,)); }
+    /** Appends a batch with one content revision; validates/wraps before mutation.
+        @param values logical lines
     */
-    nothing appendLine(string line) {
-        lines += line;
-        int w = Ncurses::Ansi::len(line);
-        if (w > max_width) {
-            max_width = w;
+    nothing appendLines(list<string> values) {
+        if (!values) { return; }
+        list<NcursesUi::TextLineRecord> next = (); int id = next_id;
+        hash<string, list<list<hash<NcursesUi::WrappedTextRow>>>> prepared = {};
+        foreach string value in (values) { next += new NcursesUi::TextLineRecord(id++, value); }
+        foreach string key in (keys layouts) {
+            list<list<hash<NcursesUi::WrappedTextRow>>> wrapped = ();
+            foreach NcursesUi::TextLineRecord line in (next) { wrapped += (wrapLine(line, layouts{key}.width),); }
+            prepared{key} = wrapped;
         }
-        invalidateDisplayCache();
+        for (int i = 0; i < next.size(); ++i) {
+            identities{string(next[i].id)} = lines.size(); lines += next[i]; extents.append(1, next[i].width);
+            foreach string key in (keys layouts) { layouts{key}.append(prepared{key}[i]); }
+        }
+        next_id = id; ++revision; trim();
     }
-
-    /** Clears all lines.
-        @since ncurses 1.0
-    */
-    nothing clear() {
-        lines = ();
-        max_width = 0;
-        display_rows = ();
-        invalidateDisplayCache();
-    }
-
-    /** Returns the number of logical lines.
-        @since ncurses 1.0
-    */
-    int lineCount() {
-        return lines.size();
-    }
-
-    /** Replaces a line at the given index.
-        @param idx the line index (0-based)
-        @param text the new text for the line
-        @since ncurses 1.0
-    */
+    /** Removes all lines without reusing old identities. */
+    nothing clear() { setLines(()); }
+    /** Returns retained logical line count. @return count */
+    int lineCount() { return lines.size() - first; }
+    /** Replaces a valid logical line and retains its identity. @param idx logical index @param text source text */
     nothing setLine(int idx, string text) {
-        if (idx >= 0 && idx < lines.size()) {
-            int old_width = Ncurses::Ansi::len(lines[idx]);
-            lines[idx] = text;
-            int w = Ncurses::Ansi::len(text);
-            if (w > max_width) {
-                max_width = w;
-            } else if (old_width == max_width && w < old_width) {
-                recalcWidth();
-            }
-            invalidateDisplayCache();
-        }
+        if (idx < 0 || idx >= lineCount() || lines[first + idx].text == text) { return; }
+        int physical = first + idx;
+        NcursesUi::TextLineRecord next(lines[physical].id, text); next.visible = lines[physical].visible;
+        hash<string, list<hash<NcursesUi::WrappedTextRow>>> prepared = {};
+        foreach string key in (keys layouts) { prepared{key} = wrapLine(next, layouts{key}.width); }
+        lines[physical] = next; extents.set(physical, next.visible ? 1 : 0, next.visible ? next.width : 0);
+        foreach string key in (keys layouts) { layouts{key}.replace(physical, prepared{key}); }
+        ++revision;
     }
-
-    /** Removes a line at the given index, shifting subsequent lines up.
-        @param idx the line index (0-based)
-        @since ncurses 1.0
+    /** Hides or shows a logical line while retaining its identity and source text.
+        @param index retained line index @param visible True to include the line in layout
     */
+    nothing setLineVisible(int index, bool visible) {
+        if (index < 0 || index >= lineCount()) { return; }
+        int physical = first + index;
+        if (lines[physical].visible == visible) { return; }
+        NcursesUi::TextLineRecord next(lines[physical].id, lines[physical].text); next.visible = visible;
+        hash<string, list<hash<NcursesUi::WrappedTextRow>>> prepared = {};
+        foreach string key in (keys layouts) { prepared{key} = wrapLine(next, layouts{key}.width); }
+        lines[physical] = next; extents.set(physical, visible ? 1 : 0, visible ? next.width : 0);
+        foreach string key in (keys layouts) { layouts{key}.replace(physical, prepared{key}); }
+        ++revision;
+    }
+    /** Removes a valid logical line. @param idx logical index */
     nothing removeLine(int idx) {
-        if (idx >= 0 && idx < lines.size()) {
-            splice lines, idx, 1;
-            recalcWidth();
-            invalidateDisplayCache();
-        }
+        if (idx < 0 || idx >= lineCount()) { return; }
+        splice lines, first + idx, 1; reindex(); ++revision;
     }
-
-    /** Inserts a line at the given index, shifting subsequent lines down.
-        @param idx the insertion index (0-based); clamped to valid range
-        @param text the text to insert
-        @since ncurses 1.0
-    */
+    /** Inserts a logical line. @param idx clamped logical index @param text source text */
     nothing insertLine(int idx, string text) {
-        if (idx < 0) {
-            idx = 0;
-        }
-        if (idx >= lines.size()) {
-            appendLine(text);
-            return;
-        }
-        splice lines, idx, 0, text;
-        int w = Ncurses::Ansi::len(text);
-        if (w > max_width) {
-            max_width = w;
-        }
-        invalidateDisplayCache();
+        idx = max(0, min(idx, lineCount()));
+        if (idx == lineCount()) { appendLine(text); return; }
+        NcursesUi::TextLineRecord next(next_id, text);
+        splice lines, first + idx, 0, next; ++next_id; reindex(); ++revision; trim();
     }
-
-    /** Establishes the wrap width before scrolling or measuring content.
-        @param cols available display columns
-        @since ncurses 1.0
+    /** Limits retained lines; zero means unlimited. Existing content is trimmed immediately.
+        @param maximum nonnegative limit
+        @throw TEXT-RETENTION-ERROR for a negative limit
     */
-    nothing prepareViewport(int cols) {
-        cols = max(0, cols);
-        if (last_wrap_width != cols) {
-            last_wrap_width = cols;
-            display_cache_valid = False;
-        }
-        rebuildDisplayCache(cols);
+    nothing setRetentionLimit(int maximum) {
+        if (maximum < 0) { throw "TEXT-RETENTION-ERROR", "Retention must be nonnegative"; }
+        retention = maximum; trim();
     }
-
-    /** Maps an ANSI-free source character offset to a wrapped display position.
-        Positions inside a grapheme snap to its start. Whitespace consumed at a
-        word break maps to the end of the preceding row. The insertion position
-        after an exactly full last row is the start of the following row.
-        @param line logical line index
-        @param offset character offset, excluding ANSI escape sequences
-        @return display row and terminal column; an invalid line has row -1
-        @since ncurses 1.0
+    /** Returns a retained line's stable identity. @param line logical index @return ID or NOTHING */
+    *int getLineId(int line) { return line >= 0 && line < lineCount() ? lines[first + line].id : NOTHING; }
+    /** Locates a retained identity. @param id stable line ID @return logical index or -1 */
+    int lineForId(int id) {
+        *int index = identities{string(id)}; return exists index ? index - first : -1;
+    }
+    /** Returns deterministic layout work counters for diagnostics/benchmarks.
+        @return wraps, cached widths and retained lines
+    */
+    hash<auto> getLayoutStats() { return {"wraps": wrap_count, "widths": layouts.size(), "lines": lineCount()}; }
+    /** Prepares a display width. @param cols nonnegative terminal columns */
+    nothing prepareViewport(int cols) { last_wrap_width = max(0, cols); layoutCache(); }
+    /** Maps a logical source position to terminal cells, including exact-width insertion rows.
+        @param line logical line @param offset ANSI-free character offset @return visual row/column, row -1 if invalid
     */
     hash<Ncurses::Position> sourceToVisual(int line, int offset) {
-        if (line < 0 || line >= lines.size()) {
-            return <Ncurses::Position>{"y": -1, "x": 0};
+        if (line < 0 || line >= lineCount()) { return <Ncurses::Position>{"y": -1, "x": 0}; }
+        NcursesUi::TextLayoutCache cache = layoutCache(); int physical = first + line;
+        if (!lines[physical].visible) { return <Ncurses::Position>{"y": -1, "x": 0}; }
+        string plain = lines[physical].plain;
+        offset = NcursesReplUi::TextPosition::snapOffset(plain, offset);
+        list<hash<NcursesUi::WrappedTextRow>> rows = cache.rows[physical];
+        int row = 0;
+        while (row + 1 < rows.size() && rows[row + 1].start <= offset) { ++row; }
+        hash<NcursesUi::WrappedTextRow> entry = rows[row];
+        int used = NcursesReplUi::TextPosition::columnForOffset(plain.substr(entry.start, entry.end - entry.start),
+            min(offset, entry.end) - entry.start);
+        int y = cache.index.prefix(physical) + row;
+        if (word_wrap && cache.width > 0 && used >= cache.width && offset == plain.length()) {
+            return <Ncurses::Position>{"y": y + 1, "x": 0};
         }
-        rebuildDisplayCache(last_wrap_width);
-        string plain = NcursesUi::TerminalText::plainAnsi(lines[line]);
-        offset = max(0, min(offset, plain.length()));
-        int row = displayRowForLine(line);
-        while (row + 1 < display_rows.size() && display_rows[row + 1].line_idx == line
-                && display_rows[row + 1].start <= offset) {
-            ++row;
-        }
-        hash<NcursesUi::WrappedTextRow> entry = display_rows[row];
-        int used = NcursesReplUi::TextPosition::columnForOffset(
-            plain.substr(entry.start, entry.end - entry.start), min(offset, entry.end) - entry.start);
-        if (word_wrap && last_wrap_width > 0 && used >= last_wrap_width
-                && offset == plain.length()) {
-            return <Ncurses::Position>{"y": row + 1, "x": 0};
-        }
-        return <Ncurses::Position>{"y": row, "x": used};
+        return <Ncurses::Position>{"y": y, "x": used};
     }
-
-    /** Maps a display cell to the start of its source grapheme.
-        @param row display row, clamped to existing rows
-        @param col display column, clamped to the row's text
-        @return logical line in @c y and ANSI-free character offset in @c x
-        @since ncurses 1.0
+    /** Maps a display cell to a logical grapheme boundary.
+        @param row visual row @param col display column @return logical line/ANSI-free offset
     */
     hash<Ncurses::Position> visualToSource(int row, int col) {
-        rebuildDisplayCache(last_wrap_width);
-        if (!display_rows) {
-            return <Ncurses::Position>{"y": 0, "x": 0};
-        }
-        hash<NcursesUi::WrappedTextRow> entry = display_rows[max(0, min(row, display_rows.size() - 1))];
-        string text = NcursesUi::TerminalText::plainAnsi(entry.text);
-        int offset = entry.start + NcursesReplUi::TextPosition::offsetForColumn(text, col);
-        return <Ncurses::Position>{"y": entry.line_idx, "x": offset};
+        NcursesUi::TextLayoutCache cache = layoutCache();
+        if (!lineCount() || !cache.index.total()) { return <Ncurses::Position>{"y": 0, "x": 0}; }
+        row = max(0, min(row, cache.index.total() - 1));
+        int physical = cache.index.find(row); @assert(physical >= first);
+        hash<NcursesUi::WrappedTextRow> entry = cache.rows[physical][row - cache.index.prefix(physical)];
+        int offset = entry.start + NcursesReplUi::TextPosition::offsetForColumn(
+            lines[physical].plain.substr(entry.start, entry.end - entry.start), col);
+        return <Ncurses::Position>{"y": physical - first, "x": offset};
     }
-
-    /** Draws a horizontal and vertical slice, clipped to the requested rectangle.
-        @param w target window
-        @param scrollY first display row
-        @param scrollX first display column (zero for wrapped content)
-        @param visibleRows viewport height
-        @param visibleCols viewport width
-        @param startY window row of the viewport
-        @param startX window column of the viewport
-        @since ncurses 1.0
+    /** Returns the source span and styled text for one display row.
+        @param row visual row @return row descriptor, or NOTHING outside retained content
+    */
+    *hash<NcursesUi::WrappedTextRow> getVisualRow(int row) {
+        NcursesUi::TextLayoutCache cache = layoutCache(); int physical = cache.index.find(row);
+        if (physical < first) { return NOTHING; }
+        hash<NcursesUi::WrappedTextRow> result = cache.rows[physical][row - cache.index.prefix(physical)];
+        result.line_idx = physical - first; return result;
+    }
+    /** Draws a clipped styled viewport.
+        @param w target window @param scrollY first row @param scrollX first column
+        @param visibleRows height @param visibleCols width @param startY local row @param startX local column
     */
     nothing drawContent(Ncurses::Window w, int scrollY, int scrollX,
             int visibleRows, int visibleCols, int startY, int startX) {
         prepareViewport(visibleCols);
-        if (visibleRows <= 0 || visibleCols <= 0) {
-            return;
-        }
-        hash<Ncurses::Size> size = w.size();
-        int x = max(0, startX);
+        if (visibleRows <= 0 || visibleCols <= 0) { return; }
+        hash<Ncurses::Size> size = w.size(); int x = max(0, startX);
         int cols = min(startX + visibleCols, size.cols) - x;
-        if (cols <= 0) {
-            return;
-        }
+        if (cols <= 0) { return; }
+        NcursesUi::TextLayoutCache cache = layoutCache();
         int offset = (word_wrap ? 0 : max(0, scrollX)) + x - startX;
         for (int row = max(0, startY); row < min(startY + visibleRows, size.rows); ++row) {
-            int idx = scrollY + row - startY;
-            w.drawHLine(row, x, cols, " ");
-            if (idx >= 0 && idx < display_rows.size()) {
-                NcursesUi::TerminalText::drawAnsiSlice(w, row, x, display_rows[idx].text, offset, cols);
+            int visual = scrollY + row - startY;
+            w.drawHLine(row, x, cols, " "); int physical = cache.index.find(visual);
+            if (physical >= first) {
+                hash<NcursesUi::WrappedTextRow> entry = cache.rows[physical][visual - cache.index.prefix(physical)];
+                NcursesUi::TerminalText::drawAnsiSlice(w, row, x, entry.text, offset, cols);
             }
         }
     }
-
-    #! Wrapping retains exact source spans, including the gaps consumed at word breaks.
-    private nothing rebuildDisplayCache(int width) {
-        if (display_cache_valid) {
-            return;
-        }
-        string key = sprintf("%d", width);
-        if (exists display_caches{key}) {
-            display_rows = display_caches{key};
-            display_cache_valid = True;
-            return;
-        }
+    private list<hash<NcursesUi::WrappedTextRow>> wrapLine(NcursesUi::TextLineRecord line, int width) {
         list<hash<NcursesUi::WrappedTextRow>> rows = ();
+        if (!line.visible) { return rows; }
+        list<string> wrapped = word_wrap && width > 0 && line.width > width
+            ? Ncurses::Ansi::wrap(line.text, width) : (line.text,);
+        int offset = 0;
+        foreach string text in (wrapped) {
+            string plain = NcursesUi::TerminalText::plainAnsi(text);
+            int start = line.plain.find(plain, offset); @assert(start >= offset);
+            offset = start + plain.length();
+            rows += <NcursesUi::WrappedTextRow>{"line_idx": 0, "start": start, "end": offset, "text": text};
+        }
+        if (insertion_rows && word_wrap && width > 0 && rows
+                && Ncurses::Ansi::len(rows[-1].text) == width) {
+            rows += <NcursesUi::WrappedTextRow>{"line_idx": 0, "start": line.plain.length(),
+                "end": line.plain.length(), "text": ""};
+        }
+        ++wrap_count; return rows;
+    }
+    private NcursesUi::TextLayoutCache layoutCache() {
+        int width = word_wrap ? last_wrap_width : 0; string key = string(width);
+        if (exists layouts{key}) { return layouts{key}; }
+        NcursesUi::TextLayoutCache cache(width);
+        list<list<hash<NcursesUi::WrappedTextRow>>> rows = ();
+        for (int i = 0; i < lines.size(); ++i) { rows += (i < first ? () : wrapLine(lines[i], width),); }
+        cache.assign(rows);
+        # Keep full-width and scrollbar-width geometry without unbounded resize caches.
+        if (layouts.size() >= 2) { layouts = {}; }
+        layouts{key} = cache; return cache;
+    }
+    private nothing reindex() {
+        NcursesUi::TextExtentIndex next(); hash<string, int> ids = {};
         for (int i = 0; i < lines.size(); ++i) {
-            string source = NcursesUi::TerminalText::plainAnsi(lines[i]);
-            list<string> wrapped = word_wrap && width > 0 && Ncurses::Ansi::len(lines[i]) > width
-                ? Ncurses::Ansi::wrap(lines[i], width) : (lines[i],);
-            int offset = 0;
-            foreach string text in (wrapped) {
-                string plain = NcursesUi::TerminalText::plainAnsi(text);
-                int start = source.find(plain, offset);
-                @assert(start >= offset);
-                offset = start + plain.length();
-                rows += <NcursesUi::WrappedTextRow>{"line_idx": i, "start": start, "end": offset, "text": text};
-            }
+            bool visible = i >= first && lines[i].visible;
+            next.append(visible ? 1 : 0, visible ? lines[i].width : 0);
+            if (i >= first) { ids{string(lines[i].id)} = i; }
         }
-        # Bound the cache to the two widths used to resolve scrollbar geometry.
-        if (display_caches.size() >= 2) {
-            display_caches = {};
+        extents = next; identities = ids; layouts = {};
+    }
+    private nothing trim() {
+        if (!retention || lineCount() <= retention) { return; }
+        while (lineCount() > retention) {
+            remove identities{string(lines[first].id)};
+            lines[first] = NOTHING; extents.set(first, 0);
+            foreach string key in (keys layouts) { layouts{key}.replace(first, ()); }
+            ++first;
         }
-        display_caches{key} = rows;
-        display_rows = rows;
-        display_cache_valid = True;
-    }
-
-    private nothing invalidateDisplayCache() {
-        display_cache_valid = False;
-        display_caches = {};
-    }
-
-    private nothing recalcWidth() {
-        max_width = 0;
-        foreach string line in (lines) {
-            int w = Ncurses::Ansi::len(line);
-            if (w > max_width) {
-                max_width = w;
-            }
+        ++revision;
+        if (first >= max(256, lines.size() / 2)) {
+            lines = lines[first .. lines.size() - 1]; first = 0; reindex();
         }
     }
 }

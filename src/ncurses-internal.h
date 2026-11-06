@@ -98,10 +98,16 @@ constexpr int NC_INPUT_KEY = 2;
 constexpr int NC_INPUT_MOUSE = 3;
 constexpr int NC_INPUT_RESIZE = 4;
 constexpr int NC_INPUT_ALT = 5;
+constexpr int NC_INPUT_PASTE = 6;
 
 // Private input marker outside ncurses/Unicode key ranges. Mouse payloads must
 // follow ungetch's LIFO ordering, not ncurses's separate mouse-event ring.
 constexpr int NC_INJECTED_MOUSE = 0x40000000;
+constexpr int NC_INJECTED_PASTE = 0x40000001;
+// ncurses key-trie values are 16-bit even though ungetch() accepts full ints.
+constexpr int NC_PASTE_BEGIN = 0x7000;
+
+bool nc_valid_utf8(const char* text, size_t size, ExceptionSink* xsink);
 
 struct StyleSpec {
     bool has_fg = false;
@@ -137,7 +143,31 @@ public:
         cursor_request = cursor_request == std::numeric_limits<int64>::max() ? 1 : cursor_request + 1;
         return cursor_request;
     }
+    // One bounded, module-owned LIFO queue keeps all synthetic event types ordered.
+    // ncurses's full FIFO cannot reliably round-trip the final ungetch marker.
+    std::vector<int> injected_input;
+    size_t injected_paste_bytes = 0;
+    bool pushInput(int code, ExceptionSink* xsink);
+    int readInput(WINDOW* window);
+    QoreStringNode* readCharacter(WINDOW* window, int lead, ExceptionSink* xsink);
+    void injectAlt(const QoreString* text, ExceptionSink* xsink);
     std::vector<MEVENT> injected_mouse;
+    std::vector<std::string> injected_paste;
+    bool bracketed_paste = false;
+    bool raw_requested = false;
+    bool cbreak_requested = true;
+    size_t paste_limit = 1048576;
+    bool paste_active = false;
+    // 0 = valid, 1 = oversized, 2 = cancelled/failed and must be drained.
+    int paste_error = 0;
+    size_t paste_end_match = 0;
+    std::string paste_text;
+    void resetPaste();
+    void discardPaste();
+    bool consumePasteByte(unsigned char byte, ExceptionSink* xsink);
+    void appendPasteByte(unsigned char byte, ExceptionSink* xsink);
+    void injectPaste(const QoreString* text, ExceptionSink* xsink);
+    void setBracketedPaste(bool enabled, size_t limit, ExceptionSink* xsink);
 
     FILE* in_file = nullptr;
     FILE* out_file = nullptr;
@@ -150,6 +180,38 @@ public:
     short getColorPair(int fg, int bg, ExceptionSink* xsink);
     // Caller holds NcursesCallGuard for this session.
     void injectMouse(const MEVENT& event, ExceptionSink* xsink);
+};
+
+// Roll back an entire injected batch if validation, capacity, allocation or cancellation fails.
+class NcursesInputTransaction {
+    NcursesSession* session;
+    ExceptionSink* xsink;
+    size_t input_size, mouse_size, paste_size, paste_bytes;
+public:
+    NcursesInputTransaction(NcursesSession* s, ExceptionSink* x)
+        : session(s), xsink(x), input_size(s->injected_input.size()), mouse_size(s->injected_mouse.size()),
+          paste_size(s->injected_paste.size()), paste_bytes(s->injected_paste_bytes) {}
+    ~NcursesInputTransaction() {
+        if (*xsink) {
+            session->injected_input.resize(input_size);
+            session->injected_mouse.resize(mouse_size);
+            session->injected_paste.resize(paste_size);
+            session->injected_paste_bytes = paste_bytes;
+        }
+    }
+};
+
+// Disable key decoding once per paste read, restoring the caller's window mode on every exit.
+class NcursesPasteKeypadGuard {
+    NcursesSession* session;
+    WINDOW* window;
+    bool original;
+    bool changed = false;
+public:
+    NcursesPasteKeypadGuard(NcursesSession* s, WINDOW* w);
+    void disable() { if (original && !changed) { keypad(window, FALSE); changed = true; } }
+    void restore() { if (changed) { keypad(window, TRUE); changed = false; } }
+    ~NcursesPasteKeypadGuard();
 };
 
 class NcursesWindow : public AbstractPrivateData {

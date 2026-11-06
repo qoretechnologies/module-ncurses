@@ -107,6 +107,7 @@ public class EventDispatcher {
             "widget": w, "previous_focus": focus_mgr.getCurrentFocus(),
             "previous_scope": focus_mgr.getScope(), "popup": popup};
         modal_stack += entry;
+        w.markDirty();
         try {
             focus_mgr.setScope(w);
             *NcursesUi::Widget focused = w.findFocused();
@@ -152,6 +153,10 @@ public class EventDispatcher {
     }
 
     private nothing removeTop() {
+        foreach hash<NcursesUi::ModalFocusState> entry in (modal_stack) {
+            entry.widget.markDirty();
+            if (entry.previous_scope) { entry.previous_scope.markDirty(); }
+        }
         modal_stack = modal_stack.size() == 1 ? () : modal_stack[0 .. modal_stack.size() - 2];
     }
 

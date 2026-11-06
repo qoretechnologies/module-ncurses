@@ -122,7 +122,7 @@ public class BoxLayout {
         foreach NcursesUi::Widget child in (visible) {
             int policy = child.getVSizePolicy();
             if (policy == NcursesUi::SizePolicy::Fixed || policy == NcursesUi::SizePolicy::Minimum) {
-                int pref = child.getPreferredSize().rows;
+                int pref = child.getPreferredSizeForWidth(area.cols).rows;
                 int mn = child.getMinimumSize().rows;
                 int size = max(0, max(mn, pref));
                 fixed_total += size;
@@ -142,7 +142,7 @@ public class BoxLayout {
             int policy = child.getVSizePolicy();
             int child_rows;
             if (policy == NcursesUi::SizePolicy::Fixed || policy == NcursesUi::SizePolicy::Minimum) {
-                int pref = child.getPreferredSize().rows;
+                int pref = child.getPreferredSizeForWidth(area.cols).rows;
                 int mn = child.getMinimumSize().rows;
                 child_rows = max(0, max(mn, pref));
             } else {

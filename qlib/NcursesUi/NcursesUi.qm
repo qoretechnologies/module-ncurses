@@ -53,7 +53,9 @@ module NcursesUi {
     - A widget tree with parent-child relationships and focus management
     - Layout managers (@ref NcursesUi::BoxLayout "BoxLayout", @ref NcursesUi::SplitLayout "SplitLayout")
     - Unicode-aware terminal text measurement, clipping, and padding
-    - Scrollable content with scrollbar rendering
+    - Indexed scrollable content with retention and stable source identities
+    - Multiline editing, atomic paste, selection, undo and searchable draft history
+    - Searchable transcripts with logical blocks, tail following and link callbacks
     - Typed event dispatch with modal stack and mouse hit-testing
     - Standard UI components (list, text input, dialog, menu bar, status bar,
       file browser, combo box, checkbox, radio group, table)
@@ -74,7 +76,7 @@ module NcursesUi {
     via parent-child relationships. Each widget has:
     - A geometry rectangle (@ref NcursesUi::Rect "Rect") describing its position and size
     - A focus state (@ref NcursesUi::Widget::hasFocus() "hasFocus()" / @ref NcursesUi::Widget::setFocused() "setFocused()")
-    - A dirty flag that propagates up to the root to trigger redraws
+    - Local invalidation, with descendant dirtiness observed by ancestors
     - @ref NcursesUi::Widget::processEvent() "processEvent()" for handling input events
 
     Pass the root to @ref NcursesUi::Application::setRoot() "Application::setRoot()", then call
@@ -96,6 +98,10 @@ module NcursesUi {
     Configure a split with @ref NcursesUi::SplitLayout::setSplitRatio() "SplitLayout::setSplitRatio()"
     or @ref NcursesUi::SplitLayout::setFixedSize() "SplitLayout::setFixedSize()".
     For a complete list/status layout example, see @ref ncurses_ui_app "List and Status Application".
+
+    Vertical box layouts measure wrapped controls with getPreferredSizeForWidth()
+    before allocating rows. TextEditorWidget uses this to request its bounded
+    automatic height; other layouts may call the same measurement hook.
 
     Widget trees, input buffers, and focus managers belong to the application's
     UI thread. Update them from that thread and its callbacks; do not mutate

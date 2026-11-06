@@ -1,0 +1,177 @@
+#!/usr/bin/env qore
+# Copyright 2026 Qore Technologies, s.r.o.
+%modern
+%prepend-module-path "${SCRIPT_DIR}/../qlib"
+%requires ncurses
+%requires NcursesUi
+%requires QUnit
+%exec-class PasteTest
+class PasteTest inherits Test {
+    constructor() : Test("PasteTest", "1.0", \ARGV) {
+        addTestCase("native bracketed paste is one event with literal controls", \native());
+        addTestCase("fragmented payload and terminator survive read timeouts", \fragmented());
+        addTestCase("oversized paste is drained without leaking command keys", \limits());
+        addTestCase("synthetic paste ordering, empty payloads and queue overflow", \injection());
+        addTestCase("flush abandons partial paste and queued payloads", \flush());
+        addTestCase("invalid UTF-8 is rejected and ordinary input recovers", \encoding());
+        addTestCase("editor consumes a paste event without submitting", \editor());
+        addTestCase("failed injection batches roll back every event and payload", \atomic());
+        addTestCase("cancelled partial paste is drained before normal input resumes", \cancel());
+        addTestCase("large native paste survives partial PTY writes", \large());
+        addTestCase("native and injected Alt input preserve complete Unicode characters", \alt());
+        addTestCase("ordinary Enter normalizes CR while paste and Alt retain literal CR", \enter());
+        set_return_value(main());
+    }
+    enter() {
+        Ncurses::TestTerminal tt(10, 30); Ncurses::Session s = session(tt); on_exit s.close();
+        tt.writeInput("\r"); hash<Ncurses::InputEvent> ev = s.screen().readEvent(100, 5);
+        assertEq(Ncurses::InputType::Char, ev.type); assertEq("\n", ev.ch);
+        NcursesUi::ListWidget list(); list.setItems(({"text": "item"},)); assertEq("activate", list.processEvent(ev).action);
+        tt.writeInput("\e\r"); ev = s.screen().readEvent(100, 5); assertEq(Ncurses::InputType::Alt, ev.type); assertEq("\r", ev.ch);
+        tt.writeInput("\e[200~\r\e[201~"); ev = s.screen().readEvent(100, 5); assertEq(Ncurses::InputType::Paste, ev.type); assertEq("\r", ev.ch);
+        s.injectEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "\r"}); assertEq("\n", s.screen().readEvent(0, 1).ch);
+    }
+    private Ncurses::Session session(Ncurses::TestTerminal tt, int limit = 1048576) {
+        Ncurses::Session s({"test_terminal": tt, "bracketed_paste": True, "paste_limit": limit,
+            "raw": True, "cbreak": False, "echo": False}); s.flushInput(); return s;
+    }
+    alt() {
+        Ncurses::TestTerminal tt(10, 30); Ncurses::Session s = session(tt); on_exit s.close();
+        foreach string ch in (("é", "界", "😀", "\n")) {
+            tt.writeInput("\e" + ch); hash<Ncurses::InputEvent> ev = s.screen().readEvent(100, 5);
+            assertEq(Ncurses::InputType::Alt, ev.type); assertEq(ch, ev.ch);
+            s.injectEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Alt, "ch": ch});
+            ev = s.screen().readEvent(0, 1); assertEq(Ncurses::InputType::Alt, ev.type); assertEq(ch, ev.ch);
+        }
+        s.injectEvents((<Ncurses::InputEvent>{"type": Ncurses::InputType::Alt, "ch": "界"},
+            <Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "x"}));
+        assertEq("界", s.screen().readEvent(0, 1).ch); assertEq("x", s.screen().readEvent(0, 1).ch);
+        s.injectInput("kept");
+        foreach string invalid in (("ab", "\x03", "\x7f", "é")) {
+            assertThrows("NCURSES-ERROR", sub () { s.injectEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Alt, "ch": invalid}); });
+        }
+        foreach string ch in (("k", "e", "p", "t")) { assertEq(ch, s.screen().readEvent(0, 1).ch); }
+        s.injectInput("\e" + binary_to_string(<ff>) + "z");
+        hash<Ncurses::InputEvent> ev = s.screen().readEvent(0, 1); assertEq(Ncurses::InputType::Alt, ev.type); assertEq("�", ev.ch);
+        assertEq("z", s.screen().readEvent(0, 1).ch);
+    }
+    native() {
+        Ncurses::TestTerminal tt(10, 30); Ncurses::Session s = session(tt); on_exit s.close();
+        string text = "one\r\ntwo\x03\t界👩‍💻\e[A";
+        tt.writeInput("\e[200~" + text + "\e[201~z");
+        hash<Ncurses::InputEvent> ev = s.screen().readEvent(100, 5);
+        assertEq(Ncurses::InputType::Paste, ev.type); assertEq(text, ev.ch);
+        assertEq("z", s.screen().readEvent(100, 5).ch); assertNothing(s.screen().readEvent(0, 1));
+        s.setBracketedPaste(False); s.setBracketedPaste(True, 128);
+        tt.writeInput("\e[200~\e[201~"); assertEq("", s.screen().readEvent(100, 5).ch);
+    }
+    fragmented() {
+        Ncurses::TestTerminal tt(10, 30); Ncurses::Session s = session(tt); on_exit s.close();
+        tt.writeInput("\e[200~first"); assertNothing(s.screen().readEvent(0, 1));
+        assertThrows("NCURSES-PASTE-ERROR", sub () { s.setBracketedPaste(False); });
+        tt.writeInput("\n界\e[20"); assertNothing(s.screen().readEvent(0, 1));
+        tt.writeInput("2x\e[20"); assertNothing(s.screen().readEvent(0, 1));
+        tt.writeInput("1~"); hash<Ncurses::InputEvent> ev = s.screen().readEvent(100, 5);
+        assertEq(Ncurses::InputType::Paste, ev.type); assertEq("first\n界\e[202x", ev.ch);
+    }
+    limits() {
+        Ncurses::TestTerminal tt(10, 30); Ncurses::Session s = session(tt, 5); on_exit s.close();
+        tt.writeInput("\e[200~12345\e[201~"); assertEq("12345", s.screen().readEvent(100, 5).ch);
+        tt.writeInput("\e[200~123456\n\x03\e[201~x");
+        assertThrows("NCURSES-PASTE-LIMIT", sub () { s.screen().readEvent(100, 5); });
+        assertEq("x", s.screen().readEvent(100, 5).ch); assertNothing(s.screen().readEvent(0, 1));
+        assertThrows("NCURSES-PASTE-LIMIT", sub () { s.setBracketedPaste(True, 0); });
+        assertThrows("NCURSES-PASTE-LIMIT", sub () { s.setBracketedPaste(True, 67108865); });
+        assertThrows("NCURSES-PASTE-LIMIT", sub () { Ncurses::Session invalid({"paste_limit": -1}); });
+    }
+    injection() {
+        Ncurses::TestTerminal tt(10, 30); Ncurses::Session s = session(tt, 10000); on_exit s.close();
+        s.injectEvents((<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "a"},
+            <Ncurses::InputEvent>{"type": Ncurses::InputType::Paste, "ch": strmul("界", 2000)},
+            <Ncurses::InputEvent>{"type": Ncurses::InputType::Paste, "ch": ""},
+            <Ncurses::InputEvent>{"type": Ncurses::InputType::Key, "code": Ncurses::KEY_UP}));
+        assertEq("a", s.screen().readEvent(100, 5).ch);
+        assertEq(strmul("界", 2000), s.screen().readEvent(100, 5).ch);
+        hash<Ncurses::InputEvent> ev = s.screen().readEvent(100, 5); assertEq(Ncurses::InputType::Paste, ev.type); assertEq("", ev.ch);
+        assertEq("KEY_UP", s.screen().readEvent(100, 5).name);
+        assertThrows("NCURSES-PASTE-LIMIT", sub () { s.injectEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Paste, "ch": strmul("x", 10001)}); });
+        int accepted = 0; bool full = False;
+        for (int i = 0; i < 5000; ++i) {
+            try { s.injectEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Paste, "ch": string(i)}); ++accepted; }
+            catch (hash<ExceptionInfo> ex) { assertEq("NCURSES-ERROR", ex.err); full = True; break; }
+        }
+        assertTrue(full);
+        while (accepted) { --accepted; assertEq(string(accepted), s.screen().readEvent(100, 5).ch); }
+        assertNothing(s.screen().readEvent(0, 1));
+    }
+    flush() {
+        Ncurses::TestTerminal tt(10, 30); Ncurses::Session s = session(tt); on_exit s.close();
+        tt.writeInput("\e[200~partial"); assertNothing(s.screen().readEvent(0, 1)); s.flushInput();
+        s.injectEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Paste, "ch": "abandoned"}); s.flushInput();
+        s.injectEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "q"});
+        assertEq("q", s.screen().readEvent(100, 5).ch); assertNothing(s.screen().readEvent(0, 1));
+        tt.writeInput("\e[200~partial"); s.screen().readEvent(0, 1); s.close(); s.close();
+    }
+    encoding() {
+        Ncurses::TestTerminal tt(10, 30); Ncurses::Session s = session(tt); on_exit s.close();
+        foreach string bytes in (("\xc0\xaf", "\xed\xa0\x80", "\xf4\x90\x80\x80", "\xf5\x80\x80\x80", "\xe2")) {
+            tt.writeInput("\e[200~" + bytes + "\e[201~x");
+            assertThrows("NCURSES-PASTE-ERROR", sub () { s.screen().readEvent(100, 5); });
+            assertEq("x", s.screen().readEvent(100, 5).ch);
+        }
+        s.injectInput("\xc0\xafz"); assertEq("�", s.screen().readEvent(100, 5).ch); assertEq("z", s.screen().readEvent(100, 5).ch);
+    }
+    editor() {
+        Ncurses::TestTerminal tt(10, 30); Ncurses::Session s = session(tt); on_exit s.close();
+        NcursesUi::TextEditorWidget editor(); int submissions = 0; editor.setOnSubmit(sub (string text) { ++submissions; });
+        tt.writeInput("\e[200~one\ntwo\x03\e[201~");
+        editor.processEvent(s.screen().readEvent(100, 5)); assertEq("one\ntwo", editor.getText()); assertEq(0, submissions);
+        editor.getBuffer().undo(); assertEq("", editor.getText());
+    }
+    atomic() {
+        Ncurses::TestTerminal tt(10, 30); Ncurses::Session s = session(tt); on_exit s.close();
+        s.injectEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Paste, "ch": "before"});
+        assertThrows("NCURSES-ERROR", sub () {
+            s.injectEvents((<Ncurses::InputEvent>{"type": 999},
+                <Ncurses::InputEvent>{"type": Ncurses::InputType::Paste, "ch": "rolled back"},
+                <Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "x"}));
+        });
+        assertEq("before", s.screen().readEvent(100, 5).ch); assertNothing(s.screen().readEvent(0, 1));
+        s.injectInput("before"); assertThrows("NCURSES-ERROR", sub () { s.injectInput(strmul("x", 5000)); });
+        string result = ""; for (int i = 0; i < 6; ++i) { result += s.screen().readEvent(100, 5).ch; }
+        assertEq("before", result); assertNothing(s.screen().readEvent(0, 1));
+        s.injectEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Alt, "ch": "\n"});
+        hash<Ncurses::InputEvent> ev = s.screen().readEvent(100, 5); assertEq(Ncurses::InputType::Alt, ev.type); assertEq("\n", ev.ch);
+        s.injectEvents((<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "\xe2"},
+            <Ncurses::InputEvent>{"type": Ncurses::InputType::Key, "code": Ncurses::KEY_DOWN}));
+        assertEq("�", s.screen().readEvent(100, 5).ch); assertEq("KEY_DOWN", s.screen().readEvent(100, 5).name);
+    }
+    cancel() {
+        Ncurses::TestTerminal tt(10, 30); Ncurses::Session s = session(tt); on_exit s.close();
+        tt.writeInput("\e[200~partial"); assertNothing(s.screen().readEvent(0, 1));
+        Queue ready(); Queue go(); Queue result(); Counter done(1);
+        int tid = background sub () {
+            on_exit done.dec();
+            defer_thread_cancel(sub () { ready.push(True); go.get(); });
+            try { s.screen().readEvent(0, 1); result.push("NONE"); }
+            catch (hash<ExceptionInfo> ex) { clear_thread_cancel(); result.push(ex.err); }
+        }();
+        ready.get(); cancel_thread(tid, "paste cancellation test"); go.push(True); done.waitForZero();
+        assertEq("THREAD-CANCELLED", result.get());
+        tt.writeInput("discarded\n\x03\e[201~z"); assertEq("z", s.screen().readEvent(100, 5).ch);
+        assertNothing(s.screen().readEvent(0, 1));
+    }
+
+    large() {
+        Ncurses::TestTerminal tt(10, 30); Ncurses::Session s = session(tt); on_exit s.close();
+        string text = strmul("line 界 é\n", 10000); Queue result(); Counter done(1);
+        background sub () {
+            on_exit done.dec();
+            try { tt.writeInput("\e[200~" + text + "\e[201~"); result.push(True); }
+            catch (hash<ExceptionInfo> ex) { result.push(ex); }
+        }();
+        hash<Ncurses::InputEvent> ev = s.screen().readEvent(1000, 5);
+        done.waitForZero(); assertEq(True, result.get()); assertEq(Ncurses::InputType::Paste, ev.type); assertEq(text, ev.ch);
+    }
+
+}

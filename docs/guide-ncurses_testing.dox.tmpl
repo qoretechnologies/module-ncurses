@@ -16,8 +16,13 @@
     Each event is delivered once, with mouse coordinates and button state preserved. A batch
     is read in list order; separate injections push input ahead of already pending events.
     @ref Qore::Ncurses::Session::flushInput() "Session::flushInput()" discards pending input.
-    Mouse injection raises \c NCURSES-ERROR if the native input queue is full; flush input
-    before retrying after that error. Keep batches small and consume them between injections.
+    The module queue holds 4,096 input entries; a Paste event occupies one entry and
+    queued paste payloads share a 64 MiB bound. Injection failure rolls back the entire
+    call, preserving previously queued events. Consume pending input before retrying.
+    Paste payloads use the session byte limit (1 MiB by default); inject them with
+    InputType::Paste and the complete text in the \c ch field. Alt events accept one
+    Unicode character or Enter. TestTerminal::writeInput() handles partial PTY writes;
+    large input should be produced concurrently with the reader.
     Injection avoids keyboard timing and does not need a human-operated terminal. This complete
     test covers drawing, character input, mouse input, and a timeout:
 

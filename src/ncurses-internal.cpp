@@ -5,6 +5,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <poll.h>
 #include <stdlib.h>
 #include <sys/select.h>
 #include <unistd.h>
@@ -157,7 +158,7 @@ private:
             }
             if (FD_ISSET(master_fd, &rfds)) {
                 ssize_t n = ::read(master_fd, buf, sizeof(buf));
-                if (n < 0 && errno == EINTR) {
+                if (n < 0 && (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK)) {
                     continue;
                 }
                 if (n <= 0) {
@@ -170,6 +171,70 @@ private:
 
 NcursesSession::NcursesSession() = default;
 
+NcursesPasteKeypadGuard::NcursesPasteKeypadGuard(NcursesSession* s, WINDOW* w) : session(s), window(w) {
+    NcursesCallGuard guard(session); original = is_keypad(window);
+    if (session->paste_active) { disable(); }
+}
+
+NcursesPasteKeypadGuard::~NcursesPasteKeypadGuard() {
+    NcursesCallGuard guard(session); restore();
+}
+
+bool NcursesSession::pushInput(int code, ExceptionSink* xsink) {
+    if (*xsink) { return false; }
+    if (injected_input.size() >= 4096) {
+        xsink->raiseException("NCURSES-ERROR", "injected input queue exceeds 4096 entries"); return false;
+    }
+    try { injected_input.push_back(code); }
+    catch (const std::bad_alloc&) { xsink->raiseException("NCURSES-ERROR", "cannot allocate injected input"); return false; }
+    return true;
+}
+
+int NcursesSession::readInput(WINDOW* window) {
+    if (injected_input.empty()) { return wgetch(window); }
+    int result = injected_input.back(); injected_input.pop_back(); return result;
+}
+
+QoreStringNode* NcursesSession::readCharacter(WINDOW* window, int lead, ExceptionSink* xsink) {
+    char bytes[4] = {static_cast<char>(lead), 0, 0, 0};
+    int extra = lead < 0x80 ? 0 : lead >= 0xc0 && lead <= 0xdf ? 1
+        : lead >= 0xe0 && lead <= 0xef ? 2 : lead >= 0xf0 && lead <= 0xf7 ? 3 : -1;
+    bool valid = extra >= 0;
+    for (int i = 0; i < extra; ++i) {
+        if (qore_check_cancel(xsink, "reading terminal character")) { return nullptr; }
+        wtimeout(window, 50);
+        int next = readInput(window);
+        if (next < 0 || next > 255 || (next & 0xc0) != 0x80) {
+            valid = false;
+            if (next != ERR && !pushInput(next, xsink)) { return nullptr; }
+            break;
+        }
+        bytes[i + 1] = static_cast<char>(next);
+    }
+    if (valid) { valid = nc_valid_utf8(bytes, static_cast<size_t>(extra + 1), xsink); }
+    if (*xsink) { return nullptr; }
+    return valid ? new QoreStringNode(bytes, extra + 1, QCS_UTF8)
+        : new QoreStringNode("\xEF\xBF\xBD", QCS_UTF8);
+}
+
+void NcursesSession::injectAlt(const QoreString* text, ExceptionSink* xsink) {
+    TempEncodingHelper utf8(text, QCS_UTF8, xsink);
+    if (*xsink) { return; }
+    if (!utf8->size() || utf8->size() > 4 || !nc_valid_utf8(utf8->c_str(), utf8->size(), xsink)) {
+        if (!*xsink) { xsink->raiseException("NCURSES-ERROR", "Alt input requires one valid UTF-8 character"); }
+        return;
+    }
+    unsigned char lead = static_cast<unsigned char>(utf8->c_str()[0]);
+    size_t size = lead < 0x80 ? 1 : lead < 0xe0 ? 2 : lead < 0xf0 ? 3 : 4;
+    if (utf8->size() != size || (lead < 32 && lead != 10 && lead != 13) || lead == 127) {
+        xsink->raiseException("NCURSES-ERROR", "Alt input requires one printable character or Enter"); return;
+    }
+    for (size_t i = utf8->size(); i > 0; --i) {
+        if (!pushInput(static_cast<unsigned char>(utf8->c_str()[i - 1]), xsink)) { return; }
+    }
+    pushInput(27, xsink);
+}
+
 void NcursesSession::injectMouse(const MEVENT& event, ExceptionSink* xsink) {
     // Keep synthetic payloads in the same order as their markers. ungetmouse()
     // has a separate bounded ring, so batches can otherwise reverse payloads
@@ -180,10 +245,109 @@ void NcursesSession::injectMouse(const MEVENT& event, ExceptionSink* xsink) {
         xsink->raiseException("NCURSES-ERROR", "cannot allocate an injected mouse event");
         return;
     }
-    if (ungetch(NC_INJECTED_MOUSE) == ERR) {
+    if (!pushInput(NC_INJECTED_MOUSE, xsink)) {
         injected_mouse.pop_back();
-        xsink->raiseException("NCURSES-ERROR", "input queue is full while injecting a mouse event");
     }
+}
+
+// Strict UTF-8 validation prevents malformed pasted bytes becoming invalid Qore strings.
+bool nc_valid_utf8(const char* text, size_t size, ExceptionSink* xsink) {
+    size_t iterations = 0;
+    for (size_t i = 0; i < size; ++i) {
+        if (++iterations % 100 == 0 && qore_check_cancel(xsink, "validating terminal input")) { return false; }
+        unsigned char lead = static_cast<unsigned char>(text[i]);
+        if (lead < 0x80) { continue; }
+        int count = lead >= 0xc2 && lead <= 0xdf ? 1 : lead >= 0xe0 && lead <= 0xef ? 2
+            : lead >= 0xf0 && lead <= 0xf4 ? 3 : -1;
+        if (count < 0 || static_cast<size_t>(count) >= size - i) { return false; }
+        unsigned char second = static_cast<unsigned char>(text[i + 1]);
+        if ((lead == 0xe0 && second < 0xa0) || (lead == 0xed && second >= 0xa0)
+                || (lead == 0xf0 && second < 0x90) || (lead == 0xf4 && second >= 0x90)) { return false; }
+        for (int j = 0; j < count; ++j) {
+            if ((static_cast<unsigned char>(text[++i]) & 0xc0) != 0x80) { return false; }
+        }
+    }
+    return true;
+}
+
+void NcursesSession::resetPaste() {
+    paste_active = false; paste_error = 0; paste_end_match = 0; paste_text.clear();
+}
+
+void NcursesSession::discardPaste() {
+    if (paste_active) { paste_error = 2; paste_text.clear(); }
+}
+
+void NcursesSession::appendPasteByte(unsigned char byte, ExceptionSink* xsink) {
+    if (paste_error) { return; }
+    if (paste_text.size() >= paste_limit) { paste_error = 1; paste_text.clear(); return; }
+    try {
+        paste_text += static_cast<char>(byte);
+    } catch (const std::bad_alloc&) {
+        discardPaste();
+        xsink->raiseException("NCURSES-PASTE-ERROR", "cannot allocate pasted input");
+    }
+}
+
+bool NcursesSession::consumePasteByte(unsigned char byte, ExceptionSink* xsink) {
+    static const char end[] = "\x1b[201~";
+    if (byte == static_cast<unsigned char>(end[paste_end_match])) {
+        return ++paste_end_match == sizeof(end) - 1;
+    }
+    for (size_t i = 0; i < paste_end_match; ++i) {
+        appendPasteByte(static_cast<unsigned char>(end[i]), xsink);
+        if (*xsink) { paste_end_match = 0; return false; }
+    }
+    paste_end_match = 0;
+    if (byte == 27) { paste_end_match = 1; }
+    else { appendPasteByte(byte, xsink); }
+    return false;
+}
+
+void NcursesSession::injectPaste(const QoreString* text, ExceptionSink* xsink) {
+    if (paste_active) { xsink->raiseException("NCURSES-PASTE-ERROR", "a native paste is already in progress"); return; }
+    TempEncodingHelper utf8(text, QCS_UTF8, xsink);
+    if (*xsink) { return; }
+    if (utf8->size() > paste_limit || utf8->size() > 67108864 - injected_paste_bytes) {
+        xsink->raiseException("NCURSES-PASTE-LIMIT", "paste exceeds the %zu byte limit", paste_limit); return;
+    }
+    if (!nc_valid_utf8(utf8->c_str(), utf8->size(), xsink)) {
+        if (!*xsink) { xsink->raiseException("NCURSES-PASTE-ERROR", "paste is not valid UTF-8"); }
+        return;
+    }
+    try {
+        injected_paste.emplace_back(utf8->c_str(), utf8->size());
+    } catch (const std::bad_alloc&) {
+        xsink->raiseException("NCURSES-PASTE-ERROR", "cannot allocate an injected paste"); return;
+    }
+    if (!pushInput(NC_INJECTED_PASTE, xsink)) { injected_paste.pop_back(); return; }
+    injected_paste_bytes += utf8->size();
+}
+
+void NcursesSession::setBracketedPaste(bool enabled, size_t limit, ExceptionSink* xsink) {
+    if (limit < 1 || limit > 67108864) {
+        xsink->raiseException("NCURSES-PASTE-LIMIT", "paste limit must be between 1 and 67108864 bytes"); return;
+    }
+    if (paste_active) { xsink->raiseException("NCURSES-PASTE-ERROR", "cannot change paste settings during a paste"); return; }
+    if (enabled != bracketed_paste) {
+        if (qore_check_cancel(xsink, "configuring bracketed paste")) { return; }
+        // Bracketed payload bytes must bypass termios signal/CR handling as well as
+        // ncurses's CR-to-LF translation. Restore the requested input mode on disable.
+        if (enabled) { raw(); nonl(); }
+        else {
+            nl();
+            if (raw_requested) { raw(); }
+            else { noraw(); if (cbreak_requested) { cbreak(); } else { nocbreak(); } }
+        }
+        FILE* output = out_file ? out_file : stdout;
+        const char* sequence = enabled ? "\x1b[?2004h" : "\x1b[?2004l";
+        if (enabled) { bracketed_paste = true; }
+        if (fputs(sequence, output) == EOF || fflush(output) == EOF) {
+            xsink->raiseErrnoException("NCURSES-ERROR", errno, "cannot configure terminal bracketed paste"); return;
+        }
+        bracketed_paste = enabled;
+    }
+    paste_limit = limit;
 }
 
 NcursesSession::~NcursesSession() {
@@ -220,6 +384,12 @@ void NcursesSession::close(ExceptionSink* xsink) {
     NcursesLockHelper al;
     if (screen) {
         set_term(screen);
+        if (bracketed_paste) {
+            FILE* output = out_file ? out_file : stdout;
+            fputs("\x1b[?2004l", output);
+            fflush(output);
+            bracketed_paste = false;
+        }
         endwin();
         // delscreen() is deferred to ~NcursesSession; see comment there.
     }
@@ -233,7 +403,7 @@ void NcursesSession::close(ExceptionSink* xsink) {
     }
     cursor_win = nullptr;
     cursor_set = false;
-    injected_mouse.clear();
+    injected_input.clear(); injected_mouse.clear(); injected_paste.clear(); injected_paste_bytes = 0; resetPaste();
     closed = true;
 }
 
@@ -377,7 +547,15 @@ void NcursesTestTerminal::open(ExceptionSink* xsink) {
     }
     master_fd = mfd;
     slave_fd = sfd;
-    drain = new NcursesTestTerminalDrain(master_fd);
+    int flags = fcntl(master_fd, F_GETFL);
+    if (flags < 0 || fcntl(master_fd, F_SETFL, flags | O_NONBLOCK) < 0) {
+        int error = errno; close(xsink);
+        xsink->raiseErrnoException("NCURSES-TEST-ERROR", error, "cannot make test-terminal input nonblocking"); return;
+    }
+    try { drain = new NcursesTestTerminalDrain(master_fd); }
+    catch (const std::bad_alloc&) {
+        close(xsink); xsink->raiseException("NCURSES-TEST-ERROR", "cannot allocate terminal output reader"); return;
+    }
     if (!drain->running()) {
         xsink->raiseException("NCURSES-TEST-ERROR", "cannot start the thread that reads the output of the "
             "pseudo-terminal");
@@ -429,9 +607,26 @@ void NcursesTestTerminal::writeInput(const QoreString* data, ExceptionSink* xsin
     if (!data || !data->size()) {
         return;
     }
-    ssize_t rc = ::write(master_fd, data->c_str(), data->size());
-    if (rc < 0) {
-        xsink->raiseErrnoException("NCURSES-TEST-ERROR", errno, "write() failed");
+    size_t offset = 0;
+    while (offset < data->size()) {
+        if (qore_check_cancel(xsink, "writing test-terminal input")) { return; }
+        ssize_t rc = ::write(master_fd, data->c_str() + offset, data->size() - offset);
+        if (rc > 0) { offset += static_cast<size_t>(rc); continue; }
+        if (rc < 0 && errno == EINTR) { continue; }
+        if (rc < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+            struct pollfd descriptor = {master_fd, POLLOUT, 0};
+#ifdef _QORE_HAS_CANCELLABLE_POLL
+            int ready = qore_cancellable_poll(&descriptor, 1, -1, xsink, "writing test-terminal input");
+            if (ready == QORE_POLL_CANCELLED) { return; }
+#else
+            int ready = poll(&descriptor, 1, QORE_IO_POLL_INTERVAL_MS);
+#endif
+            if (ready < 0 && errno != EINTR) {
+                xsink->raiseErrnoException("NCURSES-TEST-ERROR", errno, "poll() failed"); return;
+            }
+            continue;
+        }
+        xsink->raiseErrnoException("NCURSES-TEST-ERROR", rc == 0 ? EIO : errno, "write() failed"); return;
     }
 }
 

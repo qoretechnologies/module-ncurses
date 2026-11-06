@@ -1,0 +1,156 @@
+#!/usr/bin/env qore
+# Copyright 2026 Qore Technologies, s.r.o.
+%modern
+%prepend-module-path "${SCRIPT_DIR}/../qlib"
+%requires ncurses
+%requires NcursesUi
+%requires QUnit
+%include "test/TestHarness.qc"
+%exec-class EditorTest
+class EditorProbe inherits NcursesUi::TextEditorWidget {
+    public { *Ncurses::Window painted_window; }
+    nothing draw(Ncurses::Window w) { painted_window = w; TextEditorWidget::draw(w); }
+    hash<Ncurses::Position> screenCursor() {
+        hash<Ncurses::Position> pos = painted_window.cursor(); hash<Ncurses::Position> origin = painted_window.position();
+        pos.y += origin.y; pos.x += origin.x; return pos;
+    }
+}
+class EditorTest inherits Test {
+    constructor() : Test("EditorTest", "1.0", \ARGV) {
+        addTestCase("selection and undo operate on full graphemes", \selection());
+        addTestCase("limits and callbacks preserve draft selection and undo", \failures());
+        addTestCase("searchable history restores unfinished draft", \history());
+        addTestCase("hard and soft rows use consistent cursor and mouse geometry", \geometry());
+        addTestCase("vertical movement retains preferred display column", \vertical());
+        addTestCase("paste and submit are distinct atomic operations", \pasteSubmit());
+        addTestCase("selection highlighting and clipped editor focus stay correct", \display());
+        addTestCase("word and hard line edits preserve undo and grapheme boundaries", \wordEdits());
+        addTestCase("styled prompts share wrapping and caret geometry before paint", \prompts());
+        set_return_value(main());
+    }
+    selection() {
+        NcursesUi::EditorBuffer b(); b.setText("Aé界👩‍💻Z"); b.select(2, 5);
+        assertEq("é界👩‍💻", b.selectedText()); b.insert("new\nline"); assertEq("Anew\nlineZ", b.getText());
+        assertTrue(b.undo()); assertEq("Aé界👩‍💻Z", b.getText()); assertEq("é界👩‍💻", b.selectedText());
+        assertTrue(b.redo()); assertEq("Anew\nlineZ", b.getText()); b.moveHorizontal(False, True);
+        assertEq("e", b.selectedText()); b.erase(); assertEq("Anew\nlinZ", b.getText());
+        b.setText("é👩‍💻"); b.erase(); assertEq("é", b.getText()); b.setCursor(0); b.erase(True); assertEq("", b.getText());
+        b.undo(); b.setCursor(0); b.moveHorizontal(True, True); assertEq("é", b.selectedText());
+        string copied; b.cutSelection(sub (string text) { copied = text; }); assertEq("é", copied); assertEq("", b.getText());
+        b.pasteClipboard(string sub () { return "one\ntwo"; }); assertEq("one\ntwo", b.getText());
+    }
+    failures() {
+        NcursesUi::EditorBuffer b(); b.setText("draft"); b.select(1, 3); hash<NcursesUi::EditorSnapshot> before = b.snapshot();
+        b.setLimits(8, 2); assertThrows("EDITOR-LIMIT-ERROR", sub () { b.insert(strmul("x", 10)); }); assertEq(before, b.snapshot());
+        assertThrows("CLIPBOARD-ERROR", sub () { b.cutSelection(sub (string text) { throw "CLIPBOARD-ERROR", "failure"; }); });
+        assertEq(before, b.snapshot());
+        assertThrows("SUBMIT-ERROR", sub () { b.submit(sub (string text) { throw "SUBMIT-ERROR", "failure"; }); });
+        assertEq(before, b.snapshot());
+        assertThrows("EDITOR-BUSY-ERROR", sub () { b.submit(sub (string text) { b.setText("changed"); }); }); assertEq(before, b.snapshot());
+        assertThrows("EDITOR-BUSY-ERROR", sub () { b.pasteClipboard(string sub () { b.insert("x"); return "y"; }); }); assertEq(before, b.snapshot());
+        b.insert("X"); b.insert("Y"); b.insert("Z"); assertTrue(b.undo()); assertTrue(b.undo()); assertFalse(b.undo());
+        assertThrows("EDITOR-LIMIT-ERROR", sub () { b.setLimits(0); }); assertThrows("EDITOR-LIMIT-ERROR", sub () { b.setLimits(8, -1); });
+    }
+    history() {
+        NcursesUi::EditorBuffer b(); b.setHistory(("first command", "second", "last command"));
+        b.setText("unfinished"); b.select(2, 5); hash<NcursesUi::EditorSnapshot> draft = b.snapshot();
+        assertTrue(b.historyMove(False, "command")); assertEq("last command", b.getText());
+        assertTrue(b.historyMove(False, "command")); assertEq("first command", b.getText());
+        assertFalse(b.historyMove(False, "missing")); assertEq("first command", b.getText());
+        assertTrue(b.historyMove(True, "command")); assertEq("last command", b.getText());
+        assertTrue(b.historyMove(True, "command")); assertEq(draft, b.snapshot()); assertFalse(b.historyMove(True));
+        b.setHistory(()); assertFalse(b.historyMove()); assertEq(draft, b.snapshot());
+    }
+    private hash<Ncurses::InputEvent> key(string name) { return <Ncurses::InputEvent>{"type": Ncurses::InputType::Key, "name": name}; }
+    wordEdits() {
+        NcursesUi::EditorBuffer b(); b.setText("one é界\nthree"); b.moveWord(False, True);
+        assertEq("three", b.selectedText()); b.eraseWord(); assertEq("one é界\n", b.getText());
+        assertTrue(b.undo()); assertEq("three", b.selectedText()); b.setCursor(0); b.moveWord(True);
+        assertEq(4, b.getCursor()); b.eraseWord(True); assertEq("one three", b.getText());
+        assertTrue(b.undo()); b.setCursor(4); b.killToBoundary(); assertEq("one \nthree", b.getText());
+        b.killToBoundary(); assertEq("one three", b.getText()); b.undo(); b.undo();
+        b.setCursor(8); b.killToBoundary(False); assertEq("one é界three", b.getText());
+        b.undo(); b.setCursor(6); b.killToBoundary(False); assertEq("界\nthree", b.getText());
+        b.setCursor(0); b.killToBoundary(False); assertEq("", b.selectedText());
+    }
+    prompts() {
+        NcursesUi::TestHarness th(10, 20); on_exit th.close();
+        EditorProbe editor(); editor.setShowScrollbar(False); editor.setFocused(True); editor.setFrameValues(2, 3, 2, 6);
+        editor.setPrompt("\x1b[32m界> \x1b[0m"); editor.setText("éabc");
+        assertEq(2, editor.getPreferredSizeForWidth(6).rows);
+        assertEq(<Ncurses::Position>{"y": 3, "x": 7}, editor.getCaretScreenPosition());
+        editor.drawTree(th.screen()); th.session().doupdate(); assertEq(editor.getCaretScreenPosition(), editor.screenCursor());
+        editor.setCursorAt(2, 3); assertEq(0, editor.getBuffer().getCursor());
+        editor.setCursorAt(2, 7); assertEq(0, editor.getBuffer().getCursor());
+        editor.setCursorAt(3, 4); assertEq(2, editor.getBuffer().getCursor());
+        editor.setText("abc\n界"); editor.processEvent(key("KEY_HOME")); assertEq(4, editor.getBuffer().getCursor());
+        editor.setFrameValues(6, 1, 2, 10); editor.getBuffer().setCursor(5);
+        assertEq(<Ncurses::Position>{"y": 7, "x": 3}, editor.getCaretScreenPosition());
+        editor.setPrompt(""); assertEq(<Ncurses::Position>{"y": 7, "x": 3}, editor.getCaretScreenPosition());
+        editor.drawTree(th.screen()); editor.translate(-4, 2);
+        assertEq(<Ncurses::Position>{"y": 3, "x": 5}, editor.getCaretScreenPosition());
+        assertThrows("EDITOR-PROMPT-ERROR", sub () { editor.setPrompt("bad\nprompt"); });
+        editor.setFrameValues(0, 0, 0, 0); assertEq(NOTHING, editor.getCaretScreenPosition());
+        NcursesUi::Widget parent(); parent.setFrameValues(0, 0, 2, 4); parent.addChild(editor);
+        editor.setFrameValues(0, 0, 4, 10); editor.setText("abcdef"); parent.drawTree(th.screen());
+        parent.setFrameValues(0, 0, 4, 10);
+        assertEq(10, editor.getViewportRect().cols);
+        assertEq(<Ncurses::Position>{"y": 0, "x": 6}, editor.getCaretScreenPosition());
+    }
+    geometry() {
+        NcursesUi::TestHarness th(8, 20); on_exit th.close();
+        EditorProbe editor(); editor.setFrameValues(1, 2, 3, 5); editor.setShowScrollbar(False); editor.setFocused(True);
+        editor.setText("abcde\n界é"); editor.drawTree(th.screen());
+        assertEq("abcde", th.screen().readText(1, 2, 5)); assertEq("     ", th.screen().readText(2, 2, 5));
+        th.session().doupdate(); assertEq(<Ncurses::Position>{"y": 3, "x": 5}, editor.screenCursor());
+        editor.getBuffer().setCursor(5); editor.drawTree(th.screen());
+        assertEq(<Ncurses::Position>{"y": 2, "x": 2}, editor.screenCursor());
+        editor.setCursorAt(3, 3); assertEq(6, editor.getBuffer().getCursor());
+        editor.setCursorAt(3, 4); assertEq(7, editor.getBuffer().getCursor());
+        editor.setText("a\n"); editor.drawTree(th.screen()); assertEq(1, editor.getCursorPos().line);
+        editor.setAutoHeight(2, 4); assertEq(2, editor.getPreferredSize().rows);
+        editor.setText(strmul("x", 60)); assertEq(4, editor.getPreferredSize().rows); editor.drawTree(th.screen());
+        assertTrue(editor.getScrollY() > 0);
+        hash<Ncurses::Position> cursor = editor.screenCursor(); assertTrue(cursor.y >= 1 && cursor.y < 4 && cursor.x >= 2 && cursor.x < 7);
+        editor.setFrameValues(1, 2, 2, 3); editor.drawTree(th.screen());
+        cursor = editor.screenCursor(); assertTrue(cursor.y >= 1 && cursor.y < 3 && cursor.x >= 2 && cursor.x < 5);
+        assertThrows("EDITOR-SIZE-ERROR", sub () { editor.setAutoHeight(0, 2); });
+    }
+    vertical() {
+        EditorProbe editor(); editor.setFrameValues(0, 0, 8, 10); editor.setShowScrollbar(False);
+        editor.setText("abcdef\nx\n界abcdef"); editor.getBuffer().setCursor(5);
+        editor.moveVertical(1); assertEq(8, editor.getBuffer().getCursor());
+        editor.moveVertical(1); assertEq(13, editor.getBuffer().getCursor());
+        editor.moveVertical(-1); assertEq(8, editor.getBuffer().getCursor());
+        editor.moveVertical(-1, True); assertEq(5, editor.getBuffer().getCursor()); assertEq("f\nx", editor.getBuffer().selectedText());
+        editor.processEvent(key("KEY_LEFT")); assertEq(5, editor.getBuffer().getCursor());
+        editor.processEvent(key("KEY_HOME")); assertEq(0, editor.getBuffer().getCursor());
+        editor.processEvent(key("KEY_END")); assertEq(6, editor.getBuffer().getCursor());
+    }
+    pasteSubmit() {
+        EditorProbe editor(); int submissions = 0; string submitted;
+        editor.setOnSubmit(sub (string text) { ++submissions; submitted = text; });
+        editor.insertPaste("one\r\ntwo\tthree\x03\x1b"); assertEq("one\ntwo    three", editor.getText()); assertEq(0, submissions);
+        editor.getBuffer().undo(); assertEq("", editor.getText()); editor.getBuffer().redo();
+        editor.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "\n"});
+        assertEq(1, submissions); assertEq(editor.getText(), submitted);
+        editor.setEnterSubmits(False); editor.processEvent(key("KEY_ENTER")); assertTrue(editor.getText().substr(editor.getText().length() - 1) == "\n"); assertEq(1, submissions);
+        editor.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Alt, "ch": "\n"}); assertEq(2, submissions);
+        editor.getBuffer().select(1, 4); hash<NcursesUi::EditorSnapshot> before = editor.getBuffer().snapshot();
+        editor.setOnSubmit(sub (string text) { throw "SUBMIT-ERROR", "failure"; });
+        assertThrows("SUBMIT-ERROR", sub () { editor.submit(); }); assertEq(before, editor.getBuffer().snapshot());
+    }
+    display() {
+        NcursesUi::TestHarness th(8, 20); on_exit th.close();
+        NcursesUi::Widget parent(); parent.setFrameValues(1, 3, 3, 6);
+        EditorProbe editor(); editor.setFrameValues(0, 1, 6, 15); editor.setShowScrollbar(False);
+        parent.addChild(editor); editor.setFocused(True); editor.setText("abcdefghij"); parent.drawTree(th.screen());
+        hash<Ncurses::Position> cursor = editor.screenCursor(); assertTrue(cursor.y >= 1 && cursor.y < 4 && cursor.x >= 3 && cursor.x < 9);
+        assertEq(NcursesUi::Geometry::makeRect(1, 3, 3, 6), editor.getViewportRect());
+        editor.getBuffer().select(0, 3); parent.drawTree(th.screen()); assertFalse(parent.isDirty());
+        assertEq("abcdef", th.screen().readText(1, 3, 6));
+        editor.setFocused(False); parent.drawTree(th.screen()); assertNothing(editor.getCursorPos());
+        parent.setFrameValues(0, 0, 0, 0); parent.drawTree(th.screen()); assertFalse(parent.isDirty());
+    }
+
+}
