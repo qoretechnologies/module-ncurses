@@ -168,3 +168,29 @@ python3 test/test_tree_tested.py
 ## License
 
 MIT.
+
+## Focus and Unicode input
+
+Use `Application.getFocusManager().setFocus(widget)` to select an input, including
+one nested inside non-focusable containers. Clicking an input transfers focus and
+places its caret using terminal display columns. Hidden or disabled subtrees are
+excluded from focus traversal; removing or reparenting a subtree clears focus.
+
+`pushModal(widget)` captures input and keeps Tab/Shift+Tab in that subtree. A
+control with internal Tab navigation gets the key first. Nested modal removal
+restores the previous eligible control. Use `pushPopup(widget)` for menus that
+should dismiss on an outside primary click and pass that click through. Explicit
+global handlers still run first, including during modal operation.
+
+`InputBuffer` and both input widgets move and delete complete Unicode graphemes.
+`getCursor()` still returns a Qore character offset, not a byte or grapheme index.
+`setCursor()` snaps partial clusters backward; `replaceRange(start, end, text)`
+expands partial selections to whole clusters. `NcursesReplUi::TextPosition`
+converts between these offsets and display columns. Combining accents, emoji
+modifiers, regional-indicator pairs, and joined emoji therefore remain intact.
+
+`Session.setCursor(visibility)` returns the previous visibility (or `-1` for an
+unsupported request). Applications can ignore the result as before. Modal text
+inputs show their caret; closing the last modal restores the prior visibility.
+Focus callbacks that raise leave no stale owner; nested focus/modal transitions
+from a focus callback raise an explicit error.

@@ -47,6 +47,8 @@ public class Widget {
 
         #! visibility flag
         bool visible = True;
+        #! disabled subtrees do not receive input or focus
+        bool enabled = True;
         #! whether this widget can receive focus
         bool focusable = False;
         #! whether this widget currently has focus
@@ -81,20 +83,34 @@ public class Widget {
     }
 
     /** Adds a child widget. Sets the child's parent to this widget.
-        @param child the widget to add
+        @param child the widget to add; existing children are not duplicated
+        @throw WIDGET-TREE-ERROR if the operation would create a cycle
         @since ncurses 1.0
     */
     nothing addChild(NcursesUi::Widget child) {
-        child.setParent(self);
+        if (child.containsWidget(self)) {
+            throw "WIDGET-TREE-ERROR", "A widget cannot contain itself or an ancestor";
+        }
+        if (child.parent_widget == self) {
+            return;
+        }
+        if (child.parent_widget) {
+            child.parent_widget.removeChild(child);
+        }
         children += child;
+        child.parent_widget = self;
         markDirty();
     }
 
-    /** Removes a child widget. Clears the child's parent reference.
+    /** Removes a child and clears focus in the detached subtree.
+        Removing a non-child has no effect. Reparenting also clears its focus.
         @param child the widget to remove
         @since ncurses 1.0
     */
     nothing removeChild(NcursesUi::Widget child) {
+        if (child.parent_widget != self) {
+            return;
+        }
         list<NcursesUi::Widget> out = ();
         foreach NcursesUi::Widget c in (children) {
             if (c != child) {
@@ -102,23 +118,43 @@ public class Widget {
             }
         }
         children = out;
-        child.clearParent();
+        child.parent_widget = NOTHING;
         markDirty();
+        child.clearFocusTree();
     }
 
-    /** Sets the parent reference (called by addChild).
-        @param p the parent widget
+    /** Reparents this widget, updating both sides of the tree.
+        @param p the new parent
+        @throw WIDGET-TREE-ERROR if the operation would create a cycle
         @since ncurses 1.0
     */
     nothing setParent(NcursesUi::Widget p) {
-        parent_widget = p;
+        p.addChild(self);
     }
 
-    /** Clears the parent reference (called by removeChild).
+    /** Detaches this widget from its parent and clears subtree focus.
         @since ncurses 1.0
     */
     nothing clearParent() {
-        parent_widget = NOTHING;
+        if (parent_widget) {
+            parent_widget.removeChild(self);
+        }
+    }
+
+    /** Tests whether a widget belongs to this subtree, including this widget.
+        @param w widget to locate
+        @return True for this widget or a descendant
+        @since ncurses 1.0
+    */
+    bool containsWidget(NcursesUi::Widget w) {
+        *NcursesUi::Widget item = w;
+        while (item) {
+            if (item == self) {
+                return True;
+            }
+            item = item.getParent();
+        }
+        return False;
     }
 
     /** Returns the number of children.
@@ -197,6 +233,9 @@ public class Widget {
         if (visible != v) {
             visible = v;
             markDirty();
+            if (!v) {
+                clearFocusTree();
+            }
         }
     }
 
@@ -213,13 +252,16 @@ public class Widget {
     */
     nothing setFocusable(bool v) {
         focusable = v;
+        if (!v) {
+            setFocused(False);
+        }
     }
 
     /** Returns whether this widget can receive focus.
         @since ncurses 1.0
     */
     bool isFocusable() {
-        return focusable && visible;
+        return focusable && isAvailable();
     }
 
     /** Sets the focused state directly.
@@ -227,11 +269,17 @@ public class Widget {
         @since ncurses 1.0
     */
     nothing setFocused(bool v) {
+        v = v && isFocusable();
         if (focused != v) {
             focused = v;
             markDirty();
             if (v) {
-                onFocusIn();
+                try {
+                    onFocusIn();
+                } catch (hash<ExceptionInfo> ex) {
+                    focused = False;
+                    rethrow;
+                }
             } else {
                 onFocusOut();
             }
@@ -243,6 +291,64 @@ public class Widget {
     */
     bool hasFocus() {
         return focused;
+    }
+
+    /** Enables or disables this widget and input to its descendants.
+        @param v True to enable input; disabling clears subtree focus
+        @since ncurses 1.0
+    */
+    nothing setEnabled(bool v) {
+        enabled = v;
+        markDirty();
+        if (!v) {
+            clearFocusTree();
+        }
+    }
+
+    /** Returns this widget's enabled flag.
+        @return True if locally enabled
+        @since ncurses 1.0
+    */
+    bool isEnabled() {
+        return enabled;
+    }
+
+    /** Returns whether this widget and all ancestors allow input.
+        @return True if the entire path is visible and enabled
+        @since ncurses 1.0
+    */
+    bool isAvailable() {
+        return visible && enabled && (!parent_widget || parent_widget.isAvailable());
+    }
+
+    /** Reports whether a focused widget uses a visible terminal caret.
+        Text editors override this; selection controls use a highlight instead.
+        @return False by default
+        @since ncurses 1.0
+    */
+    bool wantsCursor() {
+        return False;
+    }
+
+    private nothing clearFocusTree() {
+        *hash<ExceptionInfo> failure;
+        try {
+            setFocused(False);
+        } catch (hash<ExceptionInfo> ex) {
+            failure = ex;
+        }
+        foreach NcursesUi::Widget child in (children) {
+            try {
+                child.clearFocusTree();
+            } catch (hash<ExceptionInfo> ex) {
+                if (!failure) {
+                    failure = ex;
+                }
+            }
+        }
+        if (failure) {
+            throw failure.err, failure.desc, failure.arg;
+        }
     }
 
     # ---- Dirty flag ----
@@ -374,27 +480,63 @@ public class Widget {
 
     # ---- Events ----
 
-    /** Routes an event through the widget tree.
-
-        First tries the focused child (depth-first), then calls
-        processEvent on this widget.
-
-        @param ev the input event
-        @return EventResult indicating whether the event was handled
+    /** Routes an event to the focused descendant, then bubbles to ancestors.
+        Non-focusable containers remain part of the path. An unhandled event
+        reaches this widget once; unrelated siblings are never called.
+        @param ev input event
+        @return handling result
         @since ncurses 1.0
     */
     hash<NcursesUi::EventResult> handleEvent(hash<Ncurses::InputEvent> ev) {
-        # try focused child first (depth-first)
+        *NcursesUi::Widget target = findFocused();
+        return dispatchTo(target ?? self, ev);
+    }
+
+    /** Finds a focused, available descendant (or this widget).
+        @return focused widget or NOTHING
+        @since ncurses 1.0
+    */
+    *NcursesUi::Widget findFocused() {
+        if (!isAvailable()) {
+            return NOTHING;
+        }
         foreach NcursesUi::Widget child in (children) {
-            if (child.isVisible() && child.hasFocus()) {
-                hash<NcursesUi::EventResult> result = child.handleEvent(ev);
-                if (result.handled) {
-                    return result;
-                }
+            *NcursesUi::Widget target = child.findFocused();
+            if (target) {
+                return target;
             }
         }
-        # try this widget
-        return processEvent(ev);
+        return focused && isFocusable() ? self : NOTHING;
+    }
+
+    /** Dispatches to a target and bubbles through its original ancestor path.
+        Routing stops if a callback detaches/disables the target or reparents
+        it away from that path. Each widget is called at most once.
+        @param target widget in this scope
+        @param ev input event
+        @return handling result; False for unavailable or foreign targets
+        @since ncurses 1.0
+    */
+    hash<NcursesUi::EventResult> dispatchTo(NcursesUi::Widget target, hash<Ncurses::InputEvent> ev) {
+        list<NcursesUi::Widget> path = ();
+        *NcursesUi::Widget item = target;
+        while (item && containsWidget(item)) {
+            path += item;
+            if (item == self) {
+                break;
+            }
+            item = item.getParent();
+        }
+        foreach NcursesUi::Widget widget in (path) {
+            if (!containsWidget(target) || !target.isAvailable() || !widget.containsWidget(target)) {
+                break;
+            }
+            hash<NcursesUi::EventResult> result = widget.processEvent(ev);
+            if (result.handled) {
+                return result;
+            }
+        }
+        return <NcursesUi::EventResult>{"handled": False};
     }
 
     /** Event processing override point.
@@ -418,6 +560,9 @@ public class Widget {
     */
     list<NcursesUi::Widget> collectFocusable() {
         list<NcursesUi::Widget> result = ();
+        if (!isAvailable()) {
+            return result;
+        }
         if (isFocusable()) {
             result += self;
         }

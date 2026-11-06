@@ -58,6 +58,8 @@ public class Application {
         int poll_ms = 25;
         #! saved cursor visibility before first modal was pushed
         int saved_cursor = 1;
+        bool saved_cursor_override = False;
+        bool modal_cursor_active = False;
     }
 
     /** Creates a new Application with the given session options.
@@ -112,6 +114,7 @@ public class Application {
     */
     nothing setRoot(NcursesUi::Widget w) {
         root = w;
+        dispatcher.setRootScope(w);
         layoutRoot();
     }
 
@@ -139,43 +142,65 @@ public class Application {
         tick_callbacks += cb;
     }
 
-    /** Pushes a modal widget.
-
-        Hides the cursor when the first modal is pushed.
-
-        @param w the widget to make modal
+    /** Pushes a modal, suspending focus and saving cursor visibility.
+        Text inputs in the modal display a caret; other controls hide it.
+        @param w modal widget
         @since ncurses 1.0
     */
     nothing pushModal(NcursesUi::Widget w) {
-        if (!dispatcher.hasModal()) {
-            # first modal - hide cursor
-            session.setCursor(0);
-        }
+        on_exit updateModalCursor();
         dispatcher.pushModal(w);
     }
 
-    /** Pops the topmost modal widget.
+    /** Pushes a popup with outside-click dismissal and click-through.
+        @param w popup widget
+        @since ncurses 1.0
+    */
+    nothing pushPopup(NcursesUi::Widget w) {
+        on_exit updateModalCursor();
+        dispatcher.pushPopup(w);
+    }
 
-        Restores cursor visibility when the last modal is popped.
-
-        @return the popped widget
+    /** Pops a modal and restores valid prior focus and cursor visibility.
+        @return popped widget, or NOTHING for an empty stack
         @since ncurses 1.0
     */
     *NcursesUi::Widget popModal() {
-        *NcursesUi::Widget w = dispatcher.popModal();
-        if (!dispatcher.hasModal()) {
-            # last modal popped - restore cursor
-            session.setCursor(saved_cursor);
-        }
-        return w;
+        on_exit updateModalCursor();
+        return dispatcher.popModal();
     }
 
-    /** Sets the cursor visibility to restore when the last modal is popped.
-        @param visibility cursor visibility (0=invisible, 1=normal, 2=very visible)
+    /** Overrides the cursor visibility restored after the last modal.
+        Otherwise the visibility preceding the first modal is restored.
+        @param visibility 0 (hidden), 1 (normal), or 2 (very visible)
+        @throw CURSOR-VISIBILITY-ERROR for an invalid visibility
         @since ncurses 1.0
     */
     nothing setSavedCursor(int visibility) {
+        if (visibility < 0 || visibility > 2) {
+            throw "CURSOR-VISIBILITY-ERROR", "Cursor visibility must be 0, 1, or 2";
+        }
         saved_cursor = visibility;
+        saved_cursor_override = True;
+    }
+
+    private nothing updateModalCursor() {
+        if (!session.isOpen()) {
+            return;
+        }
+        if (dispatcher.hasModal()) {
+            *NcursesUi::Widget focus = dispatcher.getFocusManager().getCurrentFocus();
+            int previous = session.setCursor(focus && focus.wantsCursor() ? 1 : 0);
+            if (!modal_cursor_active && !saved_cursor_override) {
+                saved_cursor = previous;
+            }
+            modal_cursor_active = True;
+        } else if (modal_cursor_active) {
+            if (saved_cursor >= 0) {
+                session.setCursor(saved_cursor);
+            }
+            modal_cursor_active = False;
+        }
     }
 
     /** Sets the readEvent timeout parameters.
@@ -222,7 +247,7 @@ public class Application {
                     if (ev.type == Ncurses::InputType::Resize) {
                         handleResize();
                     } else {
-                        dispatcher.dispatch(root, ev);
+                        processEvent(ev);
                     }
                 }
 
@@ -250,6 +275,7 @@ public class Application {
             handleResize();
             return <NcursesUi::EventResult>{"handled": True};
         }
+        on_exit updateModalCursor();
         return dispatcher.dispatch(root, ev);
     }
 
@@ -277,6 +303,8 @@ public class Application {
         if (!root) {
             return;
         }
+        dispatcher.getFocusManager().reconcile(dispatcher.topModal() ?? root);
+        updateModalCursor();
         root.drawTree(session.screen());
         # draw modal widgets (they have their own panel windows)
         list<NcursesUi::Widget> modals = dispatcher.getModalStack();

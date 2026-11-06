@@ -700,17 +700,19 @@ bool Session::supportsColor() {
 //! Sets cursor visibility
 /**
     @param visibility one of @ref CursorVisibility values
+    @return the previous visibility, or -1 if the terminal does not support the
+        requested visibility; callers can save this value to restore a modal's
+        previous cursor state
 
     @since %ncurses 1.0
 */
-nothing Session::setCursor(int visibility) [flags=NAMED_ARGS] {
+int Session::setCursor(int visibility) [flags=NAMED_ARGS] {
     session->checkOpen(xsink);
     if (*xsink) {
         return nothing();
     }
     NcursesCallGuard guard(session);
-    curs_set(visibility);
-    return nothing();
+    return curs_set(visibility);
 }
 
 //! Sets the escape sequence delay

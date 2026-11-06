@@ -33,12 +33,17 @@ public class FocusManager {
     private {
         #! the currently focused widget (or NOTHING)
         *NcursesUi::Widget current_focus;
+        *NcursesUi::Widget scope_root;
+        bool changing = False;
     }
 
     /** Returns the currently focused widget.
         @since ncurses 1.0
     */
     *NcursesUi::Widget getCurrentFocus() {
+        if (current_focus && (!eligible(current_focus) || !current_focus.hasFocus())) {
+            setFocus(NOTHING);
+        }
         return current_focus;
     }
 
@@ -46,20 +51,76 @@ public class FocusManager {
 
         Unfocuses the old widget and focuses the new one.
 
-        @param w the widget to focus (or NOTHING to unfocus all)
+        @param w the widget to focus (or NOTHING to unfocus all); an unavailable
+            widget or one outside the active scope clears focus instead
+        @throw FOCUS-CHANGE-ERROR for a nested focus change from a focus callback
         @since ncurses 1.0
     */
     nothing setFocus(*NcursesUi::Widget w) {
-        if (current_focus == w) {
+        if (changing) {
+            throw "FOCUS-CHANGE-ERROR", "A focus callback cannot start another focus change";
+        }
+        if (w && !eligible(w)) {
+            w = NOTHING;
+        }
+        if (current_focus == w && (!w || w.hasFocus())) {
             return;
         }
-        if (current_focus) {
-            current_focus.setFocused(False);
+        changing = True;
+        on_exit changing = False;
+        *NcursesUi::Widget old = current_focus;
+        current_focus = NOTHING;
+        if (old) {
+            old.setFocused(False);
         }
-        current_focus = w;
-        if (current_focus) {
-            current_focus.setFocused(True);
+        if (w && eligible(w)) {
+            w.setFocused(True);
+            if (eligible(w) && w.hasFocus()) {
+                current_focus = w;
+            } else {
+                w.setFocused(False);
+            }
         }
+    }
+
+    /** Returns the active focus scope, or NOTHING for an unrestricted manager.
+        @return the scope root
+        @since ncurses 1.0
+    */
+    *NcursesUi::Widget getScope() {
+        return scope_root;
+    }
+
+    /** Sets the active scope and clears focus that is no longer valid.
+        No replacement control is chosen implicitly.
+        @param root scope root, or NOTHING for an unrestricted manager
+        @throw FOCUS-CHANGE-ERROR if called during a focus callback
+        @since ncurses 1.0
+    */
+    nothing setScope(*NcursesUi::Widget root) {
+        if (changing) {
+            throw "FOCUS-CHANGE-ERROR", "A focus callback cannot change focus scope";
+        }
+        scope_root = root;
+        getCurrentFocus();
+    }
+
+    /** Validates focus against a tree and adopts an explicitly focused widget.
+        @param root current scope
+        @since ncurses 1.0
+    */
+    nothing reconcile(NcursesUi::Widget root) {
+        setScope(root);
+        if (!current_focus) {
+            *NcursesUi::Widget target = root.findFocused();
+            if (target) {
+                setFocus(target);
+            }
+        }
+    }
+
+    private bool eligible(NcursesUi::Widget w) {
+        return w.isFocusable() && (!scope_root || scope_root.containsWidget(w));
     }
 
     /** Moves focus in the given direction through the widget tree.
@@ -73,8 +134,10 @@ public class FocusManager {
         @since ncurses 1.0
     */
     bool moveFocus(NcursesUi::Widget root, int direction) {
+        reconcile(root);
         list<NcursesUi::Widget> focusable = root.collectFocusable();
         if (!focusable.size()) {
+            setFocus(NOTHING);
             return False;
         }
 

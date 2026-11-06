@@ -258,17 +258,8 @@ public class LineListContent inherits NcursesUi::ScrollableContent {
             ++row;
         }
         hash<NcursesUi::WrappedTextRow> entry = display_rows[row];
-        string row_text = plain.substr(entry.start, max(0, min(offset, entry.end) - entry.start));
-        # Count only complete source graphemes, never a partial combining/emoji sequence.
-        int used = 0;
-        int chars = 0;
-        foreach string cluster in ((plain.substr(entry.start, entry.end - entry.start) =~ x/(\X)/g) ?? ()) {
-            if (chars + cluster.length() > row_text.length()) {
-                break;
-            }
-            chars += cluster.length();
-            used += char_width(cluster);
-        }
+        int used = NcursesReplUi::TextPosition::columnForOffset(
+            plain.substr(entry.start, entry.end - entry.start), min(offset, entry.end) - entry.start);
         if (word_wrap && last_wrap_width > 0 && used >= last_wrap_width
                 && offset == plain.length()) {
             return <Ncurses::Position>{"y": row + 1, "x": 0};
@@ -289,16 +280,7 @@ public class LineListContent inherits NcursesUi::ScrollableContent {
         }
         hash<NcursesUi::WrappedTextRow> entry = display_rows[max(0, min(row, display_rows.size() - 1))];
         string text = NcursesUi::TerminalText::plainAnsi(entry.text);
-        int offset = entry.start;
-        int used = 0;
-        foreach string cluster in ((text =~ x/(\X)/g) ?? ()) {
-            int width = char_width(cluster);
-            if (used + width > max(0, col)) {
-                break;
-            }
-            used += width;
-            offset += cluster.length();
-        }
+        int offset = entry.start + NcursesReplUi::TextPosition::offsetForColumn(text, col);
         return <Ncurses::Position>{"y": entry.line_idx, "x": offset};
     }
 

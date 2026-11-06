@@ -1,0 +1,330 @@
+#!/usr/bin/env qore
+# Copyright 2026 Qore Technologies, s.r.o.
+%modern
+%prepend-module-path "${SCRIPT_DIR}/../qlib"
+%requires ncurses
+%requires NcursesUi
+%requires QUnit
+%include "test/TestHarness.qc"
+%exec-class NcursesFocusTest
+
+class FocusProbe inherits NcursesUi::Widget {
+    public {
+        int events = 0;
+        int entered = 0;
+        int left = 0;
+        bool consume = False;
+        bool fail_in = False;
+        bool fail_out = False;
+        *code<nothing()> callback;
+        *code<nothing()> enter_callback;
+    }
+    nothing onFocusIn() {
+        ++entered;
+        if (enter_callback) { enter_callback(); }
+        if (fail_in) { throw "FOCUS-IN-TEST", "expected"; }
+    }
+    nothing onFocusOut() {
+        ++left;
+        if (fail_out) { throw "FOCUS-OUT-TEST", "expected"; }
+    }
+    hash<NcursesUi::EventResult> processEvent(hash<Ncurses::InputEvent> ev) {
+        ++events;
+        if (callback) { callback(); }
+        return <NcursesUi::EventResult>{"handled": consume};
+    }
+}
+
+class NcursesFocusTest inherits Test {
+    constructor() : Test("NcursesFocusTest", "1.0", \ARGV) {
+        addTestCase("keyboard reaches a deeply nested input", \nestedInput());
+        addTestCase("unhandled keys bubble once through their ancestor path", \bubbling());
+        addTestCase("mouse activation transfers focus and positions the caret", \mouseFocus());
+        addTestCase("mouse miss and wheel do not reach an unrelated editor", \mouseIsolation());
+        addTestCase("modal Tab and Shift Tab cycle inside the scope", \modalTraversal());
+        addTestCase("nested modal scopes restore focus", \nestedModals());
+        addTestCase("removed suspended focus is not restored", \removedFocus());
+        addTestCase("hidden disabled and empty scopes release focus", \availability());
+        addTestCase("tree reparenting is unique and rejects cycles", \tree());
+        addTestCase("reparenting during an event cannot route to unrelated controls", \reparentEvent());
+        addTestCase("strict modals capture outside clicks", \modalCapture());
+        addTestCase("explicit popups dismiss and forward outside activation", \popup());
+        addTestCase("global overrides precede modal handling", \globalOrder());
+        addTestCase("control internal Tab takes precedence over generic traversal", \internalTab());
+        addTestCase("focus callback failures clear stale ownership", \callbackFailures());
+        addTestCase("reentrant focus changes are rejected and recoverable", \reentrantFocus());
+        addTestCase("failed modal push restores prior focus and stack", \pushFailure());
+        addTestCase("failed modal pop still removes scope and focus", \popFailure());
+        addTestCase("modal inputs show and restore cursor visibility", \modalCursor());
+        addTestCase("nested modal caret coordinates match the focused input", \modalCaret());
+        addTestCase("session cursor visibility returns previous state", \cursorApi());
+        addTestCase("replacing the application root invalidates suspended focus", \replaceRoot());
+        addTestCase("modal validation and reentrant stack changes", \modalValidation());
+        addTestCase("mouse callback failure leaves one consistent focus", \mouseException());
+        addTestCase("disabling a tree completes focus cleanup after callback failures", \disableException());
+        set_return_value(main());
+    }
+    private hash<Ncurses::InputEvent> ch(string text) {
+        return <Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": text};
+    }
+    private hash<Ncurses::InputEvent> backTab() {
+        return <Ncurses::InputEvent>{"type": Ncurses::InputType::Key, "name": "KEY_BTAB"};
+    }
+    private hash<Ncurses::InputEvent> mouse(int y, int x, int state = Ncurses::BUTTON1_CLICKED) {
+        return <Ncurses::InputEvent>{"type": Ncurses::InputType::Mouse,
+            "mouse": <Ncurses::MouseEvent>{"y": y, "x": x, "button_state": state}};
+    }
+    private int visibility(Ncurses::Session session) {
+        int old = session.setCursor(0);
+        session.setCursor(old);
+        return old;
+    }
+    nestedInput() {
+        NcursesUi::Widget root(); NcursesUi::Widget group(); NcursesUi::Widget nested();
+        NcursesUi::TextInputWidget input();
+        root.addChild(group); group.addChild(nested); nested.addChild(input);
+        NcursesUi::EventDispatcher ed(); ed.getFocusManager().setFocus(input);
+        assertTrue(ed.dispatch(root, ch("é")).handled);
+        assertEq("é", input.getText());
+        assertEq(input, ed.getFocusManager().getCurrentFocus());
+    }
+    bubbling() {
+        FocusProbe root(); FocusProbe group(); FocusProbe leaf(); FocusProbe sibling();
+        root.addChild(group); root.addChild(sibling); group.addChild(leaf);
+        leaf.setFocusable(True); leaf.setFocused(True);
+        assertFalse(root.handleEvent(ch("x")).handled);
+        assertEq(1, leaf.events); assertEq(1, group.events); assertEq(1, root.events); assertEq(0, sibling.events);
+        group.consume = True;
+        assertTrue(root.handleEvent(ch("y")).handled);
+        assertEq(2, leaf.events); assertEq(2, group.events); assertEq(1, root.events);
+    }
+    mouseFocus() {
+        NcursesUi::Widget root(); root.setFrameValues(0, 0, 10, 30);
+        NcursesUi::Widget group(); group.setFrameValues(0, 0, 10, 30); root.addChild(group);
+        NcursesUi::TextInputWidget a(); NcursesUi::TextInputWidget b("> ");
+        a.setFrameValues(1, 1, 1, 10); b.setFrameValues(3, 1, 1, 12); b.setText("Aé界Z");
+        group.addChild(a); group.addChild(b);
+        NcursesUi::EventDispatcher ed(); ed.getFocusManager().setFocus(a);
+        assertTrue(ed.dispatch(root, mouse(3, 6)).handled);
+        assertFalse(a.hasFocus()); assertTrue(b.hasFocus()); assertEq(3, b.getCursorPos());
+        ed.dispatch(root, ch("X")); assertEq("AéX界Z", b.getText()); assertEq("", a.getText());
+    }
+    mouseIsolation() {
+        NcursesUi::Widget root(); root.setFrameValues(0, 0, 10, 30);
+        FocusProbe a(); a.setFrameValues(1, 1, 1, 5); a.setFocusable(True); root.addChild(a);
+        NcursesUi::TextInputWidget b(); b.setFrameValues(3, 1, 1, 5); root.addChild(b);
+        NcursesUi::EventDispatcher ed(); ed.getFocusManager().setFocus(a);
+        ed.dispatch(root, mouse(9, 25)); assertEq(0, a.events);
+        ed.dispatch(root, mouse(3, 2, Ncurses::BUTTON4_PRESSED));
+        assertEq(a, ed.getFocusManager().getCurrentFocus()); assertEq(0, a.events);
+    }
+    modalTraversal() {
+        NcursesUi::Widget root(); NcursesUi::TextInputWidget bg_input(); root.addChild(bg_input);
+        NcursesUi::Widget modal(); NcursesUi::Widget group();
+        NcursesUi::TextInputWidget a(); NcursesUi::TextInputWidget b();
+        modal.addChild(group); group.addChild(a); group.addChild(b);
+        NcursesUi::EventDispatcher ed(); ed.getFocusManager().reconcile(root); ed.getFocusManager().setFocus(bg_input);
+        ed.pushModal(modal); assertEq(a, ed.getFocusManager().getCurrentFocus()); assertFalse(bg_input.hasFocus());
+        ed.dispatch(root, ch("\t")); assertEq(b, ed.getFocusManager().getCurrentFocus());
+        ed.dispatch(root, ch("\t")); assertEq(a, ed.getFocusManager().getCurrentFocus());
+        ed.dispatch(root, backTab()); assertEq(b, ed.getFocusManager().getCurrentFocus());
+        ed.dispatch(root, ch("B")); assertEq("B", b.getText()); assertEq("", bg_input.getText());
+    }
+    nestedModals() {
+        NcursesUi::Widget root(); NcursesUi::TextInputWidget base(); root.addChild(base);
+        NcursesUi::Widget outer(); NcursesUi::TextInputWidget a(); outer.addChild(a);
+        NcursesUi::Widget inner(); NcursesUi::TextInputWidget b(); inner.addChild(b);
+        NcursesUi::EventDispatcher ed(); ed.getFocusManager().reconcile(root); ed.getFocusManager().setFocus(base);
+        ed.pushModal(outer); ed.pushModal(inner);
+        assertEq(b, ed.getFocusManager().getCurrentFocus()); assertFalse(a.hasFocus());
+        assertEq(inner, ed.popModal()); assertEq(a, ed.getFocusManager().getCurrentFocus());
+        assertEq(outer, ed.popModal()); assertEq(base, ed.getFocusManager().getCurrentFocus());
+        assertFalse(exists ed.popModal());
+    }
+    removedFocus() {
+        NcursesUi::Widget root(); NcursesUi::TextInputWidget base(); root.addChild(base);
+        NcursesUi::TextInputWidget unrelated(); root.addChild(unrelated);
+        NcursesUi::Widget modal();
+        NcursesUi::EventDispatcher ed(); ed.getFocusManager().reconcile(root); ed.getFocusManager().setFocus(base);
+        ed.pushModal(modal); root.removeChild(base); ed.popModal();
+        assertFalse(exists ed.getFocusManager().getCurrentFocus());
+        ed.dispatch(root, ch("x")); assertEq("", unrelated.getText()); assertFalse(base.hasFocus());
+    }
+    availability() {
+        NcursesUi::Widget root(); NcursesUi::Widget group(); NcursesUi::TextInputWidget input();
+        root.addChild(group); group.addChild(input);
+        NcursesUi::FocusManager fm(); fm.reconcile(root); fm.setFocus(input);
+        group.setVisible(False); assertFalse(input.hasFocus()); assertFalse(exists fm.getCurrentFocus());
+        assertEq(0, root.collectFocusable().size());
+        group.setVisible(True); fm.setFocus(input); group.setEnabled(False);
+        assertFalse(exists fm.getCurrentFocus()); assertFalse(fm.moveFocus(root, NcursesUi::FocusDirection::Next));
+        group.setEnabled(True); assertEq(1, root.collectFocusable().size());
+        fm.setFocus(input); input.setFocusable(False); assertFalse(input.hasFocus());
+        assertFalse(exists fm.getCurrentFocus());
+    }
+    tree() {
+        NcursesUi::Widget root(); NcursesUi::Widget a(); NcursesUi::Widget b(); NcursesUi::TextInputWidget input();
+        root.addChild(a); root.addChild(b); a.addChild(input); a.addChild(input); assertEq(1, a.childCount());
+        input.setFocused(True); b.addChild(input);
+        assertEq(0, a.childCount()); assertEq(1, b.childCount()); assertEq(b, input.getParent()); assertFalse(input.hasFocus());
+        a.removeChild(input); assertEq(b, input.getParent());
+        bool failed = False;
+        try { input.addChild(root); } catch (hash<ExceptionInfo> ex) { failed = ex.err == "WIDGET-TREE-ERROR"; }
+        assertTrue(failed); assertFalse(exists root.getParent());
+        input.setParent(a); assertEq(0, b.childCount()); assertEq(1, a.childCount());
+        input.clearParent(); assertEq(0, a.childCount()); assertFalse(exists input.getParent());
+    }
+    reparentEvent() {
+        FocusProbe root(); FocusProbe a(); FocusProbe b(); FocusProbe leaf();
+        root.addChild(a); root.addChild(b); a.addChild(leaf); leaf.setFocusable(True); leaf.setFocused(True);
+        leaf.callback = sub () { b.addChild(leaf); };
+        assertFalse(root.handleEvent(ch("x")).handled);
+        assertEq(1, leaf.events); assertEq(0, a.events); assertEq(0, b.events); assertEq(0, root.events);
+    }
+    modalCapture() {
+        FocusProbe root(); root.setFrameValues(0, 0, 10, 30);
+        FocusProbe modal(); modal.setFrameValues(2, 2, 4, 10);
+        NcursesUi::EventDispatcher ed(); ed.pushModal(modal);
+        ed.dispatch(root, mouse(0, 0)); assertEq(1, modal.events); assertEq(0, root.events);
+        assertTrue(ed.hasModal());
+    }
+    popup() {
+        NcursesUi::Widget root(); root.setFrameValues(0, 0, 10, 30);
+        NcursesUi::TextInputWidget input(); input.setFrameValues(0, 0, 1, 10); root.addChild(input);
+        FocusProbe popup(); popup.setFrameValues(2, 2, 4, 10);
+        NcursesUi::EventDispatcher ed(); ed.getFocusManager().reconcile(root); ed.pushPopup(popup);
+        ed.dispatch(root, mouse(0, 0, Ncurses::BUTTON4_PRESSED)); assertTrue(ed.hasModal());
+        assertTrue(ed.dispatch(root, mouse(0, 2)).handled);
+        assertFalse(ed.hasModal()); assertEq(input, ed.getFocusManager().getCurrentFocus()); assertEq(2, popup.events);
+    }
+    globalOrder() {
+        FocusProbe root(); FocusProbe modal(); NcursesUi::EventDispatcher ed(); ed.pushModal(modal);
+        ed.setGlobalKeyHandler(hash<NcursesUi::EventResult> sub (hash<Ncurses::InputEvent> ev) {
+            return <NcursesUi::EventResult>{"handled": ev.ch == "g"};
+        });
+        assertTrue(ed.dispatch(root, ch("g")).handled); assertEq(0, modal.events);
+        ed.dispatch(root, ch("x")); assertEq(1, modal.events); assertEq(0, root.events);
+    }
+    internalTab() {
+        FocusProbe root(); FocusProbe modal(); modal.setFocusable(True); modal.consume = True;
+        NcursesUi::EventDispatcher ed(); ed.pushModal(modal);
+        assertTrue(ed.dispatch(root, ch("\t")).handled); assertEq(1, modal.events);
+        assertEq(modal, ed.getFocusManager().getCurrentFocus());
+    }
+    callbackFailures() {
+        FocusProbe a(); FocusProbe b(); a.setFocusable(True); b.setFocusable(True);
+        NcursesUi::FocusManager fm(); fm.setFocus(a); a.fail_out = True;
+        bool failed = False;
+        try { fm.setFocus(b); } catch (hash<ExceptionInfo> ex) { failed = ex.err == "FOCUS-OUT-TEST"; }
+        assertTrue(failed); assertFalse(exists fm.getCurrentFocus()); assertFalse(a.hasFocus()); assertFalse(b.hasFocus());
+        a.fail_out = False; b.fail_in = True; failed = False;
+        try { fm.setFocus(b); } catch (hash<ExceptionInfo> ex) { failed = ex.err == "FOCUS-IN-TEST"; }
+        assertTrue(failed); assertFalse(exists fm.getCurrentFocus()); assertFalse(b.hasFocus());
+        b.fail_in = False; fm.setFocus(b); assertEq(b, fm.getCurrentFocus());
+    }
+    reentrantFocus() {
+        FocusProbe a(); FocusProbe b(); a.setFocusable(True); b.setFocusable(True);
+        NcursesUi::FocusManager fm(); a.enter_callback = sub () { fm.setFocus(b); };
+        bool failed = False;
+        try { fm.setFocus(a); } catch (hash<ExceptionInfo> ex) { failed = ex.err == "FOCUS-CHANGE-ERROR"; }
+        assertTrue(failed); assertFalse(a.hasFocus()); assertFalse(b.hasFocus()); assertFalse(exists fm.getCurrentFocus());
+        a.enter_callback = NOTHING; fm.setFocus(a); assertEq(a, fm.getCurrentFocus());
+    }
+    pushFailure() {
+        NcursesUi::Widget root(); FocusProbe base(); base.setFocusable(True); root.addChild(base);
+        FocusProbe modal(); modal.setFocusable(True); modal.fail_in = True;
+        NcursesUi::EventDispatcher ed(); ed.getFocusManager().reconcile(root); ed.getFocusManager().setFocus(base);
+        bool failed = False;
+        try { ed.pushModal(modal); } catch (hash<ExceptionInfo> ex) { failed = ex.err == "FOCUS-IN-TEST"; }
+        assertTrue(failed); assertFalse(ed.hasModal()); assertEq(base, ed.getFocusManager().getCurrentFocus());
+        modal.fail_in = False; ed.pushModal(modal); assertEq(modal, ed.topModal());
+    }
+    popFailure() {
+        NcursesUi::Widget root(); FocusProbe modal(); modal.setFocusable(True);
+        NcursesUi::EventDispatcher ed(); ed.getFocusManager().reconcile(root); ed.pushModal(modal);
+        modal.fail_out = True; bool failed = False;
+        try { ed.popModal(); } catch (hash<ExceptionInfo> ex) { failed = ex.err == "FOCUS-OUT-TEST"; }
+        assertTrue(failed); assertFalse(ed.hasModal()); assertFalse(modal.hasFocus());
+        assertFalse(exists ed.getFocusManager().getCurrentFocus());
+    }
+    modalCursor() {
+        NcursesUi::TestHarness th(10, 30); on_exit th.close();
+        NcursesUi::Application app(th.session()); NcursesUi::Widget root(); app.setRoot(root);
+        th.session().setCursor(2);
+        NcursesUi::Widget modal(); NcursesUi::TextInputWidget input(); modal.addChild(input);
+        app.pushModal(modal); assertEq(1, visibility(th.session()));
+        NcursesUi::Widget nested(); app.pushModal(nested); assertEq(0, visibility(th.session()));
+        app.popModal(); assertEq(1, visibility(th.session()));
+        app.popModal(); assertEq(2, visibility(th.session()));
+        th.session().setCursor(0); app.pushModal(nested); app.popModal(); assertEq(0, visibility(th.session()));
+        app.popModal(); assertEq(0, visibility(th.session()));
+    }
+    modalCaret() {
+        NcursesUi::TestHarness th(10, 30); on_exit th.close();
+        NcursesUi::Application app(th.session()); NcursesUi::Widget root(); app.setRoot(root);
+        NcursesUi::Widget outer(); outer.setFrameValues(1, 1, 8, 20);
+        NcursesUi::TextInputWidget a(); a.setFrameValues(2, 2, 1, 12); a.setText("é界"); outer.addChild(a);
+        NcursesUi::Widget inner(); inner.setFrameValues(3, 3, 4, 15);
+        NcursesUi::TextInputWidget b(); b.setFrameValues(4, 4, 1, 12); b.setText("AB"); inner.addChild(b);
+        app.pushModal(outer); app.pushModal(inner); app.drawAll();
+        assertEq(<Ncurses::Position>{"y": 4, "x": 6}, th.screen().cursor());
+        app.popModal(); app.drawAll(); assertEq(<Ncurses::Position>{"y": 2, "x": 5}, th.screen().cursor());
+        a.setVisible(False); app.drawAll(); assertEq(0, visibility(th.session()));
+        app.popModal();
+    }
+    cursorApi() {
+        NcursesUi::TestHarness th(6, 20); on_exit th.close();
+        assertEq(0, th.session().setCursor(1)); assertEq(1, th.session().setCursor(2));
+        assertEq(2, th.session().setCursor(0)); assertEq(-1, th.session().setCursor(99));
+        assertEq(0, th.session().setCursor(1));
+        th.session().close();
+        bool failed = False;
+        try { th.session().setCursor(0); } catch (hash<ExceptionInfo> ex) { failed = True; }
+        assertTrue(failed);
+    }
+    replaceRoot() {
+        NcursesUi::TestHarness th(6, 20); on_exit th.close();
+        NcursesUi::Application app(th.session());
+        NcursesUi::Widget root(); NcursesUi::TextInputWidget old_input(); root.addChild(old_input);
+        app.setRoot(root); app.getFocusManager().setFocus(old_input);
+        NcursesUi::Widget modal(); app.pushModal(modal);
+        NcursesUi::Widget new_root(); NcursesUi::TextInputWidget new_input(); new_root.addChild(new_input);
+        app.setRoot(new_root); app.popModal();
+        assertFalse(exists app.getFocusManager().getCurrentFocus()); assertFalse(old_input.hasFocus());
+        app.processEvent(ch("x")); assertEq("", new_input.getText());
+    }
+    modalValidation() {
+        NcursesUi::EventDispatcher ed(); NcursesUi::Widget root();
+        FocusProbe modal(); modal.setFocusable(True); modal.setVisible(False);
+        bool failed = False;
+        try { ed.pushModal(modal); } catch (hash<ExceptionInfo> ex) { failed = ex.err == "MODAL-SCOPE-ERROR"; }
+        assertTrue(failed); assertFalse(ed.hasModal());
+        modal.setVisible(True); ed.pushModal(modal); failed = False;
+        try { ed.pushModal(modal); } catch (hash<ExceptionInfo> ex) { failed = ex.err == "MODAL-SCOPE-ERROR"; }
+        assertTrue(failed); assertEq(1, ed.getModalStack().size()); ed.popModal();
+        modal.enter_callback = sub () { ed.popModal(); }; failed = False;
+        try { ed.pushModal(modal); } catch (hash<ExceptionInfo> ex) { failed = ex.err == "MODAL-SCOPE-ERROR"; }
+        assertTrue(failed); assertFalse(ed.hasModal()); assertFalse(modal.hasFocus());
+    }
+    mouseException() {
+        NcursesUi::Widget root(); root.setFrameValues(0, 0, 8, 20);
+        FocusProbe a(); FocusProbe b(); a.setFocusable(True); b.setFocusable(True);
+        a.setFrameValues(1, 1, 1, 8); b.setFrameValues(3, 1, 1, 8); root.addChild(a); root.addChild(b);
+        NcursesUi::EventDispatcher ed(); ed.getFocusManager().reconcile(root); ed.getFocusManager().setFocus(a);
+        b.callback = sub () { throw "CLICK-TEST", "expected"; }; bool failed = False;
+        try { ed.dispatch(root, mouse(3, 2)); } catch (hash<ExceptionInfo> ex) { failed = ex.err == "CLICK-TEST"; }
+        assertTrue(failed); assertFalse(a.hasFocus()); assertTrue(b.hasFocus());
+        assertEq(b, ed.getFocusManager().getCurrentFocus());
+        b.callback = NOTHING; ed.dispatch(root, ch("x")); assertEq(2, b.events);
+    }
+    disableException() {
+        NcursesUi::Widget root(); FocusProbe a(); FocusProbe b();
+        a.setFocusable(True); b.setFocusable(True); root.addChild(a); root.addChild(b);
+        a.setFocused(True); b.setFocused(True); a.fail_out = True;
+        bool failed = False;
+        try { root.setEnabled(False); } catch (hash<ExceptionInfo> ex) { failed = ex.err == "FOCUS-OUT-TEST"; }
+        assertTrue(failed); assertFalse(a.hasFocus()); assertFalse(b.hasFocus());
+        assertEq(1, b.left); assertEq(0, root.collectFocusable().size());
+    }
+
+}

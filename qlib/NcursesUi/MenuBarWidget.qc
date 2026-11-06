@@ -399,8 +399,8 @@ public class MenuBarWidget inherits NcursesUi::Widget {
             return processAltKey(ch);
         });
 
-        # push as modal so the dropdown gets all events
-        app.pushModal(active_dropdown);
+        # explicitly allow outside-click dismissal and switching menu headings
+        app.pushPopup(active_dropdown);
     }
 
     private nothing closeDropdown() {

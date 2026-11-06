@@ -102,6 +102,60 @@ app.pushModal(dialog);
 app.run();
     @endcode
 
+    @section ncurses_ui_focus_input Nested Input and Modal Focus
+
+    Use the application's focus manager to select a control. Non-focusable
+    containers do not block its keys. A modal suspends the previous focus;
+    Tab/Shift+Tab cycle within the modal and popping it restores an eligible
+    prior control. A text editor displays a caret; other modal controls hide it.
+    Explicit global handlers run first, so return unhandled for keys that belong
+    to the form. Use @ref NcursesUi::Application::pushPopup() "pushPopup()" only
+    when outside clicks should dismiss the popup and reach the underlying UI.
+
+    This deterministic example exercises a nested text form without an event loop:
+
+    @code{.py}
+%modern
+%requires ncurses
+%requires NcursesUi
+
+Ncurses::Session session();
+on_exit session.close();
+NcursesUi::Application app(session);
+NcursesUi::Widget root();
+NcursesUi::TextInputWidget command("> ");
+root.addChild(command);
+app.setRoot(root);
+command.setFrameValues(0, 0, 1, 20);
+app.getFocusManager().setFocus(command);
+
+NcursesUi::Widget form();
+NcursesUi::Widget fields();
+NcursesUi::TextInputWidget name("Name: ");
+NcursesUi::TextInputWidget region("Region: ");
+form.addChild(fields);
+fields.addChild(name);
+fields.addChild(region);
+form.setFrameValues(2, 2, 4, 30);
+fields.setFrameValues(2, 2, 4, 30);
+name.setFrameValues(2, 2, 1, 30);
+region.setFrameValues(3, 2, 1, 30);
+app.pushModal(form);
+app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "José"});
+app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "\t"});
+@assert(app.getFocusManager().getCurrentFocus() == region);
+@assert(name.getText() == "José");
+app.drawAll();
+app.popModal();
+@assert(app.getFocusManager().getCurrentFocus() == command);
+    @endcode
+
+    Input cursor indices remain Qore character offsets. An external index inside
+    a combining or emoji cluster snaps to its start. Left/right and deletion
+    operate on complete graphemes; @ref NcursesReplUi::InputBuffer::replaceRange()
+    "replaceRange()" expands a partial selection before replacing it. Use
+    @ref NcursesReplUi::TextPosition "TextPosition" for display-column conversion.
+
     @section ncurses_ui_widgets_list Standard Widget Components
 
     |!Widget|!Description
