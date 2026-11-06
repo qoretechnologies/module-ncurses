@@ -143,3 +143,5 @@ navigation reveals the selected match on both axes. Preferred editor columns per
 only across consecutive vertical moves, identified by the model revision.
 
 Form Boolean controls preserve unset values until a toggle or explicit `setChecked()` edit; an explicit `False` satisfies required Boolean validation. Completed forms reveal the submission receipt even when submission originates in an early field. Tree indentation and branch hit testing use the effective ancestor/target-clipped viewport width.
+
+Form text controls import changed model values before the input captures its submit/rollback snapshot; typed zero remains distinct from an unset value. Transcript clearing resets both scroll axes. Custom-choice caret revelation follows editing, focus and geometry changes, preserving manual reading positions between paints. Tree filtering, collapse and replacement notify observers after a changed selection or selected value is committed, including the empty root path and no selection.

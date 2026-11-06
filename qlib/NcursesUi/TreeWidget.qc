@@ -48,6 +48,7 @@ public class TreeWidget inherits NcursesUi::ScrollableWidget {
         @param value typed source @param label root label @throw TREE-LIMIT-ERROR for excessive depth/nodes
     */
     nothing setData(auto value, string label = "Root") {
+        *hash<NcursesUi::TreeEntry> before = getSelectedEntry();
         hash<string, hash<NcursesUi::TreeNode>> next = {}; list<string> next_order = ();
         list<hash<NcursesUi::TreeEntry>> pending = (<NcursesUi::TreeEntry>{"path": "", "label": label, "depth": 0, "value": value, "type": "", "branch": False},);
         while (pending) {
@@ -83,6 +84,7 @@ public class TreeWidget inherits NcursesUi::ScrollableWidget {
         if (!nodes) { retained{""} = True; }
         while (exists selected && !exists next{selected}) { selected = nodes{selected}.entry.parent; }
         nodes = next; order = next_order; expanded = retained; rebuild(); revealSelection();
+        if (before !== getSelectedEntry()) { notifySelection(); }
     }
     /** Returns an indexed source entry. @param path stable source path @return typed entry @throw TREE-PATH-ERROR if absent */
     hash<NcursesUi::TreeEntry> getEntry(string path) { return node(path).entry; }
@@ -106,12 +108,13 @@ public class TreeWidget inherits NcursesUi::ScrollableWidget {
     /** Expands or collapses a branch. @param path source identity @param value expanded state */
     nothing setExpanded(string path, bool value) {
         hash<NcursesUi::TreeNode> entry = node(path); if (!entry.entry.branch) { return; }
-        expanded{path} = value; rebuild(); revealSelection();
+        *string before = selected; expanded{path} = value; rebuild(); revealSelection();
+        if (before !== selected) { notifySelection(); }
     }
     /** Returns saved expansion state, independent of filtering. @param path source identity @return expanded */
     bool isExpanded(string path) { node(path); return expanded{path} ?? False; }
     /** Sets literal case-insensitive filtering. @param text label/value query; empty restores saved expansion */
-    nothing setFilter(string text) { filter = text.lwr(); rebuild(); revealSelection(); }
+    nothing setFilter(string text) { *string before = selected; filter = text.lwr(); rebuild(); revealSelection(); if (before !== selected) { notifySelection(); } }
     /** Sets selection notification. @param callback receives the newly selected source entry */
     nothing setOnSelect(*code<nothing(*hash<NcursesUi::TreeEntry>)> callback) { on_select = callback; }
     /** Sets scalar activation. @param callback receives original typed data */
@@ -164,8 +167,8 @@ public class TreeWidget inherits NcursesUi::ScrollableWidget {
             next = event.mouse.y - view.y + getScrollY();
             if (next >= 0 && next < visible_paths.size()) {
                 string path = visible_paths[next]; hash<NcursesUi::TreeNode> item = nodes{path};
-                int column = event.mouse.x - view.x + getScrollX(); int indent = min(item.entry.depth * 2, max(0, getViewportRect().cols / 3));
-                if (item.entry.branch && ((column >= indent && column < indent + 2)
+                int column = event.mouse.x - view.x + getScrollX(); int indent = indentation(item.entry.depth, getViewportRect().cols);
+                if (item.entry.branch && ((column >= indent && column < indent + min(2, view.cols))
                         || (event.mouse.button_state & Ncurses::BUTTON1_DOUBLE_CLICKED))) {
                     selected = path; setExpanded(path, !expanded{path}); notifySelection();
                     return <NcursesUi::EventResult>{"handled": True, "action": "toggle"};
@@ -214,16 +217,18 @@ public class TreeWidget inherits NcursesUi::ScrollableWidget {
         if (!exists selected && next) { selected = next[0]; }
         render();
     }
+    private static int indentation(int depth, int columns) { return min(depth * 2, max(0, min(columns / 3, columns - 3))); }
     private string renderLine(string path) {
         hash<NcursesUi::TreeNode> item = nodes{path}; ++rendered_rows;
-        string row = strmul(" ", min(item.entry.depth * 2, max(0, getViewportRect().cols / 3)))
-            + (item.entry.branch ? ((expanded{path} || filter != "") ? "▾ " : "▸ ") : "  ")
+        int columns = getViewportRect().cols;
+        string marker = columns < 3 ? "" : (item.entry.branch ? ((expanded{path} || filter != "") ? "▾ " : "▸ ") : "  ");
+        string row = strmul(" ", indentation(item.entry.depth, columns)) + marker
             + item.display_label + ": " + item.preview;
         return path == selected ? "\e[7m" + row + "\e[0m" : row;
     }
     private nothing renderSelection(*string before) {
         if (exists before && exists visible_indexes{before}) { lines.setLine(visible_indexes{before}, renderLine(before)); }
-        if (exists selected && selected != before) { lines.setLine(visible_indexes{selected}, renderLine(selected)); }
+        if (exists selected && selected !== before) { lines.setLine(visible_indexes{selected}, renderLine(selected)); }
         markDirty();
     }
     private nothing render() {

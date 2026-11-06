@@ -28,6 +28,7 @@ public class DescribedChoiceWidget inherits NcursesUi::ScrollableWidget {
         int min_height = 1;
         int max_height = 8;
         bool reveal_highlight = True;
+        string cursor_text = "";
         *hash<NcursesUi::Rect> last_viewport;
     }
     /** Creates a selector. @param options uniquely valued options */
@@ -130,10 +131,14 @@ public class DescribedChoiceWidget inherits NcursesUi::ScrollableWidget {
     /** Reveals the highlighted option before painting. @param window output */
     nothing draw(Ncurses::Window window) {
         prepareDrawViewport(window); hash<NcursesUi::Rect> view = getViewportRect();
-        if ((reveal_highlight || last_viewport != view) && state != NcursesUi::ActionState::Running && state != NcursesUi::ActionState::Completed) { revealHighlight(); }
+        bool reveal = reveal_highlight || last_viewport != view;
+        if (reveal && state != NcursesUi::ActionState::Running && state != NcursesUi::ActionState::Completed) { revealHighlight(); }
         reveal_highlight = False; last_viewport = getViewportRect();
-        if (hasFocus() && wantsCursor()) { setCursorLine(option_lines[highlight], custom_label.length() + 4 + custom_input.getCursor()); }
-        else { clearCursorLine(); }
+        if (hasFocus() && wantsCursor()) {
+            int line = option_lines[highlight]; int col = custom_label.length() + 4 + custom_input.getCursor();
+            if (reveal || cursor_text != custom_input.getText() || getCursorPos() != {"line": line, "col": col}) { setCursorLine(line, col); }
+            cursor_text = custom_input.getText();
+        } else if (getCursorPos()) { clearCursorLine(); }
         ScrollableWidget::draw(window);
     }
     /** Reveals the active option when keyboard focus enters. */

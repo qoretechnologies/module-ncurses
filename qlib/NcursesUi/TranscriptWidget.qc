@@ -156,7 +156,7 @@ public class TranscriptWidget inherits NcursesUi::ScrollableWidget {
     }
     /** Clears all blocks, selection, search matches and unread state. */
     nothing clear() {
-        text.clear(); blocks = {}; block_order = (); block_start = 0; links = {}; selection_start = NOTHING; selection_end = NOTHING; mouse_anchor = NOTHING; original_headers = {};
+        text.clear(); ScrollableWidget::setContent(text); blocks = {}; block_order = (); block_start = 0; links = {}; selection_start = NOTHING; selection_end = NOTHING; mouse_anchor = NOTHING; original_headers = {};
         active_match = NOTHING; unread = 0; follow_tail = True; retained_first = NOTHING; markDirty();
     }
     /** Configures clipboard delivery. @param handler receives selected plain text */

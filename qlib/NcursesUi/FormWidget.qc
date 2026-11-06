@@ -11,6 +11,17 @@ class FormEditorControl inherits NcursesUi::TextEditorWidget {
         if (before != getText()) { changed(getText()); } return result;
     }
 }
+/** @internal Imports external values before the input takes an editing/submission snapshot. */
+class FormTextInputControl inherits NcursesUi::TextInputWidget {
+    private { code<nothing()> prepare; }
+    constructor(code<nothing()> callback) { prepare = callback; }
+    hash<NcursesUi::EventResult> processEvent(hash<Ncurses::InputEvent> event) {
+        prepare();
+        # A schema replacement may have removed this control during preparation.
+        if (!getParent()) { return <NcursesUi::EventResult>{}; }
+        return TextInputWidget::processEvent(event);
+    }
+}
 /** @internal Preserves the distinction between an unset Boolean and an explicit False. */
 class FormCheckboxControl inherits NcursesUi::CheckboxWidget {
     private { code<nothing(bool)> changed; }
@@ -190,7 +201,7 @@ public class FormWidget inherits NcursesUi::Widget {
         if (field.type == NcursesUi::FieldType::Multiline) {
             NcursesUi::FormEditorControl control(sub (string text) { changed(field, text); }); control.setText(exists value ? string(value) : ""); return control;
         }
-        NcursesUi::TextInputWidget control(); control.setText(exists value ? string(value) : ""); control.setClearOnSubmit(False);
+        NcursesUi::FormTextInputControl control(sub () { syncPresentation(); }); control.setText(exists value ? string(value) : ""); control.setClearOnSubmit(False);
         control.setPassword(field.type == NcursesUi::FieldType::Password); control.setPreferredSize(1, 20);
         control.setOnChange(sub (string text) { changed(field, text); }); control.setOnSubmit(sub (string text) { submit(); }); return control;
     }
@@ -211,7 +222,7 @@ public class FormWidget inherits NcursesUi::Widget {
                 if (value.nanp() || value.infp()) { model.setFieldError(field.name, "Enter a finite number"); markDirty(); return; }
             }
         }
-        if (model.getValue(field.name) != value || exists model.getErrors(){field.name}) { storeValue(field.name, value); }
+        if (model.getValue(field.name) !== value || exists model.getErrors(){field.name}) { storeValue(field.name, value); }
         markDirty();
     }
     private nothing syncValues() {

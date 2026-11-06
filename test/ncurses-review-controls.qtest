@@ -23,7 +23,38 @@ class ReviewControlsTest inherits Test {
         addTestCase("form completion reveals the receipt from an early field", \formReceipt());
         addTestCase("untouched required Boolean stays unset until an explicit edit", \unsetBoolean());
         addTestCase("tree indentation and branch hit testing use clipped viewport width", \treeClipped());
+        addTestCase("document replacement and transcript clear reset horizontal scroll", \horizontalReset());
+        addTestCase("custom choice paint preserves manual scrolling until editing resumes", \customScroll());
+        addTestCase("form submission rollback snapshots imported model values", \formRollback());
+        addTestCase("tree rebuild notifies selection changes exactly once after commit", \treeNotifications());
         set_return_value(main());
+    }
+    horizontalReset() {
+        NcursesUi::TestHarness th(6, 25); on_exit th.close(); NcursesUi::CodeViewWidget code(strmul("x", 60) + "needle"); code.setFrameValues(0, 0, 3, 20); code.setSearch("needle"); code.findNext(); assertTrue(code.getScrollX() > 0);
+        code.setText("START " + strmul("y", 80)); assertEq(0, code.getScrollX()); code.drawTree(th.screen()); assertEq("START", th.screen().readText(0, 0, 5));
+        NcursesUi::TranscriptWidget transcript(); transcript.setFrameValues(0, 0, 3, 20); transcript.setWordWrap(False); transcript.appendLine(strmul("z", 80)); transcript.scrollTo(NcursesUi::ScrollDirection::Right, 40); assertTrue(transcript.getScrollX() > 0); transcript.clear(); assertEq(0, transcript.getScrollX()); assertEq(0, transcript.getScrollY());
+    }
+    customScroll() {
+        NcursesUi::TestHarness th(8, 30); on_exit th.close(); NcursesUi::DescribedChoiceWidget choice(options()); choice.setCustomAllowed(True); choice.setCustomText("draft"); choice.setFrameValues(0, 0, 3, 20); choice.setFocused(True); choice.drawTree(th.screen());
+        assertTrue(choice.getScrollY() > 0); choice.processEvent(key("KEY_PPAGE")); int scroll = choice.getScrollY(); choice.drawTree(th.screen()); assertEq(scroll, choice.getScrollY());
+        choice.processEvent(click(0, choice.getViewportRect().cols)); choice.drawTree(th.screen()); assertEq(0, choice.getScrollY());
+        choice.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "x"}); choice.drawTree(th.screen()); assertTrue(choice.getScrollY() > 0); assertEq("draftx", choice.getSelection().value);
+    }
+    formRollback() {
+        NcursesUi::TestHarness th(10, 30); on_exit th.close(); NcursesUi::Application app(th.session()); NcursesUi::FormModel model(fields()); NcursesUi::FormWidget form(model); app.setRoot(form); form.setFocusManager(app.getFocusManager());
+        NcursesUi::TextInputWidget count = cast<NcursesUi::TextInputWidget>(form.getControl("count")); app.getFocusManager().setFocus(count); app.drawAll();
+        form.setOnSubmit(auto sub (hash<auto> values) { assertEq(9, values.count); throw "SUBMIT-ERROR", "rejected"; }); model.setValue("count", 9);
+        assertThrows("SUBMIT-ERROR", sub () { app.processEvent(key("KEY_ENTER")); }); assertEq("9", count.getText()); app.drawAll(); assertEq("9", count.getText()); assertEq(9, model.getValue("count"));
+        form.setOnSubmit(auto sub (hash<auto> values) { return values; }); assertTrue(form.submit()); assertEq(9, model.getResult().count);
+        model.reset(); model.setValue("count", NOTHING); app.drawAll(); count.setText("0"); assertTrue(form.submit()); assertEq(0, model.getResult().count); assertTrue(exists model.getResult().count);
+    }
+    treeNotifications() {
+        NcursesUi::TreeWidget tree({"branch": {"child": 1}, "name": "value"}); list<*string> selections = ();
+        tree.setOnSelect(sub (*hash<NcursesUi::TreeEntry> entry) { selections += entry ? entry.path : NOTHING; }); tree.selectPath("/name"); selections = ();
+        tree.setFilter("no matches"); assertEq((NOTHING,), selections); assertNothing(tree.getSelectedPath()); tree.setFilter(""); assertEq((NOTHING, ""), selections);
+        tree.selectPath("/branch/child"); selections = (); tree.setExpanded("/branch", False); assertEq(("/branch",), selections); tree.setExpanded("/branch", False); assertEq(1, selections.size());
+        tree.setData({"branch": 42}); assertEq(("/branch", "/branch"), selections); assertEq(42, tree.getSelectedEntry().value);
+        tree.setOnSelect(sub (*hash<NcursesUi::TreeEntry> entry) { throw "SELECTION-ERROR", "handler failed"; }); assertThrows("SELECTION-ERROR", sub () { tree.setFilter("none"); }); assertNothing(tree.getSelectedPath()); assertEq((), tree.getVisiblePaths());
     }
     formReceipt() {
         NcursesUi::TestHarness th(4, 24); on_exit th.close(); NcursesUi::Application app(th.session());
@@ -53,6 +84,8 @@ class ReviewControlsTest inherits Test {
         assertTrue(th.screen().readText(row, 0, 20).find("Z") >= 0); int column = min(10, max(0, view.cols / 3));
         tree.processEvent(click(row, column)); assertTrue(tree.isExpanded("/a/b/c/d/Z")); parent.drawTree(th.screen());
         parent.setFrameValues(0, 0, 3, 5); parent.drawTree(th.screen()); assertTrue(th.screen().readText(5 - tree.getScrollY(), 0, 20).find("Z") >= 0);
+        parent.setFrameValues(0, 0, 3, 2); parent.drawTree(th.screen()); assertEq("Z", th.screen().readText(5 - tree.getScrollY(), 0, 1));
+        tree.processEvent(click(5 - tree.getScrollY(), 0)); assertFalse(tree.isExpanded("/a/b/c/d/Z"));
         NcursesUi::TreeWidget separate({"a": {"b": {"c": {"Z": 42}}}}); separate.setFrameValues(0, 0, 10, 100); separate.selectPath("/a/b/c/Z");
         Ncurses::Window small(th.session(), 2, 6, 0, 0); separate.drawTree(small); assertTrue(small.readText(4 - separate.getScrollY(), 0, 20).find("Z") >= 0); assertFalse(separate.isDirty());
     }

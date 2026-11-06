@@ -98,7 +98,7 @@ class InspectorsTest inherits Test {
         assertThrows("ACTIVATE-ERROR", sub () { tree.processEvent(key("KEY_ENTER")); }); assertEq(42, tree.getSelectedEntry().value);
         tree.setOnSelect(sub (*hash<NcursesUi::TreeEntry> entry) { throw "SELECT-ERROR", "unavailable"; });
         assertThrows("SELECT-ERROR", sub () { tree.selectPath("/name"); }); assertEq("/name", tree.getSelectedPath());
-        tree.setFilter("no match"); assertFalse(tree.copySelection()); assertFalse(tree.exportSelection());
+        assertThrows("SELECT-ERROR", sub () { tree.setFilter("no match"); }); assertNothing(tree.getSelectedPath()); assertFalse(tree.copySelection()); assertFalse(tree.exportSelection());
     }
     display() {
         NcursesUi::TestHarness th(6, 24); on_exit th.close(); NcursesUi::TreeWidget tree({"control": "a\nb\e[31m", "wide": "界é"});
