@@ -1,0 +1,141 @@
+#!/usr/bin/env qore
+# Copyright 2026 Qore Technologies, s.r.o.
+%modern
+%prepend-module-path "${SCRIPT_DIR}/../qlib"
+%requires ncurses
+%requires NcursesUi
+%requires QUnit
+%include "test/TestHarness.qc"
+%exec-class TranscriptTest
+class HighlightWindow inherits Ncurses::Window {
+    public { hash<string, int> attrs = {}; }
+    constructor(Ncurses::Session session, int rows, int cols) : Window(session, rows, cols, 0, 0) {}
+    nothing drawTextClipped(int y, int x, string text, *hash style) {
+        attrs{sprintf("%d:%d", y, x)} = style.attrs ?? 0; Window::drawTextClipped(y, x, text, style);
+    }
+}
+class TranscriptTest inherits Test {
+    constructor() : Test("TranscriptTest", "1.0", \ARGV) {
+        addTestCase("streaming respects paused reading and return-to-latest", \follow());
+        addTestCase("search expands matching blocks and wraps in both directions", \search());
+        addTestCase("selection copies complete graphemes and survives resize", \selection());
+        addTestCase("retention preserves identities and coherently trims anchors", \retention());
+        addTestCase("block updates preserve order, collapse and hidden geometry", \blocks());
+        addTestCase("wrapped links and callback failures use source coordinates", \links());
+        addTestCase("empty transcripts and invalid references are safe", \empty());
+        addTestCase("stream retention visits only expired identities and updates collapsed suffixes", \incrementalRetention());
+        set_return_value(main());
+    }
+    incrementalRetention() {
+        NcursesUi::TranscriptWidget t(); t.setRetentionLimit(10); t.setFrameValues(0, 0, 4, 20);
+        for (int i = 0; i < 600; ++i) { t.appendLine("line " + i); }
+        assertEq(590, t.getUpdateStats().pruned_lines); assertEq(10, t.getBlocks().size());
+        assertEq("line 590", t.getBlockText(t.getBlocks()[0].id));
+        t.clear(); int id = t.appendBlock(("first", "second")); t.setCollapsed(id, True);
+        for (int i = 0; i < 600; ++i) { t.appendBlockLines(id, ("body " + i,)); }
+        assertEq(1, t.getBlocks().size()); assertEq(10, t.getBlocks()[0].line_ids.size());
+        assertEq("body 590", split("\n", t.getBlockText(id))[0]);
+        assertEq(1, t.getTranscriptContent().totalRows());
+        t.setCollapsed(id, False); assertEq(10, t.getTranscriptContent().totalRows());
+        assertEq("body 599", t.getTranscriptContent().getLine(9));
+    }
+
+    private hash<NcursesUi::TextAnchor> anchor(int id, int offset) { return <NcursesUi::TextAnchor>{"line_id": id, "offset": offset}; }
+    follow() {
+        NcursesUi::TestHarness th(8, 30); on_exit th.close(); NcursesUi::TranscriptWidget w();
+        w.setFrameValues(0, 0, 3, 12); w.setShowScrollbar(False); w.appendLines(("zero", "one", "two", "three", "four"));
+        w.drawTree(th.screen()); assertEq(2, w.getScrollY()); assertTrue(w.isFollowing());
+        w.scrollTo(NcursesUi::ScrollDirection::Up); w.drawTree(th.screen()); assertEq("one", th.screen().readText(0, 0, 3));
+        w.appendLines(("five", "six")); w.drawTree(th.screen()); assertEq(1, w.getScrollY()); assertFalse(w.isFollowing());
+        assertEq(2, w.getUnreadCount()); assertEq("one", th.screen().readText(0, 0, 3));
+        w.returnToLatest(); w.drawTree(th.screen()); assertEq(4, w.getScrollY()); assertEq(0, w.getUnreadCount());
+        w.scrollTo(NcursesUi::ScrollDirection::Home); w.scrollTo(NcursesUi::ScrollDirection::PageDown, 10);
+        assertTrue(w.isFollowing());
+        assertThrows("SCROLL-AMOUNT-ERROR", sub () { w.scrollTo(NcursesUi::ScrollDirection::Down, -1); });
+        int before = w.getScrollY(); w.scrollTo(NcursesUi::ScrollDirection::PageUp, 0); assertEq(before, w.getScrollY());
+        w.scrollTo(NcursesUi::ScrollDirection::PageUp, 2); assertEq(0, w.getScrollY());
+    }
+    search() {
+        NcursesUi::TestHarness th(10, 30); on_exit th.close(); NcursesUi::TranscriptWidget w();
+        w.setFrameValues(0, 0, 3, 12); w.setShowScrollbar(False);
+        int a = w.appendBlock(("request", "find é here", "another find"), "response", "Answer");
+        int b = w.appendBlock(("next", "find last")); w.setCollapsed(a, True); w.setSearch("find");
+        assertEq(3, w.getMatches().size()); hash<NcursesUi::TranscriptMatch> first = w.findNext();
+        assertFalse(w.getBlocks()[0].collapsed); assertEq(w.getBlocks()[0].line_ids[1], first.line_id);
+        assertFalse(w.isFollowing()); w.findNext(); w.findNext(); assertEq(first, w.findNext());
+        assertEq(w.getBlocks()[1].line_ids[1], w.findNext(False).line_id);
+        w.setSearch("́"); assertEq(1, w.getMatches().size()); assertEq(5, w.getMatches()[0].start); assertEq(7, w.getMatches()[0].end);
+        w.findNext(); HighlightWindow window(th.session(), 10, 30); w.draw(window);
+        assertEq(Ncurses::Attr::Standout, window.attrs{"0:5"});
+        w.setSearch(""); assertEq((), w.getMatches()); assertNothing(w.findNext());
+        assertEq(b, w.getBlocks()[1].id);
+    }
+    selection() {
+        NcursesUi::TestHarness th(10, 30); on_exit th.close(); NcursesUi::TranscriptWidget w();
+        w.setFrameValues(0, 0, 4, 10); w.setShowScrollbar(False); w.appendLines(("Aé界", "second line", "last"));
+        list<int> ids = w.getBlocks()[0].line_ids; w.select(anchor(ids[0], 2), anchor(ids[1], 3));
+        assertEq("é界\nsec", w.getSelectedText()); string copied; w.setOnCopy(sub (string text) { copied = text; });
+        assertTrue(w.copySelection()); assertEq(w.getSelectedText(), copied);
+        w.setFollowTail(False); HighlightWindow window(th.session(), 10, 30); w.draw(window);
+        assertEq(Ncurses::Attr::Reverse, window.attrs{"0:1"}); assertEq(Ncurses::Attr::Reverse, window.attrs{"0:2"});
+        w.setFrameValues(0, 0, 4, 5); w.drawTree(th.screen()); assertEq(copied, w.getSelectedText());
+        w.setWordWrap(False); w.drawTree(th.screen()); assertEq(copied, w.getSelectedText());
+        w.setOnCopy(sub (string text) { throw "COPY-ERROR", "failure"; });
+        assertThrows("COPY-ERROR", sub () { w.copySelection(); }); assertEq(copied, w.getSelectedText());
+    }
+    retention() {
+        NcursesUi::TestHarness th(8, 30); on_exit th.close(); NcursesUi::TranscriptWidget w();
+        w.setFrameValues(0, 0, 2, 20); w.setShowScrollbar(False); w.setRetentionLimit(4);
+        int first = w.appendBlock(("zero", "one", "two")); list<int> ids = w.getBlocks()[0].line_ids;
+        w.select(anchor(ids[0], 0), anchor(ids[2], 3)); w.setSearch("two"); w.setScrollY(1); w.drawTree(th.screen());
+        w.appendLines(("three", "four")); w.drawTree(th.screen()); assertEq("one\ntwo", w.getSelectedText());
+        assertEq(ids[2], w.getMatches()[0].line_id); assertEq("one", th.screen().readText(0, 0, 3));
+        w.setCollapsed(first, True); w.appendLines(("five", "six"));
+        assertEq(-1, w.getTranscriptContent().lineForId(ids[2])); assertEq("", w.getSelectedText()); assertEq((), w.getMatches());
+        assertThrows("TRANSCRIPT-BLOCK-ERROR", sub () { w.getBlockText(first); });
+        w.appendBlock(("a", "b", "c", "d", "e", "f")); assertEq(("c", "d", "e", "f"), w.getTranscriptContent().getLines());
+        assertEq(1, w.getBlocks().size()); assertEq(4, w.getBlocks()[0].line_ids.size());
+    }
+    blocks() {
+        NcursesUi::TranscriptWidget w(); w.setFrameValues(0, 0, 2, 40); w.setShowScrollbar(False);
+        int a = w.appendBlock(("header", "body")); int b = w.appendBlock(("next", "tail"));
+        list<int> stable = w.getBlocks()[0].line_ids; w.appendBlockLines(a, ("inserted",));
+        assertEq(("header", "body", "inserted", "next", "tail"), w.getTranscriptContent().getLines());
+        assertEq(stable[0], w.getBlocks()[0].line_ids[0]); assertEq("header\nbody\ninserted", w.getBlockText(a));
+        w.setCollapsed(a, True); assertEq(3, w.getTranscriptContent().totalRows());
+        assertEq(-1, w.getTranscriptContent().sourceToVisual(1, 0).y);
+        w.appendBlockLines(a, ("more",)); assertEq(3, w.getTranscriptContent().totalRows());
+        w.setCollapsed(a, False); assertEq(6, w.getTranscriptContent().totalRows());
+        w.setScrollY(0); assertEq(b, w.moveBlock()); assertEq(a, w.moveBlock(False));
+        w.setRetentionLimit(2); w.appendBlockLines(b, ("new",));
+        assertEq(("tail", "new"), w.getTranscriptContent().getLines()); assertEq("tail\nnew", w.getBlockText(b));
+    }
+    links() {
+        NcursesUi::TestHarness th(10, 30); on_exit th.close(); NcursesUi::TranscriptWidget w();
+        w.setFrameValues(2, 3, 3, 6); w.setShowScrollbar(False); w.appendLines(("abcdef界link",));
+        int id = w.getBlocks()[0].line_ids[0];
+        w.setLinks((<NcursesUi::TranscriptLink>{"line_id": id, "start": 6, "end": 11, "target": "https://example.test/item"},));
+        w.drawTree(th.screen()); assertEq("https://example.test/item", w.linkAt(3, 3)); assertNothing(w.linkAt(2, 3)); assertNothing(w.linkAt(8, 3));
+        string opened; w.setOnLink(sub (string value) { opened = value; });
+        hash<Ncurses::InputEvent> click = <Ncurses::InputEvent>{"type": Ncurses::InputType::Mouse,
+            "mouse": <Ncurses::MouseEvent>{"y": 3, "x": 3, "button_state": Ncurses::BUTTON1_CLICKED}};
+        assertTrue(w.processEvent(click).handled); assertEq("https://example.test/item", opened);
+        w.setOnLink(sub (string value) { throw "LINK-ERROR", "failure"; }); assertThrows("LINK-ERROR", sub () { w.processEvent(click); });
+        assertEq("https://example.test/item", w.linkAt(3, 3));
+        assertThrows("TRANSCRIPT-LINK-ERROR", sub () { w.setLinks((<NcursesUi::TranscriptLink>{"line_id": id, "start": -1, "end": 2, "target": "bad"},)); });
+        assertEq("https://example.test/item", w.linkAt(3, 3));
+        w.clear(); w.appendLine("é word wrapped"); id = w.getBlocks()[0].line_ids[0];
+        w.setLinks((<NcursesUi::TranscriptLink>{"line_id": id, "start": 1, "end": 2, "target": "accent"},));
+        w.setFollowTail(False); w.setScrollY(0); w.drawTree(th.screen());
+        assertEq("accent", w.linkAt(2, 3)); assertNothing(w.linkAt(2, 8)); assertNothing(w.linkAt(4, 8));
+    }
+    empty() {
+        NcursesUi::TranscriptWidget w(); w.setFrameValues(0, 0, 0, 0); w.setSearch("x");
+        assertEq((), w.getMatches()); assertNothing(w.findNext()); assertNothing(w.moveBlock()); assertEq("", w.getSelectedText());
+        assertFalse(w.copySelection()); assertNothing(w.linkAt(0, 0)); w.appendLines(()); assertEq((), w.getBlocks());
+        int id = w.appendBlock(()); assertEq("", w.getBlockText(id)); w.clear(); assertEq((), w.getBlocks()); assertTrue(w.isFollowing());
+        assertThrows("TRANSCRIPT-BLOCK-ERROR", sub () { w.setCollapsed(id, True); });
+        assertThrows("TRANSCRIPT-SELECTION-ERROR", sub () { w.select(anchor(1, 0), anchor(2, 0)); });
+        assertThrows("TEXT-RETENTION-ERROR", sub () { w.setRetentionLimit(-1); });
+    }
+}

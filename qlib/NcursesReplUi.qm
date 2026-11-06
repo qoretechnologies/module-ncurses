@@ -214,6 +214,10 @@ public class InputBuffer {
     private {
         string text = "";
         int cursor = 0;
+        bool positions_valid = False;
+        list<string> clusters = ();
+        list<int> offsets = (0,);
+        list<int> columns = (0,);
     }
 
     /** Clears the buffer.
@@ -222,6 +226,7 @@ public class InputBuffer {
     nothing reset() {
         text = "";
         cursor = 0;
+        positions_valid = False;
     }
 
     /** Sets the buffer content and moves the cursor to the end.
@@ -230,6 +235,7 @@ public class InputBuffer {
     nothing setText(string t) {
         text = t;
         cursor = text.length();
+        positions_valid = False;
     }
 
     /** Returns the current buffer text.
@@ -252,7 +258,8 @@ public class InputBuffer {
         @since %ncurses 1.0
     */
     nothing setCursor(int pos) {
-        cursor = NcursesReplUi::TextPosition::snapOffset(text, pos);
+        ensurePositions();
+        cursor = offsets[positionIndex(max(0, min(pos, offsets[-1])))];
     }
 
     /** Replaces a range, expanding partial selections to complete graphemes.
@@ -263,13 +270,19 @@ public class InputBuffer {
         @since ncurses 1.0
     */
     nothing replaceRange(int start, int end, string replacement) {
-        int first = NcursesReplUi::TextPosition::snapOffset(text, min(start, end));
-        int last = start == end ? first
-            : NcursesReplUi::TextPosition::snapOffset(text, max(start, end), True);
+        ensurePositions();
+        int first = offsets[positionIndex(max(0, min(start, end)))];
+        int last = first;
+        if (start != end) {
+            int index = positionIndex(max(0, max(start, end)));
+            last = offsets[index];
+            if (last < max(start, end) && index + 1 < offsets.size()) { last = offsets[index + 1]; }
+        }
         string next = text.substr(0, first) + replacement + text.substr(last);
         int next_cursor = NcursesReplUi::TextPosition::snapOffset(next, first + replacement.length(), True);
         text = next;
         cursor = next_cursor;
+        positions_valid = False;
     }
 
     /** Inserts text at the cursor, preserving complete graphemes.
@@ -311,8 +324,9 @@ public class InputBuffer {
         @since %ncurses 1.0
     */
     nothing moveRight() {
-        if (cursor < text.length()) {
-            cursor = NcursesReplUi::TextPosition::snapOffset(text, cursor + 1, True);
+        ensurePositions();
+        if (cursor < offsets[-1]) {
+            cursor = offsets[positionIndex(cursor) + 1];
         }
     }
 
@@ -338,6 +352,7 @@ public class InputBuffer {
             return;
         }
         text = text.substr(0, cursor);
+        positions_valid = False;
     }
 
     /** Deletes from the start of the line to the cursor.
@@ -348,6 +363,7 @@ public class InputBuffer {
             return;
         }
         text = text.substr(cursor);
+        positions_valid = False;
         cursor = 0;
     }
 
@@ -357,6 +373,7 @@ public class InputBuffer {
     nothing killLine() {
         text = "";
         cursor = 0;
+        positions_valid = False;
     }
 
     /** Auto-dedents the current line by removing one indent prefix.
@@ -386,6 +403,7 @@ public class InputBuffer {
         }
         # remove one indent level from the front
         text = text.substr(indent_str.length());
+        positions_valid = False;
         # adjust cursor
         if (cursor > indent_str.length()) {
             cursor -= indent_str.length();
@@ -429,18 +447,52 @@ public class InputBuffer {
         replaceRange(wordBoundary(False), cursor, "");
     }
 
-    private int wordBoundary(bool forward) {
-        list<string> clusters = (text =~ x/(\X)/g) ?? ();
-        list<int> offsets = (0,);
-        int index = 0;
-        int offset = 0;
-        foreach string cluster in (clusters) {
-            offset += cluster.length();
-            offsets += offset;
-            if (offset <= cursor) {
-                ++index;
-            }
+    /** Returns the terminal column at the cursor using cached grapheme geometry.
+        @return display cells before the cursor
+    */
+    int getDisplayColumn() {
+        ensurePositions();
+        return columns[positionIndex(cursor)];
+    }
+
+    /** Places the cursor at a display cell without splitting wide graphemes.
+        @param col terminal column, clamped to the text extent
+    */
+    nothing setDisplayColumn(int col) {
+        ensurePositions();
+        int left = 0; int right = columns.size();
+        while (left + 1 < right) {
+            int middle = (left + right) / 2;
+            if (columns[middle] <= max(0, col)) { left = middle; } else { right = middle; }
         }
+        cursor = offsets[left];
+    }
+
+    private nothing ensurePositions() {
+        if (positions_valid) { return; }
+        list<string> next_clusters = (text =~ x/(\X)/g) ?? ();
+        list<int> next_offsets = (0,); list<int> next_columns = (0,);
+        int offset = 0; int column = 0;
+        foreach string cluster in (next_clusters) {
+            offset += cluster.length(); column += char_width(cluster);
+            next_offsets += offset; next_columns += column;
+        }
+        clusters = next_clusters; offsets = next_offsets; columns = next_columns;
+        positions_valid = True;
+    }
+
+    private int positionIndex(int offset) {
+        int left = 0; int right = offsets.size();
+        while (left + 1 < right) {
+            int middle = (left + right) / 2;
+            if (offsets[middle] <= offset) { left = middle; } else { right = middle; }
+        }
+        return left;
+    }
+
+    private int wordBoundary(bool forward) {
+        ensurePositions();
+        int index = positionIndex(cursor);
         if (forward) {
             while (index < clusters.size() && !wordSpace(clusters[index])) {
                 ++index;
@@ -460,7 +512,7 @@ public class InputBuffer {
     }
 
     private static bool wordSpace(string cluster) {
-        return cluster.substr(0, 1) == " " || cluster.substr(0, 1) == "\t";
+        return cluster =~ /^\s/;
     }
 
     /** Processes a keyboard event and applies the corresponding editing action.

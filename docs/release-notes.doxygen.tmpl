@@ -47,4 +47,26 @@
     follows ancestor clipping; left-clipped lists, checkboxes, menus and status
     bars render their visible suffixes. Table column selection stays visible after
     resize, and empty row hashes remain valid selections for actions and activation.
+
+    TextEditorWidget adds hard newlines, soft wrapping, styled prompts, preferred
+    visual columns, bounded height, selection, clipboard hooks, undo/redo and
+    searchable history that restores unfinished drafts. Bracketed paste arrives
+    as a bounded Paste event, with fragmented input, cancellation and oversized
+    payload recovery. Native and injected Alt input preserve Unicode characters.
+    Synthetic event batches now commit atomically into a bounded module queue;
+    overflow leaves previously queued input intact.
+
+    TranscriptWidget adds stable source identities, logical blocks, incremental
+    streaming updates, retention, search/highlights, selection/copy, collapse and
+    link callbacks. Manual scrolling pauses following and tracks unread output.
+    Indexed line extents and two cached wrap widths avoid rewrapping old text on
+    appends/edits. InputBuffer caches grapheme positions. Dirty drawing preserves
+    overlapping siblings, exposed regions and modal overlays while skipping idle
+    frames. Width-aware box measurement sizes wrapped editors before allocation.
+
+    qrepl uses separate transcript and draft viewports, retains failed drafts,
+    exposes output/history search and internal clipboard bindings, and anchors
+    completion to the wrapped caret. Its capture worker uses explicit flush and
+    shutdown acknowledgement, preserves blank lines and split UTF-8, and reports
+    invalid output bytes without sending malformed strings to the renderer.
 */

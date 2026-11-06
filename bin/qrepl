@@ -1,15 +1,16 @@
 #!/usr/bin/env qore
+# Copyright 2026 Qore Technologies, s.r.o.
 
 # qrepl — Full-screen ncurses REPL for Qore
 #
 # This is the primary usage example for the NcursesUi toolkit. It demonstrates:
 # - Application + BoxLayout for the root layout (menu bar, output pane, status bar)
-# - ScrollableWidget with LineListContent for scrollable REPL output
+# - TranscriptWidget for searchable output with stable selection and tail following
 # - MenuBarWidget with Alt+key hotkeys and dropdown commands
 # - StatusBarWidget with live status segments
 # - Output capture via File::getPipe() + a background reader thread
 # - Modal dialogs (exit confirmation, file browser, animated About)
-# - Inline input editing with InputBuffer from NcursesReplUi and History from QoreHistory
+# - TextEditorWidget for multiline drafts, atomic paste, selection and undo
 
 %requires ncurses
 %requires QoreRepl
@@ -25,9 +26,9 @@
 # Architecture:
 # - Uses NcursesUi::Application as the event loop and drawing coordinator
 # - Root widget is a vertical BoxLayout: MenuBarWidget (top), ScrollableWidget
-#   (middle, expanding), StatusBarWidget (bottom)
-# - Output is rendered via LineListContent fed into a ScrollableWidget
-# - User input is edited inline in the output pane using InputBuffer
+#   (middle, expanding), TextEditorWidget, StatusBarWidget (bottom)
+# - Output blocks retain source identities across wrapping and retention
+# - The editable draft has its own viewport and shared caret/completion geometry
 # - Commands are dispatched through QoreRepl::QoreRepl for evaluation
 # - stdout/stderr are captured via File::getPipe() and a background thread
 #   that reads the pipe and appends captured output to the output pane
@@ -46,22 +47,21 @@ class QRepl {
 
         #! root widget (vertical box layout)
         NcursesUi::Widget root();
-        #! output pane (combined output + inline input)
-        NcursesUi::ScrollableWidget output_widget();
-        #! output content
-        NcursesUi::LineListContent output_content();
+        #! streaming output and separately retained editable draft
+        NcursesUi::TranscriptWidget output_widget();
+        NcursesUi::TextEditorWidget editor();
+        NcursesUi::LineListContent output_content = output_widget.getTranscriptContent();
+        string clipboard = "";
+        bool persistent_history = False;
         #! status bar
         NcursesUi::StatusBarWidget status_bar();
         #! menu bar
         NcursesUi::MenuBarWidget menu_bar();
 
         #! inline input buffer
-        NcursesReplUi::InputBuffer buffer();
+        NcursesUi::EditorBuffer buffer = editor.getBuffer();
         #! command history
         QoreHistory::History history();
-        #! index of the live prompt line in output_content (-1 = no active prompt)
-        int prompt_line_idx = -1;
-
         #! output scroll position tracking
         int output_scroll = 0;
         #! last status text
@@ -75,13 +75,8 @@ class QRepl {
 
         #! output capture state
         bool capture_enabled = False;
-        bool capture_running = False;
         hash<auto> output_capture = {};
-        Mutex output_mutex();
-        Condition eval_flushed_cond();
-        list<string> pending_output = ();
-        string capture_tail = "";
-        bool eval_complete = False;
+        *QReplOutputCapture capture_reader;
         bool use_tty_enabled = False;
 
         #! time tracking
@@ -3890,30 +3885,32 @@ class QRepl {
     # Sets up the UI layout (menu bar, output pane, status bar), initializes
     # the REPL engine and output capture, displays the welcome message, and
     # starts the main event loop.
-    constructor() {
-        parse_args();
+    constructor(*Ncurses::Session session, bool start = True) {
+        if (!session) { parse_args(); }
+        persistent_history = !session;
 
         current_prompt = repl.getPrompt();
         base_prompt_width = display_prompt(current_prompt).length();
 
-        Ncurses::Session s = make_session();
+        Ncurses::Session s = session ?? make_session();
         app = new NcursesUi::Application(s);
 
         init_ui();
-        init_output_capture();
+        if (!session) { init_output_capture(); }
 
         # load persistent history
-        if (exists ENV.HOME) {
+        if (persistent_history && exists ENV.HOME) {
             history.load(ENV.HOME + "/.qore-repl-history");
         }
 
+        refresh_history();
         push_output("Qore Ncurses REPL (QoreRepl backend)");
         hash<auto> qore_info = get_qore_library_info();
         *string qore_version = qore_info{"VersionString"};
         if (qore_version) {
             output_title = "REPL for Qore " + qore_version;
         }
-        push_output("Type /help for commands, Ctrl+Q or Esc to quit");
+        push_output("Enter: evaluate | Alt-Enter: newline | Ctrl-S: search output | Ctrl+Q: quit");
 
         # start the first prompt line
         new_prompt_line();
@@ -3921,8 +3918,15 @@ class QRepl {
         time_text = now().format("HH:mm:SS");
         last_tick = clock_getmillis();
 
-        set_return_value(run());
+        if (start) { set_return_value(run()); }
     }
+
+    # Public accessors support embedding with a caller-owned terminal and event loop.
+    NcursesUi::Application getApplication() { return app; }
+    NcursesUi::TextEditorWidget getEditor() { return editor; }
+    NcursesUi::TranscriptWidget getTranscript() { return output_widget; }
+
+    private nothing refresh_history() { buffer.setHistory(map $1.text, history.getItems()); }
 
     private nothing parse_args() {
         int i = 0;
@@ -3931,7 +3935,9 @@ class QRepl {
             if (arg == "-h" || arg == "--help") {
                 printf("qrepl - full-screen Qore REPL (ncurses UI)\n");
                 printf("Usage: qrepl [--help|-h]\n");
-                printf("Controls: Enter=eval, Up/Down=history, Left/Right=cursor, Home/End\n");
+                printf("Enter=eval, Alt-Enter=newline, Ctrl-P/N=history, Ctrl-R=filtered history\n");
+                printf("Ctrl-S=search output, F3/Shift-F3=next/previous match, F6=output/editor\n");
+                printf("PageUp/Down=scroll output, Ctrl-End=latest, Ctrl-Z/Y=undo/redo\n");
                 printf("Ctrl: ^A home, ^E end, ^K kill-to-end, ^U kill-to-start, ^W word-back\n");
                 thread_exit;
             }
@@ -3943,13 +3949,13 @@ class QRepl {
         try {
             use_tty_enabled = True;
             return new Ncurses::Session({"use_tty": True, "esc_delay": 25, "mouse": True,
-                "colors": True, "raw": True, "cursor": 1});
+                "colors": True, "raw": True, "cursor": 1, "bracketed_paste": True});
         } catch (hash<ExceptionInfo> ex) {
             # fallback without TTY
         }
         use_tty_enabled = False;
         return new Ncurses::Session({"esc_delay": 25, "mouse": True, "colors": True,
-            "raw": True, "cursor": 1});
+            "raw": True, "cursor": 1, "bracketed_paste": True});
     }
 
     private nothing init_ui() {
@@ -3969,6 +3975,9 @@ class QRepl {
             {"label": "Reset", "command": "/reset"},
         ));
         menu_bar.addMenu("View", (
+            {"label": "Search Output...", "command": "search_output"},
+            {"label": "Latest Output", "command": "latest_output"},
+            {"separator": True},
             {"label": "Variables", "command": "/vars"},
             {"label": "Functions", "command": "/functions"},
             {"label": "Classes", "command": "/classes"},
@@ -4001,17 +4010,22 @@ class QRepl {
             }
         }
 
-        # set up output widget (combined output + inline input)
-        output_widget.setContent(output_content);
+        # Independent output and draft viewports preserve reading position during edits.
+        output_widget.setRetentionLimit(10000);
+        editor.setAutoHeight(1, 6);
+        editor.setVSizePolicy(NcursesUi::SizePolicy::Fixed);
+        editor.setClipboard(sub (string text) { clipboard = text; }, string sub () { return clipboard; });
+        output_widget.setOnCopy(sub (string text) { clipboard = text; });
         output_widget.setVSizePolicy(NcursesUi::SizePolicy::Expanding);
         output_widget.setShowScrollbar(True);
 
         # set up status bar
         update_status();
 
-        # build widget tree (no separate input widget)
+        # Build the transcript, bounded editor and status layout.
         root.addChild(menu_bar);
         root.addChild(output_widget);
+        root.addChild(editor);
         root.addChild(status_bar);
 
         # layout: vertical box
@@ -4019,8 +4033,7 @@ class QRepl {
         app.setRootLayout(layout);
         app.setRoot(root);
 
-        # set focus to output widget
-        app.getFocusManager().setFocus(output_widget);
+        app.getFocusManager().setFocus(editor);
 
         # global key handler
         app.setGlobalKeyHandler(hash<NcursesUi::EventResult> sub (hash<Ncurses::InputEvent> ev) {
@@ -4042,7 +4055,6 @@ class QRepl {
         }
         try {
             output_capture = start_output_capture();
-            capture_running = True;
             capture_enabled = True;
         } catch (hash<ExceptionInfo> ex) {
             capture_enabled = False;
@@ -4063,286 +4075,77 @@ class QRepl {
 
     private hash<auto> start_output_capture() {
         hash<PipeInfo> pipe = File::getPipe();
-        File stdout_restore();
-        File stderr_restore();
-        stdout_restore.open("/proc/self/fd/1", O_WRONLY);
-        stderr_restore.open("/proc/self/fd/2", O_WRONLY);
-        stdout.redirect(pipe.write);
-        stderr.redirect(pipe.write);
-        background output_capture_thread(pipe.read);
-        return {
-            "pipe": pipe,
-            "stdout_restore": stdout_restore,
-            "stderr_restore": stderr_restore,
-        };
-    }
-
-    private nothing output_capture_thread(ReadOnlyFile read_file) {
-        while (capture_running) {
-            try {
-                *binary b = read_file.readShortBinary(4096, 200);
-                # data available (readShortBinary may also throw FILE-READ-TIMEOUT)
-                if (exists b && length(b) > 0) {
-                    string chunk = binary_to_string(b);
-                    if (chunk != "") {
-                        enqueue_output_chunk(chunk);
-                    }
-                }
-            } catch (hash<ExceptionInfo> ex) {
-                if (ex.err == "FILE-READ-TIMEOUT") {
-                    # timeout - check if eval completed with unterminated output
-                    output_mutex.lock();
-                    on_exit output_mutex.unlock();
-                    if (eval_complete) {
-                        if (capture_tail != "") {
-                            # append reverse-video "%" indicator (ANSI SGR 7 = reverse)
-                            pending_output += capture_tail
-                                + chr(0x1b) + "[7m%" + chr(0x1b) + "[0m";
-                            capture_tail = "";
-                        }
-                        eval_complete = False;
-                        # signal main thread that post-eval capture is done
-                        eval_flushed_cond.signal();
-                    }
-                    continue;
-                }
-                if (capture_running) {
-                    break;
-                }
-            }
+        File stdout_restore(); File stderr_restore();
+        stdout_restore.open2("/proc/self/fd/1", O_WRONLY);
+        stderr_restore.open2("/proc/self/fd/2", O_WRONLY);
+        QReplOutputCapture reader(pipe.read);
+        on_error {
+            stdout.redirect(stdout_restore); stderr.redirect(stderr_restore);
+            reader.close(); pipe.write.close(); pipe.read.close();
         }
-    }
-
-    private nothing enqueue_output_chunk(string chunk) {
-        output_mutex.lock();
-        on_exit output_mutex.unlock();
-
-        string full = capture_tail + chunk;
-        list<string> lines = full.split("\n");
-
-        if (full.size() > 0 && full.substr(-1) == "\n") {
-            # complete lines
-            foreach string line in (lines) {
-                if (line != "") {
-                    pending_output += line;
-                }
-            }
-            capture_tail = "";
-        } else {
-            # last part is incomplete
-            for (int i = 0; i < lines.size() - 1; ++i) {
-                if (lines[i] != "") {
-                    pending_output += lines[i];
-                }
-            }
-            capture_tail = lines[lines.size() - 1];
-        }
-
-        # if eval already completed, flush immediately and signal main thread
-        if (eval_complete) {
-            if (capture_tail != "") {
-                pending_output += capture_tail
-                    + chr(0x1b) + "[7m%" + chr(0x1b) + "[0m";
-                capture_tail = "";
-            }
-            eval_complete = False;
-            eval_flushed_cond.signal();
-        }
+        stdout.redirect(pipe.write); stderr.redirect(pipe.write); capture_reader = reader;
+        return {"pipe": pipe, "stdout_restore": stdout_restore, "stderr_restore": stderr_restore};
     }
 
     private nothing drain_pending_output() {
-        list<string> drain = ();
-        output_mutex.lock();
-        on_exit output_mutex.unlock();
-        if (pending_output.size() > 0) {
-            drain = pending_output;
-            pending_output = ();
-        }
-
-        foreach string line in (drain) {
-            push_output(line);
-        }
-        # update cursor position after inserting lines before the prompt
-        if (drain.size() > 0 && prompt_line_idx >= 0) {
-            update_prompt_line();
+        if (capture_reader) {
+            list<string> lines = capture_reader.drain();
+            if (lines) { output_widget.appendLines(lines); update_status(); }
         }
     }
 
-    /** Clears eval_complete before starting a new eval to prevent stale
-        flag from causing premature flushing of in-progress eval output.
-    */
-    private nothing clear_eval_complete() {
-        if (capture_enabled) {
-            output_mutex.lock();
-            on_exit output_mutex.unlock();
-            eval_complete = False;
-        }
-    }
-
-    /** Flushes C stdio buffers to the capture pipe after eval.
-        Uses Session::flushStdio() if available, falls back to Qore's
-        builtin flush() which calls fflush(stdout).
-    */
+    /** Flushes producer buffers before requesting an acknowledged capture barrier. */
     private nothing flush_capture() {
-        if (capture_enabled) {
-            try {
-                app.getSession().flushStdio();
-            } catch (hash<ExceptionInfo> ex) {
-                flush();
-            }
-        }
+        if (capture_enabled) { app.getSession().flushStdio(); }
     }
 
-    /** Signals the capture thread that an eval has completed so it can
-        flush any unterminated output with the no-newline indicator.
-    */
-    private nothing signal_eval_complete() {
-        if (capture_enabled) {
-            output_mutex.lock();
-            on_exit output_mutex.unlock();
-            eval_complete = True;
-        }
-    }
-
-    /** Waits for the capture thread to finish processing post-eval pipe data.
-        The capture thread signals eval_flushed_cond after it has either flushed
-        capture_tail or confirmed it is empty.
-    */
-    private nothing await_capture_flush() {
-        if (!capture_enabled) {
-            return;
-        }
-        output_mutex.lock();
-        on_exit output_mutex.unlock();
-        # if the capture thread already consumed eval_complete, nothing to wait for
-        if (!eval_complete) {
-            return;
-        }
-        # wait for capture thread to signal (up to 500ms — one full timeout cycle)
-        eval_flushed_cond.wait(output_mutex, 500);
-    }
-
-    private nothing push_output(string line) {
-        if (prompt_line_idx >= 0) {
-            # insert before the live prompt line
-            output_content.insertLine(prompt_line_idx, line);
-            prompt_line_idx += 1;
-        } else {
-            output_content.appendLine(line);
-        }
-        output_widget.scrollTo(NcursesUi::ScrollDirection::End);
-        output_widget.markDirty();
-    }
+    private nothing push_output(string line) { output_widget.appendLine(line); }
 
     private nothing push_output_lines(string text, string prefix = "") {
-        list<string> lines = text.split("\n");
-        foreach string line in (lines) {
-            push_output(prefix + line);
-        }
+        output_widget.appendLines(map prefix + $1, split("\n", text, False, True));
     }
 
-    /** Updates the live prompt line in output_content with current buffer text. */
+    /** Updates the draft's prompt and bounded layout without changing transcript position. */
     private nothing update_prompt_line() {
-        string prompt_text = display_prompt(current_prompt);
-        string buf_text = buffer.getText();
-        # refresh hints when the buffer text changes
-        if (buf_text != last_hint_input) {
-            last_hint_input = buf_text;
-            update_hints();
-            update_status();
+        editor.setPrompt(display_prompt(current_prompt));
+        string text = buffer.getText();
+        if (text != last_hint_input) {
+            last_hint_input = text; update_hints(); update_status();
         }
-        string line = prompt_text + buf_text;
-        if (prompt_line_idx >= 0) {
-            output_content.setLine(prompt_line_idx, line);
-        }
-        # Pass an ANSI-free source offset; the widget maps graphemes and wrapped
-        # rows to terminal cells and keeps the insertion point in the viewport.
-        int cursor_offset = NcursesUi::TerminalText::plainAnsi(prompt_text).length() + buffer.getCursor();
-        output_widget.setCursorLine(prompt_line_idx, cursor_offset);
-        output_widget.markDirty();
+        app.layoutRoot();
     }
 
-    /** Starts a new prompt line at the end of output. */
-    private nothing new_prompt_line() {
-        string prompt_text = display_prompt(current_prompt);
-        string line = prompt_text + buffer.getText();
-        output_content.appendLine(line);
-        prompt_line_idx = output_content.lineCount() - 1;
-        output_widget.scrollTo(NcursesUi::ScrollDirection::End);
-        update_prompt_line();
-    }
+    private nothing new_prompt_line() { update_prompt_line(); }
 
-    # Handles Enter key: retrieves the current input buffer text, adds it to
-    # history, executes it through the REPL engine, waits for output capture
-    # to flush, and starts a new prompt line.
+    # Keep the complete draft, selection and undo intact on evaluation/expansion failure.
     private nothing on_input_submit() {
         string text = buffer.getText();
-        buffer.reset();
-        current_hint = NOTHING;
-        last_hint_input = "";
-
-        if (text == "") {
-            # just start a new prompt line for empty input
-            new_prompt_line();
-            return;
-        }
-
-        # History expansion (!! !n !-n !prefix !$)
+        if (text == "") { return; }
         if (text.size() >= 2 && text[0] == "!") {
             *string expanded = history.expand(text);
-            if (exists expanded) {
-                text = expanded;
-            } else {
-                # No match — show error like bash and abort (don't eval or add to history)
-                prompt_line_idx = -1;
-                output_widget.clearCursorLine();
-                push_output(text + ": event not found");
-                last_status = "Error";
-                update_status();
-                new_prompt_line();
-                return;
+            if (!exists expanded) {
+                push_output(text + ": event not found"); last_status = "Error"; update_status(); return;
             }
+            text = expanded;
         }
-
-        history.add(text);
-
-        # freeze the current prompt line (it becomes output)
-        prompt_line_idx = -1;
-        output_widget.clearCursorLine();
-
         if (text == "clear_output") {
-            output_content.clear();
-            output_widget.setScrollY(0);
-            output_widget.markDirty();
-            last_status = "Cleared";
-            update_status();
-            new_prompt_line();
-            return;
+            output_widget.clear(); buffer.setText(""); last_status = "Cleared";
+            update_status(); new_prompt_line(); return;
         }
-
-        string prompt = current_prompt;
-        string shown_prompt = display_prompt(prompt);
-        clear_eval_complete();
-        exec_line(text, prompt, shown_prompt);
-
-        # signal capture thread and wait for it to finish processing pipe data
-        signal_eval_complete();
-        await_capture_flush();
-        drain_pending_output();
-
-        # auto-indent on continuation: pre-fill buffer with indent
-        if (repl.needsMoreInput()) {
-            int indent = repl.getIndentLevel();
-            if (indent > 0) {
-                buffer.setText(strmul("    ", indent));
+        output_widget.appendBlock(split("\n", display_prompt(current_prompt) + text, False, True), "input");
+        exec_line(text, current_prompt, display_prompt(current_prompt));
+        if (capture_reader) { capture_reader.flush(); } drain_pending_output();
+        if (!last_exec_error) {
+            history.add(text); refresh_history(); buffer.setText("");
+            if (repl.needsMoreInput() && repl.getIndentLevel() > 0) {
+                buffer.setText(strmul("    ", repl.getIndentLevel()));
             }
         }
-
-        # start a new prompt line after execution
         new_prompt_line();
     }
 
     private bool exec_line(string line, string prompt, string shown_prompt) {
+        last_exec_error = NOTHING;
         last_status = "Evaluating...";
         update_status();
 
@@ -4419,13 +4222,12 @@ class QRepl {
             show_about_dialog();
             return;
         }
+        if (cmd == "search_output") { show_search(False); return; }
+        if (cmd == "latest_output") { output_widget.returnToLatest(); update_status(); return; }
         if (cmd == "clear_output") {
-            output_content.clear();
-            output_widget.setScrollY(0);
-            output_widget.markDirty();
+            output_widget.clear();
             last_status = "Cleared";
             update_status();
-            prompt_line_idx = -1;
             new_prompt_line();
             return;
         }
@@ -4436,239 +4238,87 @@ class QRepl {
             return;
         }
 
-        # save the user's current input
-        string saved_text = buffer.getText();
-        int saved_cursor = buffer.getCursor();
-
-        # show the command in output (insert before prompt line)
+        # Menu commands leave the draft, selection and undo stack unchanged.
         string prompt = current_prompt;
         string shown_prompt = display_prompt(prompt);
-        push_output(shown_prompt + cmd);
-
-        # freeze the current prompt, execute as REPL command
-        buffer.reset();
-        prompt_line_idx = -1;
-        output_widget.clearCursorLine();
-
-        clear_eval_complete();
+        output_widget.appendBlock((shown_prompt + cmd,), "input");
         exec_line(cmd, prompt, shown_prompt);
-        signal_eval_complete();
-        await_capture_flush();
-        drain_pending_output();
-
-        # restore the user's input and start a new prompt line
-        buffer.setText(saved_text);
-        buffer.setCursor(saved_cursor);
-        new_prompt_line();
+        if (capture_reader) { capture_reader.flush(); } drain_pending_output(); new_prompt_line();
     }
 
     private hash<NcursesUi::EventResult> handle_global_key(hash<Ncurses::InputEvent> ev) {
-        # if a modal is open, let the dispatcher route to the modal
-        if (app.getDispatcher().hasModal()) {
-            return <NcursesUi::EventResult>{"handled": False};
-        }
-
-        if (ev.type == Ncurses::InputType::Char) {
-            string ch = ev.ch ?? "";
-            int code = ord(ch);
-            if (code == 0x1b) {
-                # Escape
-                # if menu dropdown is open, close it
-                if (menu_bar.isDropdownOpen()) {
-                    menu_bar.closeMenu();
-                    return <NcursesUi::EventResult>{"handled": True, "action": "close_menu"};
-                }
-                # nothing open - show quit confirmation
-                show_quit_dialog();
-                return <NcursesUi::EventResult>{"handled": True, "action": "quit_dialog"};
-            } else if (code == 0x11) {
-                # Ctrl+Q - show quit confirmation (reliable alternative to Escape)
-                show_quit_dialog();
-                return <NcursesUi::EventResult>{"handled": True, "action": "quit_dialog"};
-            } else if (code == 0x0c) {
-                # Ctrl+L - redraw
-                root.markDirty();
-                return <NcursesUi::EventResult>{"handled": True};
-            } else if (code == 0x0a) {
-                # Enter - submit input
-                on_input_submit();
-                return <NcursesUi::EventResult>{"handled": True};
-            } else if (code == 0x7f || code == 0x08) {
-                # Backspace
-                buffer.backspace();
-                update_prompt_line();
-                return <NcursesUi::EventResult>{"handled": True};
-            } else if (code == 0x01) {
-                # Ctrl+A - move to start
-                buffer.moveHome();
-                update_prompt_line();
-                return <NcursesUi::EventResult>{"handled": True};
-            } else if (code == 0x05) {
-                # Ctrl+E - move to end
-                buffer.moveEnd();
-                update_prompt_line();
-                return <NcursesUi::EventResult>{"handled": True};
-            } else if (code == 0x0b) {
-                # Ctrl+K - kill to end
-                buffer.killToEnd();
-                update_prompt_line();
-                return <NcursesUi::EventResult>{"handled": True};
-            } else if (code == 0x15) {
-                # Ctrl+U - kill to start
-                buffer.killToStart();
-                update_prompt_line();
-                return <NcursesUi::EventResult>{"handled": True};
-            } else if (code == 0x17) {
-                # Ctrl+W - delete word back
-                buffer.deleteWordBack();
-                update_prompt_line();
-                return <NcursesUi::EventResult>{"handled": True};
-            } else if (code == 0x02) {
-                # Ctrl+B - move left
-                buffer.moveLeft();
-                update_prompt_line();
-                return <NcursesUi::EventResult>{"handled": True};
-            } else if (code == 0x06) {
-                # Ctrl+F - move right
-                buffer.moveRight();
-                update_prompt_line();
-                return <NcursesUi::EventResult>{"handled": True};
-            } else if (code == 0x04) {
-                # Ctrl+D - delete char at cursor
-                buffer.deleteChar();
-                update_prompt_line();
-                return <NcursesUi::EventResult>{"handled": True};
-            } else if (code == 0x09) {
-                # Tab - code completion
-                handle_tab_completion();
-                return <NcursesUi::EventResult>{"handled": True};
-            } else if (code >= 32) {
-                # printable character
-                buffer.insertChar(ch);
-                # auto-dedent when typing "}" on a whitespace-only line during continuation
-                if (ch == "}" && repl.needsMoreInput()) {
-                    buffer.autoDedent("    ");
-                }
-                update_prompt_line();
-                return <NcursesUi::EventResult>{"handled": True};
-            }
-        } else if (ev.type == Ncurses::InputType::Alt) {
-            string ch = ev.ch ?? "";
-            if (ch != "") {
-                # standard editing keys (Alt+B/F/D) take priority over menu hotkeys
-                string lch = ch.lwr();
-                if (lch == "b") {
-                    # Alt+B - move word left
-                    buffer.moveWordLeft();
-                    update_prompt_line();
-                    return <NcursesUi::EventResult>{"handled": True};
-                } else if (lch == "f") {
-                    # Alt+F - move word right
-                    buffer.moveWordRight();
-                    update_prompt_line();
-                    return <NcursesUi::EventResult>{"handled": True};
-                } else if (lch == "d") {
-                    # Alt+D - delete word forward
-                    buffer.deleteWordForward();
-                    update_prompt_line();
-                    return <NcursesUi::EventResult>{"handled": True};
-                }
-                # check item-level hotkeys (Alt+O → file_browser, Alt+H → /help, etc.)
-                *string cmd = alt_commands{lch};
-                if (exists cmd) {
-                    handle_menu_command(cmd);
-                    return <NcursesUi::EventResult>{"handled": True, "action": "menu_command"};
-                }
-                # fall back to opening menu by label first character
-                if (menu_bar.processAltKey(ch)) {
-                    return <NcursesUi::EventResult>{"handled": True, "action": "open_menu"};
-                }
-            }
-        } else if (ev.type == Ncurses::InputType::Key) {
-            string name = ev.name ?? "";
-            if (name == "KEY_F(2)") {
-                # F2 - toggle mouse
-                mouse_enabled = !mouse_enabled;
-                app.getSession().setMouse(mouse_enabled);
-                update_status();
-                return <NcursesUi::EventResult>{"handled": True};
-            } else if (name == "kLFT3" || name == "kLFT5") {
-                # Alt+Left or Ctrl+Left - move word left
-                buffer.moveWordLeft();
-                update_prompt_line();
-                return <NcursesUi::EventResult>{"handled": True};
-            } else if (name == "kRIT3" || name == "kRIT5") {
-                # Alt+Right or Ctrl+Right - move word right
-                buffer.moveWordRight();
-                update_prompt_line();
-                return <NcursesUi::EventResult>{"handled": True};
-            } else if (name == "KEY_LEFT") {
-                buffer.moveLeft();
-                update_prompt_line();
-                return <NcursesUi::EventResult>{"handled": True};
-            } else if (name == "KEY_RIGHT") {
-                buffer.moveRight();
-                update_prompt_line();
-                return <NcursesUi::EventResult>{"handled": True};
-            } else if (name == "KEY_UP") {
-                # history previous
-                *string prev = history.prev();
-                if (exists prev) {
-                    buffer.setText(prev);
-                    update_prompt_line();
-                }
-                return <NcursesUi::EventResult>{"handled": True};
-            } else if (name == "KEY_DOWN") {
-                # history next
-                *string nxt = history.next();
-                if (exists nxt) {
-                    buffer.setText(nxt);
-                    update_prompt_line();
-                }
-                return <NcursesUi::EventResult>{"handled": True};
-            } else if (name == "KEY_HOME") {
-                buffer.moveHome();
-                update_prompt_line();
-                return <NcursesUi::EventResult>{"handled": True};
-            } else if (name == "KEY_END") {
-                buffer.moveEnd();
-                update_prompt_line();
-                return <NcursesUi::EventResult>{"handled": True};
-            } else if (name == "KEY_BACKSPACE") {
-                buffer.backspace();
-                update_prompt_line();
-                return <NcursesUi::EventResult>{"handled": True};
-            } else if (name == "kDC5") {
-                # Ctrl+Delete - delete word forward
-                buffer.deleteWordForward();
-                update_prompt_line();
-                return <NcursesUi::EventResult>{"handled": True};
-            } else if (name == "KEY_DC") {
-                buffer.deleteChar();
-                update_prompt_line();
-                return <NcursesUi::EventResult>{"handled": True};
-            } else if (name == "KEY_PPAGE") {
-                # Page Up - scroll output
-                output_widget.scrollTo(NcursesUi::ScrollDirection::PageUp);
-                return <NcursesUi::EventResult>{"handled": True};
-            } else if (name == "KEY_NPAGE") {
-                # Page Down - scroll output
-                output_widget.scrollTo(NcursesUi::ScrollDirection::PageDown);
-                return <NcursesUi::EventResult>{"handled": True};
-            }
+        if (app.getDispatcher().hasModal()) { return <NcursesUi::EventResult>{"handled": False}; }
+        string ch = ev.ch ?? ""; string name = ev.name ?? ""; bool handled = True;
+        bool editing = True;
+        if (ev.type == Ncurses::InputType::Char && (ch == "\x1b" || ch == "\x11")) {
+            if (menu_bar.isDropdownOpen()) { menu_bar.closeMenu(); }
+            else { show_quit_dialog(); }
+            editing = False;
+        } else if (ev.type == Ncurses::InputType::Char && ch == "\x0c") { root.markDirty(); editing = False; }
+        else if (ev.type == Ncurses::InputType::Char && ch == "\x13") { show_search(False); editing = False; }
+        else if (ev.type == Ncurses::InputType::Char && ch == "\x12") { show_search(True); editing = False; }
+        else if (ev.type == Ncurses::InputType::Key && name == "KEY_F(6)") {
+            app.getFocusManager().setFocus(output_widget.hasFocus() ? editor : output_widget); editing = False;
+        } else if (ev.type == Ncurses::InputType::Key && (name == "KEY_F(3)" || name == "KEY_F(15)")) {
+            output_widget.findNext(name != "KEY_F(15)"); editing = False;
+        } else if (ev.type == Ncurses::InputType::Key && name == "kEND5") { output_widget.returnToLatest(); editing = False; }
+        else if (ev.type == Ncurses::InputType::Key && name == "KEY_F(2)") {
+            mouse_enabled = !mouse_enabled; app.getSession().setMouse(mouse_enabled); editing = False;
+        } else if (ev.type == Ncurses::InputType::Key && (name == "KEY_PPAGE" || name == "KEY_NPAGE")) {
+            output_widget.scrollTo(name == "KEY_PPAGE" ? NcursesUi::ScrollDirection::PageUp : NcursesUi::ScrollDirection::PageDown);
+            editing = False;
         } else if (ev.type == Ncurses::InputType::Mouse) {
-            int bs = ev.mouse.button_state;
-            if (bs & Ncurses::BUTTON4_PRESSED || bs & Ncurses::BUTTON4_CLICKED) {
-                # mouse wheel up - scroll output
-                output_widget.scrollTo(NcursesUi::ScrollDirection::Up, 3);
-                return <NcursesUi::EventResult>{"handled": True};
-            } else if (bs & Ncurses::BUTTON5_PRESSED || bs & Ncurses::BUTTON5_CLICKED) {
-                # mouse wheel down - scroll output
-                output_widget.scrollTo(NcursesUi::ScrollDirection::Down, 3);
-                return <NcursesUi::EventResult>{"handled": True};
+            # Route hit testing and wheel events to the actual viewport under the pointer.
+            return <NcursesUi::EventResult>{"handled": False};
+        } else if (output_widget.hasFocus() && (ev.type == Ncurses::InputType::Key
+                || (ev.type == Ncurses::InputType::Char && (ch == "n" || ch == "N" || ch == "\x03")))) {
+            handled = output_widget.processEvent(ev).handled; editing = False;
+        } else if (ev.type == Ncurses::InputType::Char && (ch == "\n" || ch == "\r")
+                || ev.type == Ncurses::InputType::Key && name == "KEY_ENTER") { on_input_submit(); }
+        else if (ev.type == Ncurses::InputType::Char && ch == "\t") { handle_tab_completion(); editing = False; }
+        else if (ev.type == Ncurses::InputType::Char && (ch == "\x10" || ch == "\x0e")) { buffer.historyMove(ch == "\x0e"); }
+        else if (ev.type == Ncurses::InputType::Key && (name == "KEY_UP" || name == "KEY_DOWN")
+                && buffer.getText().find("\n") < 0) { buffer.historyMove(name == "KEY_DOWN"); }
+        else if (ev.type == Ncurses::InputType::Char && (ch == "\x01" || ch == "\x05")) {
+            editor.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Key, "name": ch == "\x01" ? "KEY_HOME" : "KEY_END"});
+        } else if (ev.type == Ncurses::InputType::Char && (ch == "\x0b" || ch == "\x15")) { buffer.killToBoundary(ch == "\x0b"); }
+        else if (ev.type == Ncurses::InputType::Char && ch == "\x17") { buffer.eraseWord(False); }
+        else if (ev.type == Ncurses::InputType::Char && (ch == "\x02" || ch == "\x06")) { buffer.moveHorizontal(ch == "\x06"); }
+        else if (ev.type == Ncurses::InputType::Char && ch == "\x04") { buffer.erase(True); }
+        else if (ev.type == Ncurses::InputType::Key && (name == "kLFT3" || name == "kLFT5" || name == "kRIT3" || name == "kRIT5")) {
+            buffer.moveWord(name == "kRIT3" || name == "kRIT5");
+        } else if (ev.type == Ncurses::InputType::Key && name == "kDC5") { buffer.eraseWord(True); }
+        else if (ev.type == Ncurses::InputType::Alt && (ch.lwr() == "b" || ch.lwr() == "f")) { buffer.moveWord(ch.lwr() == "f"); }
+        else if (ev.type == Ncurses::InputType::Alt && ch.lwr() == "d") { buffer.eraseWord(True); }
+        else if (ev.type == Ncurses::InputType::Alt && ch != "\n" && ch != "\r") {
+            *string cmd = alt_commands{ch.lwr()};
+            if (cmd) { handle_menu_command(cmd); } else { handled = menu_bar.processAltKey(ch); }
+            editing = False;
+        } else {
+            handled = editor.processEvent(ev).handled;
+            if (handled && ev.type == Ncurses::InputType::Char && ch == "}" && repl.needsMoreInput()) {
+                NcursesReplUi::InputBuffer dedent(); dedent.setText(buffer.getText());
+                if (dedent.autoDedent("    ")) { buffer.replace(0, buffer.getText().length(), dedent.getText()); }
             }
         }
-        return <NcursesUi::EventResult>{"handled": False};
+        if (handled) {
+            if (editing) { app.getFocusManager().setFocus(editor); }
+            update_prompt_line(); update_status();
+        }
+        return <NcursesUi::EventResult>{"handled": handled};
+    }
+
+    private nothing show_search(bool history_search) {
+        QReplSearchPanel panel(app.getSession(), history_search ? "History contains" : "Search output");
+        panel.setOnSubmit(sub (string query) {
+            if (history_search) { buffer.historyMove(False, query); }
+            else { output_widget.setSearch(query); output_widget.findNext(); }
+            app.popModal(); panel.destroyPanel(); update_prompt_line(); update_status();
+        });
+        panel.setOnDismiss(sub () { app.popModal(); panel.destroyPanel(); });
+        hash<Ncurses::Size> size = app.getSession().screen().size();
+        panel.setFrameValues(max(0, (size.rows - 3) / 2), max(0, (size.cols - 60) / 2), min(3, size.rows), min(60, size.cols));
+        panel.createPanel(); app.pushModal(panel);
     }
 
     /** Updates the inline hint text based on the current buffer content.
@@ -4761,12 +4411,7 @@ class QRepl {
             replacement += "::";
         }
 
-        # replace prefix with completion
-        string text = buffer.getText();
-        string new_text = text.substr(0, word_start) + replacement + text.substr(word_start + prefix.length());
-        int new_cursor = word_start + replacement.length();
-        buffer.setText(new_text);
-        buffer.setCursor(new_cursor);
+        buffer.replace(word_start, word_start + prefix.length(), replacement);
         update_prompt_line();
     }
 
@@ -4781,30 +4426,9 @@ class QRepl {
 
         NcursesUi::CompletionPopupWidget popup(sess, completions);
 
-        # position below the cursor
-        string prompt_text = display_prompt(current_prompt);
-        int cursor_screen_col = prompt_text.length() + buffer.getCursor();
-
-        # the prompt is on the last line of visible content
-        hash<NcursesUi::Rect> ow_frame = output_widget.getFrame();
-        int anchor_y;
-        if (prompt_line_idx >= 0) {
-            # try to get the screen row of the prompt line
-            int visible_start = output_widget.getScrollY();
-            int line_in_view = prompt_line_idx - visible_start;
-            anchor_y = ow_frame.y + line_in_view;
-        } else {
-            anchor_y = ow_frame.y + ow_frame.rows - 1;
-        }
-        # clamp anchor_y to the visible output area
-        if (anchor_y < ow_frame.y) {
-            anchor_y = ow_frame.y;
-        } else if (anchor_y > ow_frame.y + ow_frame.rows - 1) {
-            anchor_y = ow_frame.y + ow_frame.rows - 1;
-        }
-        int anchor_x = ow_frame.x + cursor_screen_col;
-
-        popup.positionAt(anchor_y, anchor_x, sz.rows, sz.cols);
+        *hash<Ncurses::Position> caret = editor.getCaretScreenPosition();
+        if (!caret) { return; }
+        popup.positionAt(caret.y, caret.x, sz.rows, sz.cols);
 
         popup.setOnSelect(sub (hash<auto> item) {
             app.popModal();
@@ -4925,6 +4549,9 @@ class QRepl {
             {"text": " " + output_title + " ", "style": status_style},
         );
 
+        if (!output_widget.isFollowing()) {
+            segs += {"text": " Paused (" + output_widget.getUnreadCount() + " new) Ctrl-End: latest ", "style": hint_style};
+        }
         # show hint in status bar when available
         if (exists current_hint && current_hint != "") {
             segs += {"text": current_hint + " ", "style": hint_style};
@@ -4957,22 +4584,7 @@ class QRepl {
         fb.setOnLoad(sub (hash<auto> item) {
             app.popModal();
             fb.destroyPanel();
-            # execute /load <path> via REPL
-            string text = "/load " + item.path;
-            string prompt = current_prompt;
-            string shown_prompt = display_prompt(prompt);
-            if (prompt_line_idx >= 0) {
-                output_content.setLine(prompt_line_idx, shown_prompt + text);
-            }
-            buffer.reset();
-            prompt_line_idx = -1;
-            output_widget.clearCursorLine();
-            clear_eval_complete();
-            exec_line(text, prompt, shown_prompt);
-            signal_eval_complete();
-            await_capture_flush();
-            drain_pending_output();
-            new_prompt_line();
+            handle_menu_command("/load " + item.path);
         });
 
         fb.setOnDismiss(sub () {
@@ -5012,7 +4624,7 @@ class QRepl {
 
     private nothing close_session() {
         # save persistent history
-        if (exists ENV.HOME) {
+        if (persistent_history && exists ENV.HOME) {
             try {
                 history.save(ENV.HOME + "/.qore-repl-history");
             } catch (hash<ExceptionInfo> ex) {
@@ -5021,27 +4633,16 @@ class QRepl {
         }
 
         if (capture_enabled) {
-            capture_running = False;
+            capture_enabled = False;
             try {
-                if (output_capture.pipe) {
-                    output_capture.pipe.write.close();
-                }
+                Ncurses::Session session = app.getSession();
+                stdout.redirect(output_capture.stdout_restore); session.redirectStdout(output_capture.stdout_restore);
+                stderr.redirect(output_capture.stderr_restore); session.redirectStderr(output_capture.stderr_restore);
             } catch (hash<ExceptionInfo> ex) {
-                # ignore
+                stderr.printf("qrepl: restoring output failed: %s\n", ex.desc);
             }
-            try {
-                Ncurses::Session s = app.getSession();
-                if (output_capture.stdout_restore) {
-                    stdout.redirect(output_capture.stdout_restore);
-                    s.redirectStdout(output_capture.stdout_restore);
-                }
-                if (output_capture.stderr_restore) {
-                    stderr.redirect(output_capture.stderr_restore);
-                    s.redirectStderr(output_capture.stderr_restore);
-                }
-            } catch (hash<ExceptionInfo> ex) {
-                # ignore
-            }
+            if (capture_reader) { capture_reader.close(); capture_reader = NOTHING; }
+            output_capture.pipe.write.close(); output_capture.pipe.read.close();
         }
         try {
             app.close();
@@ -5289,5 +4890,113 @@ class AboutDialogWidget inherits NcursesUi::PanelWidget {
         if (on_dismiss) {
             on_dismiss();
         }
+    }
+}
+
+# Small composable input panel used by output and history search.
+class QReplSearchPanel inherits NcursesUi::PanelWidget {
+    private { NcursesUi::TextInputWidget input(); *code<nothing()> dismiss; }
+    constructor(Ncurses::Session session, string title) : PanelWidget(session, title) { addChild(input); }
+    nothing setOnSubmit(code<nothing(string)> callback) { input.setOnSubmit(callback); }
+    nothing setOnDismiss(code<nothing()> callback) { dismiss = callback; }
+    nothing layout() { input.setFrame(contentRect()); }
+    hash<NcursesUi::EventResult> processEvent(hash<Ncurses::InputEvent> event) {
+        if (event.type == Ncurses::InputType::Char && event.ch == "\x1b") {
+            if (dismiss) { dismiss(); } return <NcursesUi::EventResult>{"handled": True};
+        }
+        return PanelWidget::processEvent(event);
+    }
+}
+
+# Owns a pipe reader thread. Producers flush stdio before flush(); UI methods are
+# serialized by the caller. The worker never accesses terminal widgets.
+class QReplOutputCapture {
+    private {
+        ReadOnlyFile input;
+        EventNotifier wake();
+        Counter active(1);
+        Mutex mutex();
+        Condition changed();
+        int requested = 0;
+        int acknowledged = 0;
+        bool stopping = False;
+        bool finished = False;
+        *hash<ExceptionInfo> failure;
+        list<string> pending = ();
+        # Worker-owned bytes: decode only complete logical lines, preserving split UTF-8.
+        binary tail = binary();
+    }
+    constructor(ReadOnlyFile input) {
+        self.input = input;
+        on_error active.dec();
+        background run();
+    }
+    # A request snapshot is taken before draining the pipe, so an acknowledgement
+    # covers all bytes already flushed by the producer before that request.
+    nothing flush() {
+        int request;
+        {
+            mutex.lock(); on_exit mutex.unlock(); checkFailure();
+            if (finished || stopping) { throw "QREPL-CAPTURE-CLOSED", "Capture has stopped"; }
+            request = ++requested;
+        }
+        wake.notify();
+        mutex.lock(); on_exit mutex.unlock();
+        while (acknowledged < request && !finished) { changed.wait(mutex); }
+        checkFailure();
+        if (acknowledged < request) { throw "QREPL-CAPTURE-CLOSED", "Capture ended before the requested barrier"; }
+    }
+    list<string> drain() {
+        mutex.lock(); on_exit mutex.unlock(); checkFailure();
+        list<string> result = pending; pending = (); return result;
+    }
+    nothing close() {
+        {
+            mutex.lock(); on_exit mutex.unlock(); stopping = True;
+        }
+        wake.notify(); active.waitForZero();
+    }
+    private nothing checkFailure() {
+        if (failure) { throw failure.err, failure.desc, failure.arg; }
+    }
+    private nothing run() {
+        on_exit {
+            { mutex.lock(); on_exit mutex.unlock(); finished = True; changed.broadcast(); }
+            active.dec();
+        }
+        try {
+            while (True) {
+                Socket::poll((<SocketPollInfo>{"socket": input, "events": SOCK_POLLIN},
+                    <SocketPollInfo>{"socket": wake, "events": SOCK_POLLIN}), -1);
+                wake.acknowledge();
+                int request; bool stop;
+                { mutex.lock(); on_exit mutex.unlock(); request = requested; stop = stopping; }
+                list<string> complete = (); bool eof = False;
+                while (input.isDataAvailable(0)) {
+                    *binary bytes = input.readShortBinary(4096, 0);
+                    if (!bytes || !bytes.size()) { eof = True; break; }
+                    tail += bytes; int start = 0; int end;
+                    while ((end = tail.find(<0a>, start)) >= 0) {
+                        complete += decode(tail.substr(start, end - start)); start = end + 1;
+                    }
+                    if (start) { tail = tail.substr(start); }
+                }
+                if (request > acknowledged || stop || eof) {
+                    if (tail.size()) { complete += decode(tail) + "\x1b[7m%\x1b[0m"; tail = binary(); }
+                }
+                {
+                    mutex.lock(); on_exit mutex.unlock(); pending += complete;
+                    acknowledged = request; changed.broadcast();
+                }
+                if (stop || eof) { break; }
+            }
+        } catch (hash<ExceptionInfo> ex) {
+            mutex.lock(); on_exit mutex.unlock(); failure = ex;
+        }
+    }
+    private static string decode(binary data) {
+        string text = binary_to_string(data, "UTF-8");
+        if (!(text =~ /\A(?:\X)*\z/)) { return "[invalid UTF-8 output: " + data.toHex() + "]"; }
+        return text;
     }
 }

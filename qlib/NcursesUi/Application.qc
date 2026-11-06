@@ -305,11 +305,17 @@ public class Application {
         }
         dispatcher.getFocusManager().reconcile(dispatcher.topModal() ?? root);
         updateModalCursor();
+        bool dirty = root.isDirty();
+        foreach NcursesUi::Widget modal in (dispatcher.getModalStack()) { if (modal.isDirty()) { dirty = True; } }
+        if (!dirty) { return; }
+        bool exposed = root.isDirty();
         root.drawTree(session.screen());
         # draw modal widgets (they have their own panel windows)
         list<NcursesUi::Widget> modals = dispatcher.getModalStack();
         foreach NcursesUi::Widget modal in (modals) {
-            modal.drawTree(session.screen());
+            bool changed = exposed || modal.isDirty();
+            modal.drawTree(session.screen(), exposed);
+            exposed = changed;
         }
         session.updatePanels();
         session.doupdate();

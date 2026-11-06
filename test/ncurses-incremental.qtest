@@ -1,0 +1,149 @@
+#!/usr/bin/env qore
+# Copyright 2026 Qore Technologies, s.r.o.
+%modern
+%prepend-module-path "${SCRIPT_DIR}/../qlib"
+%requires ncurses
+%requires NcursesUi
+%requires QUnit
+%include "test/TestHarness.qc"
+%exec-class IncrementalTest
+
+class IncrementalTest inherits Test {
+    constructor() : Test("IncrementalTest", "1.0", \ARGV) {
+        addTestCase("append and edit preserve cached rows at both scrollbar widths", \updates());
+        addTestCase("stable identities survive edits, insertion and retention", \identities());
+        addTestCase("retained indexes compact without losing visible geometry", \retention());
+        addTestCase("width maxima shrink after replacement and removal", \widths());
+        addTestCase("indexed mapping agrees with ANSI wrapping through mixed edits", \mapping());
+        addTestCase("batch revisions and invalid retention boundaries", \revision());
+        addTestCase("stable scroll anchors survive insertion, edits, trim and resize", \anchors());
+        addTestCase("blank and narrow Unicode wrapped rows stay addressable", \boundaries());
+        addTestCase("hidden source lines preserve identities and zero-row mapping", \visibility());
+        set_return_value(main());
+    }
+    updates() {
+        NcursesUi::LineListContent c(); c.setWordWrap(True);
+        list<string> lines = (); for (int i = 0; i < 80; ++i) { lines += "abcdefghijklmnopqrs"; }
+        c.setLines(lines); c.prepareViewport(10); assertEq(160, c.totalRows());
+        c.prepareViewport(9); assertEq(240, c.totalRows());
+        int before = c.getLayoutStats().wraps;
+        c.appendLines(("new", "another"));
+        assertEq(before + 4, c.getLayoutStats().wraps);
+        c.prepareViewport(10); assertEq(162, c.totalRows());
+        c.prepareViewport(9); assertEq(242, c.totalRows());
+        c.setLine(0, "short"); assertEq(before + 6, c.getLayoutStats().wraps);
+        assertEq(240, c.totalRows());
+        c.prepareViewport(10); assertEq(161, c.totalRows());
+        c.sourceToVisual(80, 3); c.visualToSource(159, 0);
+        assertEq(before + 6, c.getLayoutStats().wraps);
+    }
+    visibility() {
+        NcursesUi::LineListContent c(); c.setWordWrap(True); c.setLines(("first", "hidden long line", "last"));
+        int id = c.getLineId(1); c.prepareViewport(5); c.setLineVisible(1, False);
+        assertEq(2, c.totalRows()); assertEq(5, c.totalCols()); assertEq(id, c.getLineId(1));
+        assertEq(-1, c.sourceToVisual(1, 3).y); assertEq(2, c.visualToSource(1, 0).y);
+        c.setLine(1, "changed"); c.insertLine(0, "new"); assertEq(-1, c.sourceToVisual(c.lineForId(id), 2).y);
+        c.setLineVisible(0, False); c.setLineVisible(1, False); c.setLineVisible(3, False);
+        assertEq(0, c.totalRows()); assertEq(0, c.totalCols()); assertNothing(c.getVisualRow(0));
+        assertEq(<Ncurses::Position>{"y": 0, "x": 0}, c.visualToSource(0, 0));
+        c.setLineVisible(c.lineForId(id), True); assertEq(2, c.totalRows()); assertEq(7, c.totalCols());
+        assertEq(2, c.visualToSource(1, 0).y); assertEq("changed", c.getLine(c.lineForId(id)));
+    }
+    identities() {
+        NcursesUi::LineListContent c(); c.setLines(("a", "b", "c"));
+        int a = c.getLineId(0); int b = c.getLineId(1); int last = c.getLineId(2);
+        c.setLine(1, "changed"); assertEq(b, c.getLineId(1));
+        c.insertLine(0, "first"); assertEq(2, c.lineForId(b));
+        c.removeLine(1); assertEq(-1, c.lineForId(a)); assertEq(1, c.lineForId(b));
+        c.setRetentionLimit(2); assertEq(("changed", "c"), c.getLines());
+        c.appendLine("new"); assertEq(-1, c.lineForId(b)); assertEq(0, c.lineForId(last));
+        int newest = c.getLineId(1); c.clear(); c.appendLine("again");
+        assertTrue(c.getLineId(0) > newest); assertEq(-1, c.lineForId(newest));
+        assertNothing(c.getLine(-1)); assertNothing(c.getLineId(999));
+    }
+    retention() {
+        NcursesUi::LineListContent c(); c.setWordWrap(True); c.setRetentionLimit(3); c.prepareViewport(4);
+        list<int> ids = ();
+        for (int i = 0; i < 600; ++i) {
+            c.appendLine(sprintf("%06d", i)); ids += c.getLineId(c.lineCount() - 1);
+            assertEq(min(3, i + 1), c.lineCount()); assertEq(2 * min(3, i + 1), c.totalRows());
+            assertEq(c.lineCount() - 1, c.lineForId(ids[i]));
+            assertEq(<Ncurses::Position>{"y": c.totalRows() - 1, "x": 2}, c.sourceToVisual(c.lineCount() - 1, 6));
+            assertEq(<Ncurses::Position>{"y": 0, "x": 4}, c.visualToSource(1, 0));
+            if (i >= 3) { assertEq(-1, c.lineForId(ids[i - 3])); }
+        }
+        assertEq(("000597", "000598", "000599"), c.getLines());
+        assertEq(6, c.totalCols());
+        c.setRetentionLimit(0); c.appendLines(("next", "last")); assertEq(5, c.lineCount());
+    }
+    widths() {
+        NcursesUi::LineListContent c(); c.setLines(("short", strmul("x", 100), "界界界"));
+        assertEq(100, c.totalCols()); c.setLine(1, "a"); assertEq(6, c.totalCols());
+        c.removeLine(2); assertEq(5, c.totalCols()); c.removeLine(0); assertEq(1, c.totalCols());
+        c.setRetentionLimit(1); c.appendLine(""); assertEq(0, c.totalCols());
+        c.clear(); assertEq(0, c.totalCols()); assertEq(0, c.totalRows());
+    }
+    mapping() {
+        NcursesUi::TestHarness th(12, 30); on_exit th.close();
+        NcursesUi::LineListContent c(); c.setWordWrap(True);
+        c.setLines(("one two three", "é界👩‍💻", "\e[31mred text\e[0m", ""));
+        for (int pass = 0; pass < 4; ++pass) {
+            if (pass == 1) { c.setLine(0, "replacement words"); }
+            else if (pass == 2) { c.insertLine(1, "inserted"); }
+            else if (pass == 3) { c.removeLine(2); }
+            foreach int width in ((4, 9, 12, 0)) {
+                c.prepareViewport(width); int expected = 0; int line_index = 0;
+                foreach string line in (c.getLines()) {
+                    assertEq(expected, c.displayRowForLine(line_index));
+                    assertEq(<Ncurses::Position>{"y": expected, "x": 0}, c.sourceToVisual(line_index, 0));
+                    assertEq(<Ncurses::Position>{"y": line_index, "x": 0}, c.visualToSource(expected, 0));
+                    expected += width > 0 && Ncurses::Ansi::len(line) > width ? Ncurses::Ansi::wrap(line, width).size() : 1;
+                    ++line_index;
+                }
+                assertEq(expected, c.totalRows());
+                if (width > 0) {
+                    c.drawContent(th.screen(), 0, 0, 10, width, 0, 0);
+                    assertEq(width, th.screen().readText(0, 0, width).length());
+                }
+            }
+        }
+    }
+    revision() {
+        NcursesUi::LineListContent c(); int before = c.getRevision();
+        c.appendLines(("a", "b", "c")); assertEq(before + 1, c.getRevision());
+        before = c.getRevision(); c.setLine(0, "a"); c.appendLines(()); c.removeLine(-1);
+        assertEq(before, c.getRevision());
+        assertThrows("TEXT-RETENTION-ERROR", sub () { c.setRetentionLimit(-1); });
+        assertEq(("a", "b", "c"), c.getLines());
+        c.setRetentionLimit(1); assertTrue(c.getRevision() > before); assertEq(("c",), c.getLines());
+    }
+    anchors() {
+        NcursesUi::TestHarness th(10, 30); on_exit th.close();
+        NcursesUi::LineListContent c(); c.setWordWrap(True);
+        c.setLines(("zero zero", "one one", "two two", "three three", "four four", "five five"));
+        NcursesUi::ScrollableWidget w(c); w.setFrameValues(0, 0, 2, 10); w.setShowScrollbar(False);
+        w.setScrollY(2); w.drawTree(th.screen());
+        assertEq("two two", th.screen().readText(0, 0, 7));
+        c.insertLine(0, "inserted"); w.drawTree(th.screen()); assertEq(3, w.getScrollY());
+        assertEq("two two", th.screen().readText(0, 0, 7));
+        c.setLine(1, strmul("zero ", 6)); w.drawTree(th.screen());
+        assertEq("two two", th.screen().readText(0, 0, 7));
+        c.setRetentionLimit(4); w.drawTree(th.screen()); assertEq(0, w.getScrollY());
+        assertEq("two two", th.screen().readText(0, 0, 7));
+        c.appendLine("six six"); w.drawTree(th.screen()); assertEq("three", th.screen().readText(0, 0, 5));
+        w.setFrameValues(0, 0, 2, 6); w.drawTree(th.screen()); assertEq("three", th.screen().readText(0, 0, 5));
+        w.setScrollY(1); w.drawTree(th.screen()); c.appendLine("seven"); w.drawTree(th.screen());
+        assertEq("four", th.screen().readText(0, 0, 4));
+    }
+    boundaries() {
+        NcursesUi::LineListContent c(); c.setWordWrap(True);
+        foreach string value in (("", " ", "     ", "界", "é", "👩‍💻", "\e[31m    \e[0m", "a  b   c")) {
+            c.setLines((value,));
+            foreach int width in ((1, 2, 3, 10)) {
+                c.prepareViewport(width); assertTrue(c.totalRows() > 0);
+                assertEq(0, c.visualToSource(0, 0).y); assertTrue(c.sourceToVisual(0, value.length()).y >= 0);
+            }
+        }
+    }
+
+}

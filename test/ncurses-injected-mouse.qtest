@@ -143,7 +143,7 @@ class InjectedMouseTest inherits Test {
         on_exit session.close();
         int accepted = 0;
         bool full = False;
-        while (accepted < 4096) {
+        while (accepted <= 4096) {
             try {
                 session.injectEvent(mouse(accepted, 0));
                 ++accepted;
@@ -155,8 +155,12 @@ class InjectedMouseTest inherits Test {
         }
         assertTrue(full);
         assertTrue(accepted > 0);
-        # ncurses does not guarantee preservation of the input queue after an
-        # overflow. Flush both pending markers and payloads before retrying.
+        # Capacity failures preserve every accepted marker and payload.
+        while (accepted) {
+            --accepted;
+            assertEq(accepted, session.screen().readEvent(25, 25).mouse.x);
+        }
+        assertNothing(session.screen().readEvent(0, 1));
         session.flushInput();
         session.injectEvent(mouse(7, 8));
         *hash<Ncurses::InputEvent> event = session.screen().readEvent(25, 25);

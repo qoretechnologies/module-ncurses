@@ -323,6 +323,9 @@ public class FileBrowserWidget inherits NcursesUi::PanelWidget {
         return can_load;
     }
 
+    /** Reports that draw() paints both panes. @return True */
+    bool drawsChildren() { return True; }
+
     /** Draws the split-pane file browser.
         @param w the window
         @since ncurses 1.0
@@ -357,8 +360,8 @@ public class FileBrowserWidget inherits NcursesUi::PanelWidget {
         preview_widget.setFrame(preview_frame);
 
         # draw both panes
-        file_list.drawTree(pw);
-        preview_widget.drawTree(pw);
+        file_list.drawTree(pw, True);
+        preview_widget.drawTree(pw, True);
 
         # draw vertical divider between panes
         int div_x = cr.x + list_cols;

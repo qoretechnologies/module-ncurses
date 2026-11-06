@@ -1,0 +1,39 @@
+#!/usr/bin/env qore
+# Copyright 2026 Qore Technologies, s.r.o.
+# Run with QORE_MODULE_DIR=<Release binary>:<compiled qlib> to compare builds.
+%requires ncurses
+%requires NcursesUi
+%requires NcursesReplUi
+
+class CountingPaint inherits NcursesUi::Widget {
+    public { int paints = 0; }
+    nothing draw(Ncurses::Window w) { ++paints; w.drawText(0, 0, "benchmark", {}); }
+}
+string line = strmul("text 界 é ", 12);
+foreach int count in ((250, 1000)) {
+    NcursesUi::LineListContent c(); c.setWordWrap(True); c.prepareViewport(60);
+    int start = clock_getmicros_monotonic();
+    for (int i = 0; i < count; ++i) { c.appendLine(line); c.totalRows(); }
+    printf("grow\t%d\t%d\n", count, clock_getmicros_monotonic() - start);
+}
+list<string> lines = (); for (int i = 0; i < 5000; ++i) { lines += line; }
+NcursesUi::LineListContent c(); c.setWordWrap(True);
+int start = clock_getmicros_monotonic(); c.setLines(lines); c.prepareViewport(60);
+printf("batch\t5000\t%d\n", clock_getmicros_monotonic() - start);
+start = clock_getmicros_monotonic();
+for (int i = 0; i < 50; ++i) { c.setLine(2500, line + string(i)); c.totalRows(); }
+printf("edit\t50\t%d\n", clock_getmicros_monotonic() - start);
+start = clock_getmicros_monotonic();
+foreach int width in ((30, 59, 60, 79, 80)) { c.prepareViewport(width); c.totalRows(); }
+printf("resize\t5\t%d\n", clock_getmicros_monotonic() - start);
+Ncurses::TestTerminal terminal(24, 80, "xterm-256color"); terminal.open();
+Ncurses::Session session({"test_terminal": terminal, "echo": False, "raw": True});
+on_exit session.close();
+CountingPaint widget(); widget.setFrameValues(0, 0, 24, 80); widget.drawTree(session.screen());
+start = clock_getmicros_monotonic(); for (int i = 0; i < 10000; ++i) { widget.drawTree(session.screen()); }
+printf("idle\t10000\t%d\t%d\n", clock_getmicros_monotonic() - start, widget.paints);
+foreach string cluster in (("x", "é", "👩🏽‍💻")) {
+    NcursesReplUi::InputBuffer buffer(); buffer.setText(strmul(cluster, 16384)); buffer.moveLeft(); buffer.moveRight();
+    start = clock_getmicros_monotonic(); for (int i = 0; i < 200; ++i) { buffer.moveLeft(); buffer.moveRight(); }
+    printf("cursor-%s\t200\t%d\n", cluster, clock_getmicros_monotonic() - start);
+}

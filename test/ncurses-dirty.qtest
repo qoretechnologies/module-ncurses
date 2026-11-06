@@ -1,0 +1,110 @@
+#!/usr/bin/env qore
+# Copyright 2026 Qore Technologies, s.r.o.
+%modern
+%prepend-module-path "${SCRIPT_DIR}/../qlib"
+%requires ncurses
+%requires NcursesUi
+%requires QUnit
+%include "test/TestHarness.qc"
+%exec-class DirtyTest
+
+class PaintWidget inherits NcursesUi::Widget {
+    public { int paints = 0; string text = "paint"; bool fail = False; }
+    nothing draw(Ncurses::Window w) {
+        ++paints;
+        if (fail) { throw "PAINT-ERROR", "injected paint failure"; }
+        hash<NcursesUi::Rect> r = drawContentRect(w);
+        w.drawTextClipped(r.y, r.x, NcursesUi::TerminalText::clipRight(text, r.cols), {});
+    }
+}
+class DirtyTest inherits Test {
+    constructor() : Test("DirtyTest", "1.0", \ARGV) {
+        addTestCase("idle frames and unrelated siblings do not repaint", \idle());
+        addTestCase("moving hiding removing and padding restore exposed regions", \geometry());
+        addTestCase("overlap preserves stacking after lower content changes", \overlap());
+        addTestCase("provider revisions repaint without explicit invalidation", \provider());
+        addTestCase("modal changes and dismissal restore underlying cells", \modals());
+        addTestCase("paint failures remain dirty for a complete retry", \failure());
+        addTestCase("clipped panels regain geometry after incremental resize", \panels());
+        set_return_value(main());
+    }
+    idle() {
+        NcursesUi::TestHarness th(8, 30); on_exit th.close();
+        NcursesUi::Application app(th.session()); PaintWidget root(); app.setRoot(root);
+        PaintWidget a(); a.setFrameValues(1, 0, 1, 8); PaintWidget b(); b.setFrameValues(2, 0, 1, 8);
+        root.addChild(a); root.addChild(b); app.drawAll();
+        for (int i = 0; i < 100; ++i) { app.drawAll(); }
+        assertEq(1, root.paints); assertEq(1, a.paints); assertEq(1, b.paints);
+        a.text = "new"; a.markDirty(); app.drawAll();
+        assertEq(1, root.paints); assertEq(2, a.paints); assertEq(1, b.paints);
+        assertEq("new     ", th.screen().readText(1, 0, 8));
+        a.setFrame(a.getFrame()); app.drawAll(); assertEq(2, a.paints);
+        a.setFocusable(True); app.getDispatcher().getFocusManager().setFocus(a); app.drawAll();
+        assertEq(3, a.paints); assertEq(1, b.paints);
+    }
+    geometry() {
+        NcursesUi::TestHarness th(8, 30); on_exit th.close();
+        NcursesUi::Widget root(); root.setFrameValues(0, 0, 8, 30);
+        PaintWidget child(); child.setFrameValues(1, 1, 1, 8); root.addChild(child);
+        root.drawTree(th.screen()); child.translate(1, 3); root.drawTree(th.screen());
+        assertEq("        ", th.screen().readText(1, 1, 8)); assertEq("paint", th.screen().readText(2, 4, 5));
+        child.setVisible(False); root.drawTree(th.screen()); assertEq("        ", th.screen().readText(2, 4, 8));
+        child.setVisible(True); root.drawTree(th.screen()); assertEq("paint", th.screen().readText(2, 4, 5));
+        root.setPadding(NcursesUi::Geometry::makeInsets(3, 0, 0, 0)); root.drawTree(th.screen());
+        assertEq("        ", th.screen().readText(2, 4, 8));
+        root.setPadding(NcursesUi::Geometry::makeInsets(0, 0, 0, 0)); root.drawTree(th.screen());
+        assertEq("paint", th.screen().readText(2, 4, 5));
+        root.removeChild(child); root.drawTree(th.screen()); assertEq("        ", th.screen().readText(2, 4, 8));
+    }
+    overlap() {
+        NcursesUi::TestHarness th(8, 30); on_exit th.close();
+        NcursesUi::Widget root(); root.setFrameValues(0, 0, 8, 30);
+        PaintWidget back(); back.text = "aaaaaaaa"; back.setFrameValues(1, 1, 1, 8);
+        PaintWidget front(); front.text = "BBBB"; front.setFrameValues(1, 3, 1, 4);
+        root.addChild(back); root.addChild(front); root.drawTree(th.screen());
+        back.text = "cccccccc"; back.markDirty(); root.drawTree(th.screen());
+        assertEq("ccBBBBcc", th.screen().readText(1, 1, 8)); assertEq(2, front.paints);
+        front.setVisible(False); root.drawTree(th.screen()); assertEq("cccccccc", th.screen().readText(1, 1, 8));
+    }
+    provider() {
+        NcursesUi::TestHarness th(8, 30); on_exit th.close();
+        NcursesUi::Application app(th.session()); NcursesUi::Widget root(); app.setRoot(root);
+        NcursesUi::LineListContent content(); content.setLines(("one",));
+        NcursesUi::ScrollableWidget w(content); w.setFrameValues(1, 0, 4, 15); root.addChild(w); app.drawAll();
+        assertFalse(root.isDirty()); content.appendLine("two"); assertTrue(root.isDirty()); app.drawAll();
+        assertEq("two", th.screen().readText(2, 0, 3)); assertFalse(root.isDirty());
+        content.setLine(0, "x"); app.drawAll(); assertEq("x  ", th.screen().readText(1, 0, 3));
+    }
+    modals() {
+        NcursesUi::TestHarness th(8, 30); on_exit th.close();
+        NcursesUi::Application app(th.session()); PaintWidget root(); root.text = "background"; app.setRoot(root);
+        app.drawAll(); PaintWidget modal(); modal.text = "TOP"; modal.setFrameValues(0, 0, 1, 5);
+        app.pushModal(modal); app.drawAll(); assertEq("TOP  round", th.screen().readText(0, 0, 10));
+        root.text = "changed!!!"; root.markDirty(); app.drawAll(); assertEq("TOP  ed!!!", th.screen().readText(0, 0, 10));
+        int before = modal.paints; app.drawAll(); assertEq(before, modal.paints);
+        app.popModal(); app.drawAll(); assertEq("changed!!!", th.screen().readText(0, 0, 10));
+        app.pushModal(modal); app.drawAll(); assertEq("TOP", th.screen().readText(0, 0, 3));
+    }
+    failure() {
+        NcursesUi::TestHarness th(8, 30); on_exit th.close();
+        NcursesUi::Widget root(); root.setFrameValues(0, 0, 8, 30);
+        PaintWidget child(); child.setFrameValues(0, 0, 1, 8); root.addChild(child); root.drawTree(th.screen());
+        child.text = "retry"; child.fail = True; child.markDirty();
+        assertThrows("PAINT-ERROR", sub () { root.drawTree(th.screen()); }); assertTrue(root.isDirty());
+        child.fail = False; root.drawTree(th.screen()); assertEq("retry", th.screen().readText(0, 0, 5));
+        assertFalse(root.isDirty());
+    }
+    panels() {
+        NcursesUi::TestHarness th(10, 30); on_exit th.close();
+        NcursesUi::Widget root(); root.setFrameValues(0, 0, 10, 30);
+        NcursesUi::PanelWidget panel(th.session()); panel.setFrameValues(1, 1, 5, 15); panel.createPanel();
+        on_exit panel.destroyPanel(); root.addChild(panel);
+        PaintWidget child(); child.setFrameValues(2, 2, 1, 8); panel.addChild(child); root.drawTree(th.screen());
+        assertEq("paint", panel.getWindow().readText(1, 1, 5));
+        root.setFrameValues(0, 0, 1, 1); root.drawTree(th.screen()); assertNothing(panel.getWindow());
+        root.setFrameValues(0, 0, 10, 30); root.drawTree(th.screen());
+        assertEq("paint", panel.getWindow().readText(1, 1, 5));
+        child.text = "new"; child.markDirty(); root.drawTree(th.screen());
+        assertEq("new  ", panel.getWindow().readText(1, 1, 5)); assertFalse(root.isDirty());
+    }
+}

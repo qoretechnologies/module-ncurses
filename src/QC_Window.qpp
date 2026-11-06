@@ -1281,14 +1281,37 @@ hash<InputEvent> Window::readEvent(*int timeout_ms, *int poll_ms) [flags=NAMED_A
         return nothing();
     }
     int elapsed = 0;
+    NcursesPasteKeypadGuard paste_keypad(win->session, win->win);
     while (true) {
         // check for sandbox interrupt between poll cycles
         if (qore_check_cancel(xsink, "reading terminal input")) {
+            NcursesCallGuard guard(win->session); win->session->discardPaste();
             return nothing();
         }
         NcursesCallGuard guard(win->session);
         wtimeout(win->win, poll);
-        int rc = wgetch(win->win);
+        int rc = win->session->readInput(win->win);
+        if (rc == NC_PASTE_BEGIN) {
+            win->session->resetPaste(); win->session->paste_active = true; paste_keypad.disable(); continue;
+        }
+        if (win->session->paste_active && rc >= 0 && rc < 256) {
+            bool complete = win->session->consumePasteByte(static_cast<unsigned char>(rc), xsink);
+            if (*xsink) { return nothing(); }
+            if (!complete) { continue; }
+            std::string text; text.swap(win->session->paste_text);
+            int error = win->session->paste_error; win->session->resetPaste(); paste_keypad.restore();
+            if (error == 2) { continue; }
+            if (error == 1) { xsink->raiseException("NCURSES-PASTE-LIMIT", "paste exceeds the configured byte limit"); return nothing(); }
+            if (!nc_valid_utf8(text.data(), text.size(), xsink)) {
+                if (!*xsink) { xsink->raiseException("NCURSES-PASTE-ERROR", "paste is not valid UTF-8"); }
+                return nothing();
+            }
+            ReferenceHolder<QoreHashNode> event(new QoreHashNode(hashdeclInputEvent, xsink), xsink);
+            event->setKeyValue("type", NC_INPUT_PASTE, xsink);
+            event->setKeyValue("ch", new QoreStringNode(text.data(), text.size(), QCS_UTF8), xsink);
+            if (*xsink) { return nothing(); }
+            return event.release();
+        }
         if (rc == ERR) {
             if (timeout >= 0) {
                 elapsed += poll;
@@ -1299,7 +1322,16 @@ hash<InputEvent> Window::readEvent(*int timeout_ms, *int poll_ms) [flags=NAMED_A
         } else {
             ReferenceHolder<QoreHashNode> h(new QoreHashNode(hashdeclInputEvent, xsink), xsink);
             h->setKeyValue("code", rc == NC_INJECTED_MOUSE ? KEY_MOUSE : rc, xsink);
-            if (rc == KEY_MOUSE || rc == NC_INJECTED_MOUSE) {
+            if (rc == NC_INJECTED_PASTE) {
+                if (win->session->injected_paste.empty()) {
+                    xsink->raiseException("NCURSES-ERROR", "injected paste marker has no payload"); return nothing();
+                }
+                const std::string& text = win->session->injected_paste.back();
+                h->setKeyValue("type", NC_INPUT_PASTE, xsink);
+                h->setKeyValue("ch", new QoreStringNode(text.data(), text.size(), QCS_UTF8), xsink);
+                win->session->injected_paste_bytes -= text.size();
+                win->session->injected_paste.pop_back();
+            } else if (rc == KEY_MOUSE || rc == NC_INJECTED_MOUSE) {
                 MEVENT ev = {};
                 bool have_event;
                 if (rc == NC_INJECTED_MOUSE) {
@@ -1334,15 +1366,16 @@ hash<InputEvent> Window::readEvent(*int timeout_ms, *int poll_ms) [flags=NAMED_A
             } else if (rc == 27) {
                 // ESC received: check for Alt+key sequence
                 wtimeout(win->win, 0);
-                int rc2 = wgetch(win->win);
-                if (rc2 != ERR && rc2 >= 32 && rc2 < 127) {
+                int rc2 = win->session->readInput(win->win);
+                if (rc2 != ERR && ((rc2 >= 32 && rc2 < 256 && rc2 != 127) || rc2 == 10 || rc2 == 13)) {
                     // Alt+key event
                     h->setKeyValue("type", NC_INPUT_ALT, xsink);
-                    char buf[2] = {(char)rc2, 0};
-                    h->setKeyValue("ch", new QoreStringNode(buf, QCS_UTF8), xsink);
+                    QoreStringNode* ch = win->session->readCharacter(win->win, rc2, xsink);
+                    if (*xsink) { return nothing(); }
+                    h->setKeyValue("ch", ch, xsink);
                 } else {
                     if (rc2 != ERR) {
-                        ungetch(rc2);
+                        win->session->pushInput(rc2, xsink);
                     }
                     // bare ESC
                     h->setKeyValue("type", NC_INPUT_CHAR, xsink);
@@ -1351,54 +1384,11 @@ hash<InputEvent> Window::readEvent(*int timeout_ms, *int poll_ms) [flags=NAMED_A
                 }
             } else {
                 h->setKeyValue("type", NC_INPUT_CHAR, xsink);
-                // Assemble the full UTF-8 codepoint — wgetch() returns one
-                // byte per call, so multi-byte characters (curly quotes,
-                // em-dashes, accented letters, etc.) arrive as a lead byte
-                // followed by 1-3 continuation bytes.  Without buffering,
-                // a bare lead byte in a QCS_UTF8 QoreStringNode triggers
-                // INVALID-ENCODING on any later string operation.
-                char buf[5] = {(char)rc, 0, 0, 0, 0};
-                int need = 0;
-                bool valid = true;
-                unsigned char lead = (unsigned char)rc;
-                if ((lead & 0x80) == 0) {
-                    need = 0;             // ASCII
-                } else if ((lead & 0xE0) == 0xC0) {
-                    need = 1;             // 2-byte
-                } else if ((lead & 0xF0) == 0xE0) {
-                    need = 2;             // 3-byte
-                } else if ((lead & 0xF8) == 0xF0) {
-                    need = 3;             // 4-byte
-                } else {
-                    // Orphan continuation byte (0x80-0xBF) or invalid
-                    // lead (0xC0, 0xC1, 0xF5-0xFF) — emit U+FFFD
-                    valid = false;
-                }
-                // Read continuation bytes with a short timeout so we don't
-                // block on a stray high-bit byte that isn't actually the
-                // start of a UTF-8 sequence
-                for (int i = 0; i < need; ++i) {
-                    wtimeout(win->win, 50);
-                    int rc_cont = wgetch(win->win);
-                    if (rc_cont == ERR
-                            || ((unsigned char)rc_cont & 0xC0) != 0x80) {
-                        valid = false;
-                        if (rc_cont != ERR) {
-                            ungetch(rc_cont);
-                        }
-                        break;
-                    }
-                    buf[i + 1] = (char)rc_cont;
-                }
-                if (valid) {
-                    h->setKeyValue("ch", new QoreStringNode(buf, QCS_UTF8), xsink);
-                } else {
-                    // Invalid/incomplete sequence — drop this event by
-                    // replacing with U+FFFD REPLACEMENT CHARACTER
-                    h->setKeyValue("ch",
-                        new QoreStringNode("\xEF\xBF\xBD", QCS_UTF8), xsink);
-                }
+                QoreStringNode* ch = win->session->readCharacter(win->win, rc, xsink);
+                if (*xsink) { return nothing(); }
+                h->setKeyValue("ch", ch, xsink);
             }
+            if (*xsink) { return nothing(); }
             return h.release();
         }
     }

@@ -351,18 +351,24 @@ public class PanelWidget inherits NcursesUi::Widget {
     /** Draws this panel widget and all visible children.
         Uses the panel's own window instead of the parent's.
         @param w the parent drawing surface; native geometry is constrained to its bounds
+        @param force True to repaint even when this subtree is clean
         @since ncurses 1.0
     */
-    nothing drawTree(Ncurses::Window w) {
-        if (!isVisible() || !open_requested) { onDrawClipped(); return; }
+    nothing drawTree(Ncurses::Window w, bool force = False) {
+        if (!isVisible() || !open_requested) { onDrawClipped(); clearDirty(); return; }
         syncNative(w);
-        if (!win) { return; }
+        if (!win) { clearDirty(); return; }
+        if (!force && !isDirty()) { return; }
         panel.show();
         bringToFront();
-        draw(win);
-        foreach NcursesUi::Widget child in (getChildren()) { child.drawTree(win); }
+        bool redraw = force || needsOwnDraw() || drawsChildren();
+        if (redraw) { draw(win); }
+        if (!drawsChildren()) {
+            drawChildren(win, redraw);
+        }
         win.noutrefresh();
         clearDirty();
+
     }
 
     /** Hides the native panel and releases descendant cursor requests when clipped. */

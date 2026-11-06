@@ -205,7 +205,7 @@ public class ComboBoxWidget inherits NcursesUi::Widget {
         w.drawHLine(cr.y, cr.x, cols, " ");
         w.drawText(cr.y, cr.x, input_text, style);
         if (hasFocus() && width > 0) {
-            int col = NcursesReplUi::TextPosition::columnForOffset(buffer.getText(), buffer.getCursor());
+            int col = buffer.getDisplayColumn();
             cursor_request = w.claimCursor(cr.y, cr.x + col - scroll_x);
             cursor_window = w;
         }
@@ -316,8 +316,7 @@ public class ComboBoxWidget inherits NcursesUi::Widget {
                     }
                 } else {
                     updateScroll(max(0, cr.cols - 2));
-                    buffer.setCursor(NcursesReplUi::TextPosition::offsetForColumn(
-                        buffer.getText(), scroll_x + ev.mouse.x - cr.x));
+                    buffer.setDisplayColumn(scroll_x + ev.mouse.x - cr.x);
                     markDirty();
                 }
                 return <NcursesUi::EventResult>{"handled": True};
@@ -420,7 +419,7 @@ public class ComboBoxWidget inherits NcursesUi::Widget {
     }
 
     private nothing updateScroll(int width) {
-        int col = NcursesReplUi::TextPosition::columnForOffset(buffer.getText(), buffer.getCursor());
+        int col = buffer.getDisplayColumn();
         if (width <= 0) {
             scroll_x = 0;
             return;

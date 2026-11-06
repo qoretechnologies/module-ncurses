@@ -235,4 +235,74 @@ app.popModal();
     boundaries, and pads Unicode strings for aligned output. See
     @ref ncurses_stylesguide "Style System" for colors and
     @ref ncurses_testingguide "Automated Testing" for deterministic widget tests.
+
+    @section ncurses_ui_editor Multiline Editing and Streaming Output
+
+    TextEditorWidget and TranscriptWidget share source-to-visual mapping with
+    ScrollableWidget. Source offsets count Unicode characters at grapheme boundaries;
+    screen coordinates count terminal cells. getCaretScreenPosition() returns the
+    clipped, scrolled insertion point, or NOTHING when no point is visible. Styled
+    prompts participate in wrapping without becoming editable document text.
+    Exact-width hard lines reserve an insertion row, keeping their caret distinct
+    from the next logical line. Mouse selection, highlights and completion use the
+    same geometry as painting.
+
+    Enable bracketed paste on Session; Paste events contain literal payload text.
+    TextEditorWidget normalizes CR/LF, expands tabs to four spaces, and drops other
+    C0/DEL controls. Enter submits and Alt-Enter adds a newline; setEnterSubmits(False)
+    reverses these bindings. Submission and clipboard hooks propagate failures while
+    retaining the draft. A submit callback cannot mutate its locked EditorBuffer;
+    clear after submit() returns successfully. Ctrl-A selects all in the reusable
+    editor; qrepl overrides it with its existing line-home binding.
+
+    This executable model example demonstrates bounded editing, failed-submit
+    recovery, searchable transcript blocks and stable selection without a terminal:
+
+    @code{.py}
+%modern
+%requires ncurses
+%requires NcursesUi
+
+NcursesUi::TextEditorWidget editor();
+editor.setAutoHeight(1, 6);
+editor.setPrompt("request> ");
+editor.insertPaste("service status\r\ninclude details");
+@assert(editor.getText() == "service status\ninclude details");
+editor.getBuffer().undo();
+@assert(editor.getText() == "");
+editor.getBuffer().redo();
+NcursesUi::TranscriptWidget transcript();
+transcript.setRetentionLimit(1000);
+int request = transcript.appendBlock(("service status", "include details"), "input");
+transcript.appendBlock(("API: healthy", "Worker: healthy"), "response");
+transcript.setSearch("healthy");
+@assert(transcript.getMatches().size() == 2);
+transcript.setCollapsed(request, True);
+@assert(transcript.getBlockText(request) == "service status\ninclude details");
+transcript.setFollowTail(False);
+transcript.appendLines(("new event", "another event"));
+@assert(transcript.getUnreadCount() == 2);
+transcript.returnToLatest();
+@assert(transcript.getUnreadCount() == 0);
+    @endcode
+
+    TranscriptWidget preserves the reading anchor when following is paused and
+    exposes unread count and returnToLatest(). findNext() highlights/navigates literal
+    matches; moveBlock() visits submitted-input/response boundaries. setCollapsed()
+    hides body rows while retaining identities and source text. select() takes stable
+    TextAnchor values; setOnCopy() delivers plain selected text. setLinks() accepts
+    validated TranscriptLink ranges and setOnLink() delegates activation to the
+    application without opening external resources. Wrapping can be toggled while
+    retaining source anchors. Retention removes expired selections and links and
+    refreshes search results. Treat getTranscriptContent() as read-only when using
+    block metadata; append, collapse and clear through TranscriptWidget.
+
+    LineListContent batches appends, indexes row sums/maximum widths, and retains at
+    most two prepared wrap widths. Ordinary appends/edits update affected lines;
+    arbitrary insert/remove and width changes rebuild the relevant index/layout.
+    Custom providers should return a monotonic getRevision() for automatic repaint.
+    Widget::markDirty() invalidates local painting; ancestors inspect descendants.
+    Moving/hiding/removing children invalidates exposed parent cells, and overlapping
+    later siblings and modal overlays repaint when underlying content changes.
+    All models and widget APIs remain confined to the UI thread.
 */

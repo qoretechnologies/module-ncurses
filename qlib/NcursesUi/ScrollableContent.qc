@@ -41,6 +41,11 @@ public class ScrollableContent {
     */
     abstract int totalCols();
 
+    /** Returns a content revision for repaint detection; immutable providers return zero.
+        @return content generation
+    */
+    int getRevision() { return 0; }
+
     /** Prepares content dimensions for a viewport width before querying extents.
         The default implementation is suitable for content without wrapping.
         @param cols available terminal columns; zero means no drawable content
@@ -68,6 +73,15 @@ public class ScrollableContent {
     hash<Ncurses::Position> visualToSource(int row, int col) {
         return <Ncurses::Position>{"y": row, "x": col};
     }
+
+    /** Returns a stable source-line identity for scroll anchoring.
+        Mutable providers override this and lineForId() to survive insertion/trimming.
+        @param line logical index @return stable identity, or NOTHING for an invalid line
+    */
+    *int getLineId(int line) { return line; }
+
+    /** Resolves a stable source identity. @param id identity @return logical index, or -1 when removed */
+    int lineForId(int id) { return id; }
 
     /** Draws the visible portion of the content.
         @param w the window to draw into

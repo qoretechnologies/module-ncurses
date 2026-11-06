@@ -28,7 +28,7 @@ thread_local int _focus_callback_depth;
 /** Base widget for the NcursesUi toolkit.
 
     Provides a tree structure (parent/children), geometry management,
-    focus tracking, dirty-flag propagation, and event handling.
+    focus tracking, incremental drawing, and event handling.
 
     Regular widgets draw into their parent's window using offset
     coordinates. @ref PanelWidget creates its own ncurses Panel for
@@ -58,6 +58,8 @@ public class Widget {
         bool focused = False;
         #! whether this widget needs redrawing
         bool dirty = True;
+        #! prior painted content, used when padding exposes old cells
+        *hash<NcursesUi::Rect> painted_content;
 
         #! horizontal size policy
         int h_size_policy = NcursesUi::SizePolicy::Expanding;
@@ -184,9 +186,10 @@ public class Widget {
         @since ncurses 1.0
     */
     nothing setFrame(hash<NcursesUi::Rect> r) {
-        frame = r;
-        frame.rows = max(0, frame.rows); frame.cols = max(0, frame.cols);
-        markDirty();
+        r.rows = max(0, r.rows); r.cols = max(0, r.cols);
+        if (frame == r) { return; }
+        if (parent_widget) { parent_widget.markDirty(); }
+        frame = r; markDirty();
     }
 
     /** Sets the widget frame from individual values.
@@ -197,8 +200,7 @@ public class Widget {
         @since ncurses 1.0
     */
     nothing setFrameValues(int y, int x, int rows, int cols) {
-        frame = NcursesUi::Geometry::makeRect(y, x, max(0, rows), max(0, cols));
-        markDirty();
+        setFrame(NcursesUi::Geometry::makeRect(y, x, max(0, rows), max(0, cols)));
     }
 
     /** Returns the widget frame rectangle.
@@ -213,6 +215,8 @@ public class Widget {
         @param dx column displacement
     */
     nothing translate(int dy, int dx) {
+        if (!dy && !dx) { return; }
+        if (parent_widget) { parent_widget.markDirty(); }
         frame.y += dy; frame.x += dx;
         foreach NcursesUi::Widget child in (children) { child.translate(dy, dx); }
         markDirty();
@@ -286,6 +290,7 @@ public class Widget {
         @since ncurses 1.0
     */
     nothing setVisible(bool v) {
+        if (visible != v && parent_widget) { parent_widget.markDirty(); }
         if (visible != v) {
             visible = v;
             markDirty();
@@ -443,22 +448,31 @@ public class Widget {
 
     # ---- Dirty flag ----
 
-    /** Marks this widget and all ancestors as dirty.
+    /** Marks this widget for painting; ancestor isDirty() includes descendant changes.
         @since ncurses 1.0
     */
     nothing markDirty() {
         dirty = True;
-        if (parent_widget) {
-            parent_widget.markDirty();
-        }
     }
 
     /** Returns whether the widget needs redrawing.
         @since ncurses 1.0
     */
     bool isDirty() {
-        return dirty;
+        if (dirty) { return True; }
+        if (visible) {
+            foreach NcursesUi::Widget child in (children) { if (child.isDirty()) { return True; } }
+        }
+        return False;
     }
+
+    /** Returns whether this widget's own pixels need repainting. @return local dirty state */
+    bool needsOwnDraw() { return dirty; }
+
+    /** Indicates that draw() itself paints children (for composite compatibility).
+        @return False unless a composite owns child painting
+    */
+    bool drawsChildren() { return False; }
 
     /** Clears the dirty flag for this widget only.
         @since ncurses 1.0
@@ -531,6 +545,12 @@ public class Widget {
         return pref_size;
     }
 
+    /** Measures the preferred size at an offered content width.
+        Wrapping widgets can override this without changing their allocated frame.
+        @param columns available terminal columns @return preferred size
+    */
+    hash<NcursesUi::Rect> getPreferredSizeForWidth(int columns) { return getPreferredSize(); }
+
     # ---- Layout ----
 
     /** Layout override point. Called when the widget's frame changes.
@@ -559,10 +579,12 @@ public class Widget {
 
     /** Draws this widget and all visible children.
         @param w the window to draw into
+        @param force repaint even when clean (for exposed regions)
         @since ncurses 1.0
     */
-    nothing drawTree(Ncurses::Window w) {
-        if (!visible) { onDrawClipped(); return; }
+    nothing drawTree(Ncurses::Window w, bool force = False) {
+        if (!force && !isDirty()) { return; }
+        if (!visible) { onDrawClipped(); clearDirty(); return; }
         hash<Ncurses::Position> origin = w.position(); hash<Ncurses::Size> size = w.size();
         hash<NcursesUi::Rect> bounds = NcursesUi::Geometry::makeRect(origin.y, origin.x, size.rows, size.cols);
         hash<NcursesUi::Rect> clip = NcursesUi::Geometry::intersect(visibleRect(), bounds);
@@ -572,10 +594,47 @@ public class Widget {
             target = w.subWindow(clip.rows, clip.cols, clip.y - origin.y, clip.x - origin.x);
             target.setLeaveOk(False);
         }
-        draw(target);
-        foreach NcursesUi::Widget child in (children) { child.drawTree(target); }
+        bool redraw = force || needsOwnDraw() || drawsChildren();
+        if (redraw) {
+            hash<Ncurses::Position> offset = target.position();
+            hash<NcursesUi::Rect> current = NcursesUi::Geometry::intersect(contentRect(), clip);
+            list<hash<NcursesUi::Rect>> areas = (current,);
+            if (painted_content) { areas += NcursesUi::Geometry::intersect(painted_content, clip); }
+            foreach hash<NcursesUi::Rect> area in (areas) {
+                if (area.cols <= 0) { continue; }
+                for (int row = area.y; row < area.y + area.rows; ++row) {
+                    target.drawHLine(row - offset.y, area.x - offset.x, area.cols, " ");
+                }
+            }
+            draw(target);
+            painted_content = current;
+        }
+        if (!drawsChildren()) {
+            drawChildren(target, redraw);
+        }
         if (target != w) { target.noutrefresh(); }
         clearDirty();
+    }
+
+    /** Paints dirty children in stacking order, restoring overlapping later siblings.
+        @param w drawing surface
+        @param force repaint all descendants after this widget's own surface changed
+    */
+    private nothing drawChildren(Ncurses::Window w, bool force) {
+        list<hash<NcursesUi::Rect>> damage = ();
+        foreach NcursesUi::Widget child in (children) {
+            bool repaint = force;
+            hash<NcursesUi::Rect> rect = child.visibleRect();
+            if (!repaint && child.isVisible()) {
+                foreach hash<NcursesUi::Rect> area in (damage) {
+                    hash<NcursesUi::Rect> overlap = NcursesUi::Geometry::intersect(rect, area);
+                    if (overlap.rows > 0 && overlap.cols > 0) { repaint = True; break; }
+                }
+            }
+            bool changed = repaint || child.isDirty();
+            child.drawTree(w, repaint);
+            if (changed && child.isVisible()) { damage += rect; }
+        }
     }
 
     # ---- Events ----

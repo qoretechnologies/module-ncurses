@@ -264,7 +264,10 @@ public class TerminalText {
         }
     }
 
-    private static list<string> graphemes(string text) {
+    /** Splits plain text into extended grapheme clusters.
+        @param text Unicode source @return complete clusters, or an empty list
+    */
+    static list<string> graphemes(string text) {
         return (text =~ x/(\X)/g) ?? ();
     }
 }

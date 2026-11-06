@@ -12,6 +12,7 @@
 
 class NcursesInputTest inherits Test {
     constructor() : Test("NcursesInputTest", "1.0", \ARGV) {
+        addTestCase("cached cursor geometry stays valid through every edit", \positionCache());
         addTestCase("extended grapheme movement and deletion", \clusters());
         addTestCase("external character offsets snap without changing representation", \offsets());
         addTestCase("selection replacement expands partial and reversed ranges", \replacement());
@@ -45,6 +46,36 @@ class NcursesInputTest inherits Test {
     }
     private list<string> samples() {
         return ("é", "👩‍💻", "🇨🇿", "👍🏽", "界", "가");
+    }
+    positionCache() {
+        NcursesReplUi::InputBuffer b();
+        list<code<nothing()>> edits = (
+            sub () { b.setText("Aé界👩‍💻Z"); },
+            sub () { b.insertChar("🇨🇿"); },
+            sub () { b.backspace(); },
+            sub () { b.moveHome(); b.deleteChar(); },
+            sub () { b.setCursor(2); b.replaceRange(1, 3, "é"); },
+            sub () { b.setCursor(2); b.killToEnd(); },
+            sub () { b.moveEnd(); b.killToStart(); },
+            sub () { b.setText("abc"); b.killLine(); },
+            sub () { b.setText("    }"); b.getDisplayColumn(); b.autoDedent("    "); },
+            sub () { b.reset(); },
+        );
+        foreach code<nothing()> edit in (edits) {
+            b.getDisplayColumn(); edit();
+            string text = b.getText();
+            int end = text.length();
+            for (int pos = -1; pos <= end + 1; ++pos) {
+                b.setCursor(pos);
+                assertEq(NcursesReplUi::TextPosition::snapOffset(text, pos), b.getCursor());
+                assertEq(NcursesReplUi::TextPosition::columnForOffset(text, pos), b.getDisplayColumn());
+            }
+            int width = char_width(text);
+            for (int col = -1; col <= width + 1; ++col) {
+                b.setDisplayColumn(col);
+                assertEq(NcursesReplUi::TextPosition::offsetForColumn(text, col), b.getCursor());
+            }
+        }
     }
     clusters() {
         foreach string cluster in (samples()) {
