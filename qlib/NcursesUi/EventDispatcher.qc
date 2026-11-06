@@ -115,6 +115,9 @@ public class EventDispatcher {
             } else {
                 focus_mgr.moveFocus(w, NcursesUi::FocusDirection::Next);
             }
+            if (!w.isAvailable()) {
+                throw "MODAL-SCOPE-ERROR", "A focus callback made the modal scope unavailable";
+            }
         } catch (hash<ExceptionInfo> ex) {
             removeTop();
             try {

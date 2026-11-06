@@ -415,6 +415,9 @@ public class FileBrowserWidget inherits NcursesUi::PanelWidget {
                 return <NcursesUi::EventResult>{"handled": True, "action": "close"};
             } else if (code == 0x09) {
                 # Tab - navigate forward (open selected directory)
+                if (!file_list.isAvailable()) {
+                    return <NcursesUi::EventResult>{"handled": False};
+                }
                 *hash<auto> item = file_list.getSelectedItem();
                 if (item && item.is_dir) {
                     navigateTo(item.path);
@@ -504,11 +507,11 @@ public class FileBrowserWidget inherits NcursesUi::PanelWidget {
         }
 
         # route keyboard events to focused pane
-        if (getFocusedPane() == 0) {
-            return file_list.processEvent(ev);
-        } else {
-            return preview_widget.processEvent(ev);
+        NcursesUi::Widget pane = getFocusedPane() == 0 ? file_list : preview_widget;
+        if (!pane.isAvailable()) {
+            return <NcursesUi::EventResult>{"handled": False};
         }
+        return pane.processEvent(ev);
     }
 
     /** Called when the file list selection changes. */

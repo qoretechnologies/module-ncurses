@@ -22,4 +22,6 @@
     Composite mouse delegation preserves panel-local coordinate conversion and
     preview navigation. Focus callbacks share a thread-local transition guard,
     including cleanup triggered by hiding, disabling, and detaching widgets.
+    Modal initialization rolls back if a focus callback makes its root
+    unavailable, and file-browser keyboard delegation excludes unavailable panes.
 */

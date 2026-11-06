@@ -84,6 +84,8 @@ class NcursesFocusTest inherits Test {
         addTestCase("file-browser navigation reconciles managed pane focus", \fileBrowserFocus());
         addTestCase("widget cleanup callbacks share focus and modal guards", \cleanupGuard());
         addTestCase("composite mouse dispatch preserves panel coordinate conversion", \compositeMouse());
+        addTestCase("modal initialization rolls back callback availability changes", \modalAvailability());
+        addTestCase("composite keys never reach unavailable panes", \compositeAvailability());
         set_return_value(main());
     }
     private hash<Ncurses::InputEvent> ch(string text) {
@@ -517,6 +519,68 @@ class NcursesFocusTest inherits Test {
         app.getFocusManager().setFocus(other); app.drawAll();
         app.processEvent(mouse(3, 6)); assertEq(0, browser.getFileList().getSelectedIndex());
         assertFalse(other.hasFocus()); assertEq(browser.getFileList(), app.getFocusManager().getCurrentFocus());
+    }
+
+    modalAvailability() {
+        foreach bool popup in ((False, True)) {
+            foreach bool hide in ((False, True)) {
+                foreach bool on_enter in ((False, True)) {
+                    NcursesUi::Widget root(); FocusProbe base(); base.setFocusable(True); root.addChild(base);
+                    NcursesUi::Widget modal(); FocusProbe input(); input.setFocusable(True); modal.addChild(input);
+                    NcursesUi::EventDispatcher ed(); ed.setRootScope(root); ed.getFocusManager().setFocus(base);
+                    code<nothing()> make_unavailable = sub () {
+                        if (hide) { modal.setVisible(False); } else { modal.setEnabled(False); }
+                    };
+                    if (on_enter) { input.enter_callback = make_unavailable; }
+                    else { base.leave_callback = make_unavailable; }
+                    bool failed = False;
+                    try {
+                        if (popup) { ed.pushPopup(modal); } else { ed.pushModal(modal); }
+                    } catch (hash<ExceptionInfo> ex) { failed = ex.err == "MODAL-SCOPE-ERROR"; }
+                    assertTrue(failed); assertFalse(ed.hasModal());
+                    assertEq(root, ed.getFocusManager().getScope());
+                    assertEq(base, ed.getFocusManager().getCurrentFocus());
+                    assertFalse(input.hasFocus());
+                    base.leave_callback = NOTHING; input.enter_callback = NOTHING;
+                    modal.setVisible(True); modal.setEnabled(True);
+                    ed.pushModal(modal); assertEq(input, ed.getFocusManager().getCurrentFocus()); ed.popModal();
+                }
+            }
+        }
+    }
+    compositeAvailability() {
+        NcursesUi::TestHarness th(24, 80); on_exit th.close();
+        string dir = "/tmp/ncurses-focus-disabled-pane-" + string(getpid());
+        mkdir(dir, 0700); on_exit rmdir(dir);
+        mkdir(dir + "/a", 0700); on_exit rmdir(dir + "/a");
+        mkdir(dir + "/b", 0700); on_exit rmdir(dir + "/b");
+        NcursesUi::Application app(th.session()); NcursesUi::Widget root(); app.setRoot(root);
+        NcursesUi::FileBrowserWidget browser(th.session(), dir);
+        browser.setFrameValues(2, 5, 16, 60); browser.createPanel(); app.pushModal(browser); app.drawAll();
+        foreach bool hide in ((False, True)) {
+            NcursesUi::ListWidget pane = browser.getFileList(); pane.setSelectedIndex(1);
+            app.getFocusManager().setFocus(pane);
+            if (hide) { pane.setVisible(False); } else { pane.setEnabled(False); }
+            app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Key, "name": "KEY_DOWN"});
+            assertEq(1, pane.getSelectedIndex());
+            app.processEvent(ch("\n")); assertEq(dir, browser.getCurrentDir());
+            app.processEvent(ch("\t")); assertEq(dir, browser.getCurrentDir());
+            assertEq(browser.getPreviewWidget(), app.getFocusManager().getCurrentFocus());
+            pane.setEnabled(True); pane.setVisible(True);
+            # The preview has an independent fallback path after losing focus.
+            NcursesUi::ScrollableWidget preview = browser.getPreviewWidget();
+            browser.getPreviewContent().setLines(map "line " + string($1), (1..30));
+            preview.setScrollY(0); app.drawAll();
+            hash<NcursesUi::Rect> pf = preview.getFrame();
+            app.processEvent(mouse(2 + pf.y, 5 + pf.x));
+            assertEq(preview, app.getFocusManager().getCurrentFocus());
+            if (hide) { preview.setVisible(False); } else { preview.setEnabled(False); }
+            app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Key, "name": "KEY_DOWN"});
+            assertEq(0, preview.getScrollY());
+            assertEq(1, pane.getSelectedIndex());
+            preview.setEnabled(True); preview.setVisible(True);
+        }
+        app.popModal();
     }
 
 }
