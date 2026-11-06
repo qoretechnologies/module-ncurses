@@ -338,6 +338,7 @@ public class FileBrowserWidget inherits NcursesUi::PanelWidget {
         }
         hash<NcursesUi::Rect> cr = localContentRect();
         if (cr.rows < 2 || cr.cols < 4) {
+            foreach NcursesUi::Widget child in (getChildren()) { child.onDrawClipped(); child.clearDirty(); }
             return;
         }
 

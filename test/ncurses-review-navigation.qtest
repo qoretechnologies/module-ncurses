@@ -1,0 +1,86 @@
+#!/usr/bin/env qore
+# Copyright 2026 Qore Technologies, s.r.o.
+%modern
+%prepend-module-path "${SCRIPT_DIR}/../qlib"
+%requires ncurses
+%requires NcursesUi
+%requires QUnit
+%include "test/TestHarness.qc"
+%exec-class ReviewNavigationTest
+class ReviewPaint inherits NcursesUi::Widget {
+    public { string text = "background"; bool fail = False; }
+    nothing draw(Ncurses::Window window) {
+        if (fail) { throw "PAINT-ERROR", "injected failure"; }
+        hash<NcursesUi::Rect> rect = drawContentRect(window); window.drawTextClipped(rect.y, rect.x, NcursesUi::TerminalText::clipRight(text, rect.cols));
+    }
+}
+class ReviewPanel inherits NcursesUi::PanelWidget {
+    public { bool fail = False; }
+    constructor(Ncurses::Session session) : PanelWidget(session) {}
+    nothing draw(Ncurses::Window window) { if (fail) { throw "PAINT-ERROR", "injected panel failure"; } PanelWidget::draw(window); }
+}
+class ReviewNavigationTest inherits Test {
+    constructor() : Test("ReviewNavigationTest", "1.0", \ARGV) {
+        addTestCase("moving shrinking and hiding non-panel modals restores lower layers", \modalDamage());
+        addTestCase("tiny file browsers acknowledge skipped panes", \tinyBrowser());
+        addTestCase("collapse retains a paused source anchor at its visible header", \collapseAnchor());
+        addTestCase("vertical preferred columns reset after direct model changes", \preferredColumn());
+        addTestCase("unwrapped search reveals matches on both horizontal sides", \horizontalSearch());
+        addTestCase("first paint follows the tail using actual window bounds", \clippedTail());
+        addTestCase("failed forced widget and panel repaints remain invalidated", \forcedFailure());
+        set_return_value(main());
+    }
+    modalDamage() {
+        NcursesUi::TestHarness th(8, 30); on_exit th.close(); NcursesUi::Application app(th.session()); ReviewPaint root(); app.setRoot(root);
+        ReviewPaint modal(); modal.text = "TOP"; modal.setFrameValues(0, 0, 1, 5); app.pushModal(modal); app.drawAll();
+        modal.translate(1, 0); app.drawAll(); assertEq("background", th.screen().readText(0, 0, 10)); assertEq("TOP", th.screen().readText(1, 0, 3));
+        modal.setFrameValues(1, 0, 1, 1); app.drawAll(); assertEq("T  ", th.screen().readText(1, 0, 3));
+        ReviewPaint top(); top.text = "X"; top.setFrameValues(0, 0, 1, 1); app.pushModal(top); app.drawAll();
+        modal.setVisible(False); app.drawAll(); assertEq("   ", th.screen().readText(1, 0, 3)); assertEq("Xackground", th.screen().readText(0, 0, 10));
+        top.setVisible(False); app.drawAll(); assertEq("background", th.screen().readText(0, 0, 10)); assertFalse(root.isDirty());
+    }
+    tinyBrowser() {
+        NcursesUi::TestHarness th(8, 30); on_exit th.close(); NcursesUi::FileBrowserWidget browser(th.session(), get_script_dir());
+        browser.setFrameValues(0, 0, 3, 5); browser.createPanel(); on_exit browser.destroyPanel(); browser.drawTree(th.screen());
+        foreach NcursesUi::Widget child in (browser.getChildren()) { child.markDirty(); } browser.drawTree(th.screen());
+        assertFalse(browser.isDirty()); foreach NcursesUi::Widget child in (browser.getChildren()) { assertFalse(child.isDirty()); }
+        browser.resize(NcursesUi::Geometry::makeRect(0, 0, 7, 25)); browser.drawTree(th.screen()); assertFalse(browser.isDirty());
+        browser.resize(NcursesUi::Geometry::makeRect(0, 0, 3, 5)); browser.drawTree(th.screen()); assertFalse(browser.isDirty());
+    }
+    collapseAnchor() {
+        NcursesUi::TestHarness th(8, 30); on_exit th.close(); NcursesUi::TranscriptWidget transcript(); transcript.setFrameValues(0, 0, 2, 20);
+        transcript.appendLines(("before 0", "before 1", "before 2", "before 3", "before 4"));
+        int block = transcript.appendBlock(("header", "body one", "body two", "body three")); transcript.appendLines(("after 0", "after 1", "after 2"));
+        transcript.setScrollY(7); assertEq(7, transcript.getScrollY()); transcript.setCollapsed(block, True); transcript.drawTree(th.screen());
+        assertEq(5, transcript.getScrollY()); assertTrue(th.screen().readText(0, 0, 20).find("header") >= 0); assertFalse(transcript.isFollowing());
+        transcript.setCollapsed(block, False); transcript.drawTree(th.screen()); assertEq(5, transcript.getScrollY());
+        NcursesUi::LineListContent lines(); lines.setLines(("hidden", "visible", "last")); lines.setLineVisible(0, False);
+        NcursesUi::ScrollableWidget scroll(lines); scroll.setFrameValues(3, 0, 1, 15); scroll.setScrollY(0); lines.setLineVisible(1, False); scroll.drawTree(th.screen()); assertEq("last", th.screen().readText(3, 0, 4));
+    }
+    preferredColumn() {
+        NcursesUi::TextEditorWidget editor(); editor.setFrameValues(0, 0, 5, 20); editor.setText("abcdef\nabcdef\nabcdef"); editor.getBuffer().setCursor(5);
+        editor.moveVertical(1); assertEq(12, editor.getBuffer().getCursor()); editor.getBuffer().moveHorizontal(False); editor.moveVertical(1); assertEq(18, editor.getBuffer().getCursor());
+        editor.setText("abcdef\nx\nabcdef"); editor.getBuffer().setCursor(5); editor.moveVertical(1); assertEq(8, editor.getBuffer().getCursor()); editor.moveVertical(1); assertEq(14, editor.getBuffer().getCursor());
+        editor.getBuffer().setText("abc\nabcdef\nabcdef"); editor.getBuffer().setCursor(2); editor.moveVertical(1); assertEq(6, editor.getBuffer().getCursor());
+        editor.getBuffer().insert("Z"); editor.moveVertical(1); assertEq(15, editor.getBuffer().getCursor());
+    }
+    horizontalSearch() {
+        NcursesUi::TestHarness th(8, 30); on_exit th.close(); NcursesUi::TranscriptWidget transcript(); transcript.setFrameValues(0, 0, 2, 10); transcript.setWordWrap(False);
+        transcript.appendLine("hit" + strmul(".", 30) + "hit" + strmul(".", 10)); transcript.setSearch("hit"); transcript.findNext(); assertEq(0, transcript.getScrollX());
+        transcript.findNext(); transcript.drawTree(th.screen()); assertTrue(transcript.getScrollX() > 0); assertTrue(th.screen().readText(0, 0, 10).find("hit") >= 0);
+        transcript.findNext(); transcript.drawTree(th.screen()); assertEq(0, transcript.getScrollX()); assertTrue(th.screen().readText(0, 0, 10).find("hit") >= 0);
+    }
+    clippedTail() {
+        NcursesUi::TestHarness th(10, 30); on_exit th.close(); NcursesUi::TranscriptWidget transcript(); transcript.setFrameValues(0, 0, 10, 15);
+        for (int i = 0; i < 20; ++i) { transcript.appendLine("line " + i); }
+        Ncurses::Window small(th.session(), 5, 15, 0, 0); transcript.drawTree(small); assertEq(15, transcript.getScrollY()); assertEq("line 19", small.readText(4, 0, 7)); assertTrue(transcript.isFollowing()); assertFalse(transcript.isDirty());
+    }
+    forcedFailure() {
+        NcursesUi::TestHarness th(8, 30); on_exit th.close(); NcursesUi::Widget root(); root.setFrameValues(0, 0, 8, 30);
+        ReviewPaint back(); back.setFrameValues(0, 0, 1, 10); ReviewPaint front(); front.text = "TOP"; front.setFrameValues(0, 0, 1, 3); root.addChild(back); root.addChild(front); root.drawTree(th.screen());
+        front.fail = True; back.markDirty(); assertThrows("PAINT-ERROR", sub () { root.drawTree(th.screen()); }); assertTrue(root.isDirty()); assertTrue(front.isDirty());
+        front.fail = False; root.drawTree(th.screen()); assertEq("TOP", th.screen().readText(0, 0, 3)); assertFalse(root.isDirty());
+        ReviewPanel panel(th.session()); panel.setFrameValues(2, 0, 3, 12); panel.createPanel(); on_exit panel.destroyPanel(); panel.drawTree(th.screen()); panel.fail = True;
+        assertThrows("PAINT-ERROR", sub () { panel.drawTree(th.screen(), True); }); assertTrue(panel.isDirty()); panel.fail = False; panel.drawTree(th.screen()); assertFalse(panel.isDirty());
+    }
+}

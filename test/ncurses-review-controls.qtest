@@ -1,0 +1,91 @@
+#!/usr/bin/env qore
+# Copyright 2026 Qore Technologies, s.r.o.
+%modern
+%prepend-module-path "${SCRIPT_DIR}/../qlib"
+%requires ncurses
+%requires NcursesUi
+%requires QUnit
+%include "test/TestHarness.qc"
+%exec-class ReviewControlsTest
+class ReviewControlsTest inherits Test {
+    constructor() : Test("ReviewControlsTest", "1.0", \ARGV) {
+        addTestCase("choices reveal defaults replacements and resized highlights", \choiceReveal());
+        addTestCase("completed choices retain read-only scroll navigation", \completedScroll());
+        addTestCase("choice scrollbar clicks use shared scrolling", \choiceScrollbar());
+        addTestCase("ancestor clipping synchronizes form values and schema", \clippedForm());
+        addTestCase("explicitly unset choices stay unset when controls are created", \unsetChoice());
+        addTestCase("explicit same-value writes replace invalid drafts only for that field", \explicitWrites());
+        addTestCase("tree width changes retain selected row visibility", \treeResize());
+        addTestCase("replaced scalar branches allow parent navigation", \treeScalar());
+        set_return_value(main());
+    }
+    private hash<Ncurses::InputEvent> key(string value) { return <Ncurses::InputEvent>{"type": Ncurses::InputType::Key, "name": value}; }
+    private hash<Ncurses::InputEvent> click(int y, int x) { return <Ncurses::InputEvent>{"type": Ncurses::InputType::Mouse, "mouse": <Ncurses::MouseEvent>{"y": y, "x": x, "button_state": Ncurses::BUTTON1_CLICKED}}; }
+    private list<hash<NcursesUi::ChoiceItem>> options() {
+        list<hash<NcursesUi::ChoiceItem>> result = ();
+        for (int i = 0; i < 12; ++i) { result += <NcursesUi::ChoiceItem>{"value": string(i), "label": "Option " + i, "default_value": i == 11}; }
+        return result;
+    }
+    private list<hash<NcursesUi::FormField>> fields() { return (
+        <NcursesUi::FormField>{"name": "count", "label": "Count", "type": NcursesUi::FieldType::Integer, "default_value": 3},
+        <NcursesUi::FormField>{"name": "other", "label": "Other", "type": NcursesUi::FieldType::Integer, "default_value": 4},
+        <NcursesUi::FormField>{"name": "choice", "label": "Choice", "type": NcursesUi::FieldType::Choice, "required": True, "choices": options()}
+    ); }
+    choiceReveal() {
+        NcursesUi::TestHarness th(10, 30); on_exit th.close(); NcursesUi::DescribedChoiceWidget choice(options()); choice.setFrameValues(0, 0, 3, 20); choice.setFocused(True);
+        choice.drawTree(th.screen()); assertTrue(choice.getScrollY() >= 9); assertTrue(th.screen().readText(2, 0, 19).find("Option 11") >= 0);
+        choice.processEvent(key("KEY_PPAGE")); int manually = choice.getScrollY(); choice.drawTree(th.screen()); assertEq(manually, choice.getScrollY());
+        choice.setFrameValues(0, 0, 1, 15); choice.drawTree(th.screen()); assertEq(11, choice.getScrollY());
+        choice.setItems((<NcursesUi::ChoiceItem>{"value": "first", "label": "First"}, <NcursesUi::ChoiceItem>{"value": "new", "label": "New", "default_value": True}));
+        choice.drawTree(th.screen()); assertEq(1, choice.getScrollY()); assertEq("new", choice.getSelection().value);
+        choice.setFocused(False); choice.scrollTo(NcursesUi::ScrollDirection::Home); choice.setFocused(True); choice.drawTree(th.screen()); assertEq(1, choice.getScrollY());
+    }
+    completedScroll() {
+        NcursesUi::TestHarness th(8, 30); on_exit th.close(); NcursesUi::DescribedChoiceWidget choice(options()); choice.setFrameValues(0, 0, 3, 20);
+        choice.setOnSubmit(sub (hash<NcursesUi::ChoiceSelection> result) {}); assertTrue(choice.submit());
+        choice.processEvent(key("KEY_HOME")); choice.drawTree(th.screen()); assertEq(0, choice.getScrollY());
+        choice.processEvent(key("KEY_NPAGE")); choice.drawTree(th.screen()); assertTrue(choice.getScrollY() > 0);
+        choice.processEvent(key("KEY_END")); choice.drawTree(th.screen()); assertTrue(th.screen().readText(2, 0, 19).find("Submitted") >= 0);
+        assertEq("11", choice.getSelection().value); assertFalse(choice.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "\t"}).handled);
+        choice.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": " "}); assertEq("11", choice.getSelection().value); assertFalse(choice.submit());
+    }
+    choiceScrollbar() {
+        NcursesUi::TestHarness th(8, 30); on_exit th.close(); NcursesUi::DescribedChoiceWidget choice(options()); choice.setFrameValues(0, 0, 4, 20);
+        choice.drawTree(th.screen()); hash<NcursesUi::Rect> view = choice.getViewportRect(); choice.processEvent(click(3, view.x + view.cols));
+        assertTrue(choice.getScrollY() > 0); assertEq("11", choice.getSelection().value);
+        choice.drawTree(th.screen()); choice.processEvent(click(0, view.x + view.cols)); assertEq(0, choice.getScrollY());
+    }
+    clippedForm() {
+        NcursesUi::TestHarness th(10, 30); on_exit th.close(); NcursesUi::Application app(th.session()); NcursesUi::Widget root(); app.setRoot(root);
+        NcursesUi::Widget container(); container.setFrameValues(0, 0, 10, 30); root.addChild(container);
+        NcursesUi::FormModel model(fields()); NcursesUi::FormWidget form(model); form.setFrameValues(0, 0, 10, 30); container.addChild(form); app.drawAll();
+        container.setVisible(False); model.setValue("count", 9); app.drawAll(); assertFalse(root.isDirty()); container.setVisible(True); app.drawAll();
+        assertEq("9", cast<NcursesUi::TextInputWidget>(form.getControl("count")).getText());
+        container.translate(20, 0); model.setFields((<NcursesUi::FormField>{"name": "new", "label": "New", "default_value": "changed"},)); app.drawAll(); assertFalse(root.isDirty());
+        container.translate(-20, 0); app.drawAll(); assertTrue(th.screen().readText(1, 0, 20).find("changed") >= 0); assertFalse(root.isDirty());
+    }
+    unsetChoice() {
+        NcursesUi::FormModel model(fields()); model.setValue("choice", NOTHING); NcursesUi::FormWidget form(model);
+        assertNothing(cast<NcursesUi::DescribedChoiceWidget>(form.getControl("choice")).getSelection());
+        int calls = 0; form.setOnSubmit(auto sub (hash<auto> values) { ++calls; return values; }); assertFalse(form.submit()); assertEq(0, calls); assertNothing(model.getValue("choice")); assertEq("choice", model.firstInvalid());
+    }
+    explicitWrites() {
+        NcursesUi::TestHarness th(12, 30); on_exit th.close(); NcursesUi::Application app(th.session()); NcursesUi::FormModel model(fields()); NcursesUi::FormWidget form(model); app.setRoot(form);
+        form.setOnSubmit(auto sub (hash<auto> values) { return values; });
+        NcursesUi::TextInputWidget count = cast<NcursesUi::TextInputWidget>(form.getControl("count")); NcursesUi::TextInputWidget other = cast<NcursesUi::TextInputWidget>(form.getControl("other"));
+        count.setText("bad"); other.setText("also bad"); assertFalse(form.submit()); app.drawAll(); assertEq("bad", count.getText()); assertEq("also bad", other.getText());
+        model.setValue("count", 3); app.drawAll(); assertEq("3", count.getText()); assertEq("also bad", other.getText()); assertFalse(form.submit()); assertEq("other", model.firstInvalid());
+        model.setValue("other", 4); assertTrue(form.submit()); assertEq(3, model.getResult().count); assertEq(4, model.getResult().other);
+    }
+    treeResize() {
+        NcursesUi::TestHarness th(12, 40); on_exit th.close(); list<string> values = (); for (int i = 0; i < 30; ++i) { values += "value " + i; }
+        NcursesUi::TreeWidget tree(values); tree.setFrameValues(0, 0, 4, 30); tree.selectPath("/25"); tree.drawTree(th.screen()); assertTrue(tree.getScrollY() > 0);
+        tree.setFrameValues(0, 0, 3, 20); tree.drawTree(th.screen()); assertTrue(tree.getScrollY() >= 24); assertTrue(th.screen().readText(2, 0, 19).find("25") >= 0); assertEq("/25", tree.getSelectedPath());
+        tree.setFrameValues(0, 0, 1, 20); tree.drawTree(th.screen()); assertEq(26, tree.getScrollY()); assertTrue(th.screen().readText(0, 0, 19).find("25") >= 0);
+    }
+    treeScalar() {
+        NcursesUi::TreeWidget tree({"branch": {"child": 1}}); tree.setFrameValues(0, 0, 5, 20); tree.setExpanded("/branch", True); tree.selectPath("/branch");
+        tree.setData({"branch": 1}); assertFalse(tree.getSelectedEntry().branch); tree.processEvent(key("KEY_LEFT")); assertEq("", tree.getSelectedPath());
+        tree.setData({"branch": {"child": 2}}); assertFalse(tree.isExpanded("/branch"));
+    }
+}

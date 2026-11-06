@@ -82,4 +82,8 @@
     filtering, expansion and copy/export callbacks. CodeViewWidget adds source-preserving
     export and validated syntax styling. Oversized ANSI parameters no longer overflow
     into unrelated styles; parsing and style scans support cooperative cancellation.
+    Further repaint/navigation regressions restore exposed non-panel modal regions,
+    retain invalidation after failed forced paints, acknowledge tiny file-browser panes,
+    retain collapsed scroll anchors, reset stale preferred caret columns, reveal search
+    matches horizontally and use actual window bounds for first-paint tail following.
 */

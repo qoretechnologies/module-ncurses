@@ -26,6 +26,8 @@ public class TreeWidget inherits NcursesUi::ScrollableWidget {
         string filter = "";
         NcursesUi::LineListContent lines();
         int rendered_width = -1;
+        *hash<NcursesUi::Rect> last_viewport;
+        bool reveal_selection = True;
         int maximum_nodes = 100000;
         int maximum_depth = 2048;
         *code<nothing(*hash<NcursesUi::TreeEntry>)> on_select;
@@ -77,10 +79,10 @@ public class TreeWidget inherits NcursesUi::ScrollableWidget {
             if (pending.size() + next_order.size() > maximum_nodes) { throw "TREE-LIMIT-ERROR", "Tree exceeds configured node limit"; }
         }
         hash<string, bool> retained = {};
-        foreach string path in (next_order) { if (expanded{path}) { retained{path} = True; } }
+        foreach string path in (next_order) { if (expanded{path} && next{path}.entry.branch) { retained{path} = True; } }
         if (!nodes) { retained{""} = True; }
         while (exists selected && !exists next{selected}) { selected = nodes{selected}.entry.parent; }
-        nodes = next; order = next_order; expanded = retained; rebuild();
+        nodes = next; order = next_order; expanded = retained; rebuild(); revealSelection();
     }
     /** Returns an indexed source entry. @param path stable source path @return typed entry @throw TREE-PATH-ERROR if absent */
     hash<NcursesUi::TreeEntry> getEntry(string path) { return node(path).entry; }
@@ -123,7 +125,16 @@ public class TreeWidget inherits NcursesUi::ScrollableWidget {
     /** Exports selected typed data through the configured callback. @return whether a callback ran */
     bool exportSelection() { if (!exists selected || !on_export) { return False; } on_export(selected, nodes{selected}.entry.value); return True; }
     /** Reflows indentation for narrow terminals before drawing. @param window target */
-    nothing draw(Ncurses::Window window) { if (rendered_width != contentRect().cols) { render(); } ScrollableWidget::draw(window); }
+    nothing draw(Ncurses::Window window) {
+        prepareDrawViewport(window);
+        bool reflow = rendered_width != contentRect().cols;
+        if (reflow) { render(); }
+        if (reflow || reveal_selection || last_viewport != getViewportRect()) { revealSelection(); }
+        reveal_selection = False; last_viewport = getViewportRect();
+        ScrollableWidget::draw(window);
+    }
+    /** Reveals the selected source entry on focus entry. */
+    nothing onFocusIn() { reveal_selection = True; }
     /** Handles keyboard and mouse navigation. @param event input @return handling result */
     hash<NcursesUi::EventResult> processEvent(hash<Ncurses::InputEvent> event) {
         if (!isAvailable()) { return <NcursesUi::EventResult>{}; }
@@ -136,7 +147,7 @@ public class TreeWidget inherits NcursesUi::ScrollableWidget {
             else if (key == "KEY_PPAGE") { next = max(0, index - max(1, getViewportRect().rows)); }
             else if (key == "KEY_NPAGE") { next = min(visible_paths.size() - 1, index + max(1, getViewportRect().rows)); }
             else if (key == "KEY_LEFT" && exists selected) {
-                if (expanded{selected}) { setExpanded(selected, False); }
+                if (nodes{selected}.entry.branch && expanded{selected}) { setExpanded(selected, False); }
                 else if (exists nodes{selected}.entry.parent) { selectPath(nodes{selected}.entry.parent); }
                 return <NcursesUi::EventResult>{"handled": True};
             } else if (key == "KEY_RIGHT" && exists selected) {

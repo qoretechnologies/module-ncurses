@@ -583,6 +583,7 @@ public class Widget {
         @since ncurses 1.0
     */
     nothing drawTree(Ncurses::Window w, bool force = False) {
+        on_error markDirty();
         if (!force && !isDirty()) { return; }
         if (!visible) { onDrawClipped(); clearDirty(); return; }
         hash<Ncurses::Position> origin = w.position(); hash<Ncurses::Size> size = w.size();

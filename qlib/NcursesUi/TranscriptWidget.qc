@@ -213,7 +213,16 @@ public class TranscriptWidget inherits NcursesUi::ScrollableWidget {
                     && text.lineForId(active_match.line_id) <= text.lineForId(block.line_ids[-1])) { setCollapsed(id, False); break; }
         }
         getViewportRect(); hash<Ncurses::Position> pos = text.sourceToVisual(text.lineForId(active_match.line_id), active_match.start);
-        setScrollY(pos.y); markDirty(); return active_match;
+        setScrollY(pos.y);
+        hash<NcursesUi::Rect> view = getViewportRect();
+        hash<Ncurses::Position> end = text.sourceToVisual(text.lineForId(active_match.line_id), active_match.end);
+        int target = getScrollX();
+        if (pos.x < target) { target = pos.x; }
+        else if (end.y == pos.y && end.x > target + view.cols) { target = min(pos.x, max(0, end.x - view.cols)); }
+        else if (pos.x >= target + view.cols) { target = pos.x; }
+        if (target < getScrollX()) { ScrollableWidget::scrollTo(NcursesUi::ScrollDirection::Left, getScrollX() - target); }
+        else if (target > getScrollX()) { ScrollableWidget::scrollTo(NcursesUi::ScrollDirection::Right, target - getScrollX()); }
+        markDirty(); return active_match;
     }
     /** Installs explicit source link ranges. @param ranges stable line IDs and character ranges
         @throw TRANSCRIPT-LINK-ERROR for invalid lines/ranges or empty targets
@@ -253,7 +262,7 @@ public class TranscriptWidget inherits NcursesUi::ScrollableWidget {
     }
     /** Draws styled text with search and selection highlights. @param w target window */
     nothing draw(Ncurses::Window w) {
-        prune(); if (follow_tail) { ScrollableWidget::scrollTo(NcursesUi::ScrollDirection::End); }
+        prune(); prepareDrawViewport(w); if (follow_tail) { ScrollableWidget::scrollTo(NcursesUi::ScrollDirection::End); }
         ScrollableWidget::draw(w); prepareMatches();
         hash<NcursesUi::Rect> rect = getViewportRect(); hash<Ncurses::Position> origin = w.position();
         int first = selection_start ? text.lineForId(selection_start.line_id) : -1;

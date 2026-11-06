@@ -40,6 +40,7 @@ public class FormModel {
         list<hash<NcursesUi::FormField>> fields = ();
         hash<string, int> positions = {};
         hash<auto> values = {};
+        hash<string, int> value_revisions = {};
         hash<string, string> errors = {};
         hash<string, string> control_errors = {};
         *code<hash<string, string>(hash<auto>)> form_validator;
@@ -81,6 +82,7 @@ public class FormModel {
         }
         fields = definitions; positions = next_positions; values = next_values; errors = {}; control_errors = {}; failure = NOTHING;
         state = NcursesUi::ActionState::Pending; result = NOTHING; ++generation; ++revision; ++defaults_revision;
+        value_revisions = {}; foreach hash<NcursesUi::FormField> f in (fields) { value_revisions{f.name} = revision; }
     }
     /** Returns field metadata. @return ordered definitions */
     list<hash<NcursesUi::FormField>> getFields() { return fields; }
@@ -97,7 +99,7 @@ public class FormModel {
         if (definition.read_only) { throw "FORM-READONLY-ERROR", "Field is read-only: " + name; }
         if (!typeValid(definition, value)) { throw "FORM-VALUE-ERROR", "Invalid value type for " + name; }
         values{name} = value; remove errors{name}; remove control_errors{name}; failure = NOTHING; result = NOTHING;
-        state = NcursesUi::ActionState::Pending; ++generation; ++revision;
+        state = NcursesUi::ActionState::Pending; ++generation; ++revision; value_revisions{name} = revision;
     }
     /** Records a control's parse error without replacing its last typed value.
         @param name field name @param message plain error text, or NOTHING to clear
@@ -122,6 +124,10 @@ public class FormModel {
     auto getResult() { return result; }
     /** Returns the model generation for repainting. @return monotonic revision */
     int getRevision() { return revision; }
+    /** Reports explicit writes for one value, independent of validation/status changes.
+        @param name field identity @return monotonic value-write revision @throw FORM-FIELD-ERROR if unknown
+    */
+    int getValueRevision(string name) { field(name); return value_revisions{name}; }
     /** Reports explicit default restoration or schema replacement. @return monotonic revision */
     int getDefaultsRevision() { return defaults_revision; }
     /** Validates typed values and calls custom validators without permitting reentrant edits.
@@ -189,6 +195,7 @@ public class FormModel {
         if (validating || state == NcursesUi::ActionState::Running) { throw "FORM-BUSY-ERROR", "Cannot reset an active form"; }
         if (defaults) { foreach hash<NcursesUi::FormField> f in (fields) { values{f.name} = f.default_value; } ++defaults_revision; }
         errors = {}; control_errors = {}; failure = NOTHING; result = NOTHING; state = NcursesUi::ActionState::Pending; ++generation; ++revision;
+        if (defaults) { foreach hash<NcursesUi::FormField> f in (fields) { value_revisions{f.name} = revision; } }
     }
     private hash<NcursesUi::FormField> field(string name) {
         if (!exists positions{name}) { throw "FORM-FIELD-ERROR", "Unknown form field: " + name; }

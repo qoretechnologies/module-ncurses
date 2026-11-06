@@ -27,6 +27,8 @@ public class DescribedChoiceWidget inherits NcursesUi::ScrollableWidget {
         *string error;
         int min_height = 1;
         int max_height = 8;
+        bool reveal_highlight = True;
+        *hash<NcursesUi::Rect> last_viewport;
     }
     /** Creates a selector. @param options uniquely valued options */
     constructor(list<hash<NcursesUi::ChoiceItem>> options = ()) { lines.setWordWrap(True); setContent(lines); setItems(options); }
@@ -53,6 +55,7 @@ public class DescribedChoiceWidget inherits NcursesUi::ScrollableWidget {
             }
         }
         *hash<NcursesUi::ChoiceSelection> before = selected;
+        reveal_highlight = True;
         items = options; selected = next; highlight = index >= 0 ? index : firstAvailable();
         state = NcursesUi::ActionState::Pending; error = NOTHING; refreshLines();
         if (on_change && selected != before) { on_change(selected); }
@@ -64,6 +67,7 @@ public class DescribedChoiceWidget inherits NcursesUi::ScrollableWidget {
         checkEditable();
         if (label.find("\n") >= 0 || label.find("\r") >= 0) { throw "CHOICE-DEFINITION-ERROR", "Custom input label must be a single line"; }
         *hash<NcursesUi::ChoiceSelection> before = selected;
+        reveal_highlight = True;
         custom = enabled; custom_label = label;
         if (selected && selected.is_custom && !enabled) { selected = NOTHING; }
         if (highlight >= items.size() || highlight < 0) { highlight = firstAvailable(); }
@@ -125,15 +129,21 @@ public class DescribedChoiceWidget inherits NcursesUi::ScrollableWidget {
     bool wantsCursor() { return custom && highlight == items.size() && state != NcursesUi::ActionState::Running && state != NcursesUi::ActionState::Completed; }
     /** Reveals the highlighted option before painting. @param window output */
     nothing draw(Ncurses::Window window) {
+        prepareDrawViewport(window); hash<NcursesUi::Rect> view = getViewportRect();
+        if ((reveal_highlight || last_viewport != view) && state != NcursesUi::ActionState::Running && state != NcursesUi::ActionState::Completed) { revealHighlight(); }
+        reveal_highlight = False; last_viewport = getViewportRect();
         if (hasFocus() && wantsCursor()) { setCursorLine(option_lines[highlight], custom_label.length() + 4 + custom_input.getCursor()); }
         else { clearCursorLine(); }
         ScrollableWidget::draw(window);
     }
+    /** Reveals the active option when keyboard focus enters. */
+    nothing onFocusIn() { reveal_highlight = True; }
     /** Releases an editable custom caret on focus loss. */
     nothing onFocusOut() { clearCursorLine(); }
     /** Handles navigation, choosing, custom editing and submission. @param event input @return event result */
     hash<NcursesUi::EventResult> processEvent(hash<Ncurses::InputEvent> event) {
-        if (!isAvailable() || state == NcursesUi::ActionState::Running || state == NcursesUi::ActionState::Completed) { return <NcursesUi::EventResult>{}; }
+        if (!isAvailable()) { return <NcursesUi::EventResult>{}; }
+        if (state == NcursesUi::ActionState::Running || state == NcursesUi::ActionState::Completed) { return ScrollableWidget::processEvent(event); }
         string key = event.name ?? "";
         if (event.type == Ncurses::InputType::Key && (key == "KEY_UP" || key == "KEY_DOWN" || key == "KEY_HOME" || key == "KEY_END")) {
             int direction = key == "KEY_UP" || key == "KEY_END" ? -1 : 1;
@@ -156,7 +166,7 @@ public class DescribedChoiceWidget inherits NcursesUi::ScrollableWidget {
                     }
                 }
             }
-            return <NcursesUi::EventResult>{"handled": True};
+            return ScrollableWidget::processEvent(event);
         }
         bool enter = (event.type == Ncurses::InputType::Char && (event.ch == "\n" || event.ch == "\r")) || (event.type == Ncurses::InputType::Key && key == "KEY_ENTER");
         if (enter || (event.type == Ncurses::InputType::Char && event.ch == " " && !(custom && highlight == items.size()))) {

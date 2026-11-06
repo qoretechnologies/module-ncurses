@@ -102,7 +102,9 @@ activation bindings.
 FormModel owns typed values independently of controls. Validation locks reentrant
 mutation; a submission snapshot includes its generation. Cancellation invalidates
 that generation, so delayed completion cannot replace a newer state. Control parse
-errors are separate from derived validation errors. FormWidget preserves invalid
+errors are separate from derived validation errors. Per-field value-write revisions
+let explicit writes replace an invalid draft even when the typed value is unchanged,
+without discarding drafts on unrelated validation/status changes. FormWidget preserves invalid
 numeric drafts, observes external model changes and rebuilds schema controls only
 after constructing the replacement tree. Focus determines the form scroll offset.
 Password inputs render one mask cell per grapheme and disable history use.
@@ -126,3 +128,12 @@ Native ANSI parameter accumulation checks integer bounds before multiplication.
 Unsupported oversized parameters are ignored; subsequent valid parameters still
 apply. Segment and parameter scans check cancellation and callers propagate errors.
 Fallible parse/width methods use RET_VALUE_ONLY, and width accumulation uses 64 bits.
+
+Shared-window modals invalidate lower layers when dirty, because they have no native
+panel compositor to restore previously covered cells. Forced-paint exceptions keep
+widgets/panels dirty for retry. Specialized child painters acknowledge skipped panes.
+Hidden source anchors resolve through the indexed preceding visible line (or the
+first visible line), and adopt that source identity for subsequent expansion/resize.
+Transcript tail following establishes target-window bounds before scrolling; search
+navigation reveals the selected match on both axes. Preferred editor columns persist
+only across consecutive vertical moves, identified by the model revision.

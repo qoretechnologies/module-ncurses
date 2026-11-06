@@ -37,7 +37,7 @@ public class FormWidget inherits NcursesUi::Widget {
         *code<nothing()> on_cancel;
         int revision = -1;
         int defaults_revision = -1;
-        hash<auto> observed_values = {};
+        hash<string, int> observed_value_revisions = {};
         hash<string, bool> imported_invalid_choices = {};
         int scroll_y = 0;
         bool arranging = False;
@@ -96,7 +96,7 @@ public class FormWidget inherits NcursesUi::Widget {
         Widget::drawTree(window, force);
     }
     /** Acknowledges model changes while clipped. */
-    nothing onDrawClipped() { Widget::onDrawClipped(); revision = model.getRevision(); last_focus = findFocused(); }
+    nothing onDrawClipped() { syncPresentation(); layout(); Widget::onDrawClipped(); revision = model.getRevision(); last_focus = findFocused(); }
     /** Lays out wrapped field metadata and keeps the current control visible. */
     nothing layout() {
         if (arranging) { return; } arranging = True; on_exit arranging = False;
@@ -150,7 +150,9 @@ public class FormWidget inherits NcursesUi::Widget {
             addChild(labels{field.name}); addChild(controls{field.name}); addChild(help{field.name}); addChild(errors{field.name});
         }
         addChild(message); addChild(submit_button); addChild(cancel_button);
-        observed_values = model.getValues(); imported_invalid_choices = next_invalid; defaults_revision = model.getDefaultsRevision(); syncPresentation();
+        observed_value_revisions = {};
+        foreach hash<NcursesUi::FormField> f in (fields) { observed_value_revisions{f.name} = model.getValueRevision(f.name); }
+        imported_invalid_choices = next_invalid; defaults_revision = model.getDefaultsRevision(); syncPresentation();
     }
     private NcursesUi::Widget createControl(hash<NcursesUi::FormField> field) {
         string name = field.name; auto value = model.getValue(name);
@@ -161,7 +163,7 @@ public class FormWidget inherits NcursesUi::Widget {
         if (field.type == NcursesUi::FieldType::Choice) {
             NcursesUi::DescribedChoiceWidget control(field.choices); control.setAutoHeight(1, 4);
             if (exists value && choiceAvailable(field, string(value))) { control.setValue(string(value)); }
-            else if (exists value) { control.setValue(NOTHING); }
+            else { control.setValue(NOTHING); }
             control.setOnChange(sub (*hash<NcursesUi::ChoiceSelection> selection) { if (!synchronizing) { storeValue(name, selection ? selection.value : NOTHING); markDirty(); } }); return control;
         }
         if (field.type == NcursesUi::FieldType::Multiline) {
@@ -205,13 +207,13 @@ public class FormWidget inherits NcursesUi::Widget {
     private static bool choiceAvailable(hash<NcursesUi::FormField> field, string value) {
         foreach hash<NcursesUi::ChoiceItem> item in (field.choices) { if (item.value == value && !item.disabled) { return True; } } return False;
     }
-    private nothing storeValue(string name, auto value) { model.setValue(name, value); observed_values{name} = value; remove imported_invalid_choices{name}; }
+    private nothing storeValue(string name, auto value) { model.setValue(name, value); observed_value_revisions{name} = model.getValueRevision(name); remove imported_invalid_choices{name}; }
     private nothing syncPresentation() {
         if (fields != model.getFields()) { buildFields(); return; }
         if (synchronizing) { return; } synchronizing = True; on_exit synchronizing = False;
         hash<auto> values = model.getValues(); bool restore_defaults = defaults_revision != model.getDefaultsRevision();
         foreach hash<NcursesUi::FormField> field in (fields) {
-            if (!restore_defaults && observed_values{field.name} == values{field.name}) { continue; }
+            if (!restore_defaults && observed_value_revisions{field.name} == model.getValueRevision(field.name)) { continue; }
             NcursesUi::Widget control = controls{field.name}; auto value = values{field.name};
             if (field.type == NcursesUi::FieldType::Boolean) { cast<NcursesUi::CheckboxWidget>(control).setChecked(!!value); }
             else if (field.type == NcursesUi::FieldType::Choice) {
@@ -222,7 +224,8 @@ public class FormWidget inherits NcursesUi::Widget {
             else if (field.type == NcursesUi::FieldType::Multiline) { cast<NcursesUi::TextEditorWidget>(control).setText(exists value ? string(value) : ""); }
             else { cast<NcursesUi::TextInputWidget>(control).setText(exists value ? string(value) : ""); }
         }
-        observed_values = values; defaults_revision = model.getDefaultsRevision();
+        foreach hash<NcursesUi::FormField> f in (fields) { observed_value_revisions{f.name} = model.getValueRevision(f.name); }
+        defaults_revision = model.getDefaultsRevision();
         hash<string, string> messages = model.getErrors(); int state = model.getState();
         bool editable = state != NcursesUi::ActionState::Running && state != NcursesUi::ActionState::Completed;
         foreach hash<NcursesUi::FormField> field in (fields) {

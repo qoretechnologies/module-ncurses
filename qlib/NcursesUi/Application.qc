@@ -305,6 +305,11 @@ public class Application {
         }
         dispatcher.getFocusManager().reconcile(dispatcher.topModal() ?? root);
         updateModalCursor();
+        # Non-panel overlays share the root surface. Their previous pixels must be
+        # restored when their geometry, visibility or content changes.
+        foreach NcursesUi::Widget modal in (dispatcher.getModalStack()) {
+            if (!(modal instanceof NcursesUi::PanelWidget) && modal.isDirty()) { root.markDirty(); }
+        }
         bool dirty = root.isDirty();
         foreach NcursesUi::Widget modal in (dispatcher.getModalStack()) { if (modal.isDirty()) { dirty = True; } }
         if (!dirty) { return; }
