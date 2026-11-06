@@ -1,0 +1,70 @@
+#!/usr/bin/env qore
+# Copyright 2026 Qore Technologies, s.r.o.
+%modern
+%prepend-module-path "${SCRIPT_DIR}/../qlib"
+%requires ncurses
+%requires NcursesUi
+%requires QUnit
+%include "test/TestHarness.qc"
+%exec-class TimelineTest
+class TimelineTest inherits Test {
+    constructor() : Test("TimelineTest", "1.0", \ARGV) {
+        addTestCase("timestamps typed states and detail expansion preserve source", \events());
+        addTestCase("invalid and direct mutations leave timeline unchanged", \validation());
+        addTestCase("retention bounds metadata and preserves retained detail suffixes", \retention());
+        addTestCase("keyboard mouse and activation remain accessible when narrow", \navigation());
+        addTestCase("search expands hidden event details and callback failures commit coherently", \search());
+        addTestCase("streaming preserves paused reading anchors", \streaming());
+        set_return_value(main());
+    }
+    private hash<NcursesUi::TimelineEvent> event(string id, list<string> details = ()) { return <NcursesUi::TimelineEvent>{"id": id, "title": "Event " + id, "details": details}; }
+    private hash<Ncurses::InputEvent> key(string name) { return <Ncurses::InputEvent>{"type": Ncurses::InputType::Key, "name": name}; }
+    events() {
+        NcursesUi::TimelineWidget timeline(); date timestamp = now(); hash<NcursesUi::TimelineEvent> value = event("first", ("line", "界\tvalue")); value.timestamp = timestamp; value.state = NcursesUi::ActionState::Running;
+        int block = timeline.appendEvent(value); assertEq(("first",), timeline.getEventIds()); assertEq("first", timeline.getSelectedEventId());
+        assertEq(timestamp, timeline.getEvent("first").timestamp); assertEq(NcursesUi::ActionState::Running, timeline.getEvent("first").state); assertTrue(timeline.getBlockText(block).find("[Running] Event first") >= 0);
+        assertEq(("line", "界    value"), timeline.getEvent("first").details); timeline.setEventCollapsed("first", True); assertTrue(timeline.isEventCollapsed("first")); assertEq(1, timeline.getTranscriptContent().totalRows());
+        assertEq(("line", "界    value"), timeline.getEvent("first").details); timeline.setEventCollapsed("first", False); assertFalse(timeline.isEventCollapsed("first"));
+        timeline.clear(); assertEq((), timeline.getEventIds()); assertNothing(timeline.getSelectedEventId());
+    }
+    validation() {
+        NcursesUi::TimelineWidget timeline(); timeline.appendEvent(event("one"));
+        assertThrows("TIMELINE-EVENT-ERROR", sub () { timeline.appendEvent(event("one")); });
+        assertThrows("TIMELINE-EVENT-ERROR", sub () { timeline.appendEvent(event("")); });
+        hash<NcursesUi::TimelineEvent> invalid = event("bad"); invalid.state = 42; assertThrows("TIMELINE-EVENT-ERROR", sub () { timeline.appendEvent(invalid); });
+        assertThrows("TIMELINE-EVENT-ERROR", sub () { timeline.appendLine("untyped"); }); assertThrows("TIMELINE-EVENT-ERROR", sub () { timeline.appendBlockLines(1, ("changed",)); });
+        assertThrows("TIMELINE-EVENT-ERROR", sub () { timeline.selectEvent("missing"); }); assertEq(("one",), timeline.getEventIds()); assertEq("one", timeline.getSelectedEventId());
+    }
+    retention() {
+        NcursesUi::TimelineWidget timeline(); timeline.setRetentionLimit(3); int changes = 0;
+        timeline.setOnEventSelect(sub (*hash<NcursesUi::TimelineEvent> value) { ++changes; }); timeline.appendEvent(event("one", ("a", "b", "c", "d")));
+        assertEq(("b", "c", "d"), timeline.getEvent("one").details); assertEq(3, timeline.getTranscriptContent().lineCount());
+        timeline.appendEvent(event("two", ("next",))); assertEq(("one", "two"), timeline.getEventIds()); assertEq(("d",), timeline.getEvent("one").details);
+        timeline.appendEvent(event("three", ("last",))); assertEq(("two", "three"), timeline.getEventIds()); assertEq("two", timeline.getSelectedEventId()); assertEq(2, changes);
+        assertThrows("TIMELINE-EVENT-ERROR", sub () { timeline.getEvent("one"); });
+        for (int i = 0; i < 1000; ++i) { timeline.appendEvent(event(string(i))); }
+        assertEq(("997", "998", "999"), timeline.getEventIds()); assertEq(3, timeline.getTranscriptContent().lineCount());
+        timeline.clear(); assertNothing(timeline.getSelectedEventId()); assertEq(0, timeline.getTranscriptContent().lineCount());
+    }
+    navigation() {
+        NcursesUi::TestHarness th(8, 30); on_exit th.close(); NcursesUi::TimelineWidget timeline(); timeline.setFrameValues(0, 0, 4, 20);
+        timeline.appendEvent(event("one", ("details",))); timeline.appendEvent(event("two")); timeline.selectEvent("one"); timeline.drawTree(th.screen());
+        timeline.processEvent(key("KEY_DOWN")); assertEq("two", timeline.getSelectedEventId()); timeline.processEvent(key("KEY_UP")); assertEq("one", timeline.getSelectedEventId());
+        timeline.processEvent(key("KEY_ENTER")); assertTrue(timeline.isEventCollapsed("one")); timeline.processEvent(key("KEY_ENTER")); assertFalse(timeline.isEventCollapsed("one"));
+        timeline.drawTree(th.screen()); hash<NcursesUi::Rect> view = timeline.getViewportRect(); timeline.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Mouse, "mouse": <Ncurses::MouseEvent>{"x": view.x, "y": view.y, "button_state": Ncurses::BUTTON1_DOUBLE_CLICKED}}); assertTrue(timeline.isEventCollapsed("one"));
+        string activated; timeline.setOnEventActivate(sub (hash<NcursesUi::TimelineEvent> value) { activated = value.id; }); assertTrue(timeline.activateEvent()); assertEq("one", activated);
+        timeline.setFrameValues(0, 0, 1, 2); timeline.drawTree(th.screen()); assertFalse(timeline.isDirty()); timeline.setEnabled(False); assertFalse(timeline.activateEvent());
+    }
+    search() {
+        NcursesUi::TimelineWidget timeline(); timeline.setFrameValues(0, 0, 3, 20); timeline.appendEvent(event("one", ("needle detail",))); timeline.setEventCollapsed("one", True);
+        timeline.setSearch("needle"); assertTrue(exists timeline.findNext()); assertFalse(timeline.isEventCollapsed("one"));
+        timeline.appendEvent(event("two")); timeline.setOnEventSelect(sub (*hash<NcursesUi::TimelineEvent> value) { throw "SELECT-ERROR", "failed"; }); assertThrows("SELECT-ERROR", sub () { timeline.selectEvent("two"); }); assertEq("two", timeline.getSelectedEventId());
+        timeline.setOnEventSelect(NOTHING); timeline.setOnEventActivate(sub (hash<NcursesUi::TimelineEvent> value) { throw "ACTIVATE-ERROR", "failed"; }); assertThrows("ACTIVATE-ERROR", sub () { timeline.activateEvent(); }); assertEq("two", timeline.getSelectedEventId());
+    }
+    streaming() {
+        NcursesUi::TestHarness th(8, 30); on_exit th.close(); NcursesUi::TimelineWidget timeline(); timeline.setFrameValues(0, 0, 4, 20);
+        for (int i = 0; i < 20; ++i) { timeline.appendEvent(event(string(i))); }
+        timeline.selectEvent("5"); timeline.drawTree(th.screen()); int scroll = timeline.getScrollY(); timeline.appendEvent(event("20")); timeline.drawTree(th.screen()); assertEq(scroll, timeline.getScrollY()); assertFalse(timeline.isFollowing()); assertEq(1, timeline.getUnreadCount());
+        timeline.returnToLatest(); timeline.drawTree(th.screen()); assertTrue(timeline.isFollowing()); assertEq(0, timeline.getUnreadCount());
+    }
+}

@@ -1,0 +1,59 @@
+#!/usr/bin/env qore
+# Copyright 2026 Qore Technologies, s.r.o.
+%modern
+%no-child-restrictions
+%prepend-module-path "${SCRIPT_DIR}/../qlib"
+%requires ncurses
+%requires NcursesUi
+%requires QUnit
+%include "test/TestHarness.qc"
+%exec-class UxExamplesTest
+class UxExamplesTest inherits Test {
+    private { Program review_program(PO_DEFAULT); Program assistance_program(PO_DEFAULT); Program files_program(PO_DEFAULT); }
+    constructor() : Test("UxExamplesTest", "1.0", \ARGV) {
+        load(review_program, "async-review", "AsyncReviewDemo"); load(assistance_program, "editor-assistance", "AssistanceDemo"); load(files_program, "file-attachments", "AttachmentDemo");
+        addTestCase("actual review example delivers worker progress and completed receipt", \review());
+        addTestCase("actual review example cancels queued results and retries once", \cancel());
+        addTestCase("declined review never starts a worker", \decline());
+        addTestCase("actual assistance provider delivers precise edits and rejects stale hidden owners", \assistance());
+        addTestCase("actual file example previews text charts unsupported media and cancellation", \files());
+        set_return_value(main());
+    }
+    private nothing load(Program program, string name, string classname) {
+        string source = "%modern\n" + ReadOnlyFile::readTextFile(get_script_dir() + "/../examples/" + name + ".qr");
+        source = replace(source, "%exec-class " + classname, ""); source += "\nobject sub createDemo(Ncurses::Session session) { return new " + classname + "(session); }\n";
+        *hash<ExceptionInfo> warnings = program.parse(source, "example-" + name, WARN_ALL); if (warnings) { throw "EXAMPLE-PARSE-WARNING", warnings; }
+    }
+    private hash<Ncurses::InputEvent> enter() { return <Ncurses::InputEvent>{"type": Ncurses::InputType::Key, "name": "KEY_ENTER"}; }
+    review() {
+        NcursesUi::TestHarness th(25, 80); on_exit th.close(); auto demo = review_program.callFunction("createDemo", th.session()); on_exit demo.close();
+        NcursesUi::Application app = demo.getApplication(); app.drawAll(); app.processEvent(enter()); demo.joinWorkers(); assertEq(NcursesUi::ActionState::Running, demo.getAction().getState());
+        assertEq(5, app.processPending()); app.drawAll(); assertEq(NcursesUi::ActionState::Completed, demo.getAction().getState()); assertEq(2002000, demo.getAction().getResult().checksum); assertEq(2, demo.getTimeline().getEventIds().size());
+        assertFalse(demo.getProgress().start()); assertFalse(demo.getReview().submit()); assertFalse(app.getRoot().isDirty());
+        th.session().injectInput("\x11"); app.run(); assertFalse(app.isRunning());
+    }
+    cancel() {
+        NcursesUi::TestHarness th(20, 60); on_exit th.close(); auto demo = review_program.callFunction("createDemo", th.session()); on_exit demo.close();
+        NcursesUi::Application app = demo.getApplication(); app.drawAll(); assertTrue(demo.getReview().submit()); assertTrue(demo.getProgress().cancel()); demo.joinWorkers(); app.processPending();
+        assertEq(NcursesUi::ActionState::Cancelled, demo.getAction().getState()); assertNothing(demo.getAction().getResult()); assertEq(2, demo.getTimeline().getEventIds().size());
+        assertTrue(demo.getProgress().start()); demo.joinWorkers(); app.processPending(); assertEq(NcursesUi::ActionState::Completed, demo.getAction().getState()); assertEq(4, demo.getTimeline().getEventIds().size());
+    }
+    decline() {
+        NcursesUi::TestHarness th(15, 40); on_exit th.close(); auto demo = review_program.callFunction("createDemo", th.session()); on_exit demo.close();
+        demo.getReview().setValue("reject"); assertTrue(demo.getReview().submit()); demo.joinWorkers(); assertEq(0, demo.getApplication().processPending()); assertEq(NcursesUi::ActionState::Cancelled, demo.getAction().getState()); assertNothing(demo.getAction().getStarted()); assertEq(1, demo.getTimeline().getEventIds().size());
+    }
+    assistance() {
+        NcursesUi::TestHarness th(15, 40); on_exit th.close(); auto demo = assistance_program.callFunction("createDemo", th.session()); on_exit demo.close();
+        NcursesUi::Application app = demo.getApplication(); app.drawAll(); demo.request(); demo.joinWorkers(); assertEq(1, app.processPending()); assertTrue(app.getDispatcher().hasModal()); app.drawAll();
+        app.processEvent(enter()); assertEq("greet(name)", demo.getEditor().getText()); assertFalse(app.getDispatcher().hasModal()); assertEq(demo.getEditor(), app.getFocusManager().getCurrentFocus());
+        assertTrue(demo.getEditor().getBuffer().undo()); demo.request(); demo.getEditor().getBuffer().insert("x"); demo.joinWorkers(); app.processPending(); assertNothing(demo.getPopup()); assertEq("greet(nax)", demo.getEditor().getText());
+        demo.request(); demo.getEditor().setVisible(False); app.drawAll(); demo.joinWorkers(); assertEq(0, app.processPending()); demo.getEditor().setVisible(True); assertNothing(demo.getPopup());
+    }
+    files() {
+        NcursesUi::TestHarness th(18, 70); on_exit th.close(); auto demo = files_program.callFunction("createDemo", th.session()); on_exit demo.getApplication().close();
+        demo.getApplication().drawAll(); demo.getApplication().processEvent(enter()); assertEq("report", demo.getPreview().getAttachment().id); assertTrue(join("\n", demo.getPreview().getSummaryLines()).find("Values:") >= 0);
+        demo.getSelector().getModel().reset(); demo.getSelector().getModel().clearSelection(); demo.getSelector().highlight("image"); assertTrue(demo.getSelector().activate(NcursesUi::FileOperation::Open)); assertTrue(join("\n", demo.getPreview().getSummaryLines()).find("No terminal preview") >= 0);
+        assertFalse(demo.getPreview().activate(NcursesUi::FileOperation::Export)); assertEq(NcursesUi::ActionState::Cancelled, demo.getPreview().getState()); assertEq("image", demo.getPreview().getAttachment().id);
+        demo.getSelector().getModel().reset(); demo.getSelector().getModel().clearSelection(); demo.getSelector().highlight("removed"); assertFalse(demo.getSelector().activate(NcursesUi::FileOperation::Open)); assertTrue(demo.getSelector().getStatusText().find("removed") >= 0);
+    }
+}

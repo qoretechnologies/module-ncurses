@@ -1,0 +1,49 @@
+#!/usr/bin/env qore
+# Copyright 2026 Qore Technologies, s.r.o.
+%requires ncurses
+%requires NcursesUi
+%exec-class AttachmentDemo
+
+class AttachmentDemoRoot inherits NcursesUi::Widget {
+    private { NcursesUi::SplitLayout split(NcursesUi::Orientation::Horizontal); }
+    nothing layout() { split.apply(self); }
+}
+class AttachmentDemo {
+    private {
+        Ncurses::Session session;
+        NcursesUi::Application app;
+        AttachmentDemoRoot root();
+        NcursesUi::FileSelectionModel files;
+        NcursesUi::FileSelectionWidget selector;
+        NcursesUi::AttachmentWidget preview;
+    }
+    constructor(*Ncurses::Session terminal) {
+        session = terminal ?? new Ncurses::Session({"raw": True, "mouse": True}); app = new NcursesUi::Application(session);
+        files = new NcursesUi::FileSelectionModel((
+            <NcursesUi::FileSelectionEntry>{"id": "report", "name": "report.csv", "path": "example/report.csv", "type": "text/csv", "size": 128},
+            <NcursesUi::FileSelectionEntry>{"id": "image", "name": "preview.png", "path": "example/preview.png", "type": "image/png", "size": 2048},
+            <NcursesUi::FileSelectionEntry>{"id": "removed", "name": "removed.txt", "path": "example/removed.txt", "error": "File was removed"}
+        )); selector = new NcursesUi::FileSelectionWidget(files);
+        preview = new NcursesUi::AttachmentWidget(<NcursesUi::AttachmentInfo>{"id": "welcome", "path": "example", "name": "Select a file and press Enter", "description": "Space selects; Tab switches panes; Ctrl-Q quits. Example callbacks do not write files."});
+        files.setHandler(NcursesUi::FileOperation::Open, bool sub (list<hash<NcursesUi::FileSelectionEntry>> selected) {
+            hash<NcursesUi::AttachmentInfo> attachment = cast<hash<NcursesUi::AttachmentInfo>>(selected[0]);
+            if (attachment.id == "report") { attachment.text_preview = "time,value\n0,1\n1,4\n2,2"; attachment.chart = new NcursesUi::TextChart((1.0, 4.0, 2.0), "Values"); }
+            preview.reset(); preview.setAttachment(attachment); return True;
+        });
+        preview.setHandler(NcursesUi::FileOperation::Export, bool sub (hash<NcursesUi::AttachmentInfo> attachment) {
+            # An application would ask for a destination and handle its filesystem I/O here.
+            # Return False to demonstrate cancellation with metadata retained.
+            return False;
+        });
+        root.addChild(selector); root.addChild(preview); app.setRoot(root); app.getFocusManager().setFocus(selector);
+        app.setGlobalKeyHandler(hash<NcursesUi::EventResult> sub (hash<Ncurses::InputEvent> event) {
+            if (event.type == Ncurses::InputType::Char && event.ch == "\x11") { app.quit(); return <NcursesUi::EventResult>{"handled": True}; }
+            if (event.type == Ncurses::InputType::Key && event.name == "KEY_F(5)") { files.reset(); files.clearSelection(); app.getFocusManager().setFocus(selector); return <NcursesUi::EventResult>{"handled": True}; }
+            return <NcursesUi::EventResult>{};
+        });
+        if (!terminal) { on_exit app.close(); app.run(); }
+    }
+    NcursesUi::Application getApplication() { return app; }
+    NcursesUi::FileSelectionWidget getSelector() { return selector; }
+    NcursesUi::AttachmentWidget getPreview() { return preview; }
+}

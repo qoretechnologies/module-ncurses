@@ -26,6 +26,7 @@
 
 #include "ncurses-internal.h"
 #include <qore/QoreRegexInterface.h>
+#include <chrono>
 
 //! Ncurses window
 /** Represents a drawable window.
@@ -1252,35 +1253,34 @@ Window Window::subWindow(int rows, int cols, int y, int x) [flags=NAMED_ARGS] {
     return obj;
 }
 
+//! Reads an input event, including a coalesced Session::wakeup() notification.
 /**
-    @param timeout_ms total timeout in milliseconds (-1 for infinite)
-    @param poll_ms poll interval in milliseconds
-
+    @param timeout_ms total timeout in milliseconds (-1 for infinite, 0 for an immediate read)
+    @param poll_ms cancellation fallback interval for Qore versions without cancellable poll (default 25, capped at the Qore I/O cancellation interval)
     @return hash<@ref InputEvent> or @ref nothing on timeout
-
-    @since %ncurses 1.0
-*/
-//! Reads an input event
-/**
-    @param timeout_ms optional overall timeout in milliseconds
-    @param poll_ms optional poll interval in milliseconds
-
+    @throw NCURSES-ERROR for invalid arguments or a closed session
+    @throw NCURSES-INPUT-BUSY if another readEvent() is active on this session
+    @throw NCURSES-INPUT-LOCK-ERROR if a blocking wait is attempted inside Session::withLock()
+    @throw NCURSES-INPUT-CLOSED if terminal input closes
+    @note The ncurses lock is released during idle waits. Escape and multibyte
+    decoding retain ncurses's configured escape delay and the bounded continuation delay.
     @since %ncurses 1.0
 */
 hash<InputEvent> Window::readEvent(*int timeout_ms, *int poll_ms) [flags=NAMED_ARGS] {
     win->checkOpen(xsink);
-    if (*xsink) {
-        return nothing();
-    }
+    if (*xsink) { return nothing(); }
     bool has_timeout = args && args->size() > 0 && !args->retrieveEntry(0).isNothing();
     bool has_poll = args && args->size() > 1 && !args->retrieveEntry(1).isNothing();
-    int timeout = has_timeout ? timeout_ms : -1;
-    int poll = has_poll ? poll_ms : 25;
-    if (poll <= 0) {
-        xsink->raiseException("NCURSES-ERROR", "poll_ms must be > 0");
+    if ((has_timeout && (timeout_ms < -1 || timeout_ms > std::numeric_limits<int>::max()))
+            || (has_poll && (poll_ms <= 0 || poll_ms > std::numeric_limits<int>::max()))) {
+        xsink->raiseException("NCURSES-ERROR", "timeout_ms must be -1..INT_MAX and poll_ms must be 1..INT_MAX");
         return nothing();
     }
-    int elapsed = 0;
+    int timeout = has_timeout ? static_cast<int>(timeout_ms) : -1;
+    int fallback_poll = has_poll ? static_cast<int>(poll_ms) : 25;
+    auto started = std::chrono::steady_clock::now();
+    NcursesInputReadGuard reader(win->session, xsink);
+    if (*xsink) { return nothing(); }
     NcursesPasteKeypadGuard paste_keypad(win->session, win->win);
     while (true) {
         // check for sandbox interrupt between poll cycles
@@ -1288,9 +1288,21 @@ hash<InputEvent> Window::readEvent(*int timeout_ms, *int poll_ms) [flags=NAMED_A
             NcursesCallGuard guard(win->session); win->session->discardPaste();
             return nothing();
         }
+        {
         NcursesCallGuard guard(win->session);
-        wtimeout(win->win, poll);
+        win->session->checkOpen(xsink);
+        if (*xsink) { return nothing(); }
+        wtimeout(win->win, 0);
         int rc = win->session->readInput(win->win);
+        // Input wins over work notifications so a self-posting callback cannot
+        // starve keyboard/mouse input. Applications drain work on every iteration.
+        if (rc == ERR && win->session->takeWake(xsink)) {
+            ReferenceHolder<QoreHashNode> event(new QoreHashNode(hashdeclInputEvent, xsink), xsink);
+            event->setKeyValue("type", NC_INPUT_WAKE, xsink);
+            if (*xsink) { return nothing(); }
+            return event.release();
+        }
+        if (*xsink) { return nothing(); }
         if (rc == NC_PASTE_BEGIN) {
             win->session->resetPaste(); win->session->paste_active = true; paste_keypad.disable(); continue;
         }
@@ -1312,14 +1324,7 @@ hash<InputEvent> Window::readEvent(*int timeout_ms, *int poll_ms) [flags=NAMED_A
             if (*xsink) { return nothing(); }
             return event.release();
         }
-        if (rc == ERR) {
-            if (timeout >= 0) {
-                elapsed += poll;
-                if (elapsed >= timeout) {
-                    return nothing();
-                }
-            }
-        } else {
+        if (rc != ERR) {
             ReferenceHolder<QoreHashNode> h(new QoreHashNode(hashdeclInputEvent, xsink), xsink);
             h->setKeyValue("code", rc == NC_INJECTED_MOUSE ? KEY_MOUSE : rc, xsink);
             if (rc == NC_INJECTED_PASTE) {
@@ -1390,6 +1395,18 @@ hash<InputEvent> Window::readEvent(*int timeout_ms, *int poll_ms) [flags=NAMED_A
             }
             if (*xsink) { return nothing(); }
             return h.release();
+        }
+        } // Release the global ncurses lock before the cancellable wait.
+        int remaining = timeout;
+        if (timeout >= 0) {
+            auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now() - started).count();
+            if (elapsed >= timeout) { return nothing(); }
+            remaining -= static_cast<int>(elapsed);
+        }
+        if (!win->session->waitForInput(remaining, fallback_poll, xsink)) {
+            if (*xsink) { NcursesCallGuard guard(win->session); win->session->discardPaste(); }
+            return nothing();
         }
     }
 }

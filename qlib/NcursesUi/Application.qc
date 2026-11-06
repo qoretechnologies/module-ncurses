@@ -22,6 +22,9 @@
 */
 
 public namespace NcursesUi {
+/** @internal A removable UI-thread tick callback. */
+hashdecl UiTickCallback { code<nothing()> callback; *NcursesUi::Widget owner; }
+
 /** Top-level application orchestrator.
 
     Manages the session, event loop, layout, and drawing. Clients
@@ -49,7 +52,9 @@ public class Application {
         #! optional layout manager for root
         *NcursesUi::BoxLayout root_layout;
         #! tick callbacks
-        list<code> tick_callbacks = ();
+        hash<string, hash<NcursesUi::UiTickCallback>> tick_callbacks = {};
+        int next_tick = 0;
+        NcursesUi::UiEventQueue events;
         #! whether the event loop is running
         bool running = False;
         #! readEvent timeout in ms
@@ -69,6 +74,8 @@ public class Application {
     constructor(hash<auto> opts) {
         session = new Ncurses::Session(opts);
         dispatcher = new NcursesUi::EventDispatcher();
+        Ncurses::Session target = session;
+        events = new NcursesUi::UiEventQueue(sub () { target.wakeup(); });
     }
 
     /** Creates a new Application from an existing session.
@@ -78,6 +85,8 @@ public class Application {
     constructor(Ncurses::Session s) {
         session = s;
         dispatcher = new NcursesUi::EventDispatcher();
+        Ncurses::Session target = session;
+        events = new NcursesUi::UiEventQueue(sub () { target.wakeup(); });
     }
 
     /** Returns the session.
@@ -113,9 +122,8 @@ public class Application {
         @since ncurses 1.0
     */
     nothing setRoot(NcursesUi::Widget w) {
-        dispatcher.setRootScope(w);
-        root = w;
-        layoutRoot();
+        events.checkThread(); dispatcher.setRootScope(w);
+        root = w; pruneCallbacks(); layoutRoot();
     }
 
     /** Sets a layout manager for the root widget.
@@ -138,8 +146,46 @@ public class Application {
         @param cb the callback
         @since ncurses 1.0
     */
-    nothing addTickCallback(code cb) {
-        tick_callbacks += cb;
+    nothing addTickCallback(code<nothing()> cb) { addOwnedTickCallback(cb); }
+
+    /** Adds a removable tick callback. @param callback UI-thread callback
+        @param owner optional widget lifetime; hidden, disabled or detached owners are removed
+        @return subscription ID for removeTickCallback() */
+    int addOwnedTickCallback(code<nothing()> callback, *NcursesUi::Widget owner) {
+        events.checkThread(); int id = ++next_tick;
+        tick_callbacks{id} = <NcursesUi::UiTickCallback>{"callback": callback, "owner": owner}; return id;
+    }
+    /** Removes a tick callback and releases its captures. @param id subscription ID @return removed */
+    bool removeTickCallback(int id) { events.checkThread(); return exists remove tick_callbacks{id}; }
+    /** Creates an explicitly owned UI receiver. Workers call scope.post(payload);
+        only this application's thread invokes the callback. Close the scope on teardown.
+        @param callback UI mutation callback @param owner optional widget; hidden/disabled/detached owners are disposed
+        @return scope; late posts after disposal return False */
+    NcursesUi::UiEventScope createEventScope(code<nothing(auto)> callback, *NcursesUi::Widget owner) {
+        return events.createScope(callback, owner ? bool sub () { return ownsAvailable(owner); } : NOTHING);
+    }
+    /** Delivers one finite batch and prunes obsolete callbacks on the UI thread.
+        @return callbacks delivered; callback exceptions propagate */
+    int processPending() { pruneCallbacks(); return events.drain(); }
+    private bool ownsAvailable(NcursesUi::Widget owner) {
+        if (!owner.isAvailable()) { return False; }
+        if (root && root.containsWidget(owner)) { return True; }
+        foreach NcursesUi::Widget modal in (dispatcher.getModalStack()) { if (modal.containsWidget(owner)) { return True; } }
+        return False;
+    }
+    private nothing pruneCallbacks() {
+        events.prune();
+        foreach string id in (keys tick_callbacks) {
+            *NcursesUi::Widget owner = tick_callbacks{id}.owner;
+            if (owner && !ownsAvailable(owner)) { remove tick_callbacks{id}; }
+        }
+    }
+    private nothing runTickCallbacks() {
+        pruneCallbacks();
+        foreach string id in (keys tick_callbacks) {
+            *hash<NcursesUi::UiTickCallback> entry = tick_callbacks{id};
+            if (entry && (!entry.owner || ownsAvailable(entry.owner))) { entry.callback(); }
+        }
     }
 
     /** Pushes a modal, suspending focus and saving cursor visibility.
@@ -166,7 +212,7 @@ public class Application {
         @since ncurses 1.0
     */
     *NcursesUi::Widget popModal() {
-        on_exit updateModalCursor();
+        on_exit { pruneCallbacks(); updateModalCursor(); }
         return dispatcher.popModal();
     }
 
@@ -209,8 +255,11 @@ public class Application {
         @since ncurses 1.0
     */
     nothing setReadTimeout(int timeout_ms, int poll) {
-        read_timeout_ms = timeout_ms;
-        poll_ms = poll;
+        events.checkThread();
+        if (timeout_ms < -1 || timeout_ms > 2147483647 || poll < 1 || poll > 2147483647) {
+            throw "NCURSES-ERROR", "timeout_ms must be -1..INT_MAX and poll must be 1..INT_MAX";
+        }
+        read_timeout_ms = timeout_ms; poll_ms = poll;
     }
 
     /** Returns whether the event loop is running.
@@ -228,6 +277,9 @@ public class Application {
         @since ncurses 1.0
     */
     nothing run() {
+        events.checkThread();
+        if (running) { throw "UI-LOOP-REENTRANT", "Application event loop is already running"; }
+        on_exit running = False;
         if (!root) {
             return;
         }
@@ -236,14 +288,18 @@ public class Application {
 
         try {
             while (running) {
+                processPending();
+                if (!running) { break; }
                 # draw
                 drawAll();
 
                 # read event
                 *hash<Ncurses::InputEvent> ev = screen.readEvent(read_timeout_ms, poll_ms);
 
+                processPending();
+                if (!running) { break; }
                 # dispatch
-                if (ev) {
+                if (ev && ev.type != Ncurses::InputType::Wake) {
                     if (ev.type == Ncurses::InputType::Resize) {
                         handleResize();
                     } else {
@@ -252,9 +308,7 @@ public class Application {
                 }
 
                 # tick callbacks
-                foreach code cb in (tick_callbacks) {
-                    cb();
-                }
+                runTickCallbacks();
             }
         } catch (hash<ExceptionInfo> ex) {
             close();
@@ -268,6 +322,8 @@ public class Application {
         @since ncurses 1.0
     */
     hash<NcursesUi::EventResult> processEvent(hash<Ncurses::InputEvent> ev) {
+        events.checkThread();
+        if (ev.type == Ncurses::InputType::Wake) { processPending(); return <NcursesUi::EventResult>{"handled": True}; }
         if (!root) {
             return <NcursesUi::EventResult>{"handled": False};
         }
@@ -283,14 +339,14 @@ public class Application {
         @since ncurses 1.0
     */
     nothing quit() {
-        running = False;
+        events.checkThread(); running = False;
     }
 
     /** Closes the session.
         @since ncurses 1.0
     */
     nothing close() {
-        running = False;
+        events.checkThread(); running = False; events.close(); tick_callbacks = {};
         if (session.isOpen()) {
             session.close();
         }
@@ -300,6 +356,7 @@ public class Application {
         @since ncurses 1.0
     */
     nothing drawAll() {
+        pruneCallbacks();
         if (!root) {
             return;
         }

@@ -81,6 +81,7 @@ public class TextEditorWidget inherits NcursesUi::ScrollableWidget {
         @return screen row/column, or NOTHING when the caret is outside the drawable viewport
     */
     *hash<Ncurses::Position> getCaretScreenPosition() {
+        if (!isAvailable()) { return NOTHING; }
         sync(); hash<NcursesUi::Rect> rect = getViewportRect(); hash<Ncurses::Position> source = cursorSource();
         hash<Ncurses::Position> pos = lines.sourceToVisual(source.y, source.x);
         pos.y += rect.y - getScrollY(); pos.x += rect.x - getScrollX();

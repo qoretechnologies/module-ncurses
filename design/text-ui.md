@@ -149,3 +149,69 @@ Form text controls import changed model values before the input captures its sub
 Validation uses presence rather than truth conversion for error strings: only `NOTHING` clears an error or indicates validation success. Numeric text identifiers/help are valid strings. Field and choice labels/values are validated before committing schema or option replacements.
 
 All bound form control adapters import pending model revisions before processing input, including multiline editors, checkboxes and described choices. A schema replacement detaches stale controls before dispatch; input to those controls is ignored. This prevents an input event between a model update and repaint from overwriting the newer value.
+
+
+## Assistance and asynchronous operation surfaces
+
+`AssistanceModel` owns provider metadata for one `EditorBuffer`. Request tokens include
+an opaque model identity, monotonic generation, editor revision, exact text and caret.
+Responses validate completely before publication; replacement ranges use character
+offsets and must align with shared grapheme geometry. Editing and cancellation reject
+stale responses. Completion/action edits form one undo step. `AssistancePopupWidget`
+uses the editor's screen caret, maintains a stable result identity through filtering,
+and separates list navigation from scrollable documentation. The application owns
+modal push/pop and panel destruction. Hiding the editor/popup cancels pending help.
+
+`ActionModel` similarly identifies each operation attempt and explicitly represents
+pending, running, cancelled, failed and completed states. Cancellation invalidates the
+attempt; a successful receipt requires explicit reset before another start. Unknown
+totals are represented by NOTHING, and determinate progress rejects nonfinite or
+out-of-range values. `ProgressWidget` resolves content/scrollbar width before painting
+its bar. `TimelineWidget` appends immutable timestamped snapshots into transcript
+blocks; it indexes event/block/source identities, trims expired metadata with bounded
+history, and preserves only retained details. Described choices compose with actions
+for application-owned approval/review semantics.
+
+`UiEventQueue` provides a bounded FIFO with UI-thread receivers and worker-safe posts.
+A mutex protects publication and lifetime; callbacks and final payload/receiver releases
+run outside that mutex. Each drain processes a finite initial batch, and native ready
+input precedes work wakeups to prevent input starvation. Scope closure disposes queued
+work; availability predicates permanently retire hidden/disabled/detached owners on UI
+reconciliation. Root owners remain valid behind nested modals. Tick subscriptions use
+stable removable IDs and recheck existence after earlier callbacks remove later ones.
+
+Native sessions use a nonblocking close-on-exec self-pipe for wake notifications.
+`readEvent()` checks input under the ncurses lock and releases it before cancellable
+polling of the terminal and wake descriptors. A duplicated terminal descriptor prevents
+close/reuse races. A session allows one reader; close wakes it, and RAII releases reader
+ownership on errors/cancellation. Explicit wakeups coalesce without synthesizing keys;
+injected input only signals readiness. Fork generations recreate child wake channels
+without consuming/signalling the parent's notifications. Escape/multibyte decoding
+retains bounded library/continuation delays. Blocking waits inside `withLock()` fail
+instead of retaining the global lock indefinitely. Older Qore polling is bounded by
+its cooperative I/O cancellation interval.
+
+## File selection and accessible media
+
+`FileSelectionModel` separates stable checked identities from the filtered view and
+highlighted row. Metadata/filter changes validate before replacement. Hidden selections
+remain selected and are counted; unavailable entries cannot be newly selected, and
+metadata refresh can invalidate an existing selection before dispatch. Operations are
+application callbacks with explicit completion, cancellation and exception states.
+Optional local inspection reuses sandbox-checked Qore filesystem APIs and never opens
+contents implicitly. Applications remain responsible for I/O races after validation.
+
+`AttachmentWidget` uses the same operation lifecycle for names, paths, sizes/types,
+errors, optional text and chart previews, and configured open/save/export fallbacks.
+Presentation normalizes control characters without altering source metadata. `TextChart`
+is an immutable finite-data snapshot with gaps, an all-data numeric summary and bounded
+ASCII/optional Unicode sparklines. It uses arbitrary-precision normalization to avoid
+float overflow across opposite-sign extreme values. Downsampling includes endpoints
+when at least two cells fit; one cell shows the latest source position. No decoder,
+network operation or external application is invoked implicitly.
+
+The shared list uses the effective ancestor/target viewport for paging, selection
+reveal, scrollbars and mouse bounds, preserving manual scrolling until selection or
+geometry changes. Horizontal ancestor clipping retains the original text suffix.
+Double-click activation takes precedence when a mouse mask contains multiple primary
+click flags. Single-column lists reserve their only cell for content.

@@ -18,8 +18,8 @@
 %exec-class NcursesForkTest
 
 #! Tests child processes created with fork() by a process that uses the module
-/** A child process created with fork() runs only the thread that called fork().  The module lock is held while a
-    thread waits for terminal input and while a Session::withLock() callback runs: a child created meanwhile got the
+/** A child process created with fork() runs only the thread that called fork().  The module lock serializes ncurses
+    calls and Session::withLock() callbacks (idle readEvent() waits release it): a child created meanwhile got the
     lock held by a thread that does not exist in it and waited forever for it.  A test terminal reads the output of
     its pseudo-terminal in a thread, which closing the terminal in a child woke through the pipe it shares with the
     parent (stopping the parent's reader) and then waited forever for (on Linux; on macOS the join failed and ended
@@ -121,6 +121,21 @@ switch (mode) {
         break;
     }
 
+    case \"wake\": {
+        s.wakeup();
+        int pid = fork();
+        if (!pid) {
+            if (s.screen().readEvent(0) != NOTHING) { exit(1); }
+            s.wakeup();
+            if (s.screen().readEvent(-1).type != Ncurses::InputType::Wake) { exit(2); }
+            s.close(); tt.close(); exit(0);
+        }
+        wait_child(pid);
+        if (s.screen().readEvent(-1).type != Ncurses::InputType::Wake) { exit(3); }
+        if (s.screen().readEvent(0) != NOTHING) { exit(4); }
+        break;
+    }
+
     case \"terminal\": {
         # the child closes the parent's session and terminal, whose output is read by a thread of the parent
         int pid = fork();
@@ -167,6 +182,8 @@ tt.close();
         addTestCase("a child that closes the parent's test terminal ends, and the parent's terminal is still read",
             \childClosesTerminal());
 
+        addTestCase("wake channels are isolated after fork", \childWake());
+
         on_exit unlink(script);
         {
             File f();
@@ -184,6 +201,8 @@ tt.close();
         runChild("callback", "child callback: OK\n");
     }
 
+    childWake() { runChild("wake"); }
+
     childClosesTerminal() {
         runChild("terminal");
     }
@@ -200,7 +219,7 @@ tt.close();
         hash<auto> env = {
             "QORE_MODULE_DIR": get_script_dir() + "/../build:" + (getenv("QORE_MODULE_DIR") ?? ""),
         };
-        Process p(qore_exe, ("-b", script, mode), {"env": ENV + env});
+        Process p(qore_exe, ("-b", "--enable-debug", "--warnings-are-errors", script, mode), {"env": ENV + env});
         # the script waits for its child for HangGuard
         if (!p.wait(2 * HangGuard)) {
             p.terminate();

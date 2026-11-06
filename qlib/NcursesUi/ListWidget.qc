@@ -28,13 +28,16 @@ public namespace NcursesUi {
     Supports custom item rendering, keyboard navigation, mouse click
     selection, and scrollbar.
 
-    Items are hashes with at least a "label" key. Additional keys
+    Items use a "label" key unless a custom renderer is supplied. Additional keys
     can be used for custom rendering and activation data.
 
     @since ncurses 1.0
 */
 public class ListWidget inherits NcursesUi::Widget {
     private {
+        *hash<NcursesUi::Rect> draw_bounds;
+        *hash<NcursesUi::Rect> drawn_visible;
+        *hash<NcursesUi::Rect> painted_view;
         #! list of item hashes
         list<hash<auto>> items = ();
         #! currently selected index (-1 for none)
@@ -48,13 +51,13 @@ public class ListWidget inherits NcursesUi::Widget {
         #! whether mouse wheel moves selection instead of scrolling
         bool wheel_moves_selection = False;
         #! callback on selection change
-        *code on_select;
+        *code<nothing(int)> on_select;
         #! callback on activation (Enter/double-click)
-        *code on_activate;
+        *code<nothing(hash<auto>)> on_activate;
         #! custom render callback: @c "string sub(hash<auto> item, int index, bool is_selected)"
-        *code render_item;
+        *code<string(hash<auto>, int, bool)> render_item;
         #! custom style callback: @c "*hash<auto> sub(hash<auto> item, int index, bool is_selected)"
-        *code render_item_style;
+        *code<*hash<auto>(hash<auto>, int, bool)> render_item_style;
         #! selected item style
         hash<auto> selected_style = {"attrs": Ncurses::Attr::Reverse};
         #! normal item style
@@ -81,6 +84,7 @@ public class ListWidget inherits NcursesUi::Widget {
             selected_index = 0;
         }
         scroll_offset = 0;
+        ensureVisible();
         markDirty();
     }
 
@@ -136,7 +140,7 @@ public class ListWidget inherits NcursesUi::Widget {
         @param cb callback receiving the selected index
         @since ncurses 1.0
     */
-    nothing setOnSelect(*code cb) {
+    nothing setOnSelect(*code<nothing(int)> cb) {
         on_select = cb;
     }
 
@@ -144,7 +148,7 @@ public class ListWidget inherits NcursesUi::Widget {
         @param cb callback receiving the selected item hash
         @since ncurses 1.0
     */
-    nothing setOnActivate(*code cb) {
+    nothing setOnActivate(*code<nothing(hash<auto>)> cb) {
         on_activate = cb;
     }
 
@@ -152,15 +156,15 @@ public class ListWidget inherits NcursesUi::Widget {
         @param cb callback: \c string \c sub(hash\<auto\> item, int index, bool is_selected)
         @since ncurses 1.0
     */
-    nothing setRenderItem(*code cb) {
-        render_item = cb;
+    nothing setRenderItem(*code<string(hash<auto>, int, bool)> cb) {
+        render_item = cb; markDirty();
     }
 
     /** Sets a custom item style callback.
         @param cb callback: \c *hash\<auto\> \c sub(hash\<auto\> item, int index, bool is_selected)
         @since ncurses 1.0
     */
-    nothing setRenderItemStyle(*code cb) {
+    nothing setRenderItemStyle(*code<*hash<auto>(hash<auto>, int, bool)> cb) {
         render_item_style = cb;
         markDirty();
     }
@@ -201,12 +205,18 @@ public class ListWidget inherits NcursesUi::Widget {
         @since ncurses 1.0
     */
     nothing draw(Ncurses::Window w) {
-        hash<NcursesUi::Rect> cr = drawContentRect(w);
+        hash<Ncurses::Position> origin = w.position(); hash<Ncurses::Size> size = w.size();
+        draw_bounds = NcursesUi::Geometry::makeRect(origin.y, origin.x, size.rows, size.cols); drawn_visible = visibleRect();
+        hash<NcursesUi::Rect> view = viewRect();
+        if (painted_view != view) { ensureVisible(); }
+        scroll_offset = max(0, min(scroll_offset, maxScrollOffset()));
+        on_success painted_view = view;
+        hash<NcursesUi::Rect> cr = view; cr.y -= origin.y; cr.x -= origin.x;
         int visible_rows = cr.rows;
         int visible_cols = cr.cols;
 
         # reserve space for scrollbar
-        bool need_scrollbar = show_scrollbar && items.size() > visible_rows;
+        bool need_scrollbar = show_scrollbar && cr.cols > 1 && visible_rows > 0 && items.size() > visible_rows;
         if (need_scrollbar) {
             visible_cols = max(1, visible_cols - 1);
         }
@@ -225,7 +235,7 @@ public class ListWidget inherits NcursesUi::Widget {
                 }
 
                 # truncate/pad to width
-                text = TerminalText::fitRight(text, visible_cols);
+                text = TerminalText::fitRight(TerminalText::columnSlice(text, max(0, view.x - contentRect().x), visible_cols), visible_cols);
 
                 hash<auto> style;
                 if (render_item_style) {
@@ -252,12 +262,13 @@ public class ListWidget inherits NcursesUi::Widget {
         @since ncurses 1.0
     */
     hash<NcursesUi::EventResult> processEvent(hash<Ncurses::InputEvent> ev) {
-        if (items.empty()) {
+        if (!isAvailable() || items.empty()) {
             return <NcursesUi::EventResult>{"handled": False};
         }
 
         if (ev.type == Ncurses::InputType::Key) {
             string name = ev.name ?? "";
+            if (name == "KEY_ENTER") { activate(); return <NcursesUi::EventResult>{"handled": True, "action": "activate"}; }
             if (name == "KEY_UP") {
                 moveSelection(-1);
                 return <NcursesUi::EventResult>{"handled": True};
@@ -265,12 +276,12 @@ public class ListWidget inherits NcursesUi::Widget {
                 moveSelection(1);
                 return <NcursesUi::EventResult>{"handled": True};
             } else if (name == "KEY_PPAGE") {
-                hash<NcursesUi::Rect> cr = contentRect();
-                moveSelection(-cr.rows);
+                hash<NcursesUi::Rect> cr = viewRect();
+                moveSelection(-max(1, cr.rows));
                 return <NcursesUi::EventResult>{"handled": True};
             } else if (name == "KEY_NPAGE") {
-                hash<NcursesUi::Rect> cr = contentRect();
-                moveSelection(cr.rows);
+                hash<NcursesUi::Rect> cr = viewRect();
+                moveSelection(max(1, cr.rows));
                 return <NcursesUi::EventResult>{"handled": True};
             } else if (name == "KEY_HOME") {
                 setSelectedIndex(0);
@@ -280,18 +291,19 @@ public class ListWidget inherits NcursesUi::Widget {
                 return <NcursesUi::EventResult>{"handled": True};
             }
         } else if (ev.type == Ncurses::InputType::Char) {
-            if (ord(ev.ch ?? "") == 0x0a) {
+            if (ev.ch == "\n" || ev.ch == "\r") {
                 activate();
                 return <NcursesUi::EventResult>{"handled": True, "action": "activate"};
             }
-        } else if (ev.type == Ncurses::InputType::Mouse) {
+        } else if (ev.type == Ncurses::InputType::Mouse && ev.mouse) {
+            if (!NcursesUi::Geometry::rectContains(viewRect(), ev.mouse.y, ev.mouse.x)) { return <NcursesUi::EventResult>{}; }
             int bs = ev.mouse.button_state;
             # check for scrollbar click first
             if (bs & Ncurses::BUTTON1_CLICKED || bs & Ncurses::BUTTON1_PRESSED
                     || bs & Ncurses::BUTTON1_DOUBLE_CLICKED) {
-                hash<NcursesUi::Rect> cr = contentRect();
+                hash<NcursesUi::Rect> cr = viewRect();
                 int visible_rows = cr.rows;
-                bool need_scrollbar = show_scrollbar && items.size() > visible_rows;
+                bool need_scrollbar = show_scrollbar && cr.cols > 1 && visible_rows > 0 && items.size() > visible_rows;
                 if (need_scrollbar) {
                     int bar_x = cr.x + cr.cols - 1;
                     if (ev.mouse.x == bar_x && ev.mouse.y >= cr.y
@@ -306,8 +318,8 @@ public class ListWidget inherits NcursesUi::Widget {
                     }
                 }
             }
-            if (bs & Ncurses::BUTTON1_CLICKED || bs & Ncurses::BUTTON1_PRESSED) {
-                hash<NcursesUi::Rect> cr = contentRect();
+            if (!(bs & Ncurses::BUTTON1_DOUBLE_CLICKED) && (bs & Ncurses::BUTTON1_CLICKED || bs & Ncurses::BUTTON1_PRESSED)) {
+                hash<NcursesUi::Rect> cr = viewRect();
                 int click_row = ev.mouse.y - cr.y;
                 int idx = scroll_offset + click_row;
                 if (idx >= 0 && idx < items.size()) {
@@ -315,7 +327,7 @@ public class ListWidget inherits NcursesUi::Widget {
                     return <NcursesUi::EventResult>{"handled": True};
                 }
             } else if (bs & Ncurses::BUTTON1_DOUBLE_CLICKED) {
-                hash<NcursesUi::Rect> cr = contentRect();
+                hash<NcursesUi::Rect> cr = viewRect();
                 int click_row = ev.mouse.y - cr.y;
                 int idx = scroll_offset + click_row;
                 if (idx >= 0 && idx < items.size()) {
@@ -345,6 +357,19 @@ public class ListWidget inherits NcursesUi::Widget {
         return <NcursesUi::EventResult>{"handled": False};
     }
 
+    /** Discards obsolete target clipping after allocation changes. @param rect screen allocation */
+    nothing setFrame(hash<NcursesUi::Rect> rect) { if (rect != getFrame()) { draw_bounds = NOTHING; } Widget::setFrame(rect); }
+    /** Discards obsolete target clipping when moving. @param dy row displacement @param dx column displacement */
+    nothing translate(int dy, int dx) { draw_bounds = NOTHING; Widget::translate(dy, dx); }
+    /** Observes ancestor clipping changes even when local allocation is unchanged. @return needs paint */
+    bool needsOwnDraw() { return painted_view != viewRect() || Widget::needsOwnDraw(); }
+    /** Acknowledges empty/hidden viewports. */
+    nothing onDrawClipped() { painted_view = viewRect(); Widget::onDrawClipped(); }
+    private hash<NcursesUi::Rect> viewRect() {
+        hash<NcursesUi::Rect> visible = visibleRect(); hash<NcursesUi::Rect> rect = NcursesUi::Geometry::intersect(contentRect(), visible);
+        return draw_bounds && visible == drawn_visible ? NcursesUi::Geometry::intersect(rect, draw_bounds) : rect;
+    }
+
     private nothing moveSelection(int delta) {
         int new_idx = selected_index + delta;
         if (new_idx < 0) {
@@ -370,7 +395,7 @@ public class ListWidget inherits NcursesUi::Widget {
     }
 
     private nothing ensureVisible() {
-        hash<NcursesUi::Rect> cr = contentRect();
+        hash<NcursesUi::Rect> cr = viewRect();
         int visible_rows = cr.rows;
         if (visible_rows <= 0) {
             return;
@@ -383,7 +408,7 @@ public class ListWidget inherits NcursesUi::Widget {
     }
 
     private int maxScrollOffset() {
-        hash<NcursesUi::Rect> cr = contentRect();
+        hash<NcursesUi::Rect> cr = viewRect();
         return max(0, items.size() - cr.rows);
     }
 

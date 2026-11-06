@@ -50,7 +50,9 @@ enum Qore::Ncurses::InputType : int {
     Resize = 4,
     Alt = 5,
     //! A complete bracketed paste; ch contains text, including newlines and controls.
-    Paste = 6
+    Paste = 6,
+    //! Application work is ready; no keyboard character is synthesized.
+    Wake = 7
 };
 
 //! Color enum
@@ -1255,5 +1257,17 @@ nothing Session::injectEvents(list<hash<InputEvent>> events) [flags=NAMED_ARGS] 
             return nothing();
         }
     }
+    return nothing();
+}
+
+//! Wakes readEvent() without synthesizing input.
+/** Thread-safe and coalescing: a wake before a read is retained until consumed.
+    Ready terminal/synthetic input has priority, preventing work notifications from starving input.
+    Safe to call from background workers; widgets must still be updated on the UI thread.
+    @throw NCURSES-ERROR if the session is closed or the wake channel cannot be used
+    @since %ncurses 1.0
+*/
+nothing Session::wakeup() {
+    session->wakeup(xsink);
     return nothing();
 }
