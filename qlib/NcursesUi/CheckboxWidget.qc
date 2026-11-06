@@ -106,7 +106,7 @@ public class CheckboxWidget inherits NcursesUi::Widget {
         @since ncurses 1.0
     */
     nothing draw(Ncurses::Window w) {
-        hash<NcursesUi::Rect> cr = contentRect();
+        hash<NcursesUi::Rect> cr = drawContentRect(w);
         string indicator = checked ? "[X]" : "[ ]";
         string text = indicator + " " + label;
 

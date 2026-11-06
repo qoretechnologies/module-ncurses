@@ -100,7 +100,7 @@ public class StatusBarWidget inherits NcursesUi::Widget {
         @since ncurses 1.0
     */
     nothing draw(Ncurses::Window w) {
-        hash<NcursesUi::Rect> cr = contentRect();
+        hash<NcursesUi::Rect> cr = drawContentRect(w);
         int row = cr.y;
         int width = cr.cols;
 

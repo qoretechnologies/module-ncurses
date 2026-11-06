@@ -159,8 +159,10 @@ public:
     bool owned = false;
     bool leave_ok = false;
     int wrap_mode = 1;
+    // Derived windows share their parent's storage and retain it until delwin().
+    NcursesWindow* parent = nullptr;
 
-    NcursesWindow(NcursesSession* s, WINDOW* w, bool own);
+    NcursesWindow(NcursesSession* s, WINDOW* w, bool own, NcursesWindow* p = nullptr);
     ~NcursesWindow();
 
     void checkOpen(ExceptionSink* xsink) const;

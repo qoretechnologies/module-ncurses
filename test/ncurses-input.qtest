@@ -203,7 +203,11 @@ class NcursesInputTest inherits Test {
         input.setFrameValues(1, 5, 0, 5); input.draw(th.screen());
         assertEq("guard", th.screen().readText(1, 0, 5));
         input.setFrameValues(1, 18, 1, 8); input.draw(th.screen());
-        assertEq("ab", th.screen().readText(1, 18, 2));
+        th.session().doupdate();
+        assertEq(<Ncurses::Position>{"y": 1, "x": 19}, th.screen().cursor());
+        assertEq("f ", th.screen().readText(1, 18, 2));
+        input.processEvent(click(1, 18)); input.processEvent(ch("X"));
+        assertEq("abcdeXf", input.getText());
         input.setFrameValues(-1, 0, 1, 8); input.draw(th.screen());
         assertEq("guard", th.screen().readText(1, 0, 5));
     }

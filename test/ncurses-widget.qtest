@@ -215,6 +215,8 @@ class NcursesWidgetTest inherits Test {
         DrawTestWidget child();
         root.addChild(child);
 
+        root.setFrameValues(0, 0, 10, 30);
+        child.setFrameValues(1, 1, 2, 10);
         root.drawTree(th.screen());
         assertTrue(child.draw_called);
     }

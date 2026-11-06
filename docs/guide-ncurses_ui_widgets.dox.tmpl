@@ -102,6 +102,64 @@ app.pushModal(dialog);
 app.run();
     @endcode
 
+    Child frames remain in screen coordinates inside a panel. For example, an
+    input inside a panel at (3, 5) with one-cell border starts at (4, 6).
+    Custom widgets draw using @ref NcursesUi::Widget::drawContentRect() "drawContentRect(window)";
+    mouse handlers continue to use @ref NcursesUi::Widget::contentRect() "contentRect()".
+    Tree drawing clips children to ancestor content bounds. Panels retain child
+    offsets when moved; their layout override can recompute sizes after resize.
+    On very small screens, dialogs show the focused action and Tab reaches the
+    others. Up/Down and PageUp/PageDown scroll wrapped message text; on a one-row dialog they show the message in place
+    of the action, and Tab returns to the action labels.
+
+    @section ncurses_ui_tables Sortable and Filterable Tables
+
+    Configure a stable row key before refreshes to preserve selection. Column
+    type \c number accepts numbers and numeric strings; \c date requires dates;
+    \c string compares displayed text; default \c auto orders nulls, numbers,
+    dates, then text. Equal keys retain input order in either direction.
+    Comparator/data validation failures leave the old view intact. Selection
+    notifications run after committing coherent state and can propagate errors.
+
+    This example sorts service latency numerically, preserves the selected ID,
+    and filters displayed values. Arrow keys navigate, Enter/double-click activates,
+    and Left/Right reveals fixed-width columns. Press \c q to exit.
+
+    @code{.py}
+%modern
+%requires ncurses
+%requires NcursesUi
+
+Ncurses::Session session();
+on_exit session.close();
+NcursesUi::Application app(session);
+NcursesUi::TableWidget table();
+table.setColumns((
+    {"key": "name", "header": "Service", "width": 24},
+    {"key": "latency", "header": "Latency (ms)", "width": 16, "type": "number", "align": "right"},
+));
+table.setRowKey("id");
+table.setRows((
+    {"id": "api", "name": "API", "latency": 10.5},
+    {"id": "worker", "name": "Worker", "latency": "2.5"},
+));
+table.setSortColumn("latency");
+@assert(table.getRows()[0].id == "worker");
+@assert(table.getSelectedRowData().id == "api");
+table.setFilter("api");
+@assert(table.getRows().size() == 1);
+app.setRoot(table);
+app.getFocusManager().setFocus(table);
+app.setGlobalKeyHandler(hash<NcursesUi::EventResult> sub (hash<Ncurses::InputEvent> event) {
+    if (event.type == Ncurses::InputType::Char && event.ch == "q") {
+        app.quit();
+        return <NcursesUi::EventResult>{"handled": True};
+    }
+    return <NcursesUi::EventResult>{"handled": False};
+});
+app.run();
+    @endcode
+
     @section ncurses_ui_focus_input Nested Input and Modal Focus
 
     Use the application's focus manager to select a control. Non-focusable

@@ -38,18 +38,21 @@ public namespace NcursesUi {
 */
 public class DropdownMenuWidget inherits NcursesUi::PanelWidget {
     private {
+        int scroll_offset = 0;
+        int anchor_row = 0;
+        int anchor_col = 0;
         #! list of menu item hashes
         list<hash<auto>> menu_items = ();
         #! currently highlighted index
-        int highlight_index = 0;
+        int highlight_index = -1;
         #! callback on item selection: code(hash<auto> item)
-        *code on_select;
+        *code<nothing(hash<auto>)> on_select;
         #! callback on close/escape
-        *code on_close;
+        *code<nothing()> on_close;
         #! callback on left/right navigation: code(string direction) where direction is "left" or "right"
-        *code on_navigate;
+        *code<nothing(string)> on_navigate;
         #! callback on Alt+key press: code(string ch) — returns True if handled
-        *code on_alt_key;
+        *code<bool(string)> on_alt_key;
         #! highlight style
         hash<auto> highlight_style = {"fg": Ncurses::Color::Yellow, "bg": Ncurses::Color::Blue,
             "attrs": Ncurses::Attr::Bold};
@@ -81,8 +84,8 @@ public class DropdownMenuWidget inherits NcursesUi::PanelWidget {
     */
     nothing setMenuItems(list<hash<auto>> items) {
         menu_items = items;
-        highlight_index = 0;
-        markDirty();
+        highlight_index = -1; scroll_offset = 0;
+        moveHighlight(1); markDirty();
     }
 
     /** Returns the menu items.
@@ -103,7 +106,7 @@ public class DropdownMenuWidget inherits NcursesUi::PanelWidget {
         @param cb callback receiving the selected item hash
         @since ncurses 1.0
     */
-    nothing setOnSelect(*code cb) {
+    nothing setOnSelect(*code<nothing(hash<auto>)> cb) {
         on_select = cb;
     }
 
@@ -111,7 +114,7 @@ public class DropdownMenuWidget inherits NcursesUi::PanelWidget {
         @param cb callback
         @since ncurses 1.0
     */
-    nothing setOnClose(*code cb) {
+    nothing setOnClose(*code<nothing()> cb) {
         on_close = cb;
     }
 
@@ -123,7 +126,7 @@ public class DropdownMenuWidget inherits NcursesUi::PanelWidget {
         @param cb callback receiving the character string
         @since ncurses 1.0
     */
-    nothing setOnAltKey(*code cb) {
+    nothing setOnAltKey(*code<bool(string)> cb) {
         on_alt_key = cb;
     }
 
@@ -135,7 +138,7 @@ public class DropdownMenuWidget inherits NcursesUi::PanelWidget {
         @param cb callback receiving the direction string
         @since ncurses 1.0
     */
-    nothing setOnNavigate(*code cb) {
+    nothing setOnNavigate(*code<nothing(string)> cb) {
         on_navigate = cb;
     }
 
@@ -147,6 +150,7 @@ public class DropdownMenuWidget inherits NcursesUi::PanelWidget {
         @since ncurses 1.0
     */
     nothing positionAt(int anchor_y, int anchor_x, int screen_rows, int screen_cols) {
+        anchor_row = anchor_y; anchor_col = anchor_x;
         int max_label = 0;
         int max_hotkey = 0;
         foreach hash<auto> item in (menu_items) {
@@ -172,8 +176,9 @@ public class DropdownMenuWidget inherits NcursesUi::PanelWidget {
         int height = menu_items.size() + 2;  # border
 
         # clamp to screen
-        width = min(width, screen_cols - 2);
-        height = min(height, screen_rows - 2);
+        width = max(0, min(width, screen_cols > 4 ? screen_cols - 2 : screen_cols));
+        height = max(0, min(height, screen_rows > 4 ? screen_rows - 2 : screen_rows));
+        setHasBorder(height >= 3 && width >= 3);
 
         int dy = anchor_y + 1;
         int dx = anchor_x;
@@ -186,6 +191,7 @@ public class DropdownMenuWidget inherits NcursesUi::PanelWidget {
             }
         }
 
+        dy = max(0, min(dy, screen_rows - height));
         # clamp x
         if (dx + width > screen_cols) {
             dx = screen_cols - width;
@@ -205,9 +211,11 @@ public class DropdownMenuWidget inherits NcursesUi::PanelWidget {
         PanelWidget::draw(w);
 
         hash<NcursesUi::Rect> cr = localContentRect();
-
-        for (int i = 0; i < menu_items.size() && i < cr.rows; ++i) {
-            int row = cr.y + i;
+        ensureVisible();
+        for (int offset = 0; offset < cr.rows; ++offset) {
+            int i = scroll_offset + offset;
+            if (i >= menu_items.size()) { break; }
+            int row = cr.y + offset;
 
             if (menu_items[i].separator) {
                 # use default ACS_HLINE character (matches box border style)
@@ -292,7 +300,16 @@ public class DropdownMenuWidget inherits NcursesUi::PanelWidget {
     hash<NcursesUi::EventResult> processEvent(hash<Ncurses::InputEvent> ev) {
         if (ev.type == Ncurses::InputType::Key) {
             string name = ev.name ?? "";
-            if (name == "KEY_UP") {
+            if (name == "KEY_HOME" || name == "KEY_END") {
+                highlight_index = name == "KEY_HOME" ? -1 : 0;
+                moveHighlight(name == "KEY_HOME" ? 1 : -1);
+                return <NcursesUi::EventResult>{"handled": True};
+            } else if (name == "KEY_PPAGE" || name == "KEY_NPAGE") {
+                pageHighlight(name == "KEY_PPAGE" ? -1 : 1);
+                return <NcursesUi::EventResult>{"handled": True};
+            } else if (name == "KEY_ENTER") {
+                selectHighlighted(); return <NcursesUi::EventResult>{"handled": True, "action": "select"};
+            } else if (name == "KEY_UP") {
                 moveHighlight(-1);
                 return <NcursesUi::EventResult>{"handled": True};
             } else if (name == "KEY_DOWN") {
@@ -323,7 +340,7 @@ public class DropdownMenuWidget inherits NcursesUi::PanelWidget {
                     on_navigate("right");
                 }
                 return <NcursesUi::EventResult>{"handled": True, "action": "navigate_right"};
-            } else if (code == 0x0a) {
+            } else if (code == 0x0a || code == 0x0d) {
                 selectHighlighted();
                 return <NcursesUi::EventResult>{"handled": True, "action": "select"};
             } else if (code == 0x1b) {
@@ -351,6 +368,10 @@ public class DropdownMenuWidget inherits NcursesUi::PanelWidget {
             return <NcursesUi::EventResult>{"handled": True};
         } else if (ev.type == Ncurses::InputType::Mouse) {
             int bs = ev.mouse.button_state;
+            if ((bs & (Ncurses::BUTTON4_PRESSED | Ncurses::BUTTON5_PRESSED)) && hitTest(ev.mouse.y, ev.mouse.x)) {
+                moveHighlight(bs & Ncurses::BUTTON4_PRESSED ? -1 : 1);
+                return <NcursesUi::EventResult>{"handled": True};
+            }
             if (bs & (Ncurses::BUTTON1_CLICKED | Ncurses::BUTTON1_PRESSED
                     | Ncurses::BUTTON1_DOUBLE_CLICKED | Ncurses::BUTTON1_TRIPLE_CLICKED)) {
                 # check if click is inside the dropdown bounds
@@ -363,8 +384,9 @@ public class DropdownMenuWidget inherits NcursesUi::PanelWidget {
                     return <NcursesUi::EventResult>{"handled": False, "action": "close"};
                 }
                 hash<NcursesUi::Rect> cr = contentRect();
-                int click_row = ev.mouse.y - cr.y;
-                if (click_row >= 0 && click_row < menu_items.size()) {
+                int click_row = scroll_offset + ev.mouse.y - cr.y;
+                if (NcursesUi::Geometry::rectContains(cr, ev.mouse.y, ev.mouse.x)
+                        && click_row < menu_items.size()) {
                     if (!menu_items[click_row].separator
                             && (menu_items[click_row].enabled ?? True)) {
                         highlight_index = click_row;
@@ -377,25 +399,41 @@ public class DropdownMenuWidget inherits NcursesUi::PanelWidget {
         return <NcursesUi::EventResult>{"handled": False};
     }
 
-    private nothing moveHighlight(int dir) {
-        if (menu_items.empty()) {
-            return;
+    /** Repositions an open menu after terminal resize.
+        @param rows screen height
+        @param cols screen width
+    */
+    nothing fitToScreen(int rows, int cols) { positionAt(anchor_row, anchor_col, rows, cols); }
+
+    private nothing ensureVisible() {
+        int count = max(1, contentRect().rows);
+        scroll_offset = max(0, min(scroll_offset, menu_items.size() - count));
+        if (highlight_index < scroll_offset) { scroll_offset = max(0, highlight_index); }
+        else if (highlight_index >= scroll_offset + count) { scroll_offset = highlight_index - count + 1; }
+    }
+
+    private nothing pageHighlight(int direction) {
+        int target = max(0, min(menu_items.size() - 1,
+            highlight_index + direction * max(1, contentRect().rows)));
+        int candidate = -1;
+        for (int step = 0; step < menu_items.size(); ++step) {
+            int index = direction > 0 ? step : menu_items.size() - 1 - step;
+            if (menu_items[index].separator || !(menu_items[index].enabled ?? True)) { continue; }
+            candidate = index;
+            if (direction > 0 ? index >= target : index <= target) { break; }
         }
-        int start = highlight_index;
+        highlight_index = candidate; ensureVisible(); markDirty();
+    }
+
+    private nothing moveHighlight(int dir) {
         int idx = highlight_index;
-        do {
-            idx += dir;
-            if (idx < 0) {
-                idx = menu_items.size() - 1;
-            } else if (idx >= menu_items.size()) {
-                idx = 0;
-            }
+        for (int count = 0; count < menu_items.size(); ++count) {
+            idx = (idx + dir + menu_items.size()) % menu_items.size();
             if (!menu_items[idx].separator && (menu_items[idx].enabled ?? True)) {
-                highlight_index = idx;
-                markDirty();
-                return;
+                highlight_index = idx; ensureVisible(); markDirty(); return;
             }
-        } while (idx != start);
+        }
+        highlight_index = -1; scroll_offset = 0;
     }
 
     /** Finds a menu item whose hotkey matches the pressed character.

@@ -195,7 +195,24 @@ inputs show their caret; closing the last modal restores the prior visibility.
 Focus callbacks that raise leave no stale owner; nested focus/modal transitions
 from a focus callback raise an explicit error, including callbacks caused by
 hiding, disabling, or detaching a widget. Focus queries remain safe during cleanup.
-Composite controls with local child coordinates can override
+Composite controls can override
 `handlesChildMouseEvents()` and `mouseFocusTarget(y, x)` to keep mouse delegation
-and focus selection in their own coordinate space; the file browser uses this
-contract for pane selection and directory-preview navigation.
+and focus selection together; the file browser uses this contract for pane
+selection and directory-preview navigation. Child frames and mouse events use
+absolute screen coordinates, including inside panels. Custom drawing uses
+`drawContentRect(window)` to convert to the target window. `drawTree()` clips
+overflow to ancestor content and terminal bounds. Zero-area widgets do not draw.
+
+Panels resize transactionally and keep child positions relative to a moved panel.
+Active dialogs and popups reflow on resize. Tiny dialogs show the focused action;
+Tab reaches every action, and Up/Down or PageUp/PageDown scroll the message. On a one-row dialog these keys temporarily show the message;
+Tab returns to the action labels.
+Menus, radio groups, and combo boxes scroll their active choice into the available
+rows and support Home/End, page navigation, wheel input, and primary clicks.
+
+Tables support `auto`, `number`, `string`, and `date` column types plus custom
+comparators. Numeric columns accept numeric strings; auto ordering is null,
+numeric, date, then text. Equal keys retain input order. Use `setRowKey()` for
+stable selection across refreshes, `setFilter()` for displayed-value filtering,
+and `setOnAction()` for application row actions. Left/Right reveal columns;
+Enter or double-click activates the selected row.

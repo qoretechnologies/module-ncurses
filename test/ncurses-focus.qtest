@@ -500,7 +500,7 @@ class NcursesFocusTest inherits Test {
         app.processEvent(mouse(4, 6)); assertEq(1, browser.getFileList().getSelectedIndex());
         # Directory preview click-through must run in the composite, not its child.
         hash<NcursesUi::Rect> preview = browser.getPreviewWidget().getFrame();
-        app.processEvent(mouse(2 + preview.y + 1, 5 + preview.x));
+        app.processEvent(mouse(preview.y + 1, preview.x));
         assertEq(realpath(dir + "/a"), browser.getCurrentDir());
         assertEq("second", browser.getSelectedFile().label);
         assertEq(browser.getFileList(), app.getFocusManager().getCurrentFocus());

@@ -201,7 +201,7 @@ public class ListWidget inherits NcursesUi::Widget {
         @since ncurses 1.0
     */
     nothing draw(Ncurses::Window w) {
-        hash<NcursesUi::Rect> cr = contentRect();
+        hash<NcursesUi::Rect> cr = drawContentRect(w);
         int visible_rows = cr.rows;
         int visible_cols = cr.cols;
 

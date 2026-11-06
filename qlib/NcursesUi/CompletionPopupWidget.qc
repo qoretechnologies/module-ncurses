@@ -38,6 +38,8 @@ public namespace NcursesUi {
 */
 public class CompletionPopupWidget inherits NcursesUi::PanelWidget {
     private {
+        int anchor_row = 0;
+        int anchor_col = 0;
         #! list of completion item hashes
         list<hash<auto>> completion_items = ();
         #! currently highlighted index
@@ -152,6 +154,7 @@ public class CompletionPopupWidget inherits NcursesUi::PanelWidget {
         @since ncurses 1.0
     */
     nothing positionAt(int anchor_y, int anchor_x, int screen_rows, int screen_cols) {
+        anchor_row = anchor_y; anchor_col = anchor_x;
         int vis = visibleCount();
         int height = vis + 2;  # border top + bottom
 
@@ -172,8 +175,9 @@ public class CompletionPopupWidget inherits NcursesUi::PanelWidget {
         int width = max_label + 6;  # kind char + space + label + border*2 + padding
 
         # clamp to screen
-        width = min(width, screen_cols - 2);
-        height = min(height, screen_rows - 2);
+        width = max(0, min(width, screen_cols > 4 ? screen_cols - 2 : screen_cols));
+        height = max(0, min(height, screen_rows > 4 ? screen_rows - 2 : screen_rows));
+        setHasBorder(height >= 3 && width >= 3);
 
         int dy = anchor_y + 1;
         int dx = anchor_x;
@@ -204,6 +208,12 @@ public class CompletionPopupWidget inherits NcursesUi::PanelWidget {
         resize(NcursesUi::Geometry::makeRect(dy, dx, height, width));
     }
 
+    /** Repositions the completion list after terminal resize.
+        @param rows terminal height
+        @param cols terminal width
+    */
+    nothing fitToScreen(int rows, int cols) { positionAt(anchor_row, anchor_col, rows, cols); }
+
     /** Draws the completion popup content.
         @param w the window
         @since ncurses 1.0
@@ -212,6 +222,7 @@ public class CompletionPopupWidget inherits NcursesUi::PanelWidget {
         PanelWidget::draw(w);
 
         hash<NcursesUi::Rect> cr = localContentRect();
+        moveHighlight(0);
         # actual drawable rows may be smaller than visibleCount() if the widget was clamped
         int drawable = min(visibleCount(), cr.rows);
 
@@ -294,10 +305,10 @@ public class CompletionPopupWidget inherits NcursesUi::PanelWidget {
                 moveHighlight(1);
                 return <NcursesUi::EventResult>{"handled": True};
             } else if (name == "KEY_PPAGE") {
-                moveHighlight(-max_visible);
+                moveHighlight(-max(1, min(max_visible, contentRect().rows)));
                 return <NcursesUi::EventResult>{"handled": True};
             } else if (name == "KEY_NPAGE") {
-                moveHighlight(max_visible);
+                moveHighlight(max(1, min(max_visible, contentRect().rows)));
                 return <NcursesUi::EventResult>{"handled": True};
             }
         } else if (ev.type == Ncurses::InputType::Char) {
@@ -334,7 +345,8 @@ public class CompletionPopupWidget inherits NcursesUi::PanelWidget {
             highlight_index = completion_items.size() - 1;
         }
         # adjust scroll to keep highlighted item visible
-        int vis = visibleCount();
+        int vis = max(1, min(visibleCount(), contentRect().rows));
+        scroll_offset = max(0, min(scroll_offset, completion_items.size() - vis));
         if (highlight_index < scroll_offset) {
             scroll_offset = highlight_index;
         } else if (highlight_index >= scroll_offset + vis) {

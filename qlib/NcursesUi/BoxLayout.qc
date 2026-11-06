@@ -27,7 +27,9 @@ public namespace NcursesUi {
     Distributes space among children based on their size policy:
     - @ref SizePolicy::Fixed and @ref SizePolicy::Minimum children get their
       preferred size (clamped to minimum).
-    - @ref SizePolicy::Expanding children share remaining space equally.
+    - @ref SizePolicy::Expanding children receive their minimum size and share remaining space equally.
+    - If requests exceed available space, children are truncated in order; later
+      children can receive zero space. Spacing is clamped to remaining space.
     - Hidden children receive no space.
 
     @par Example
@@ -53,7 +55,7 @@ public class BoxLayout {
     */
     constructor(int orient = NcursesUi::Orientation::Vertical, int sp = 0) {
         orientation = orient;
-        spacing = sp;
+        spacing = max(0, sp);
     }
 
     /** Returns the orientation.
@@ -122,9 +124,10 @@ public class BoxLayout {
             if (policy == NcursesUi::SizePolicy::Fixed || policy == NcursesUi::SizePolicy::Minimum) {
                 int pref = child.getPreferredSize().rows;
                 int mn = child.getMinimumSize().rows;
-                int size = max(mn, pref);
+                int size = max(0, max(mn, pref));
                 fixed_total += size;
             } else {
+                fixed_total += max(0, child.getMinimumSize().rows);
                 expanding_count += 1;
             }
         }
@@ -141,9 +144,9 @@ public class BoxLayout {
             if (policy == NcursesUi::SizePolicy::Fixed || policy == NcursesUi::SizePolicy::Minimum) {
                 int pref = child.getPreferredSize().rows;
                 int mn = child.getMinimumSize().rows;
-                child_rows = max(mn, pref);
+                child_rows = max(0, max(mn, pref));
             } else {
-                child_rows = per_expanding;
+                child_rows = max(0, child.getMinimumSize().rows) + per_expanding;
                 # distribute remainder to first expanding children
                 if (remainder > 0) {
                     child_rows += 1;
@@ -151,11 +154,12 @@ public class BoxLayout {
                 }
             }
 
+            child_rows = min(child_rows, max(0, area.y + area.rows - cur_y));
             child.setFrame(NcursesUi::Geometry::makeRect(cur_y, area.x, child_rows, area.cols));
             cur_y += child_rows;
             idx += 1;
             if (idx < visible.size()) {
-                cur_y += spacing;
+                cur_y = min(area.y + area.rows, cur_y + spacing);
             }
         }
     }
@@ -172,9 +176,10 @@ public class BoxLayout {
             if (policy == NcursesUi::SizePolicy::Fixed || policy == NcursesUi::SizePolicy::Minimum) {
                 int pref = child.getPreferredSize().cols;
                 int mn = child.getMinimumSize().cols;
-                int size = max(mn, pref);
+                int size = max(0, max(mn, pref));
                 fixed_total += size;
             } else {
+                fixed_total += max(0, child.getMinimumSize().cols);
                 expanding_count += 1;
             }
         }
@@ -191,20 +196,21 @@ public class BoxLayout {
             if (policy == NcursesUi::SizePolicy::Fixed || policy == NcursesUi::SizePolicy::Minimum) {
                 int pref = child.getPreferredSize().cols;
                 int mn = child.getMinimumSize().cols;
-                child_cols = max(mn, pref);
+                child_cols = max(0, max(mn, pref));
             } else {
-                child_cols = per_expanding;
+                child_cols = max(0, child.getMinimumSize().cols) + per_expanding;
                 if (remainder > 0) {
                     child_cols += 1;
                     remainder -= 1;
                 }
             }
 
+            child_cols = min(child_cols, max(0, area.x + area.cols - cur_x));
             child.setFrame(NcursesUi::Geometry::makeRect(area.y, cur_x, area.rows, child_cols));
             cur_x += child_cols;
             idx += 1;
             if (idx < visible.size()) {
-                cur_x += spacing;
+                cur_x = min(area.x + area.cols, cur_x + spacing);
             }
         }
     }

@@ -34,6 +34,7 @@ public namespace NcursesUi {
 */
 public class TextInputWidget inherits NcursesUi::Widget {
     private {
+        *hash<NcursesUi::Rect> draw_bounds;
         #! the input buffer
         NcursesReplUi::InputBuffer buffer();
         #! optional history
@@ -155,14 +156,22 @@ public class TextInputWidget inherits NcursesUi::Widget {
         releaseCursor();
     }
 
+    /** Releases cursor ownership when the widget has no drawable area. */
+    nothing onDrawClipped() {
+        releaseCursor();
+        Widget::onDrawClipped();
+    }
+
     /** Draws the input, clipping to its rectangle and the target window.
         @param w the window
         @since ncurses 1.0
     */
     nothing draw(Ncurses::Window w) {
         releaseCursor();
-        hash<NcursesUi::Rect> cr = contentRect();
+        hash<NcursesUi::Rect> cr = drawContentRect(w);
         hash<Ncurses::Size> size = w.size();
+        hash<Ncurses::Position> origin = w.position();
+        draw_bounds = NcursesUi::Geometry::makeRect(origin.y, origin.x, size.rows, size.cols);
         if (cr.rows <= 0 || cr.cols <= 0 || cr.y < 0 || cr.y >= size.rows) {
             return;
         }
@@ -172,7 +181,7 @@ public class TextInputWidget inherits NcursesUi::Widget {
             return;
         }
         int cursor_col = cursorColumn();
-        updateScroll(cr.cols);
+        updateScroll(inputColumns());
         string visible = TerminalText::columnSlice(prompt + buffer.getText(), scroll_x + left - cr.x, width);
         w.drawText(cr.y, left, visible, hasFocus() ? {"attrs": Ncurses::Attr::Bold} : {});
         int x = cr.x + cursor_col - scroll_x;
@@ -193,7 +202,7 @@ public class TextInputWidget inherits NcursesUi::Widget {
             if (ev.mouse && ev.mouse.y == cr.y && hitTest(ev.mouse.y, ev.mouse.x)
                     && (ev.mouse.button_state & (Ncurses::BUTTON1_CLICKED | Ncurses::BUTTON1_PRESSED
                         | Ncurses::BUTTON1_DOUBLE_CLICKED | Ncurses::BUTTON1_TRIPLE_CLICKED))) {
-                updateScroll(cr.cols);
+                updateScroll(inputColumns());
                 int col = scroll_x + ev.mouse.x - cr.x - TerminalText::displayWidth(prompt);
                 buffer.setCursor(NcursesReplUi::TextPosition::offsetForColumn(buffer.getText(), col));
                 markDirty();
@@ -255,6 +264,13 @@ public class TextInputWidget inherits NcursesUi::Widget {
         if (col >= scroll_x + width) {
             scroll_x = col - width + 1;
         }
+    }
+
+    private int inputColumns() {
+        hash<NcursesUi::Rect> cr = contentRect();
+        hash<NcursesUi::Rect> clip = NcursesUi::Geometry::intersect(cr, visibleRect());
+        if (draw_bounds) { clip = NcursesUi::Geometry::intersect(clip, draw_bounds); }
+        return clip.cols > 0 ? max(0, clip.x + clip.cols - cr.x) : 0;
     }
 
     private nothing releaseCursor() {

@@ -336,6 +336,10 @@ public class Application {
     */
     private nothing handleResize() {
         layoutRoot();
+        hash<Ncurses::Size> size = session.screen().size();
+        foreach NcursesUi::Widget modal in (dispatcher.getModalStack()) {
+            modal.fitToScreen(size.rows, size.cols);
+        }
         if (root) {
             root.markDirty();
         }

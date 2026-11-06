@@ -102,6 +102,20 @@ module NcursesUi {
     the same UI state concurrently from worker threads. Binary terminal calls
     retain the ncurses session's locking discipline.
 
+    Widget frames and mouse events always use absolute screen coordinates.
+    Custom drawing calls @ref NcursesUi::Widget::drawContentRect() "drawContentRect(window)"
+    to convert to the target window. Tree drawing clips overflowing children to
+    ancestor content and window bounds, including nested panels. Zero-area
+    widgets release rendering resources without painting. Fixed/minimum box
+    requests are truncated in order when the parent is too small; expanding
+    controls receive their minima before sharing the remaining space.
+
+    Active panels, dialogs, and anchored popups reflow on terminal resize.
+    Dialogs keep the focused action reachable with Tab on narrow terminals;
+    Up/Down and PageUp/PageDown scroll long, wrapped messages. Choice controls
+    use their drawable height for scrolling, keyboard navigation, and mouse input.
+    Menus skip disabled entries and separators, including all-disabled menus.
+
     @subsection ncursesui_focus Focus Management
 
     @ref NcursesUi::FocusManager "FocusManager" traverses the widget tree to
@@ -124,12 +138,12 @@ module NcursesUi {
     - Keyboard events go to the focused descendant and bubble through its ancestors.
     - A primary mouse click focuses the eligible hit target; misses and wheel events
       never fall through to an unrelated focused control.
-    - Composites with local child coordinates override
+    - Composites can override
       @ref NcursesUi::Widget::handlesChildMouseEvents() "handlesChildMouseEvents()"
       to receive screen-coordinate mouse events before their children, and
       @ref NcursesUi::Widget::mouseFocusTarget() "mouseFocusTarget()" to select
       the appropriate child for primary activation. File-browser preview
-      navigation and pane coordinate conversion use this contract.
+      navigation uses this contract; child frames and events retain screen coordinates.
     - A modal captures all remaining input. Tab/Shift+Tab stay in its focus scope;
       controls with internal Tab navigation handle the key first.
     - @ref NcursesUi::Application::pushPopup() "pushPopup()" opts into outside-click

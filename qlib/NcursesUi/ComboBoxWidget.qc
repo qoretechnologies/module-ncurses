@@ -44,7 +44,7 @@ public class ComboBoxWidget inherits NcursesUi::Widget {
         *Ncurses::Window cursor_window;
         int cursor_request = 0;
         #! most recently painted window extent, shared by drawing and hit testing
-        *hash<Ncurses::Size> draw_size;
+        *hash<NcursesUi::Rect> draw_bounds;
         #! whether dropdown is open
         bool dropdown_open = False;
         #! highlighted option in dropdown
@@ -172,14 +172,22 @@ public class ComboBoxWidget inherits NcursesUi::Widget {
         closeDropdown();
     }
 
+    /** Releases cursor ownership when the widget has no drawable area. */
+    nothing onDrawClipped() {
+        releaseCursor();
+        Widget::onDrawClipped();
+    }
+
     /** Draws the combo box.
         @param w the window
         @since ncurses 1.0
     */
     nothing draw(Ncurses::Window w) {
         releaseCursor();
-        draw_size = w.size();
+        hash<Ncurses::Size> size = w.size(); hash<Ncurses::Position> origin = w.position();
+        draw_bounds = NcursesUi::Geometry::makeRect(origin.y, origin.x, size.rows, size.cols);
         hash<NcursesUi::Rect> cr = drawableRect();
+        cr.y -= origin.y; cr.x -= origin.x;
         if (cr.rows <= 0 || cr.cols <= 0) {
             return;
         }
@@ -236,9 +244,19 @@ public class ComboBoxWidget inherits NcursesUi::Widget {
         @since ncurses 1.0
     */
     hash<NcursesUi::EventResult> processEvent(hash<Ncurses::InputEvent> ev) {
+        if (!isAvailable()) { return <NcursesUi::EventResult>{"handled": False}; }
         if (ev.type == Ncurses::InputType::Key) {
             string name = ev.name ?? "";
-            if (name == "KEY_ENTER") {
+            if (dropdown_open && (name == "KEY_HOME" || name == "KEY_END"
+                    || name == "KEY_PPAGE" || name == "KEY_NPAGE")) {
+                int page = max(1, drawableRect().rows - 1);
+                if (name == "KEY_HOME") { highlight_index = 0; }
+                else if (name == "KEY_END") { highlight_index = filtered_options.size() - 1; }
+                else { highlight_index += name == "KEY_PPAGE" ? -page : page; }
+                highlight_index = filtered_options ? max(0, min(highlight_index, filtered_options.size() - 1)) : -1;
+                ensureDropdownVisible(); markDirty();
+                return <NcursesUi::EventResult>{"handled": True};
+            } else if (name == "KEY_ENTER") {
                 return activateSelection();
             } else if (name == "KEY_UP" && dropdown_open) {
                 if (highlight_index > 0) {
@@ -270,6 +288,22 @@ public class ComboBoxWidget inherits NcursesUi::Widget {
             }
         } else if (ev.type == Ncurses::InputType::Mouse && ev.mouse) {
             hash<NcursesUi::Rect> cr = drawableRect();
+            if (dropdown_open && NcursesUi::Geometry::rectContains(cr, ev.mouse.y, ev.mouse.x)) {
+                int bs = ev.mouse.button_state;
+                if (bs & (Ncurses::BUTTON4_PRESSED | Ncurses::BUTTON5_PRESSED)) {
+                    highlight_index += bs & Ncurses::BUTTON4_PRESSED ? -1 : 1;
+                    highlight_index = filtered_options ? max(0, min(highlight_index, filtered_options.size() - 1)) : -1;
+                    ensureDropdownVisible(); markDirty();
+                    return <NcursesUi::EventResult>{"handled": True};
+                }
+                if (ev.mouse.y > cr.y && (bs & (Ncurses::BUTTON1_PRESSED | Ncurses::BUTTON1_CLICKED
+                        | Ncurses::BUTTON1_DOUBLE_CLICKED | Ncurses::BUTTON1_TRIPLE_CLICKED))) {
+                    int index = dropdown_scroll + ev.mouse.y - cr.y - 1;
+                    if (index < filtered_options.size() && ev.mouse.y - cr.y <= max_dropdown_items) {
+                        highlight_index = index; return activateSelection();
+                    }
+                }
+            }
             if (ev.mouse.y == cr.y && isVisible()
                     && NcursesUi::Geometry::rectContains(cr, ev.mouse.y, ev.mouse.x)
                     && (ev.mouse.button_state & (Ncurses::BUTTON1_CLICKED | Ncurses::BUTTON1_PRESSED
@@ -365,9 +399,8 @@ public class ComboBoxWidget inherits NcursesUi::Widget {
         if (rect.y < 0 || rect.x < 0) {
             rect.rows = 0;
             rect.cols = 0;
-        } else if (draw_size) {
-            rect.rows = max(0, min(rect.rows, draw_size.rows - rect.y));
-            rect.cols = max(0, min(rect.cols, draw_size.cols - rect.x));
+        } else if (draw_bounds) {
+            rect = NcursesUi::Geometry::intersect(rect, draw_bounds);
         }
         return rect;
     }

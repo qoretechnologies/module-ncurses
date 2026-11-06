@@ -1227,7 +1227,9 @@ list<string> Window::readLines(*int y, *int rows, *int cols) [flags=NAMED_ARGS] 
 }
 
 //! Creates a sub-window
-/**
+/** Derived windows retain their parent storage until they are released.
+    Coordinates are local to the parent window.
+
     @param rows height
     @param cols width
     @param y top row
@@ -1246,7 +1248,7 @@ Window Window::subWindow(int rows, int cols, int y, int x) [flags=NAMED_ARGS] {
         xsink->raiseException("NCURSES-ERROR", "derwin() failed");
         return nothing();
     }
-    QoreObject* obj = new QoreObject(QC_WINDOW, getProgram(), new NcursesWindow(win->session, w, true));
+    QoreObject* obj = new QoreObject(QC_WINDOW, getProgram(), new NcursesWindow(win->session, w, true, win));
     return obj;
 }
 
