@@ -3,10 +3,11 @@
 public namespace NcursesUi {
 /** @internal Multiline field adapter delivering changes through the form model. */
 class FormEditorControl inherits NcursesUi::TextEditorWidget {
-    private { code<nothing(string)> changed; }
-    constructor(code<nothing(string)> callback) { changed = callback; setEnterSubmits(False); setAutoHeight(2, 4); }
+    private { code<nothing(string)> changed; code<nothing()> prepare; }
+    constructor(code<nothing(string)> callback, code<nothing()> before) { prepare = before; changed = callback; setEnterSubmits(False); setAutoHeight(2, 4); }
     hash<NcursesUi::EventResult> processEvent(hash<Ncurses::InputEvent> event) {
-        if (!isAvailable()) { return <NcursesUi::EventResult>{}; }
+        prepare();
+        if (!getParent() || !isAvailable()) { return <NcursesUi::EventResult>{}; }
         string before = getText(); hash<NcursesUi::EventResult> result = TextEditorWidget::processEvent(event);
         if (before != getText()) { changed(getText()); } return result;
     }
@@ -24,11 +25,24 @@ class FormTextInputControl inherits NcursesUi::TextInputWidget {
 }
 /** @internal Preserves the distinction between an unset Boolean and an explicit False. */
 class FormCheckboxControl inherits NcursesUi::CheckboxWidget {
-    private { code<nothing(bool)> changed; }
-    constructor(code<nothing(bool)> callback, bool value) : CheckboxWidget("", value) {
-        changed = callback; setOnToggle(callback);
+    private { code<nothing(bool)> changed; code<nothing()> prepare; }
+    constructor(code<nothing(bool)> callback, bool value, code<nothing()> before) : CheckboxWidget("", value) {
+        prepare = before; changed = callback; setOnToggle(callback);
+    }
+    hash<NcursesUi::EventResult> processEvent(hash<Ncurses::InputEvent> event) {
+        prepare(); if (!getParent()) { return <NcursesUi::EventResult>{}; }
+        return CheckboxWidget::processEvent(event);
     }
     nothing setChecked(bool value) { CheckboxWidget::setChecked(value); changed(value); }
+}
+/** @internal Synchronizes pending model changes before navigating a bound choice. */
+class FormChoiceControl inherits NcursesUi::DescribedChoiceWidget {
+    private { code<nothing()> prepare; }
+    constructor(list<hash<NcursesUi::ChoiceItem>> items, code<nothing()> before) : DescribedChoiceWidget(items) { prepare = before; }
+    hash<NcursesUi::EventResult> processEvent(hash<Ncurses::InputEvent> event) {
+        prepare(); if (!getParent()) { return <NcursesUi::EventResult>{}; }
+        return DescribedChoiceWidget::processEvent(event);
+    }
 }
 /** Composable form driven by FormModel, with wrapped labels/help/errors and typed controls.
     Bind the application's focus manager with setFocusManager() to focus the first
@@ -190,16 +204,16 @@ public class FormWidget inherits NcursesUi::Widget {
         if (field.type == NcursesUi::FieldType::Boolean) {
             return new NcursesUi::FormCheckboxControl(sub (bool checked) {
                 if (!synchronizing) { storeValue(name, checked); markDirty(); }
-            }, !!value);
+            }, !!value, sub () { syncPresentation(); });
         }
         if (field.type == NcursesUi::FieldType::Choice) {
-            NcursesUi::DescribedChoiceWidget control(field.choices); control.setAutoHeight(1, 4);
+            NcursesUi::FormChoiceControl control(field.choices, sub () { syncPresentation(); }); control.setAutoHeight(1, 4);
             if (exists value && choiceAvailable(field, string(value))) { control.setValue(string(value)); }
             else { control.setValue(NOTHING); }
             control.setOnChange(sub (*hash<NcursesUi::ChoiceSelection> selection) { if (!synchronizing) { storeValue(name, selection ? selection.value : NOTHING); markDirty(); } }); return control;
         }
         if (field.type == NcursesUi::FieldType::Multiline) {
-            NcursesUi::FormEditorControl control(sub (string text) { changed(field, text); }); control.setText(exists value ? string(value) : ""); return control;
+            NcursesUi::FormEditorControl control(sub (string text) { changed(field, text); }, sub () { syncPresentation(); }); control.setText(exists value ? string(value) : ""); return control;
         }
         NcursesUi::FormTextInputControl control(sub () { syncPresentation(); }); control.setText(exists value ? string(value) : ""); control.setClearOnSubmit(False);
         control.setPassword(field.type == NcursesUi::FieldType::Password); control.setPreferredSize(1, 20);

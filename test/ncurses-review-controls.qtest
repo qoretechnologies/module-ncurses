@@ -29,7 +29,24 @@ class ReviewControlsTest inherits Test {
         addTestCase("tree rebuild notifies selection changes exactly once after commit", \treeNotifications());
         addTestCase("numeric text identities and present validator errors preserve semantics", \textSemantics());
         addTestCase("missing typed metadata fails before replacing live controls", \metadata());
+        addTestCase("every bound control imports pending model changes before input", \pendingControls());
         set_return_value(main());
+    }
+    pendingControls() {
+        NcursesUi::TestHarness th(20, 40); on_exit th.close();
+        NcursesUi::FormModel model((
+            <NcursesUi::FormField>{"name": "text", "label": "Text", "type": NcursesUi::FieldType::Multiline, "default_value": "old"},
+            <NcursesUi::FormField>{"name": "flag", "label": "Flag", "type": NcursesUi::FieldType::Boolean, "default_value": False},
+            <NcursesUi::FormField>{"name": "choice", "label": "Choice", "type": NcursesUi::FieldType::Choice, "choices": options()}
+        )); NcursesUi::FormWidget form(model); form.setFrameValues(0, 0, 20, 40); form.drawTree(th.screen());
+        NcursesUi::Widget text = form.getControl("text"); NcursesUi::Widget flag = form.getControl("flag"); NcursesUi::Widget choice = form.getControl("choice");
+        model.setValue("text", "new"); text.processEvent(key("KEY_END")); text.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "!"}); assertEq("new!", model.getValue("text"));
+        model.setValue("flag", True); flag.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": " "}); assertEq(False, model.getValue("flag"));
+        model.setValue("choice", "3"); choice.processEvent(key("KEY_DOWN")); choice.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": " "}); assertEq("4", model.getValue("choice"));
+        form.setOnSubmit(auto sub (hash<auto> values) { return values; }); assertTrue(form.submit());
+        model.reset(); model.setValue("flag", True); flag.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": " "}); assertEq(False, model.getValue("flag"));
+        model.setFields((<NcursesUi::FormField>{"name": "replacement", "label": "Replacement"},));
+        assertFalse(text.processEvent(key("KEY_END")).handled); assertFalse(flag.processEvent(key("KEY_ENTER")).handled); assertFalse(choice.processEvent(key("KEY_DOWN")).handled); assertNothing(model.getValue("replacement"));
     }
     textSemantics() {
         NcursesUi::TestHarness th(12, 30); on_exit th.close();

@@ -17,6 +17,7 @@
     caret mapping. Cursor indices remain character offsets; partial replacement
     ranges expand to whole graphemes. Session::setCursor() now returns the prior
     visibility so modal transitions can restore it exactly. Composite file-browser
+    bound form controls synchronize pending model writes before all input dispatch;
     pane navigation stays synchronized with managed focus, and combo-box mouse
     placement and dropdown scrolling share the clipped drawing geometry.
     Composite mouse delegation preserves preview navigation. Focus callbacks share a thread-local transition guard,
