@@ -150,6 +150,34 @@ module NcursesUi {
     (such as @ref NcursesUi::LineListContent "LineListContent") and manages
     the viewport, scroll position, and scrollbar rendering.
 
+    Wrapping is prepared before scrolling, including before the first draw.
+    @ref NcursesUi::ScrollableWidget::setCursorLine() "setCursorLine()" takes a
+    logical line and an ANSI-free source character offset. The content provider
+    maps this position to terminal cells; callers must not convert it to display
+    columns first. A newly positioned caret follows the viewport, while manual
+    scrolling releases that following behavior until the next cursor update.
+    Clearing a cursor releases only that widget's request. Session cursor
+    visibility is controlled separately by the application.
+
+    @par Wrapped prompt example
+    @code{.py}
+NcursesUi::LineListContent content();
+content.setWordWrap(True);
+content.setLines(("prompt> 日本語",));
+NcursesUi::ScrollableWidget output(content);
+output.setFrameValues(0, 0, 3, 10);
+output.setCursorLine(0, "prompt> 日本語".length());
+output.scrollTo(NcursesUi::ScrollDirection::End);
+    @endcode
+
+    @ref NcursesUi::LineListContent::sourceToVisual() "sourceToVisual()" and
+    @ref NcursesUi::LineListContent::visualToSource() "visualToSource()" share the
+    same wrapped rows used for drawing. Word-break whitespace retains its source
+    offsets, and positions inside a grapheme snap to its beginning. Horizontal
+    scrolling uses display columns and preserves styling; partially visible
+    graphemes are represented by spaces. Resizing preserves the source position
+    at the top of the viewport when that position still exists.
+
     @subsection ncursesui_menubar MenuBarWidget
 
     @ref NcursesUi::MenuBarWidget "MenuBarWidget" renders a horizontal menu

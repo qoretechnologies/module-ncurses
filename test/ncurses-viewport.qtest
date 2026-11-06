@@ -1,0 +1,416 @@
+#!/usr/bin/env qore
+# Copyright 2026 Qore Technologies, s.r.o.
+# Regression coverage for viewport geometry, caret mapping, and clipping.
+%modern
+%prepend-module-path "${SCRIPT_DIR}/../qlib"
+%requires ncurses
+%requires NcursesUi
+%requires QUnit
+%include "test/TestHarness.qc"
+%exec-class NcursesViewportTest
+
+class NcursesViewportTest inherits Test {
+    constructor() : Test("NcursesViewportTest", "1.0", \ARGV) {
+        addTestCase("control: short unwrapped caret", \shortCaret());
+        addTestCase("wrapped caret maps both row and column", \wrappedCaret());
+        addTestCase("first draw End uses wrapped extent", \firstDrawEnd());
+        addTestCase("resize clamps after reflow", \resizeReflow());
+        addTestCase("horizontal scrolling changes rendered slice", \horizontalSlice());
+        addTestCase("content stays inside widget bounds", \contentClipping());
+        addTestCase("replacing longest line shrinks extent", \shrinkingExtent());
+        addTestCase("word-break source mapping and hit testing", \sourceMapping());
+        addTestCase("wide and combining source positions", \unicodeMapping());
+        addTestCase("exact-width caret at the bottom edge", \bottomEdge());
+        addTestCase("tall prompt caret and manual scroll", \tallPrompt());
+        addTestCase("horizontal caret visibility", \horizontalCaret());
+        addTestCase("styled and grapheme clipping", \styledClipping());
+        addTestCase("negative and empty viewport geometry", \invalidGeometry());
+        addTestCase("content edits clamp both axes", \editedExtents());
+        addTestCase("resize preserves source anchor", \resizeAnchor());
+        addTestCase("scrollbar is stable on the first frame", \scrollbarGeometry());
+        addTestCase("cursor request ownership and invalid coordinates", \cursorOwnership());
+        addTestCase("cleared and offscreen widget releases cursor", \cursorRelease());
+        addTestCase("window clipping uses Unicode display cells", \windowClipping());
+        set_return_value(main());
+    }
+
+    private hash<Ncurses::InputEvent> key(string name) {
+        return <Ncurses::InputEvent>{"type": Ncurses::InputType::Key, "name": name};
+    }
+    private hash<Ncurses::InputEvent> charEvent(string ch) {
+        return <Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": ch};
+    }
+    private hash<Ncurses::InputEvent> click(int y, int x) {
+        return <Ncurses::InputEvent>{"type": Ncurses::InputType::Mouse,
+            "mouse": <Ncurses::MouseEvent>{"y": y, "x": x,
+                "button_state": Ncurses::BUTTON1_CLICKED}};
+    }
+
+    shortCaret() {
+        NcursesUi::TestHarness th(8, 30);
+        on_exit th.close();
+        NcursesUi::LineListContent content();
+        content.setLines(("abc",));
+        NcursesUi::ScrollableWidget w(content);
+        w.setFrameValues(0, 0, 3, 10);
+        w.setCursorLine(0, 3);
+        w.draw(th.screen());
+        th.session().doupdate();
+        assertEq(<Ncurses::Position>{"y": 0, "x": 3}, th.screen().cursor());
+    }
+    wrappedCaret() {
+        NcursesUi::TestHarness th(8, 30);
+        on_exit th.close();
+        NcursesUi::LineListContent content();
+        content.setWordWrap(True);
+        content.setLines(("abcdefghijklm",));
+        NcursesUi::ScrollableWidget w(content);
+        w.setFrameValues(0, 0, 3, 10);
+        w.setCursorLine(0, 13);
+        w.draw(th.screen());
+        th.session().doupdate();
+        assertEq(<Ncurses::Position>{"y": 1, "x": 3}, th.screen().cursor());
+    }
+    firstDrawEnd() {
+        NcursesUi::TestHarness th(8, 30);
+        on_exit th.close();
+        NcursesUi::LineListContent content();
+        content.setWordWrap(True);
+        content.setLines(("abcdefghijklmnopqrstuvwxyz",));
+        NcursesUi::ScrollableWidget w(content);
+        w.setFrameValues(0, 0, 2, 10);
+        w.scrollTo(NcursesUi::ScrollDirection::End);
+        w.draw(th.screen());
+        assertEq(content.totalRows() - 2, w.getScrollY());
+    }
+    resizeReflow() {
+        NcursesUi::TestHarness th(8, 60);
+        on_exit th.close();
+        NcursesUi::LineListContent content();
+        content.setWordWrap(True);
+        content.setLines((strmul("a", 36),));
+        NcursesUi::ScrollableWidget w(content);
+        w.setShowScrollbar(False);
+        w.setFrameValues(0, 0, 2, 10);
+        w.draw(th.screen());
+        w.scrollTo(NcursesUi::ScrollDirection::End);
+        w.draw(th.screen());
+        w.setFrameValues(0, 0, 2, 40);
+        w.draw(th.screen());
+        assertEq(0, w.getScrollY(), "scroll clamped for new width before painting");
+        assertEq(strmul("a", 36), th.screen().readText(0, 0, 36));
+    }
+    horizontalSlice() {
+        NcursesUi::TestHarness th(8, 30);
+        on_exit th.close();
+        NcursesUi::LineListContent content();
+        content.setLines(("abcdefghij",));
+        NcursesUi::ScrollableWidget w(content);
+        w.setFrameValues(1, 2, 2, 5);
+        w.scrollTo(NcursesUi::ScrollDirection::Right, 3);
+        assertEq(3, w.getScrollX());
+        w.draw(th.screen());
+        assertEq("defgh", th.screen().readText(1, 2, 5));
+    }
+    contentClipping() {
+        NcursesUi::TestHarness th(8, 30);
+        on_exit th.close();
+        th.screen().drawText(1, 0, strmul(".", 30));
+        NcursesUi::LineListContent content();
+        content.setLines(("abcdefghij",));
+        NcursesUi::ScrollableWidget w(content);
+        w.setFrameValues(1, 2, 2, 5);
+        w.draw(th.screen());
+        assertEq(".....", th.screen().readText(1, 7, 5));
+    }
+    shrinkingExtent() {
+        NcursesUi::LineListContent content();
+        content.setLines(("abcdefghij", "xyz"));
+        content.setLine(0, "a");
+        assertEq(3, content.totalCols());
+    }
+
+    sourceMapping() {
+        NcursesUi::LineListContent c();
+        c.setWordWrap(True);
+        c.setLines(("\x1b[31malpha  beta gamma\x1b[0m", ""));
+        c.prepareViewport(10);
+        assertEq(3, c.totalRows());
+        assertEq(<Ncurses::Position>{"y": 0, "x": 6}, c.sourceToVisual(0, 6));
+        assertEq(<Ncurses::Position>{"y": 1, "x": 0}, c.sourceToVisual(0, 7));
+        assertEq(<Ncurses::Position>{"y": 1, "x": 4}, c.sourceToVisual(0, 11));
+        assertEq(<Ncurses::Position>{"y": 0, "x": 11}, c.visualToSource(1, 4));
+        assertEq(<Ncurses::Position>{"y": 2, "x": 0}, c.sourceToVisual(1, 0));
+        assertEq(-1, c.sourceToVisual(-1, 0).y);
+        assertEq(-1, c.sourceToVisual(2, 0).y);
+        assertEq(0, c.sourceToVisual(0, -10).x);
+        c.clear();
+        assertEq(<Ncurses::Position>{"y": 0, "x": 0}, c.visualToSource(99, 99));
+    }
+
+    unicodeMapping() {
+        NcursesUi::LineListContent c();
+        c.setWordWrap(True);
+        c.setLines(("界é界x", "👨‍👩‍👧‍👦z", "🇨🇿z"));
+        c.prepareViewport(4);
+        assertEq(<Ncurses::Position>{"y": 0, "x": 2}, c.sourceToVisual(0, 2));
+        assertEq(<Ncurses::Position>{"y": 1, "x": 0}, c.sourceToVisual(0, 3));
+        assertEq(<Ncurses::Position>{"y": 1, "x": 2}, c.sourceToVisual(0, 4));
+        assertEq(<Ncurses::Position>{"y": 0, "x": 0}, c.visualToSource(0, 1));
+        assertEq(<Ncurses::Position>{"y": 0, "x": 3}, c.visualToSource(1, 1));
+        assertEq(0, c.sourceToVisual(1, 1).x);
+        assertEq(0, c.sourceToVisual(2, 1).x);
+    }
+
+    bottomEdge() {
+        NcursesUi::TestHarness th(3, 10);
+        on_exit th.close();
+        NcursesUi::LineListContent c();
+        c.setWordWrap(True);
+        c.setLines(("01234567890123456789",));
+        NcursesUi::ScrollableWidget w(c);
+        w.setShowScrollbar(False);
+        w.setFrameValues(1, 0, 2, 10);
+        w.setCursorLine(0, 20);
+        w.draw(th.screen());
+        th.session().doupdate();
+        assertEq(1, w.getScrollY());
+        assertEq(<Ncurses::Position>{"y": 2, "x": 0}, th.screen().cursor());
+        assertEq("0123456789", th.screen().readText(1, 0, 10));
+        w.setCursorLine(0, 19);
+        w.draw(th.screen());
+        th.session().doupdate();
+        assertEq(<Ncurses::Position>{"y": 2, "x": 9}, th.screen().cursor());
+    }
+
+    tallPrompt() {
+        NcursesUi::TestHarness th(5, 20);
+        on_exit th.close();
+        NcursesUi::LineListContent c();
+        c.setWordWrap(True);
+        c.setLines((strmul("a", 35),));
+        NcursesUi::ScrollableWidget w(c);
+        w.setShowScrollbar(False);
+        w.setFrameValues(1, 2, 2, 10);
+        w.setCursorLine(0, 35);
+        w.draw(th.screen());
+        th.session().doupdate();
+        assertEq(2, w.getScrollY());
+        assertEq(<Ncurses::Position>{"y": 2, "x": 7}, th.screen().cursor());
+        w.scrollTo(NcursesUi::ScrollDirection::Home);
+        w.draw(th.screen());
+        assertEq(0, w.getScrollY(), "manual scroll must not snap back to the editing caret");
+        w.setCursorLine(0, 0);
+        w.draw(th.screen());
+        th.session().doupdate();
+        assertEq(<Ncurses::Position>{"y": 1, "x": 2}, th.screen().cursor());
+    }
+
+    horizontalCaret() {
+        NcursesUi::TestHarness th(4, 20);
+        on_exit th.close();
+        NcursesUi::LineListContent c();
+        c.setLines(("界abcdef",));
+        NcursesUi::ScrollableWidget w(c);
+        w.setFrameValues(1, 2, 1, 5);
+        w.setCursorLine(0, 7);
+        w.draw(th.screen());
+        th.session().doupdate();
+        assertEq(4, w.getScrollX());
+        assertEq(<Ncurses::Position>{"y": 1, "x": 6}, th.screen().cursor());
+        assertEq("cdef ", th.screen().readText(1, 2, 5));
+    }
+
+    styledClipping() {
+        NcursesUi::TestHarness th(5, 12);
+        on_exit th.close();
+        NcursesUi::LineListContent c();
+        c.setLines(("\x1b[31mA界\x1b[32méB\x1b[0m",));
+        th.screen().drawText(0, 0, strmul(".", 12));
+        c.drawContent(th.screen(), 0, 2, 1, 3, 0, 2);
+        assertEq(" éB", th.screen().readText(0, 2, 5));
+        assertEq("...", th.screen().readText(0, 5, 3));
+        c.drawContent(th.screen(), 0, 0, 1, 2, 1, 0);
+        assertEq("A ", th.screen().readText(1, 0, 2));
+        c.setLines(("界界",));
+        c.drawContent(th.screen(), 0, 0, 1, 4, 2, 8);
+        assertEq("界界", th.screen().readText(2, 8, 6));
+        c.setLines(("e\x1b[31ḿx",));
+        c.drawContent(th.screen(), 0, 0, 1, 2, 3, 0);
+        assertEq("éx", th.screen().readText(3, 0, 4));
+        c.setLines(("👨‍👩‍👧‍👦x",));
+        int width = char_width("👨‍👩‍👧‍👦");
+        c.drawContent(th.screen(), 0, 0, 1, width - 1, 4, 0);
+        assertEq(strmul(" ", width - 1), th.screen().readText(4, 0, width - 1));
+    }
+
+    invalidGeometry() {
+        NcursesUi::TestHarness th(4, 12);
+        on_exit th.close();
+        NcursesUi::LineListContent c();
+        c.setLines(("abcdefghij", "klmnopqrst"));
+        th.screen().drawText(0, 0, "............");
+        c.drawContent(th.screen(), 0, 0, 1, 0, 0, 0);
+        c.drawContent(th.screen(), 0, 0, 1, -1, 0, 0);
+        c.drawContent(th.screen(), 0, 0, -1, 5, 0, 0);
+        assertEq("............", th.screen().readText(0, 0, 12));
+        c.drawContent(th.screen(), 0, 0, 2, 5, -1, -2);
+        assertEq("mno...", th.screen().readText(0, 0, 6));
+        NcursesUi::ScrollableWidget w(c);
+        w.setFrameValues(0, 0, 0, 0);
+        w.setCursorLine(0, 100);
+        w.draw(th.screen());
+        assertEq("mno...", th.screen().readText(0, 0, 6));
+    }
+
+    editedExtents() {
+        NcursesUi::TestHarness th(5, 20);
+        on_exit th.close();
+        NcursesUi::LineListContent c();
+        c.setLines(("abcdefghijkl", "second", "third"));
+        NcursesUi::ScrollableWidget w(c);
+        w.setFrameValues(1, 1, 2, 5);
+        w.scrollTo(NcursesUi::ScrollDirection::Right, 100);
+        w.scrollTo(NcursesUi::ScrollDirection::End);
+        c.setLines(("one",));
+        w.draw(th.screen());
+        assertEq(0, w.getScrollX());
+        assertEq(0, w.getScrollY());
+        assertEq("one  ", th.screen().readText(1, 1, 5));
+        c.removeLine(0);
+        assertEq(0, c.totalCols());
+        w.draw(th.screen());
+        assertEq("     ", th.screen().readText(1, 1, 5));
+    }
+
+    resizeAnchor() {
+        NcursesUi::TestHarness th(8, 30);
+        on_exit th.close();
+        NcursesUi::LineListContent c();
+        c.setWordWrap(True);
+        c.setLines(("abcdefghijklmnopqrstuvwxyz0123456789",));
+        NcursesUi::ScrollableWidget w(c);
+        w.setShowScrollbar(False);
+        w.setFrameValues(0, 0, 2, 10);
+        w.setScrollY(1);
+        w.setFrameValues(0, 0, 2, 5);
+        w.draw(th.screen());
+        assertEq(2, w.getScrollY());
+        assertEq("klmno", th.screen().readText(0, 0, 5));
+    }
+
+    scrollbarGeometry() {
+        NcursesUi::TestHarness th(5, 20);
+        on_exit th.close();
+        NcursesUi::LineListContent c();
+        c.setWordWrap(True);
+        c.setLines((strmul("a", 25),));
+        NcursesUi::ScrollableWidget w(c);
+        w.setFrameValues(0, 0, 2, 10);
+        w.scrollTo(NcursesUi::ScrollDirection::End);
+        w.draw(th.screen());
+        assertEq(3, c.totalRows());
+        assertEq(1, w.getScrollY());
+        assertEq("aaaaaaa  ", th.screen().readText(1, 0, 9));
+        w.draw(th.screen());
+        assertEq("aaaaaaa  ", th.screen().readText(1, 0, 9));
+        w.setShowScrollbar(False);
+        w.draw(th.screen());
+        assertEq(0, w.getScrollY(), "preserve source anchor when the scrollbar width is released");
+        assertEq("aaaaaaaaaa", th.screen().readText(1, 0, 10));
+        w.scrollTo(NcursesUi::ScrollDirection::End);
+        w.draw(th.screen());
+        assertEq("aaaaa     ", th.screen().readText(1, 0, 10));
+    }
+
+    cursorOwnership() {
+        NcursesUi::TestHarness th(5, 20);
+        on_exit th.close();
+        Ncurses::Window w = th.screen();
+        int first = w.claimCursor(1, 2);
+        int second = w.claimCursor(2, 3);
+        assertTrue(first > 0 && second > first);
+        assertFalse(w.releaseCursor(first));
+        assertEq(0, w.claimCursor(-1, 2));
+        assertEq(0, w.claimCursor(5, 2));
+        assertEq(0, w.claimCursor(1, 20));
+        assertEq(0, w.claimCursor(1, 0x100000000));
+        w.restoreCursor({"y": 0x100000000, "x": 1});
+        w.moveCursor(-1, -1);
+        assertTrue(w.releaseCursor(second), "invalid coordinates must not replace the active request");
+        assertFalse(w.releaseCursor(second));
+        int request = w.claimCursor(1, 2);
+        w.moveCursor(2, 3);
+        assertFalse(w.releaseCursor(request));
+        request = w.claimCursor(1, 2);
+        w.restoreCursor({"y": 2, "x": 3});
+        assertFalse(w.releaseCursor(request));
+        w.setLeaveOk(True);
+        assertEq(0, w.claimCursor(1, 2));
+        w.setLeaveOk(False);
+        Ncurses::Window other(th.session(), 2, 5, 0, 0);
+        request = other.claimCursor(1, 1);
+        assertFalse(w.releaseCursor(request));
+        assertTrue(other.releaseCursor(request));
+        assertFalse(w.releaseCursor(0));
+        assertFalse(w.releaseCursor(-1));
+        request = w.claimCursor(1, 2);
+        th.close();
+        assertFalse(w.releaseCursor(request), "release after session closure must be safe");
+    }
+
+    cursorRelease() {
+        NcursesUi::TestHarness th(5, 20);
+        on_exit th.close();
+        NcursesUi::LineListContent c();
+        c.setLines(("first", "second", "third"));
+        NcursesUi::ScrollableWidget w(c);
+        w.setFrameValues(0, 0, 1, 10);
+        w.setCursorLine(0, 3);
+        w.draw(th.screen());
+        w.clearCursorLine();
+        th.screen().drawText(4, 0, "x");
+        th.session().doupdate();
+        assertEq(<Ncurses::Position>{"y": 4, "x": 1}, th.screen().cursor());
+        w.setCursorLine(0, 3);
+        w.draw(th.screen());
+        int other = th.screen().claimCursor(4, 5);
+        w.clearCursorLine();
+        assertTrue(th.screen().releaseCursor(other), "clearing old widget ownership preserves a newer request");
+        w.setCursorLine(0, 3);
+        w.draw(th.screen());
+        w.scrollTo(NcursesUi::ScrollDirection::End);
+        w.draw(th.screen());
+        th.screen().drawText(4, 0, "x");
+        th.session().doupdate();
+        assertEq(<Ncurses::Position>{"y": 4, "x": 1}, th.screen().cursor());
+        w.setCursorLine(2, 2);
+        w.draw(th.screen());
+        w.setContent(NOTHING);
+        th.screen().drawText(4, 0, "x");
+        th.session().doupdate();
+        assertEq(<Ncurses::Position>{"y": 4, "x": 1}, th.screen().cursor());
+    }
+
+    windowClipping() {
+        NcursesUi::TestHarness th(6, 4);
+        on_exit th.close();
+        Ncurses::Window w = th.screen();
+        w.drawTextClipped(0, 0, "界界x");
+        assertEq("界界", w.readText(0, 0, 6));
+        w.drawTextClipped(1, -1, "界ab");
+        assertEq(" ab ", w.readText(1, 0, 4));
+        w.drawTextClipped(2, 3, "界x");
+        assertEq("    ", w.readText(2, 0, 4));
+        w.drawTextClipped(3, 3, "éx");
+        assertEq("é", w.readText(3, 3, 3));
+        w.drawTextClipped(4, -20, "text");
+        w.drawTextClipped(-1, 0, "bad");
+        w.drawTextClipped(6, 0, "bad");
+        w.drawTextClipped(4, 4, "bad");
+        assertEq("    ", w.readText(4, 0, 4));
+        w.drawTextClipped(5, 1, "👨‍👩‍👧‍👦x");
+        assertEq("    ", w.readText(5, 0, 4));
+        w.drawTextClipped(5, 0, "");
+    }
+}

@@ -7,6 +7,7 @@
 #include <qore/QoreSandboxManager.h>
 
 #include <atomic>
+#include <limits>
 #include <map>
 #include <new>
 #include <utility>
@@ -129,6 +130,13 @@ public:
     int cursor_y = 0;
     int cursor_x = 0;
     bool cursor_set = false;
+    // Cursor requests are serialized by NcursesCallGuard. A stale widget must
+    // not release a newer cursor request from another widget on the same window.
+    int64 cursor_request = 0;
+    int64 nextCursorRequest() {
+        cursor_request = cursor_request == std::numeric_limits<int64>::max() ? 1 : cursor_request + 1;
+        return cursor_request;
+    }
     std::vector<MEVENT> injected_mouse;
 
     FILE* in_file = nullptr;

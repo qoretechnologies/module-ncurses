@@ -6,6 +6,7 @@ default:
     - k8s
     - amd64
   before_script:
+    - . test/docker_test/tree-tested-skip.sh
     - |
         curl "https://api.github.com/repos/qoretechnologies/${REPO_NAME}/statuses/${CI_COMMIT_SHA}" \
         -X POST --oauth2-bearer ${GITHUB_ACCESS_TOKEN} -H "Content-Type: application/json" \
@@ -15,8 +16,25 @@ default:
 variables:
   REPO_NAME: module-ncurses
 
+# Reuse successful tests only for a push to develop with an identical Git tree.
+# Missing/incomplete API evidence retains both full platform jobs.
+tree-already-tested:
+  stage: .pre
+  image: $CI_REGISTRY/infrastructure/qore-test-base/qore-test-base:develop
+  before_script: []
+  variables:
+    GIT_DEPTH: "3"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "push" && $QORE_CI_FORCE_FULL != "1"'
+  script:
+    - python3 test/docker_test/tree-already-tested.py
+  artifacts:
+    reports:
+      dotenv: tree-tested.env
+
 test-ubuntu:
   stage: test
+  needs: [{job: tree-already-tested, optional: true}]
   image: $CI_REGISTRY/infrastructure/qore-test-base/qore-test-base:develop
   script:
     - |
@@ -34,6 +52,7 @@ test-ubuntu:
 
 test-alpine:
   stage: test
+  needs: [{job: tree-already-tested, optional: true}]
   image: $CI_REGISTRY/infrastructure/qore-test-base/qore-test-base:develop-alpine
   script:
     - |

@@ -22,10 +22,25 @@
 */
 
 public namespace NcursesUi {
+/** A rendered row with its position in the original, ANSI-free logical line.
+    @since ncurses 1.0
+*/
+public hashdecl WrappedTextRow {
+    #! logical line index
+    int line_idx;
+    #! first source character in this row
+    int start;
+    #! one past the last source character in this row
+    int end;
+    #! styled row text
+    string text;
+}
+
 /** ScrollableContent backed by a list of strings.
 
     Supports ANSI color codes in the text. Uses
-    @ref Qore::Ncurses::Window::drawAnsiText() "drawAnsiText()" for rendering.
+    @ref NcursesUi::TerminalText::drawAnsiSlice() "drawAnsiSlice()" to preserve
+    styling and clip complete graphemes to the content rectangle.
 
     Word-wrap can be enabled via @ref setWordWrap(). When enabled, lines
     longer than the visible width are wrapped at word boundaries. The scroll
@@ -43,10 +58,12 @@ public class LineListContent inherits NcursesUi::ScrollableContent {
         bool word_wrap = False;
         #! last known visible width for wrap calculations
         int last_wrap_width = 0;
-        #! cached display rows (list of {line_idx, text} for each display row)
-        list<hash<auto>> display_rows = ();
+        #! cached display rows and source spans
+        list<hash<NcursesUi::WrappedTextRow>> display_rows = ();
         #! whether display_rows cache is valid
         bool display_cache_valid = False;
+        #! Keep both full-width and scrollbar-width layouts until content changes.
+        hash<string, list<hash<NcursesUi::WrappedTextRow>>> display_caches = {};
     }
 
     /** Returns the total number of display rows (accounts for wrapping).
@@ -74,7 +91,7 @@ public class LineListContent inherits NcursesUi::ScrollableContent {
     nothing setWordWrap(bool enabled) {
         if (word_wrap != enabled) {
             word_wrap = enabled;
-            display_cache_valid = False;
+            invalidateDisplayCache();
         }
     }
 
@@ -114,7 +131,7 @@ public class LineListContent inherits NcursesUi::ScrollableContent {
     nothing setLines(list<string> l) {
         lines = l;
         recalcWidth();
-        display_cache_valid = False;
+        invalidateDisplayCache();
     }
 
     /** Returns all lines.
@@ -134,7 +151,7 @@ public class LineListContent inherits NcursesUi::ScrollableContent {
         if (w > max_width) {
             max_width = w;
         }
-        display_cache_valid = False;
+        invalidateDisplayCache();
     }
 
     /** Clears all lines.
@@ -144,7 +161,7 @@ public class LineListContent inherits NcursesUi::ScrollableContent {
         lines = ();
         max_width = 0;
         display_rows = ();
-        display_cache_valid = False;
+        invalidateDisplayCache();
     }
 
     /** Returns the number of logical lines.
@@ -161,12 +178,15 @@ public class LineListContent inherits NcursesUi::ScrollableContent {
     */
     nothing setLine(int idx, string text) {
         if (idx >= 0 && idx < lines.size()) {
+            int old_width = Ncurses::Ansi::len(lines[idx]);
             lines[idx] = text;
             int w = Ncurses::Ansi::len(text);
             if (w > max_width) {
                 max_width = w;
+            } else if (old_width == max_width && w < old_width) {
+                recalcWidth();
             }
-            display_cache_valid = False;
+            invalidateDisplayCache();
         }
     }
 
@@ -178,7 +198,7 @@ public class LineListContent inherits NcursesUi::ScrollableContent {
         if (idx >= 0 && idx < lines.size()) {
             splice lines, idx, 1;
             recalcWidth();
-            display_cache_valid = False;
+            invalidateDisplayCache();
         }
     }
 
@@ -200,76 +220,157 @@ public class LineListContent inherits NcursesUi::ScrollableContent {
         if (w > max_width) {
             max_width = w;
         }
-        display_cache_valid = False;
+        invalidateDisplayCache();
     }
 
-    /** Draws the visible portion of the lines.
-        @param w the window to draw into
-        @param scrollY vertical scroll offset
-        @param scrollX horizontal scroll offset (unused for now)
-        @param visibleRows number of visible rows
-        @param visibleCols number of visible columns
-        @param startY the window row to start drawing at
-        @param startX the window column to start drawing at
+    /** Establishes the wrap width before scrolling or measuring content.
+        @param cols available display columns
+        @since ncurses 1.0
+    */
+    nothing prepareViewport(int cols) {
+        cols = max(0, cols);
+        if (last_wrap_width != cols) {
+            last_wrap_width = cols;
+            display_cache_valid = False;
+        }
+        rebuildDisplayCache(cols);
+    }
+
+    /** Maps an ANSI-free source character offset to a wrapped display position.
+        Positions inside a grapheme snap to its start. Whitespace consumed at a
+        word break maps to the end of the preceding row. The insertion position
+        after an exactly full last row is the start of the following row.
+        @param line logical line index
+        @param offset character offset, excluding ANSI escape sequences
+        @return display row and terminal column; an invalid line has row -1
+        @since ncurses 1.0
+    */
+    hash<Ncurses::Position> sourceToVisual(int line, int offset) {
+        if (line < 0 || line >= lines.size()) {
+            return <Ncurses::Position>{"y": -1, "x": 0};
+        }
+        rebuildDisplayCache(last_wrap_width);
+        string plain = NcursesUi::TerminalText::plainAnsi(lines[line]);
+        offset = max(0, min(offset, plain.length()));
+        int row = displayRowForLine(line);
+        while (row + 1 < display_rows.size() && display_rows[row + 1].line_idx == line
+                && display_rows[row + 1].start <= offset) {
+            ++row;
+        }
+        hash<NcursesUi::WrappedTextRow> entry = display_rows[row];
+        string row_text = plain.substr(entry.start, max(0, min(offset, entry.end) - entry.start));
+        # Count only complete source graphemes, never a partial combining/emoji sequence.
+        int used = 0;
+        int chars = 0;
+        foreach string cluster in ((plain.substr(entry.start, entry.end - entry.start) =~ x/(\X)/g) ?? ()) {
+            if (chars + cluster.length() > row_text.length()) {
+                break;
+            }
+            chars += cluster.length();
+            used += char_width(cluster);
+        }
+        if (word_wrap && last_wrap_width > 0 && used >= last_wrap_width
+                && offset == plain.length()) {
+            return <Ncurses::Position>{"y": row + 1, "x": 0};
+        }
+        return <Ncurses::Position>{"y": row, "x": used};
+    }
+
+    /** Maps a display cell to the start of its source grapheme.
+        @param row display row, clamped to existing rows
+        @param col display column, clamped to the row's text
+        @return logical line in @c y and ANSI-free character offset in @c x
+        @since ncurses 1.0
+    */
+    hash<Ncurses::Position> visualToSource(int row, int col) {
+        rebuildDisplayCache(last_wrap_width);
+        if (!display_rows) {
+            return <Ncurses::Position>{"y": 0, "x": 0};
+        }
+        hash<NcursesUi::WrappedTextRow> entry = display_rows[max(0, min(row, display_rows.size() - 1))];
+        string text = NcursesUi::TerminalText::plainAnsi(entry.text);
+        int offset = entry.start;
+        int used = 0;
+        foreach string cluster in ((text =~ x/(\X)/g) ?? ()) {
+            int width = char_width(cluster);
+            if (used + width > max(0, col)) {
+                break;
+            }
+            used += width;
+            offset += cluster.length();
+        }
+        return <Ncurses::Position>{"y": entry.line_idx, "x": offset};
+    }
+
+    /** Draws a horizontal and vertical slice, clipped to the requested rectangle.
+        @param w target window
+        @param scrollY first display row
+        @param scrollX first display column (zero for wrapped content)
+        @param visibleRows viewport height
+        @param visibleCols viewport width
+        @param startY window row of the viewport
+        @param startX window column of the viewport
         @since ncurses 1.0
     */
     nothing drawContent(Ncurses::Window w, int scrollY, int scrollX,
             int visibleRows, int visibleCols, int startY, int startX) {
-        if (word_wrap && visibleCols > 0) {
-            drawContentWrapped(w, scrollY, visibleRows, visibleCols, startY, startX);
+        prepareViewport(visibleCols);
+        if (visibleRows <= 0 || visibleCols <= 0) {
             return;
         }
-        for (int i = 0; i < visibleRows; ++i) {
-            int idx = scrollY + i;
-            int row = startY + i;
-            if (idx >= 0 && idx < lines.size()) {
-                string line = lines[idx];
-                w.drawHLine(row, startX, visibleCols, " ");
-                w.drawAnsiText(row, startX, line);
-            } else {
-                w.drawHLine(row, startX, visibleCols, " ");
-            }
+        hash<Ncurses::Size> size = w.size();
+        int x = max(0, startX);
+        int cols = min(startX + visibleCols, size.cols) - x;
+        if (cols <= 0) {
+            return;
         }
-    }
-
-    #! Draws content with word-wrap
-    private nothing drawContentWrapped(Ncurses::Window w, int scrollY,
-            int visibleRows, int visibleCols, int startY, int startX) {
-        # Rebuild display cache if width changed or cache is invalid
-        if (last_wrap_width != visibleCols) {
-            last_wrap_width = visibleCols;
-            display_cache_valid = False;
-        }
-        rebuildDisplayCache(visibleCols);
-
-        for (int i = 0; i < visibleRows; ++i) {
-            int idx = scrollY + i;
-            int row = startY + i;
-            w.drawHLine(row, startX, visibleCols, " ");
+        int offset = (word_wrap ? 0 : max(0, scrollX)) + x - startX;
+        for (int row = max(0, startY); row < min(startY + visibleRows, size.rows); ++row) {
+            int idx = scrollY + row - startY;
+            w.drawHLine(row, x, cols, " ");
             if (idx >= 0 && idx < display_rows.size()) {
-                w.drawAnsiText(row, startX, display_rows[idx].text);
+                NcursesUi::TerminalText::drawAnsiSlice(w, row, x, display_rows[idx].text, offset, cols);
             }
         }
     }
 
-    #! Rebuilds the display row cache by wrapping lines to the given width
+    #! Wrapping retains exact source spans, including the gaps consumed at word breaks.
     private nothing rebuildDisplayCache(int width) {
         if (display_cache_valid) {
             return;
         }
-        display_rows = ();
+        string key = sprintf("%d", width);
+        if (exists display_caches{key}) {
+            display_rows = display_caches{key};
+            display_cache_valid = True;
+            return;
+        }
+        list<hash<NcursesUi::WrappedTextRow>> rows = ();
         for (int i = 0; i < lines.size(); ++i) {
-            string line = lines[i];
-            if (Ncurses::Ansi::len(line) <= width) {
-                display_rows += {"line_idx": i, "text": line};
-            } else {
-                list<string> wrapped = Ncurses::Ansi::wrap(line, width);
-                foreach string wline in (wrapped) {
-                    display_rows += {"line_idx": i, "text": wline};
-                }
+            string source = NcursesUi::TerminalText::plainAnsi(lines[i]);
+            list<string> wrapped = word_wrap && width > 0 && Ncurses::Ansi::len(lines[i]) > width
+                ? Ncurses::Ansi::wrap(lines[i], width) : (lines[i],);
+            int offset = 0;
+            foreach string text in (wrapped) {
+                string plain = NcursesUi::TerminalText::plainAnsi(text);
+                int start = source.find(plain, offset);
+                @assert(start >= offset);
+                offset = start + plain.length();
+                rows += <NcursesUi::WrappedTextRow>{"line_idx": i, "start": start, "end": offset, "text": text};
             }
         }
+        # Bound the cache to the two widths used to resolve scrollbar geometry.
+        if (display_caches.size() >= 2) {
+            display_caches = {};
+        }
+        display_caches{key} = rows;
+        display_rows = rows;
         display_cache_valid = True;
+    }
+
+    private nothing invalidateDisplayCache() {
+        display_cache_valid = False;
+        display_caches = {};
     }
 
     private nothing recalcWidth() {

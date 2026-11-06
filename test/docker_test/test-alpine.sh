@@ -25,6 +25,8 @@ echo "export QORE_GID=1000" >> ${ENV_FILE}
 
 export MAKE_JOBS=4
 
+python3 "${MODULE_SRC_DIR}/test/test_tree_tested.py"
+
 # build module and install
 echo && echo "-- building module --"
 mkdir -p ${MODULE_SRC_DIR}/build
@@ -52,7 +54,7 @@ FAILED=0
 ${MODULE_SRC_DIR}/test/docker_test/check-loaded-modules.sh ${MODULE_SRC_DIR}/build gosu qore:qore
 
 for test in test/*.qtest; do
-    if ! gosu qore:qore qore $test -vv; then
+    if ! gosu qore:qore qore --enable-debug $test -vv; then
         echo "FAILED: $test"
         FAILED=1
     fi
