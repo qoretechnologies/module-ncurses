@@ -276,7 +276,7 @@ public class Widget {
         if (!visible) {
             return False;
         }
-        return NcursesUi::Geometry::rectContains(frame, py, px);
+        return NcursesUi::Geometry::rectContains(visibleRect(), py, px);
     }
 
     # ---- State ----

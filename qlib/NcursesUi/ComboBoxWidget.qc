@@ -249,7 +249,7 @@ public class ComboBoxWidget inherits NcursesUi::Widget {
             string name = ev.name ?? "";
             if (dropdown_open && (name == "KEY_HOME" || name == "KEY_END"
                     || name == "KEY_PPAGE" || name == "KEY_NPAGE")) {
-                int page = max(1, drawableRect().rows - 1);
+                int page = max(1, min(max_dropdown_items, drawableRect().rows - 1));
                 if (name == "KEY_HOME") { highlight_index = 0; }
                 else if (name == "KEY_END") { highlight_index = filtered_options.size() - 1; }
                 else { highlight_index += name == "KEY_PPAGE" ? -page : page; }

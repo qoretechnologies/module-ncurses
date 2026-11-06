@@ -10,6 +10,7 @@
 
 class TableTest inherits Test {
     constructor() : Test("TableTest", "1.0", \ARGV) {
+        addTestCase("empty row identities and resized column navigation", \reviewSelection());
         addTestCase("numeric and stable typed ordering", \numeric());
         addTestCase("null, text, date and custom ordering", \types());
         addTestCase("selected identity survives sort and refresh", \identity());
@@ -34,6 +35,19 @@ class TableTest inherits Test {
     private hash<Ncurses::InputEvent> mouseEvent(int y, int x, int buttons = Ncurses::BUTTON1_CLICKED) {
         return <Ncurses::InputEvent>{"type": Ncurses::InputType::Mouse,
             "mouse": <Ncurses::MouseEvent>{"y": y, "x": x, "button_state": buttons}};
+    }
+    reviewSelection() {
+        NcursesUi::TableWidget t = table(); t.setRows(({}, {"v": 1}));
+        int count = 0; t.setOnActivate(sub (hash<auto> row) { assertEq({}, row); ++count; });
+        t.setOnAction(sub (string action, hash<auto> row) { assertEq({}, row); ++count; });
+        t.processEvent(key("KEY_ENTER")); assertTrue(t.activateAction("inspect")); assertEq(2, count);
+        t.setSortColumn("v", False); assertEq({}, t.getSelectedRowData()); assertEq(1, t.getSelectedRow());
+        t.setOnActivate(NOTHING); t.setOnAction(NOTHING);
+        NcursesUi::TestHarness th(12, 30); on_exit th.close();
+        t.setFrameValues(1, 1, 3, 20); t.setColumns(({"key": "a", "width": 8}, {"key": "b", "width": 8}));
+        t.setRows(({"a": "AAAAAAAA", "b": "BBBBBBBB"},)); t.setSelectedColumn(1); t.draw(th.screen());
+        t.setFrameValues(1, 1, 3, 4); t.draw(th.screen());
+        assertEq("BBBB", th.screen().readText(2, 1, 4));
     }
     numeric() {
         NcursesUi::TableWidget t = table();

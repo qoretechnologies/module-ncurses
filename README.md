@@ -203,7 +203,9 @@ absolute screen coordinates, including inside panels. Custom drawing uses
 `drawContentRect(window)` to convert to the target window. `drawTree()` clips
 overflow to ancestor content and terminal bounds. Zero-area widgets do not draw.
 
-Panels resize transactionally and keep child positions relative to a moved panel.
+Panels retain logical geometry and open intent separately from their clipped
+native windows, recreate those windows after regrowth, and keep child positions
+relative to a moved panel. Failed native replacement preserves the old resources.
 Active dialogs and popups reflow on resize. Tiny dialogs show the focused action;
 Tab reaches every action, and Up/Down or PageUp/PageDown scroll the message. On a one-row dialog these keys temporarily show the message;
 Tab returns to the action labels.

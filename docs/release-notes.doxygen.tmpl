@@ -42,4 +42,9 @@
     Radio groups, menus and combo boxes keep active choices visible using actual
     drawable rows, support page/home/end and mouse navigation, and clear obsolete
     rows. Disabled-only menus no longer risk an unbounded navigation loop.
+    Nested panels retain logical geometry and open intent independently of clipped
+    native resources, including full clipping and later regrowth. Hit testing
+    follows ancestor clipping; left-clipped lists, checkboxes, menus and status
+    bars render their visible suffixes. Table column selection stays visible after
+    resize, and empty row hashes remain valid selections for actions and activation.
 */

@@ -234,9 +234,9 @@ public class ListWidget inherits NcursesUi::Widget {
                 } else {
                     style = is_selected ? selected_style : normal_style;
                 }
-                w.drawText(row, cr.x, text, style);
+                w.drawTextClipped(row, cr.x, text, style);
             } else {
-                w.drawHLine(row, cr.x, visible_cols, " ");
+                TerminalText::clearSpan(w, row, cr.x, visible_cols);
             }
         }
 
@@ -414,7 +414,7 @@ public class ListWidget inherits NcursesUi::Widget {
         hash<auto> thumb_style = {"fg": Ncurses::Color::Cyan,
             "attrs": Ncurses::Attr::Reverse};
         for (int i = 0; i < thumb_size; ++i) {
-            w.drawText(bar_y + thumb_pos + i, bar_x, " ", thumb_style);
+            w.drawTextClipped(bar_y + thumb_pos + i, bar_x, " ", thumb_style);
         }
     }
 }

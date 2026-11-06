@@ -105,7 +105,7 @@ public class StatusBarWidget inherits NcursesUi::Widget {
         int width = cr.cols;
 
         # fill background
-        w.drawHLine(row, cr.x, width, " ", bg_style);
+        TerminalText::clearSpan(w, row, cr.x, width, bg_style);
 
         # separate left and right segments
         list<hash<auto>> left_segs = ();
@@ -133,7 +133,7 @@ public class StatusBarWidget inherits NcursesUi::Widget {
                 }
             }
             hash<auto> style = left_segs[li].style ?? bg_style;
-            w.drawText(row, left_pos, text, style);
+            w.drawTextClipped(row, left_pos, text, style);
             left_pos += text_width;
             # add spacing after each segment except the last
             if (li < left_segs.size() - 1) {
@@ -162,7 +162,7 @@ public class StatusBarWidget inherits NcursesUi::Widget {
                 }
             }
             hash<auto> style = right_segs[i].style ?? bg_style;
-            w.drawText(row, start, text, style);
+            w.drawTextClipped(row, start, text, style);
             right_pos = start;
         }
     }

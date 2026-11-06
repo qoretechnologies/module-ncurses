@@ -176,6 +176,16 @@ public class TerminalText {
         return out + strmul(" ", width - used);
     }
 
+    /** Clears a span clipped to the window, including a negative logical origin.
+        @param w target window @param y local row @param x logical start column
+        @param width logical span width @param style optional background style
+    */
+    static nothing clearSpan(Ncurses::Window w, int y, int x, int width, *hash<auto> style) {
+        hash<Ncurses::Size> size = w.size();
+        int begin = max(0, x); int end = min(size.cols, x + width);
+        if (y >= 0 && y < size.rows && end > begin) { w.drawHLine(y, begin, end - begin, " ", style); }
+    }
+
     /** Removes ANSI styling without changing source character offsets.
         @param text styled text
         @return text with SGR sequences removed

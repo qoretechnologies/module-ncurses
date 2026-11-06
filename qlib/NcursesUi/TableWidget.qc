@@ -150,7 +150,7 @@ public class TableWidget inherits NcursesUi::Widget {
     */
     bool activateAction(string id) {
         *hash<auto> row = getSelectedRowData();
-        if (!row || !on_action) { return False; }
+        if (!(exists row) || !on_action) { return False; }
         on_action(id, row); return True;
     }
     /** Sets a value comparator for sorting; NOTHING restores typed comparison.
@@ -198,12 +198,7 @@ public class TableWidget inherits NcursesUi::Widget {
     nothing setSelectedColumn(int index) {
         checkUpdate();
         selected_column = max(0, min(index, columns.size() - 1));
-        computeColumnWidths(); int left = 0;
-        for (int i = 0; i < selected_column; ++i) { left += col_widths[i]; }
-        int width = viewRect().cols;
-        int right = left + (col_widths ? col_widths[selected_column] : 0);
-        if (left < scroll_x || right - left > width) { scroll_x = left; }
-        else if (right > scroll_x + width) { scroll_x = max(left, right - width); }
+        computeColumnWidths(); revealColumn();
         markDirty();
     }
     /** Draws clipped cells and keeps the current selection visible after resize.
@@ -213,7 +208,7 @@ public class TableWidget inherits NcursesUi::Widget {
         hash<Ncurses::Position> origin = w.position(); hash<Ncurses::Size> size = w.size();
         draw_bounds = NcursesUi::Geometry::makeRect(origin.y, origin.x, size.rows, size.cols);
         hash<NcursesUi::Rect> cr = viewRect(); cr.y -= origin.y; cr.x -= origin.x;
-        computeColumnWidths(); ensureVisible();
+        computeColumnWidths(); revealColumn(); ensureVisible();
         if (cr.rows <= 0 || cr.cols <= 0) { return; }
         int y = cr.y;
         if (show_header && columns) { drawRow(w, y++, cr.x, cr.cols, NOTHING, header_style); }
@@ -265,7 +260,7 @@ public class TableWidget inherits NcursesUi::Widget {
     }
     private hash<NcursesUi::EventResult> activateSelected() {
         *hash<auto> row = getSelectedRowData();
-        if (row && on_activate) { on_activate(row); }
+        if (exists row && on_activate) { on_activate(row); }
         return <NcursesUi::EventResult>{"handled": True, "action": "activate"};
     }
     private hash<NcursesUi::Rect> viewRect() {
@@ -280,6 +275,14 @@ public class TableWidget inherits NcursesUi::Widget {
             if (selected_row < scroll_offset) { scroll_offset = selected_row; }
             else if (selected_row >= scroll_offset + visible) { scroll_offset = selected_row - visible + 1; }
         }
+    }
+    private nothing revealColumn() {
+        int left = 0;
+        for (int i = 0; i < selected_column; ++i) { left += col_widths[i]; }
+        int width = viewRect().cols;
+        int right = left + (col_widths ? col_widths[selected_column] : 0);
+        if (left < scroll_x || right - left > width) { scroll_x = left; }
+        else if (right > scroll_x + width) { scroll_x = max(left, right - width); }
     }
     private nothing computeColumnWidths() {
         col_widths = (); int fixed = 0; int automatic = 0;
@@ -387,7 +390,7 @@ public class TableWidget inherits NcursesUi::Widget {
         }
         list<hash<auto>> next = map $1.row, entries;
         int selection = next ? max(0, min(selected_row, next.size() - 1)) : -1;
-        if (old_row) {
+        if (exists old_row) {
             for (int i = 0; i < next.size(); ++i) {
                 if (row_key ? identity(old_row) == identity(next[i]) : old_row == next[i]) { selection = i; break; }
             }

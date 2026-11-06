@@ -18,6 +18,9 @@ class FailingPanel inherits NcursesUi::PanelWidget {
 }
 class ConstraintsTest inherits Test {
     constructor() : Test("ConstraintsTest", "1.0", \ARGV) {
+        addTestCase("nested panel clipping preserves open intent and requested geometry", \reviewPanels());
+        addTestCase("hit testing and ordinary controls match clipped drawing", \reviewClipping());
+        addTestCase("combo pages match its capped dropdown height", \reviewComboPage());
         addTestCase("panel children use screen geometry and window-local drawing", \panel());
         addTestCase("nested panels and overflow preserve borders and input coordinates", \nested());
         addTestCase("overflow clips every edge without changing logical geometry", \clipping());
@@ -48,6 +51,59 @@ class ConstraintsTest inherits Test {
     private nothing bounded(hash<NcursesUi::Rect> r, int rows, int cols) {
         assertTrue(r.y >= 0 && r.x >= 0 && r.rows >= 0 && r.cols >= 0);
         assertTrue(r.y + r.rows <= rows && r.x + r.cols <= cols);
+    }
+    reviewPanels() {
+        NcursesUi::TestHarness th(16, 40); on_exit th.close();
+        NcursesUi::PanelWidget outer(th.session()); outer.setFrameValues(2, 3, 10, 28); outer.createPanel();
+        on_exit outer.destroyPanel();
+        NcursesUi::PanelWidget inner(th.session()); inner.setFrameValues(4, 6, 5, 15); outer.addChild(inner);
+        inner.createPanel(); on_exit inner.destroyPanel();
+        outer.resize(NcursesUi::Geometry::makeRect(2, 3, 4, 10)); outer.drawTree(th.screen());
+        assertEq(<Ncurses::Size>{"rows": 1, "cols": 6}, inner.getWindow().size());
+        assertEq(NcursesUi::Geometry::makeRect(4, 6, 5, 15), inner.getFrame());
+        outer.resize(NcursesUi::Geometry::makeRect(2, 3, 10, 28)); outer.drawTree(th.screen());
+        assertEq(<Ncurses::Size>{"rows": 5, "cols": 15}, inner.getWindow().size());
+        outer.resize(NcursesUi::Geometry::makeRect(2, 3, 2, 3)); outer.drawTree(th.screen());
+        assertNothing(inner.getWindow());
+        outer.resize(NcursesUi::Geometry::makeRect(2, 3, 10, 28)); outer.drawTree(th.screen());
+        assertEq(<Ncurses::Size>{"rows": 5, "cols": 15}, inner.getWindow().size());
+        inner.setFrameValues(4, 6, 0, 0); outer.drawTree(th.screen()); assertNothing(inner.getWindow());
+        inner.setFrameValues(4, 6, 5, 15); outer.drawTree(th.screen());
+        assertEq(<Ncurses::Size>{"rows": 5, "cols": 15}, inner.getWindow().size());
+        outer.setFrameValues(2, 3, 4, 10); outer.drawTree(th.screen());
+        assertEq(<Ncurses::Size>{"rows": 1, "cols": 6}, inner.getWindow().size());
+        outer.setFrameValues(2, 3, 10, 28); outer.drawTree(th.screen());
+        assertEq(<Ncurses::Size>{"rows": 5, "cols": 15}, inner.getWindow().size());
+        inner.destroyPanel(); outer.drawTree(th.screen()); assertNothing(inner.getWindow());
+    }
+    reviewClipping() {
+        NcursesUi::TestHarness th(12, 30); on_exit th.close();
+        NcursesUi::Widget parent(); parent.setFrameValues(1, 3, 8, 12);
+        parent.setPadding(NcursesUi::Geometry::makeInsets(1, 1, 1, 1));
+        NcursesUi::TextInputWidget input(); input.setFrameValues(2, 2, 1, 10); parent.addChild(input);
+        assertFalse(input.hitTest(2, 3)); assertTrue(input.hitTest(2, 4));
+        NcursesUi::ListWidget list(); list.setItems(({"label": "abcdefghij"},));
+        list.setFrameValues(3, 2, 1, 10); parent.addChild(list);
+        NcursesUi::CheckboxWidget box("abcdef"); box.setFrameValues(4, 2, 1, 10); parent.addChild(box);
+        NcursesUi::StatusBarWidget status(); status.setSegments(({"text": "abcdefghij"},));
+        status.setFrameValues(5, 2, 1, 10); parent.addChild(status);
+        NcursesUi::MenuBarWidget menu(); menu.addMenu("abc", ());
+        menu.setFrameValues(6, 2, 1, 10); parent.addChild(menu);
+        parent.drawTree(th.screen());
+        assertEq("cdefghij", th.screen().readText(3, 4, 8));
+        assertEq("] abcdef", th.screen().readText(4, 4, 8));
+        assertEq("cdefghij", th.screen().readText(5, 4, 8));
+        assertEq("bc ", th.screen().readText(6, 4, 3));
+        NcursesUi::EventDispatcher dispatcher(); dispatcher.setRootScope(parent);
+        dispatcher.dispatch(parent, click(4, 3)); assertFalse(box.isChecked());
+        dispatcher.dispatch(parent, click(4, 4)); assertTrue(box.isChecked());
+    }
+    reviewComboPage() {
+        list<string> options = (); for (int i = 0; i < 30; ++i) { options += string(i); }
+        NcursesUi::ComboBoxWidget combo(options); combo.setFrameValues(0, 0, 20, 20);
+        combo.processEvent(key("KEY_DOWN")); combo.processEvent(key("KEY_NPAGE"));
+        assertEq(8, combo.getHighlightIndex());
+        combo.processEvent(key("KEY_PPAGE")); assertEq(0, combo.getHighlightIndex());
     }
     panel() {
         NcursesUi::TestHarness th(16, 40); on_exit th.close();
