@@ -64,6 +64,11 @@ public class ScrollableContent {
         return <Ncurses::Position>{"y": line, "x": offset};
     }
 
+    /** Resolves a scroll anchor to visible content; hidden-line providers choose a nearby visible source.
+        @param line logical line @param offset character offset @return visible display row/column
+    */
+    hash<Ncurses::Position> sourceToVisibleAnchor(int line, int offset) { return sourceToVisual(line, offset); }
+
     /** Maps a display position to a logical line and character offset.
         @param row display row
         @param col display column

@@ -761,36 +761,47 @@ static void applySgrCode(int code, StyleSpec& style) {
     }
 }
 
-static void parseSgrCodes(const char* s, size_t len, StyleSpec& style) {
+static bool parseSgrCodes(const char* s, size_t len, StyleSpec& style, ExceptionSink* xsink) {
     int val = 0;
     bool have = false;
+    bool overflow = false;
     for (size_t i = 0; i <= len; ++i) {
+        if (i % 100 == 0 && qore_check_cancel(xsink, "parsing ANSI style parameters")) { return false; }
         char c = (i < len) ? s[i] : ';';
         if (c >= '0' && c <= '9') {
-            val = val * 10 + (c - '0');
+            int digit = c - '0';
+            if (val > (std::numeric_limits<int>::max() - digit) / 10) {
+                overflow = true;
+            } else if (!overflow) {
+                val = val * 10 + digit;
+            }
             have = true;
         } else if (c == ';' || i == len) {
             if (have) {
-                applySgrCode(val, style);
-            } else if (i == len && !have) {
+                // Oversized unsupported parameters must never wrap into supported codes.
+                if (!overflow) { applySgrCode(val, style); }
+            } else if (i == len) {
                 applySgrCode(0, style);
             }
             val = 0;
             have = false;
+            overflow = false;
         }
     }
+    return true;
 }
 
-void parseAnsiSegments(const QoreString* text, std::vector<AnsiSegment>& segs) {
+bool parseAnsiSegments(const QoreString* text, std::vector<AnsiSegment>& segs, ExceptionSink* xsink) {
     segs.clear();
     if (!text || !text->size()) {
-        return;
+        return true;
     }
     const char* s = text->c_str();
     size_t len = text->size();
     StyleSpec style;
     std::string buf;
     for (size_t i = 0; i < len; ) {
+        if (i % 100 == 0 && qore_check_cancel(xsink, "parsing ANSI text")) { return false; }
         unsigned char ch = static_cast<unsigned char>(s[i]);
         if (ch == 0x1b && i + 1 < len && s[i + 1] == '[') {
             if (!buf.empty()) {
@@ -800,10 +811,11 @@ void parseAnsiSegments(const QoreString* text, std::vector<AnsiSegment>& segs) {
             i += 2;
             size_t start = i;
             while (i < len && s[i] != 'm') {
+                if (i % 100 == 0 && qore_check_cancel(xsink, "scanning ANSI style parameters")) { return false; }
                 ++i;
             }
             if (i < len && s[i] == 'm') {
-                parseSgrCodes(s + start, i - start, style);
+                if (!parseSgrCodes(s + start, i - start, style, xsink)) { return false; }
                 ++i;
                 continue;
             }
@@ -815,6 +827,7 @@ void parseAnsiSegments(const QoreString* text, std::vector<AnsiSegment>& segs) {
     if (!buf.empty()) {
         segs.push_back({buf, style});
     }
+    return true;
 }
 
 void drawAnsiText(NcursesWindow* w, int y, int x, bool inside, bool clear_line, const QoreString* text,
@@ -839,12 +852,12 @@ void drawAnsiText(NcursesWindow* w, int y, int x, bool inside, bool clear_line, 
     if (max_cols <= 0) {
         return;
     }
+    std::vector<AnsiSegment> segs;
+    if (!parseAnsiSegments(text, segs, xsink)) { return; }
     if (clear_line) {
         int clear_start = inside ? 1 : 0;
         mvwhline(w->win, start_row, clear_start, ' ', inner_cols);
     }
-    std::vector<AnsiSegment> segs;
-    parseAnsiSegments(text, segs);
     int col = start_col;
     int remaining = max_cols;
     for (size_t i = 0; i < segs.size() && remaining > 0; ++i) {

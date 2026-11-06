@@ -17,6 +17,7 @@
     caret mapping. Cursor indices remain character offsets; partial replacement
     ranges expand to whole graphemes. Session::setCursor() now returns the prior
     visibility so modal transitions can restore it exactly. Composite file-browser
+    bound form controls synchronize pending model writes before all input dispatch;
     pane navigation stays synchronized with managed focus, and combo-box mouse
     placement and dropdown scrolling share the clipped drawing geometry.
     Composite mouse delegation preserves preview navigation. Focus callbacks share a thread-local transition guard,
@@ -72,4 +73,26 @@
     by regressions. Its capture worker uses explicit flush and
     shutdown acknowledgement, preserves blank lines and split UTF-8, and reports
     invalid output bytes without sending malformed strings to the renderer.
+
+    FormModel/FormWidget add typed metadata, field/form validation, inline errors,
+    draft-preserving submission, cancellation generations and first-error focus.
+    LabelWidget, ButtonWidget and DescribedChoiceWidget provide wrapped help, guarded
+    actions, stable described choices, defaults/disabled options and custom responses.
+    TextInputWidget supports password masking, safe paste and failed-submit rollback.
+    TreeWidget/KeyValueWidget provide bounded iterative typed inspection, stable paths,
+    filtering, expansion and copy/export callbacks. CodeViewWidget adds source-preserving
+    export and validated syntax styling. Oversized ANSI parameters no longer overflow
+    into unrelated styles; parsing and style scans support cooperative cancellation.
+    Further repaint/navigation regressions restore exposed non-panel modal regions,
+    retain invalidation after failed forced paints, acknowledge tiny file-browser panes,
+    retain collapsed scroll anchors, reset stale preferred caret columns, reveal search
+    matches horizontally and use actual window bounds for first-paint tail following.
+    Password submission mode changes cannot leak submitted secrets into history, and
+    failed submissions restore masking. Form focus scrolling honors ancestor and target-window clipping.
+    Forms preserve unset Boolean values until an explicit edit and reveal completed submission receipts.
+    Tree indentation and branch hit testing use the effective clipped viewport width.
+    Failed form submissions preserve externally updated values, code replacement resets both scroll axes,
+    custom choice carets preserve manual scrolling, and tree rebuilds notify selected-entry changes.
+    Present validator errors, including empty/numeric strings, always prevent submission.
+    Numeric text identities remain valid, and incomplete field/choice metadata is rejected atomically.
 */

@@ -20,6 +20,7 @@ public class TextEditorWidget inherits NcursesUi::ScrollableWidget {
         int caret_revision = -1;
         bool caret_focus = False;
         *int preferred_column;
+        int vertical_revision = -1;
         int min_height = 1;
         int max_height = 6;
         bool enter_submits = True;
@@ -113,11 +114,12 @@ public class TextEditorWidget inherits NcursesUi::ScrollableWidget {
         @param rows signed visual row displacement @param selecting extend selection
     */
     nothing moveVertical(int rows, bool selecting = False) {
+        if (model.getRevision() != vertical_revision) { preferred_column = NOTHING; }
         sync(); getViewportRect(); hash<Ncurses::Position> source = cursorSource();
         hash<Ncurses::Position> visual = lines.sourceToVisual(source.y, source.x);
         if (!exists preferred_column) { preferred_column = visual.x; }
         hash<Ncurses::Position> next = lines.visualToSource(visual.y + rows, preferred_column);
-        model.setCursor(sourceOffset(next), selecting); sync();
+        model.setCursor(sourceOffset(next), selecting); vertical_revision = model.getRevision(); sync();
     }
     /** Places the caret using the same wrapped geometry as painting.
         @param row screen row @param col screen column @param selecting extend selection

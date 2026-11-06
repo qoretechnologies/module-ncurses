@@ -316,6 +316,17 @@ public class LineListContent inherits NcursesUi::ScrollableContent {
         }
         return <Ncurses::Position>{"y": y, "x": used};
     }
+    /** Resolves a hidden anchor to the preceding visible line, or the first following line.
+        @param line logical source line @param offset character offset @return visible anchor or row -1 for empty content
+    */
+    hash<Ncurses::Position> sourceToVisibleAnchor(int line, int offset) {
+        hash<Ncurses::Position> result = sourceToVisual(line, offset);
+        if (result.y >= 0 || line < 0 || line >= lineCount()) { return result; }
+        NcursesUi::TextLayoutCache cache = layoutCache();
+        int preceding = cache.index.prefix(first + line);
+        int physical = cache.index.find(max(0, preceding - 1));
+        return physical < first ? result : sourceToVisual(physical - first, 0);
+    }
     /** Maps a display cell to a logical grapheme boundary.
         @param row visual row @param col display column @return logical line/ANSI-free offset
     */

@@ -35,6 +35,7 @@ public namespace NcursesUi {
 public class TextInputWidget inherits NcursesUi::Widget {
     private {
         *hash<NcursesUi::Rect> draw_bounds;
+        *hash<NcursesUi::Rect> drawn_visible;
         #! the input buffer
         NcursesReplUi::InputBuffer buffer();
         #! optional history
@@ -47,6 +48,11 @@ public class TextInputWidget inherits NcursesUi::Widget {
         *code<nothing(string)> on_change;
         #! horizontal scroll offset for long input
         int scroll_x = 0;
+        bool clear_on_submit = True;
+        bool submitting = False;
+        bool password = False;
+        string mask_source = "";
+        list<int> mask_offsets = (0,);
         *Ncurses::Window cursor_window;
         int cursor_request = 0;
     }
@@ -59,6 +65,11 @@ public class TextInputWidget inherits NcursesUi::Widget {
         prompt = p;
         setFocusable(True);
     }
+
+    /** Updates allocation, discarding clipping from the previous drawing target. @param rect screen rectangle */
+    nothing setFrame(hash<NcursesUi::Rect> rect) { if (rect != getFrame()) { draw_bounds = NOTHING; } Widget::setFrame(rect); }
+    /** Moves this input and invalidates previous target bounds. @param dy row delta @param dx column delta */
+    nothing translate(int dy, int dx) { if (dy || dx) { draw_bounds = NOTHING; } Widget::translate(dy, dx); }
 
     /** Sets the prompt.
         @param p the prompt string
@@ -98,6 +109,19 @@ public class TextInputWidget inherits NcursesUi::Widget {
         buffer.setText(t);
         markDirty();
     }
+
+    /** Controls whether successful submission clears the input (default True).
+        @param value False for forms that retain submitted values
+    */
+    nothing setClearOnSubmit(bool value) { clear_on_submit = value; }
+
+    /** Masks each extended grapheme with one asterisk and disables history access.
+        @param value True for password entry; getText()/callbacks still explicitly expose the value
+    */
+    nothing setPassword(bool value) { password = value; scroll_x = 0; markDirty(); }
+
+    /** Returns whether masking is enabled. @return password mode */
+    bool isPassword() { return password; }
 
     /** Sets a history instance.
         @param h the history
@@ -172,6 +196,7 @@ public class TextInputWidget inherits NcursesUi::Widget {
         hash<Ncurses::Size> size = w.size();
         hash<Ncurses::Position> origin = w.position();
         draw_bounds = NcursesUi::Geometry::makeRect(origin.y, origin.x, size.rows, size.cols);
+        drawn_visible = visibleRect();
         if (cr.rows <= 0 || cr.cols <= 0 || cr.y < 0 || cr.y >= size.rows) {
             return;
         }
@@ -182,7 +207,7 @@ public class TextInputWidget inherits NcursesUi::Widget {
         }
         int cursor_col = cursorColumn();
         updateScroll(inputColumns());
-        string visible = TerminalText::columnSlice(prompt + buffer.getText(), scroll_x + left - cr.x, width);
+        string visible = TerminalText::columnSlice(prompt + displayedText(), scroll_x + left - cr.x, width);
         w.drawText(cr.y, left, visible, hasFocus() ? {"attrs": Ncurses::Attr::Bold} : {});
         int x = cr.x + cursor_col - scroll_x;
         if (hasFocus() && x >= left && x < left + width) {
@@ -197,6 +222,7 @@ public class TextInputWidget inherits NcursesUi::Widget {
         @since ncurses 1.0
     */
     hash<NcursesUi::EventResult> processEvent(hash<Ncurses::InputEvent> ev) {
+        if (!isAvailable()) { return <NcursesUi::EventResult>{}; }
         if (ev.type == Ncurses::InputType::Mouse) {
             hash<NcursesUi::Rect> cr = contentRect();
             if (ev.mouse && ev.mouse.y == cr.y && hitTest(ev.mouse.y, ev.mouse.x)
@@ -204,7 +230,9 @@ public class TextInputWidget inherits NcursesUi::Widget {
                         | Ncurses::BUTTON1_DOUBLE_CLICKED | Ncurses::BUTTON1_TRIPLE_CLICKED))) {
                 updateScroll(inputColumns());
                 int col = scroll_x + ev.mouse.x - cr.x - TerminalText::displayWidth(prompt);
-                buffer.setDisplayColumn(col);
+                if (password) {
+                    updateMask(); buffer.setCursor(mask_offsets[max(0, min(col, mask_offsets.size() - 1))]);
+                } else { buffer.setDisplayColumn(col); }
                 markDirty();
                 return <NcursesUi::EventResult>{"handled": True};
             }
@@ -213,29 +241,35 @@ public class TextInputWidget inherits NcursesUi::Widget {
         string before = buffer.getText();
         if ((ev.type == Ncurses::InputType::Char && (ev.ch == "\n" || ev.ch == "\r"))
                 || (ev.type == Ncurses::InputType::Key && ev.name == "KEY_ENTER")) {
-            if (history) {
-                history.add(before);
+            if (submitting) { throw "INPUT-BUSY-ERROR", "Cannot submit recursively"; }
+            submitting = True; on_exit submitting = False;
+            int before_cursor = buffer.getCursor(); int before_scroll = scroll_x; bool before_password = password;
+            try {
+                # Clear before the handler so it can prefill the next input. Roll back on failure.
+                if (clear_on_submit) { buffer.reset(); scroll_x = 0; }
+                if (on_submit) { on_submit(before); }
+                if (buffer.getText() != before) { notifyChange(); }
+                if (history && !before_password && !password) { history.add(before); }
+            } catch (hash<ExceptionInfo> ex) {
+                buffer.setText(before); buffer.setCursor(before_cursor); scroll_x = before_scroll; password = before_password;
+                markDirty(); rethrow;
             }
-            buffer.reset();
-            scroll_x = 0;
             markDirty();
-            if (before != "") {
-                notifyChange();
-            }
-            if (on_submit) {
-                on_submit(before);
-            }
             return <NcursesUi::EventResult>{"handled": True, "action": "submit"};
         }
         bool handled;
         if (ev.type == Ncurses::InputType::Key && (ev.name == "KEY_UP" || ev.name == "KEY_DOWN")) {
-            if (history) {
+            if (history && !password) {
                 *string entry = ev.name == "KEY_UP" ? history.prev() : history.next();
                 if (exists entry) {
                     buffer.setText(entry);
                 }
             }
             handled = True;
+        } else if (ev.type == Ncurses::InputType::Paste) {
+            string pasted = NcursesUi::TextEditorWidget::normalizePaste(ev.ch ?? "");
+            pasted =~ s/\n/ /g;
+            buffer.insertChar(pasted); handled = True;
         } else {
             handled = buffer.processEvent(ev);
         }
@@ -250,7 +284,23 @@ public class TextInputWidget inherits NcursesUi::Widget {
 
     private int cursorColumn() {
         return TerminalText::displayWidth(prompt)
-            + buffer.getDisplayColumn();
+            + (password ? maskedCursor() : buffer.getDisplayColumn());
+    }
+
+    private nothing updateMask() {
+        string text = buffer.getText(); if (text == mask_source) { return; }
+        list<int> offsets = (0,); int offset = 0;
+        foreach string cluster in (TerminalText::graphemes(text)) { offset += cluster.length(); offsets += offset; }
+        mask_offsets = offsets; mask_source = text;
+    }
+    private int maskedCursor() {
+        updateMask(); int lo = 0; int hi = mask_offsets.size(); int cursor = buffer.getCursor();
+        while (lo + 1 < hi) { int mid = (lo + hi) / 2; if (mask_offsets[mid] <= cursor) { lo = mid; } else { hi = mid; } }
+        return lo;
+    }
+    private string displayedText() {
+        if (!password) { return buffer.getText(); }
+        updateMask(); return strmul("*", mask_offsets.size() - 1);
     }
 
     private nothing updateScroll(int width) {
@@ -259,7 +309,7 @@ public class TextInputWidget inherits NcursesUi::Widget {
             scroll_x = 0;
             return;
         }
-        int last = max(0, TerminalText::displayWidth(prompt + buffer.getText()) - width + 1);
+        int last = max(0, TerminalText::displayWidth(prompt + displayedText()) - width + 1);
         scroll_x = max(0, min(scroll_x, min(col, last)));
         if (col >= scroll_x + width) {
             scroll_x = col - width + 1;
@@ -269,7 +319,7 @@ public class TextInputWidget inherits NcursesUi::Widget {
     private int inputColumns() {
         hash<NcursesUi::Rect> cr = contentRect();
         hash<NcursesUi::Rect> clip = NcursesUi::Geometry::intersect(cr, visibleRect());
-        if (draw_bounds) { clip = NcursesUi::Geometry::intersect(clip, draw_bounds); }
+        if (draw_bounds && drawn_visible == visibleRect()) { clip = NcursesUi::Geometry::intersect(clip, draw_bounds); }
         return clip.cols > 0 ? max(0, clip.x + clip.cols - cr.x) : 0;
     }
 

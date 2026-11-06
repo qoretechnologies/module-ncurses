@@ -357,6 +357,7 @@ public class PanelWidget inherits NcursesUi::Widget {
         @since ncurses 1.0
     */
     nothing drawTree(Ncurses::Window w, bool force = False) {
+        on_error markDirty();
         if (!isVisible() || !open_requested) { onDrawClipped(); clearDirty(); return; }
         syncNative(w);
         if (!win) { clearDirty(); return; }

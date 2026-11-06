@@ -59,6 +59,8 @@ module NcursesUi {
     - Typed event dispatch with modal stack and mouse hit-testing
     - Standard UI components (list, text input, dialog, menu bar, status bar,
       file browser, combo box, checkbox, radio group, table)
+    - Typed forms, labels/help/errors, buttons and described choices with custom responses
+    - Tree/key-value inspectors and searchable read-only code with syntax styling
     - @ref NcursesUi::Application "Application" encapsulates the event loop
     - Headless testing with @ref Qore::Ncurses::TestTerminal "TestTerminal"
 

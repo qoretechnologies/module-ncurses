@@ -1,0 +1,55 @@
+#!/usr/bin/env qore
+# Copyright 2026 Qore Technologies, s.r.o.
+%modern
+%prepend-module-path "${SCRIPT_DIR}/../build-debug"
+%prepend-module-path "${SCRIPT_DIR}/../qlib"
+%requires ncurses
+%requires NcursesUi
+%requires QUnit
+%include "test/TestHarness.qc"
+%exec-class AnsiSafetyTest
+class AnsiSafetyTest inherits Test {
+    constructor() : Test("AnsiSafetyTest", "1.0", \ARGV) {
+        addTestCase("oversized SGR values cannot become valid styles", \overflow());
+        addTestCase("surrounding text and subsequent parameters preserve valid styling", \parameters());
+        addTestCase("parsing width wrapping and drawing cooperate with cancellation", \cancellation());
+        set_return_value(main());
+    }
+    overflow() {
+        foreach string value in (("2147483647", "2147483648", "4294967327", "18446744073709551647", strmul("9", 100000))) {
+            string text = "\e[" + value + "mplain"; list<hash> segments = Ncurses::Ansi::parse(text);
+            assertEq(1, segments.size()); assertEq("plain", segments[0].text); assertNothing(segments[0].style);
+            assertEq(5, Ncurses::Ansi::len(text)); assertEq(("pla", "in"), map NcursesUi::TerminalText::plainAnsi($1), Ncurses::Ansi::wrap(text, 3));
+        }
+        assertEq(Ncurses::Color::Red, Ncurses::Ansi::parse("\e[" + strmul("0", 1000) + "31mred")[0].style.fg);
+    }
+    parameters() {
+        list<hash> segments = Ncurses::Ansi::parse("before\e[31mred\e[4294967328mretained\e[4294967327;32;1mgreen\e[0mafter");
+        assertEq("before", segments[0].text); assertNothing(segments[0].style);
+        assertEq(Ncurses::Color::Red, segments[1].style.fg); assertEq(Ncurses::Color::Red, segments[2].style.fg);
+        assertEq(Ncurses::Color::Green, segments[3].style.fg); assertTrue(!!(segments[3].style.attrs & Ncurses::Attr::Bold));
+        assertNothing(segments[4].style); assertEq("after", segments[4].text);
+        assertEq("prefix", NcursesUi::TerminalText::plainAnsi("prefix\e[" + strmul("9", 20000)));
+        NcursesUi::TestHarness th(4, 20); on_exit th.close();
+        th.screen().drawAnsiTextInsideLine(0, "\e[4294967327mtext"); assertEq("text", th.screen().readText(1, 1, 4));
+    }
+    private nothing cancelled(code<auto()> callback) {
+        Queue ready(); Queue go(); Queue result(); Counter done(1);
+        int tid = background sub () {
+            on_exit done.dec(); defer_thread_cancel(sub () { ready.push(True); go.get(); });
+            try { auto output = callback(); result.push("NO-CANCELLATION"); }
+            catch (hash<ExceptionInfo> ex) { clear_thread_cancel(); result.push(ex.err); }
+        }();
+        ready.get(); cancel_thread(tid, "ANSI cancellation regression"); go.push(True); done.waitForZero(); assertEq("THREAD-CANCELLED", result.get());
+    }
+    cancellation() {
+        string text = "\e[" + strmul("9", 100000) + "mtext";
+        cancelled(auto sub () { return Ncurses::Ansi::parse(text); });
+        cancelled(auto sub () { return Ncurses::Ansi::len(text); });
+        cancelled(auto sub () { return Ncurses::Ansi::wrap(text, 4); });
+        NcursesUi::TestHarness th(4, 20); on_exit th.close(); th.screen().drawText(1, 1, "keep");
+        cancelled(auto sub () { th.screen().drawAnsiTextInsideLine(0, text); return True; });
+        assertEq("keep", th.screen().readText(1, 1, 4));
+        assertEq("recovered", Ncurses::Ansi::parse("recovered")[0].text);
+    }
+}

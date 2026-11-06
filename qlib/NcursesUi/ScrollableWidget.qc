@@ -229,8 +229,7 @@ public class ScrollableWidget inherits NcursesUi::Widget {
     nothing draw(Ncurses::Window w) {
         releaseCursor();
         hash<Ncurses::Position> origin = w.position(); hash<Ncurses::Size> size = w.size();
-        draw_bounds = NcursesUi::Geometry::makeRect(origin.y, origin.x, size.rows, size.cols);
-        drawn_visible = visibleRect();
+        prepareDrawViewport(w);
         on_success painted_revision = content ? content.getRevision() : 0;
         prepareViewport();
         hash<NcursesUi::Rect> cr = drawableRect(); cr.y -= origin.y; cr.x -= origin.x;
@@ -336,6 +335,13 @@ public class ScrollableWidget inherits NcursesUi::Widget {
         }
     }
 
+    #! Establish the actual drawing bounds before subclass navigation decisions.
+    private nothing prepareDrawViewport(Ncurses::Window window) {
+        hash<Ncurses::Position> origin = window.position(); hash<Ncurses::Size> size = window.size();
+        draw_bounds = NcursesUi::Geometry::makeRect(origin.y, origin.x, size.rows, size.cols);
+        drawn_visible = visibleRect(); prepareViewport();
+    }
+
     private hash<NcursesUi::Rect> drawableRect() {
         hash<NcursesUi::Rect> visible = visibleRect();
         hash<NcursesUi::Rect> rect = NcursesUi::Geometry::intersect(contentRect(), visible);
@@ -358,7 +364,7 @@ public class ScrollableWidget inherits NcursesUi::Widget {
             }
             if ((old_cols != viewport_cols || content.getRevision() != anchor_revision) && scroll_anchor) {
                 int line = exists anchor_id ? content.lineForId(anchor_id) : scroll_anchor.y;
-                hash<Ncurses::Position> anchor = content.sourceToVisual(max(0, line), line < 0 ? 0 : scroll_anchor.x);
+                hash<Ncurses::Position> anchor = content.sourceToVisibleAnchor(max(0, line), line < 0 ? 0 : scroll_anchor.x);
                 scrollY = max(0, anchor.y);
             }
         }

@@ -277,7 +277,7 @@ public:
 bool parseStyle(const QoreHashNode* h, StyleSpec& out, ExceptionSink* xsink);
 void applyStyle(NcursesWindow* w, const StyleSpec& style, attr_t& old_attr, short& old_pair, ExceptionSink* xsink);
 void restoreStyle(NcursesWindow* w, attr_t old_attr, short old_pair);
-void parseAnsiSegments(const QoreString* text, std::vector<AnsiSegment>& segs);
+bool parseAnsiSegments(const QoreString* text, std::vector<AnsiSegment>& segs, ExceptionSink* xsink);
 void drawAnsiText(NcursesWindow* w, int y, int x, bool inside, bool clear_line, const QoreString* text,
     ExceptionSink* xsink);
 

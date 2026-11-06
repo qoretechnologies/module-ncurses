@@ -308,4 +308,90 @@ transcript.returnToLatest();
     Moving/hiding/removing children invalidates exposed parent cells, and overlapping
     later siblings and modal overlays repaint when underlying content changes.
     All models and widget APIs remain confined to the UI thread.
+
+    @section ncursesui_forms Typed Forms and Described Choices
+
+    FormModel stores typed FormField metadata and values, validates required fields,
+    choices, custom field predicates and whole-form rules, and publishes named errors.
+    Supported types are Text, Multiline, Password, Integer, Number, Boolean and Choice.
+    Read-only fields cannot be edited. Invalid numeric drafts remain visible while
+    the model retains its last valid typed value. Custom validation for that field and
+    whole-form validation wait until parse errors are corrected. Numeric fields reject
+    nonfinite values. FormWidget composes wrapped labels,
+    help/errors and controls, scrolls focused fields into view, and focuses the first
+    invalid field when bound to Application::getFocusManager(). Password controls
+    mask whole Unicode graphemes; explicit value/callback APIs still expose the value.
+
+    @code{.py}
+%modern
+%requires ncurses
+%requires NcursesUi
+NcursesUi::FormModel form((
+    <NcursesUi::FormField>{"name": "name", "label": "Request name", "required": True},
+    <NcursesUi::FormField>{"name": "attempts", "label": "Attempts", "type": NcursesUi::FieldType::Integer, "default_value": 3}
+));
+@assert(!form.validate());
+form.setValue("name", "Inspect services");
+@assert(form.submit(auto sub (hash<auto> values) { return values.attempts; }));
+@assert(form.getResult() == 3);
+form.reset();
+hash<NcursesUi::FormSubmission> request = form.beginSubmit();
+form.cancel();
+@assert(!form.complete(request.generation, "stale result"));
+    @endcode
+
+    Pending, Running, Cancelled, Failed and Completed states are explicit. During
+    validation/submission and after completion, edits and duplicate submits are blocked.
+    reset() preserves values; reset(True) restores defaults. Cancellation invalidates
+    asynchronous submission generations. Deliver complete()/fail() on the UI thread.
+    FormWidget observes programmatic values, schema changes and default restoration.
+    Enter submits a single-line field; multiline Enter inserts a newline. Failed submit
+    callbacks preserve entered values. TextInputWidget also restores text/cursor on
+    submit callback errors, supports atomic single-line paste, and has optional password
+    masking and setClearOnSubmit(False) for embedded forms.
+
+    LabelWidget wraps nonfocusable labels. ButtonWidget supplies stable action IDs,
+    mouse/keyboard activation, reentrancy protection and optional one-shot completion.
+    DescribedChoiceWidget uses ChoiceItem values independently of labels, displaying
+    descriptions, recommendations and disabled states. Up/Down/Home/End move the
+    highlight, Space chooses, and Enter chooses/submits. Custom responses are typed
+    as ChoiceSelection with is_custom=True; invalid or failed submissions retain their
+    draft. Successful submission is one-shot until resetSubmission(). See the runnable
+    @c examples/forms-inspectors.qr example (F2: inspect, F5: reopen, Ctrl-Q: quit).
+
+    @section ncursesui_inspectors Structured and Code Inspection
+
+    TreeWidget and KeyValueWidget inspect typed hashes, lists and scalar values.
+    Nodes have stable JSON Pointer paths; expansion and selection survive replacements
+    when paths remain. Filtering includes matches and ancestors without changing saved
+    expansion. Traversal is iterative with configurable node/depth bounds. Selection
+    changes repaint only the old/new source rows, even for large trees. Control characters
+    are escaped in displayed previews. Copy/export callbacks are application-owned and
+    never implicitly write a file. Export receives the original typed value and path.
+
+    @code{.py}
+%modern
+%requires ncurses
+%requires NcursesUi
+NcursesUi::KeyValueWidget inspector({"service": {"enabled": True, "ports": (8080, 8443)}});
+inspector.selectPath("/service/ports/1");
+@assert(inspector.getSelectedEntry().value == 8443);
+inspector.setFilter("enabled");
+@assert(inspector.getVisiblePaths() == ("", "/service", "/service/enabled"));
+NcursesUi::CodeViewWidget code("print(1);\r\n", "qore");
+code.setHighlighter(string sub (string source, string language) { return "\e[32m" + source + "\e[0m"; });
+code.setSearch("print");
+@assert(code.getMatches().size() == 1);
+@assert(code.getText() == "print(1);\r\n");
+    @endcode
+
+    CodeViewWidget provides read-only search, selection, wrapping and syntax styling.
+    A highlighter receives normalized display source and a language identifier; it must
+    return ANSI-styled text with identical plain content. Styling survives hard newlines.
+    Failed/reentrant highlighters preserve the previous document. Selection copies the
+    visible normalized text; getText(), copyAll() and exportText() retain exact original
+    source, including line endings and tabs. Direct transcript append/retention APIs are
+    rejected; replace a document using setText(). The native ANSI parser ignores numeric
+    parameters outside the supported integer range without overflow and cooperates with
+    cancellation during parsing, measurement, wrapping and drawing.
 */

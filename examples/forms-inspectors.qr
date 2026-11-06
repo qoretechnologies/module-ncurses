@@ -1,0 +1,36 @@
+#!/usr/bin/env qore
+# Copyright 2026 Qore Technologies, s.r.o.
+%requires ncurses
+%requires NcursesUi
+
+class InspectorDemoRoot inherits NcursesUi::Widget {
+    private { NcursesUi::SplitLayout split(NcursesUi::Orientation::Horizontal); }
+    constructor() { split.setSplitRatio(0.55); }
+    nothing layout() { split.apply(self); }
+}
+Ncurses::Session session({"bracketed_paste": True, "raw": True, "mouse": True});
+on_exit session.close();
+NcursesUi::Application app(session); InspectorDemoRoot root();
+NcursesUi::FormModel model((
+    <NcursesUi::FormField>{"name": "name", "label": "Request name", "required": True, "help": "A short name for this request"},
+    <NcursesUi::FormField>{"name": "count", "label": "Attempts", "type": NcursesUi::FieldType::Integer, "default_value": 3},
+    <NcursesUi::FormField>{"name": "enabled", "label": "Enabled", "type": NcursesUi::FieldType::Boolean, "default_value": True},
+    <NcursesUi::FormField>{"name": "mode", "label": "Execution mode", "type": NcursesUi::FieldType::Choice, "choices": (
+        <NcursesUi::ChoiceItem>{"value": "preview", "label": "Preview", "description": "Show the planned operations", "recommendation": "Recommended before execution", "default_value": True},
+        <NcursesUi::ChoiceItem>{"value": "execute", "label": "Execute", "description": "Apply the requested operations"})},
+    <NcursesUi::FormField>{"name": "notes", "label": "Notes", "type": NcursesUi::FieldType::Multiline}
+));
+NcursesUi::FormWidget form(model); NcursesUi::KeyValueWidget inspector({"status": "Enter a request on the left"});
+root.addChild(form); root.addChild(inspector); form.setFocusManager(app.getFocusManager());
+form.setOnSubmit(auto sub (hash<auto> values) { inspector.setData(values, "Submitted request"); return values; });
+form.setOnCancel(sub () { app.quit(); });
+app.setRoot(root); app.getFocusManager().setFocus(form.getControl("name"));
+app.setGlobalKeyHandler(hash<NcursesUi::EventResult> sub (hash<Ncurses::InputEvent> event) {
+    if (event.type == Ncurses::InputType::Char && event.ch == "\x11") { app.quit(); }
+    else if (event.type == Ncurses::InputType::Key && event.name == "KEY_F(2)") { app.getFocusManager().setFocus(inspector); }
+    else if (event.type == Ncurses::InputType::Key && event.name == "KEY_F(5)") {
+        model.reset(); app.drawAll(); app.getFocusManager().setFocus(form.getControl("name"));
+    } else { return <NcursesUi::EventResult>{}; }
+    return <NcursesUi::EventResult>{"handled": True};
+});
+app.run();
