@@ -4,6 +4,7 @@
 %prepend-module-path "${SCRIPT_DIR}/../qlib"
 %requires ncurses
 %requires NcursesUi
+%requires QoreHistory
 %requires QUnit
 %include "test/TestHarness.qc"
 %exec-class ReviewControlsTest
@@ -17,7 +18,32 @@ class ReviewControlsTest inherits Test {
         addTestCase("explicit same-value writes replace invalid drafts only for that field", \explicitWrites());
         addTestCase("tree width changes retain selected row visibility", \treeResize());
         addTestCase("replaced scalar branches allow parent navigation", \treeScalar());
+        addTestCase("password submit mode transitions never expose history or failed drafts", \passwordHistory());
+        addTestCase("form focus scrolls within ancestor and target-window clipping", \clippedFocus());
         set_return_value(main());
+    }
+    passwordHistory() {
+        QoreHistory::History history(); history.add("safe command"); NcursesUi::TextInputWidget input(); input.setHistory(history);
+        input.setPassword(True); input.setText("private password"); input.setOnSubmit(sub (string value) { input.setPassword(False); input.setText("next prompt"); });
+        input.processEvent(key("KEY_ENTER")); input.processEvent(key("KEY_UP")); assertEq("safe command", input.getText());
+        input.setPassword(True); input.setText("failed password"); input.setOnSubmit(sub (string value) { input.setPassword(False); throw "PASSWORD-ERROR", "rejected"; });
+        assertThrows("PASSWORD-ERROR", sub () { input.processEvent(key("KEY_ENTER")); }); assertTrue(input.isPassword()); assertEq("failed password", input.getText());
+        input.processEvent(key("KEY_UP")); assertEq("failed password", input.getText());
+        input.setOnSubmit(sub (string value) { input.setText("new password"); }); input.processEvent(key("KEY_ENTER")); assertTrue(input.isPassword());
+        input.setPassword(False); input.setText("ordinary command"); input.setOnSubmit(NOTHING); input.processEvent(key("KEY_ENTER")); input.processEvent(key("KEY_UP")); assertEq("ordinary command", input.getText());
+    }
+    clippedFocus() {
+        NcursesUi::TestHarness th(12, 30); on_exit th.close(); NcursesUi::Application app(th.session()); NcursesUi::Widget root(); app.setRoot(root);
+        NcursesUi::Widget container(); container.setFrameValues(1, 2, 3, 20); root.addChild(container);
+        NcursesUi::FormModel model(fields()); NcursesUi::FormWidget form(model); form.setFrameValues(1, 2, 10, 20); container.addChild(form); form.setFocusManager(app.getFocusManager());
+        app.getFocusManager().setFocus(form.getControl("other")); app.drawAll(); assertTrue(form.getControl("other").visibleRect().rows > 0);
+        container.setFrameValues(1, 2, 1, 12); app.drawAll(); assertEq(1, form.getControl("other").visibleRect().rows); assertEq(12, form.getControl("other").getFrame().cols);
+        container.setFrameValues(3, 2, 2, 12); app.drawAll(); assertTrue(form.getControl("other").visibleRect().rows > 0); assertTrue(form.getControl("other").getFrame().y >= 3);
+        container.setFrameValues(1, 2, 8, 20); app.drawAll();
+        form.setOnSubmit(auto sub (hash<auto> values) { return values; }); cast<NcursesUi::TextInputWidget>(form.getControl("count")).setText("bad");
+        assertFalse(form.submit()); app.drawAll(); assertEq(form.getControl("count"), app.getFocusManager().getCurrentFocus()); assertTrue(form.getControl("count").visibleRect().rows > 0);
+        NcursesUi::FormModel separate_model(fields()); NcursesUi::FormWidget separate(separate_model); separate.setFrameValues(0, 0, 10, 20); separate.getControl("other").setFocused(True);
+        Ncurses::Window small(th.session(), 2, 10, 0, 0); separate.drawTree(small); assertTrue(separate.getControl("other").getFrame().y < 2); assertEq(10, separate.getControl("other").getFrame().cols);
     }
     private hash<Ncurses::InputEvent> key(string value) { return <Ncurses::InputEvent>{"type": Ncurses::InputType::Key, "name": value}; }
     private hash<Ncurses::InputEvent> click(int y, int x) { return <Ncurses::InputEvent>{"type": Ncurses::InputType::Mouse, "mouse": <Ncurses::MouseEvent>{"y": y, "x": x, "button_state": Ncurses::BUTTON1_CLICKED}}; }

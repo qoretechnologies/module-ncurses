@@ -243,15 +243,15 @@ public class TextInputWidget inherits NcursesUi::Widget {
                 || (ev.type == Ncurses::InputType::Key && ev.name == "KEY_ENTER")) {
             if (submitting) { throw "INPUT-BUSY-ERROR", "Cannot submit recursively"; }
             submitting = True; on_exit submitting = False;
-            int before_cursor = buffer.getCursor(); int before_scroll = scroll_x;
+            int before_cursor = buffer.getCursor(); int before_scroll = scroll_x; bool before_password = password;
             try {
                 # Clear before the handler so it can prefill the next input. Roll back on failure.
                 if (clear_on_submit) { buffer.reset(); scroll_x = 0; }
                 if (on_submit) { on_submit(before); }
                 if (buffer.getText() != before) { notifyChange(); }
-                if (history && !password) { history.add(before); }
+                if (history && !before_password && !password) { history.add(before); }
             } catch (hash<ExceptionInfo> ex) {
-                buffer.setText(before); buffer.setCursor(before_cursor); scroll_x = before_scroll;
+                buffer.setText(before); buffer.setCursor(before_cursor); scroll_x = before_scroll; password = before_password;
                 markDirty(); rethrow;
             }
             markDirty();

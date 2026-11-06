@@ -42,6 +42,9 @@ public class FormWidget inherits NcursesUi::Widget {
         int scroll_y = 0;
         bool arranging = False;
         bool synchronizing = False;
+        *hash<NcursesUi::Rect> layout_view;
+        *hash<NcursesUi::Rect> draw_bounds;
+        *hash<NcursesUi::Rect> drawn_visible;
     }
     /** Creates controls for a model. @param value UI-thread-owned form model */
     constructor(NcursesUi::FormModel value) {
@@ -83,16 +86,20 @@ public class FormWidget inherits NcursesUi::Widget {
     /** Cancels submission while retaining values; late model completions are ignored. */
     nothing cancel() { if (model.getState() == NcursesUi::ActionState::Completed) { return; } model.cancel(); syncPresentation(); layout(); markDirty(); if (on_cancel) { on_cancel(); } }
     /** Updates geometry and immediately lays out controls. @param rect screen allocation */
-    nothing setFrame(hash<NcursesUi::Rect> rect) { Widget::setFrame(rect); layout(); }
+    nothing setFrame(hash<NcursesUi::Rect> rect) { if (rect != getFrame()) { draw_bounds = NOTHING; } Widget::setFrame(rect); layout(); }
+    /** Translates the form and discards obsolete target clipping. @param dy row displacement @param dx column displacement */
+    nothing translate(int dy, int dx) { draw_bounds = NOTHING; Widget::translate(dy, dx); layout(); }
     /** Includes model revision and newly focused controls in repaint decisions. @return local dirty state */
-    bool needsOwnDraw() { return Widget::needsOwnDraw() || revision != model.getRevision() || last_focus != findFocused(); }
+    bool needsOwnDraw() { return Widget::needsOwnDraw() || revision != model.getRevision() || last_focus != findFocused() || layout_view != layoutViewport(); }
     /** Reports local/model or child invalidation. @return needs repaint */
     bool isDirty() { return needsOwnDraw() || Widget::isDirty(); }
     /** Reconciles model state and lays out children before clipping decisions.
         @param window output surface @param force repaint an exposed subtree
     */
     nothing drawTree(Ncurses::Window window, bool force = False) {
-        if (revision != model.getRevision() || last_focus != findFocused()) { syncPresentation(); layout(); markDirty(); }
+        hash<Ncurses::Position> origin = window.position(); hash<Ncurses::Size> size = window.size();
+        draw_bounds = NcursesUi::Geometry::makeRect(origin.y, origin.x, size.rows, size.cols); drawn_visible = visibleRect();
+        if (revision != model.getRevision() || last_focus != findFocused() || layout_view != layoutViewport()) { syncPresentation(); layout(); markDirty(); }
         Widget::drawTree(window, force);
     }
     /** Acknowledges model changes while clipped. */
@@ -100,7 +107,7 @@ public class FormWidget inherits NcursesUi::Widget {
     /** Lays out wrapped field metadata and keeps the current control visible. */
     nothing layout() {
         if (arranging) { return; } arranging = True; on_exit arranging = False;
-        hash<NcursesUi::Rect> view = contentRect(); list<NcursesUi::Widget> ordered = (); list<int> heights = (); int total = 0;
+        hash<NcursesUi::Rect> view = layoutViewport(); list<NcursesUi::Widget> ordered = (); list<int> heights = (); int total = 0;
         foreach hash<NcursesUi::FormField> field in (fields) {
             foreach NcursesUi::Widget widget in ((labels{field.name}, controls{field.name}, help{field.name}, errors{field.name})) {
                 if (!widget.isVisible()) { continue; }
@@ -122,7 +129,11 @@ public class FormWidget inherits NcursesUi::Widget {
         for (int i = 0; i < ordered.size(); ++i) {
             ordered[i].setFrameValues(view.y + offset - scroll_y, view.x, heights[i], view.cols); offset += heights[i];
         }
-        last_focus = current;
+        last_focus = current; layout_view = view;
+    }
+    private hash<NcursesUi::Rect> layoutViewport() {
+        hash<NcursesUi::Rect> visible = visibleRect(); hash<NcursesUi::Rect> view = NcursesUi::Geometry::intersect(contentRect(), visible);
+        return draw_bounds && visible == drawn_visible ? NcursesUi::Geometry::intersect(view, draw_bounds) : view;
     }
     /** Escape cancels; Ctrl-Enter-style application bindings can call submit().
         @param event bubbled input @return handled/action result

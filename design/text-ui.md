@@ -107,7 +107,11 @@ let explicit writes replace an invalid draft even when the typed value is unchan
 without discarding drafts on unrelated validation/status changes. FormWidget preserves invalid
 numeric drafts, observes external model changes and rebuilds schema controls only
 after constructing the replacement tree. Focus determines the form scroll offset.
-Password inputs render one mask cell per grapheme and disable history use.
+Password inputs render one mask cell per grapheme and disable history use. Submission
+captures the original masking mode before callbacks, so switching to a non-secret
+prompt cannot record a submitted secret; failed submissions restore the original mode.
+Form layout uses the visible ancestor/target intersection and observes viewport changes
+independently of model revisions, keeping focused controls visible under clipping.
 
 Described choices separate stable values from labels and distinguish custom text in
 a typed result. Descriptions wrap through the shared content provider. Successful
