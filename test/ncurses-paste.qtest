@@ -19,7 +19,17 @@ class PasteTest inherits Test {
         addTestCase("cancelled partial paste is drained before normal input resumes", \cancel());
         addTestCase("large native paste survives partial PTY writes", \large());
         addTestCase("native and injected Alt input preserve complete Unicode characters", \alt());
+        addTestCase("ordinary Enter normalizes CR while paste and Alt retain literal CR", \enter());
         set_return_value(main());
+    }
+    enter() {
+        Ncurses::TestTerminal tt(10, 30); Ncurses::Session s = session(tt); on_exit s.close();
+        tt.writeInput("\r"); hash<Ncurses::InputEvent> ev = s.screen().readEvent(100, 5);
+        assertEq(Ncurses::InputType::Char, ev.type); assertEq("\n", ev.ch);
+        NcursesUi::ListWidget list(); list.setItems(({"text": "item"},)); assertEq("activate", list.processEvent(ev).action);
+        tt.writeInput("\e\r"); ev = s.screen().readEvent(100, 5); assertEq(Ncurses::InputType::Alt, ev.type); assertEq("\r", ev.ch);
+        tt.writeInput("\e[200~\r\e[201~"); ev = s.screen().readEvent(100, 5); assertEq(Ncurses::InputType::Paste, ev.type); assertEq("\r", ev.ch);
+        s.injectEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "\r"}); assertEq("\n", s.screen().readEvent(0, 1).ch);
     }
     private Ncurses::Session session(Ncurses::TestTerminal tt, int limit = 1048576) {
         Ncurses::Session s({"test_terminal": tt, "bracketed_paste": True, "paste_limit": limit,

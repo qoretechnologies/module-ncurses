@@ -8,6 +8,19 @@
 %requires QUnit
 %include "test/TestHarness.qc"
 %exec-class QReplLiveTest
+# This real pipe stays continuously readable: every worker read replenishes exactly
+# what it consumed. No scheduling delay or timing assumption is needed to test fairness.
+class RefilledCaptureFile inherits ReadOnlyFile {
+    private { File writer; }
+    constructor(ReadOnlyFile source, File writer) : ReadOnlyFile("/proc/self/fd/" + source.getPollableDescriptor()) {
+        self.writer = writer;
+    }
+    *binary readShortBinary(softint size, timeout timeout_ms = -1) {
+        *binary bytes = ReadOnlyFile::readShortBinary(size, timeout_ms);
+        if (bytes && bytes.size()) { writer.write(bytes); }
+        return bytes;
+    }
+}
 class QReplLiveTest inherits Test {
     private { Program program(PO_DEFAULT); }
     constructor() : Test("QReplLiveTest", "1.0", \ARGV) {
@@ -27,7 +40,20 @@ class QReplLiveTest inherits Test {
         addTestCase("selection clipboard and undo are connected to application bindings", \clipboard());
         addTestCase("capture barriers retain blank lines, split UTF-8 and large output", \capture());
         addTestCase("capture idle shutdown and EOF terminate without timeouts", \captureShutdown());
+        addTestCase("capture services flush and close while a pipe stays continuously readable", \captureFairness());
         set_return_value(main());
+    }
+    captureFairness() {
+        hash<PipeInfo> pipe = File::getPipe(); RefilledCaptureFile input(pipe.read, pipe.write);
+        on_exit { input.close(); pipe.read.close(); pipe.write.close(); }
+        assertEq(0, Ncurses::Session::pendingOutputBytes(input)); pipe.write.write("busy\n"); assertEq(5, Ncurses::Session::pendingOutputBytes(input));
+        auto reader = program.callFunction("createCapture", input); on_exit reader.close();
+        reader.flush(); list<string> lines = reader.drain(); assertTrue(lines.size() > 0);
+        assertEq(strmul("busy\n", lines.size()), join("\n", lines) + "\n");
+        reader.close(); assertEq(5, Ncurses::Session::pendingOutputBytes(input));
+        input.close(); assertThrows("NCURSES-CAPTURE-ERROR", int sub () { return Ncurses::Session::pendingOutputBytes(input); });
+        ReadOnlyFile unsupported("/dev/null"); on_exit unsupported.close();
+        assertThrows("NCURSES-CAPTURE-ERROR", int sub () { return Ncurses::Session::pendingOutputBytes(unsupported); });
     }
     capture() {
         hash<PipeInfo> pipe = File::getPipe(); auto reader = program.callFunction("createCapture", pipe.read);

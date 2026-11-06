@@ -267,7 +267,7 @@ public class Widget {
         Subclasses owning cursor requests override this and call the base method.
     */
     nothing onDrawClipped() {
-        foreach NcursesUi::Widget child in (children) { child.onDrawClipped(); }
+        foreach NcursesUi::Widget child in (children) { child.onDrawClipped(); child.clearDirty(); }
     }
 
     /** Tests if a point is inside this widget's frame.

@@ -26,7 +26,29 @@ class DirtyTest inherits Test {
         addTestCase("modal changes and dismissal restore underlying cells", \modals());
         addTestCase("paint failures remain dirty for a complete retry", \failure());
         addTestCase("clipped panels regain geometry after incremental resize", \panels());
+        addTestCase("fully clipped descendants acknowledge provider revisions and repaint on exposure", \clippedTree());
+        addTestCase("destroying a clean native panel invalidates presentation", \destroyCleanPanel());
         set_return_value(main());
+    }
+    clippedTree() {
+        NcursesUi::TestHarness th(8, 30); on_exit th.close(); NcursesUi::Application app(th.session()); NcursesUi::Widget root(); app.setRoot(root);
+        NcursesUi::Widget container(); container.setFrameValues(20, 0, 3, 10); root.addChild(container);
+        NcursesUi::LineListContent content(); content.setLines(("first",)); NcursesUi::ScrollableWidget scroll(content);
+        scroll.setFrameValues(20, 0, 1, 10); container.addChild(scroll);
+        NcursesUi::TextEditorWidget editor(); editor.setFrameValues(21, 0, 1, 10); editor.setText("draft"); container.addChild(editor);
+        app.drawAll(); assertFalse(root.isDirty()); assertFalse(container.isDirty()); assertFalse(scroll.isDirty()); assertFalse(editor.isDirty());
+        content.setLine(0, "changed"); editor.getBuffer().insert("!"); assertTrue(root.isDirty()); app.drawAll(); assertFalse(root.isDirty());
+        container.translate(-19, 0); app.drawAll(); assertEq("changed", th.screen().readText(1, 0, 7)); assertEq("draft!", th.screen().readText(2, 0, 6));
+        assertFalse(root.isDirty()); container.setVisible(False); editor.getBuffer().insert("?"); app.drawAll(); assertFalse(root.isDirty());
+        container.setVisible(True); app.drawAll(); assertEq("draft!?", th.screen().readText(2, 0, 7));
+    }
+    destroyCleanPanel() {
+        NcursesUi::TestHarness th(8, 30); on_exit th.close(); NcursesUi::Application app(th.session()); PaintWidget root(); root.text = "background"; app.setRoot(root);
+        NcursesUi::PanelWidget panel(th.session()); panel.setFrameValues(0, 0, 3, 15); panel.createPanel(); root.addChild(panel); app.drawAll();
+        assertFalse(root.isDirty()); panel.destroyPanel(); assertTrue(root.isDirty()); app.drawAll(); assertFalse(root.isDirty()); assertNothing(panel.getWindow());
+        assertEq("background", th.screen().readText(0, 0, 10));
+        NcursesUi::PanelWidget modal(th.session()); modal.setFrameValues(0, 0, 3, 15); modal.createPanel(); app.pushModal(modal); app.drawAll();
+        assertFalse(modal.isDirty()); modal.destroyPanel(); assertTrue(modal.isDirty()); app.drawAll(); assertFalse(modal.isDirty()); app.popModal();
     }
     idle() {
         NcursesUi::TestHarness th(8, 30); on_exit th.close();

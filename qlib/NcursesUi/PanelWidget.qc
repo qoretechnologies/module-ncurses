@@ -231,6 +231,8 @@ public class PanelWidget inherits NcursesUi::Widget {
     nothing destroyPanel() {
         releaseNative();
         open_requested = False;
+        markDirty();
+        if (getParent()) { getParent().markDirty(); }
     }
 
     /** Shows the panel and brings it to the front.

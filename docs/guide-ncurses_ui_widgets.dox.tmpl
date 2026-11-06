@@ -295,7 +295,10 @@ transcript.returnToLatest();
     application without opening external resources. Wrapping can be toggled while
     retaining source anchors. Retention removes expired selections and links and
     refreshes search results. Treat getTranscriptContent() as read-only when using
-    block metadata; append, collapse and clear through TranscriptWidget.
+    block metadata; it includes collapse indicators for presentation. getSourceLine()
+    and getBlockText() return original plain text. Append, collapse and clear through
+    TranscriptWidget. Shift-click retains its original mouse anchor when extending
+    across it; scrollbar clicks pause following until the tail is reached.
 
     LineListContent batches appends, indexes row sums/maximum widths, and retains at
     most two prepared wrap widths. Ordinary appends/edits update affected lines;

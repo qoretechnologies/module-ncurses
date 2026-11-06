@@ -565,6 +565,39 @@ nothing Session::setMouse(bool enabled) [flags=NAMED_ARGS] {
     return nothing();
 }
 
+//! Returns a snapshot of bytes waiting in an already-open output-capture pipe
+/**
+    This nonblocking snapshot lets a capture reader drain a finite prefix even
+    while producers continue writing. The caller must own the read side and keep
+    it open; do not mix buffered character reads or concurrent readers with this API.
+    No path is opened and no data is consumed.
+    @param file already-open read end of a pipe or terminal
+    @return available byte count at the instant of the query
+    @throw NCURSES-CAPTURE-ERROR if the file is closed or does not support FIONREAD
+    @since %ncurses 1.0
+*/
+static int Session::pendingOutputBytes(ReadOnlyFile[File] file) [flags=RET_VALUE_ONLY,NAMED_ARGS;dom=FILESYSTEM] {
+    if (*xsink) { return 0; }
+    if (!file || !file->isOpen()) {
+        xsink->raiseException("NCURSES-CAPTURE-ERROR", "capture input is not open");
+        return 0;
+    }
+#ifdef FIONREAD
+    int available = 0;
+    while (true) {
+        if (qore_check_cancel(xsink, "querying captured output")) { return 0; }
+        if (ioctl(file->getFD(), FIONREAD, &available) == 0) { return available > 0 ? available : 0; }
+        if (errno != EINTR) {
+            xsink->raiseErrnoException("NCURSES-CAPTURE-ERROR", errno, "ioctl(FIONREAD) failed");
+            return 0;
+        }
+    }
+#else
+    xsink->raiseException("NCURSES-CAPTURE-ERROR", "this platform does not support FIONREAD");
+    return 0;
+#endif
+}
+
 //! Redirects the C stdout stream to the given file
 /**
     @param file target file

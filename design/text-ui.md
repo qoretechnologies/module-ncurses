@@ -40,7 +40,9 @@ Widgets retain local invalidation; ancestors observe dirty descendants. Parent
 repaint forces descendants, and painted overlapping siblings force later siblings.
 Geometry, padding, visibility and removal invalidate exposed regions. Changed lower
 modal layers force higher overlays to repaint. Providers publish revision numbers;
-unchanged frames perform no drawing. Custom drawing must invalidate state changes.
+unchanged frames perform no drawing. Fully clipped subtrees acknowledge descendant
+and provider invalidation, and exposure forces repaint. Destroying a native panel
+invalidates its presentation. Custom drawing must invalidate state changes.
 
 ## Editing and paste
 
@@ -60,12 +62,14 @@ preserves all previously queued input. Alt events retain complete UTF-8 characte
 ## Transcript policy
 
 `TranscriptWidget` groups stable source identities into logical blocks. Collapse
-hides body rows without discarding source text. Literal search stores grapheme-expanded
+hides body rows without discarding source text. Collapse indicators exist in the
+presentation provider; source access, selection, search and link validation use
+original headers. Mouse range extension keeps its initial anchor when crossing it. Literal search stores grapheme-expanded
 ranges by line identity; selection and link hit testing use the shared row mapping.
 Link/copy callbacks delegate integration to the application. Direct mutation of the
 exposed content provider is unsupported when block metadata is in use.
 
-Manual navigation pauses following. New output preserves the reading anchor and
+Manual navigation, including scrollbar clicks, pauses following. New output preserves the reading anchor and
 increments unread count until return-to-latest or downward scrolling reaches the
 tail. Retention visits expired prefix identities and the new leading block, with
 amortized metadata compaction; it does not rescan all retained blocks per append.
@@ -79,8 +83,16 @@ the draft untouched. Completion uses the editor's visible screen caret. Clipboar
 bindings use an application-local string, without a desktop dependency.
 
 The capture worker blocks on pipe readiness and an explicit notifier. A flush request
-is snapshotted before draining available producer bytes and acknowledged only after
-complete lines and the unterminated tail are queued. Producer stdio is flushed before
+is snapshotted before `Session::pendingOutputBytes()` takes a nonblocking FIONREAD
+byte-count snapshot. The worker reads only that finite prefix before publishing
+lines and servicing control requests. A continuously readable pipe cannot extend
+the current drain or starve flush/shutdown. Only the worker reads this unbuffered
+pipe, whose descriptor remains owned until it exits. Acknowledgement follows
+publication of complete lines and the unterminated tail. Producer stdio is flushed before
 requesting the barrier. Byte accumulation preserves UTF-8 split across reads and
 blank lines; malformed complete text is represented with its hexadecimal bytes.
 Shutdown notifies and joins the worker before releasing pipe resources.
+
+Ordinary Enter CR is normalized to LF by native event decoding. Paste payloads and
+Alt input preserve literal CR, so enabling nonl() for paste does not change widget
+activation bindings.

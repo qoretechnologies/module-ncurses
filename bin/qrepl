@@ -4931,8 +4931,8 @@ class QReplOutputCapture {
         on_error active.dec();
         background run();
     }
-    # A request snapshot is taken before draining the pipe, so an acknowledgement
-    # covers all bytes already flushed by the producer before that request.
+    # Snapshot the request, then the pipe byte count. Acknowledgement covers that
+    # finite prefix; later writes cannot postpone control handling indefinitely.
     nothing flush() {
         int request;
         {
@@ -4972,10 +4972,14 @@ class QReplOutputCapture {
                 int request; bool stop;
                 { mutex.lock(); on_exit mutex.unlock(); request = requested; stop = stopping; }
                 list<string> complete = (); bool eof = False;
-                while (input.isDataAvailable(0)) {
-                    *binary bytes = input.readShortBinary(4096, 0);
+                int remaining = Ncurses::Session::pendingOutputBytes(input);
+                # A readable empty pipe means EOF; a byte arriving after the snapshot
+                # may be read here too, but never extends this finite drain budget.
+                if (!remaining && input.isDataAvailable(0)) { remaining = 1; }
+                while (remaining > 0) {
+                    *binary bytes = input.readShortBinary(min(4096, remaining), 0);
                     if (!bytes || !bytes.size()) { eof = True; break; }
-                    tail += bytes; int start = 0; int end;
+                    remaining -= bytes.size(); tail += bytes; int start = 0; int end;
                     while ((end = tail.find(<0a>, start)) >= 0) {
                         complete += decode(tail.substr(start, end - start)); start = end + 1;
                     }

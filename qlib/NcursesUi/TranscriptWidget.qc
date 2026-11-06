@@ -30,6 +30,8 @@ public class TranscriptWidget inherits NcursesUi::ScrollableWidget {
         *int retained_first;
         bool follow_tail = True;
         int unread = 0;
+        *hash<NcursesUi::TextAnchor> mouse_anchor;
+        hash<string, string> original_headers = {};
         *hash<NcursesUi::TextAnchor> selection_start;
         *hash<NcursesUi::TextAnchor> selection_end;
         string search = "";
@@ -42,7 +44,7 @@ public class TranscriptWidget inherits NcursesUi::ScrollableWidget {
         *code<nothing(string)> link_handler;
     }
     constructor() { text.setWordWrap(True); setContent(text); }
-    /** Returns the source provider, including stable line identities. @return transcript content */
+    /** Returns the presentation provider, including stable line identities and collapse indicators. @return transcript content */
     NcursesUi::LineListContent getTranscriptContent() { return text; }
     /** Adds one logical block as a batch. Empty blocks retain one empty line.
         @param lines ANSI-styled logical lines @param kind application-defined block kind @param title metadata title
@@ -123,7 +125,7 @@ public class TranscriptWidget inherits NcursesUi::ScrollableWidget {
             if (forward && line > top) { target = id; break; }
             if (!forward && line < top) { target = id; }
         }
-        if (exists target) { setScrollY(text.displayRowForLine(text.lineForId(blocks{string(target)}.line_ids[0]))); }
+        if (exists target) { setScrollY(text.displayRowForLine(text.lineForId(blocks{string(target)}.line_ids[blocks{string(target)}.first]))); }
         return target;
     }
     /** Sets the retention bound. @param maximum nonnegative logical line limit; zero is unlimited */
@@ -154,7 +156,7 @@ public class TranscriptWidget inherits NcursesUi::ScrollableWidget {
     }
     /** Clears all blocks, selection, search matches and unread state. */
     nothing clear() {
-        text.clear(); blocks = {}; block_order = (); block_start = 0; links = {}; selection_start = NOTHING; selection_end = NOTHING;
+        text.clear(); blocks = {}; block_order = (); block_start = 0; links = {}; selection_start = NOTHING; selection_end = NOTHING; mouse_anchor = NOTHING; original_headers = {};
         active_match = NOTHING; unread = 0; follow_tail = True; retained_first = NOTHING; markDirty();
     }
     /** Configures clipboard delivery. @param handler receives selected plain text */
@@ -165,19 +167,27 @@ public class TranscriptWidget inherits NcursesUi::ScrollableWidget {
     nothing select(hash<NcursesUi::TextAnchor> first, hash<NcursesUi::TextAnchor> last) {
         int start = text.lineForId(first.line_id); int end = text.lineForId(last.line_id);
         if (start < 0 || end < 0) { throw "TRANSCRIPT-SELECTION-ERROR", "Selection references removed lines"; }
+        mouse_anchor = first;
         if (start > end || (start == end && first.offset > last.offset)) {
             hash<NcursesUi::TextAnchor> swap = first; first = last; last = swap;
         }
-        first.offset = NcursesReplUi::TextPosition::snapOffset(NcursesUi::TerminalText::plainAnsi(text.getLine(text.lineForId(first.line_id))), first.offset);
-        last.offset = NcursesReplUi::TextPosition::snapOffset(NcursesUi::TerminalText::plainAnsi(text.getLine(text.lineForId(last.line_id))), last.offset, True);
+        first.offset = NcursesReplUi::TextPosition::snapOffset(getSourceLine(text.lineForId(first.line_id)), first.offset);
+        last.offset = NcursesReplUi::TextPosition::snapOffset(getSourceLine(text.lineForId(last.line_id)), last.offset, True);
         selection_start = first; selection_end = last; markDirty();
+    }
+    /** Returns a retained logical source line without presentation indicators or ANSI styling.
+        @param line zero-based retained line index @return original plain text
+    */
+    string getSourceLine(int line) {
+        *int id = text.getLineId(line);
+        return NcursesUi::TerminalText::plainAnsi(original_headers{string(id)} ?? text.getLine(line));
     }
     /** Returns selected text without ANSI escapes. @return selected source text, including hard newlines */
     string getSelectedText() {
         prune(); if (!selection_start || !selection_end) { return ""; }
         int first = text.lineForId(selection_start.line_id); int last = text.lineForId(selection_end.line_id); list<string> selected = ();
         for (int line = first; line <= last; ++line) {
-            string value = NcursesUi::TerminalText::plainAnsi(text.getLine(line));
+            string value = getSourceLine(line);
             int start = line == first ? selection_start.offset : 0; int end = line == last ? selection_end.offset : value.length();
             selected += value.substr(start, max(0, end - start));
         }
@@ -213,10 +223,10 @@ public class TranscriptWidget inherits NcursesUi::ScrollableWidget {
         foreach hash<NcursesUi::TranscriptLink> link in (ranges) {
             int line = text.lineForId(link.line_id);
             if (line < 0 || link.start < 0 || link.end <= link.start || link.target == ""
-                    || link.end > NcursesUi::TerminalText::plainAnsi(text.getLine(line)).length()) {
+                    || link.end > getSourceLine(line).length()) {
                 throw "TRANSCRIPT-LINK-ERROR", "Invalid link source range or target";
             }
-            string plain = NcursesUi::TerminalText::plainAnsi(text.getLine(line));
+            string plain = getSourceLine(line);
             link.start = NcursesReplUi::TextPosition::snapOffset(plain, link.start);
             link.end = NcursesReplUi::TextPosition::snapOffset(plain, link.end, True);
             string key = string(link.line_id);
@@ -251,10 +261,11 @@ public class TranscriptWidget inherits NcursesUi::ScrollableWidget {
         for (int row = 0; row < rect.rows; ++row) {
             *hash<NcursesUi::WrappedTextRow> entry = text.getVisualRow(getScrollY() + row); if (!entry) { continue; }
             int id = text.getLineId(entry.line_idx); int offset = entry.start; int col = 0;
+            int source_length = first >= 0 ? getSourceLine(entry.line_idx).length() : 0;
             list<hash<NcursesUi::TranscriptMatch>> row_matches = match_lines{string(id)} ?? ();
             foreach string cluster in (NcursesUi::TerminalText::graphemes(NcursesUi::TerminalText::plainAnsi(entry.text))) {
                 int width = char_width(cluster);
-                bool selected = first >= 0 && entry.line_idx >= first && entry.line_idx <= last
+                bool selected = offset < source_length && first >= 0 && entry.line_idx >= first && entry.line_idx <= last
                     && (entry.line_idx != first || offset >= selection_start.offset)
                     && (entry.line_idx != last || offset < selection_end.offset);
                 bool matched = False;
@@ -285,11 +296,18 @@ public class TranscriptWidget inherits NcursesUi::ScrollableWidget {
                 if (exists link && link_handler) { link_handler(link); return <NcursesUi::EventResult>{"handled": True}; }
                 hash<Ncurses::Position> source = text.visualToSource(getScrollY() + ev.mouse.y - rect.y, getScrollX() + ev.mouse.x - rect.x);
                 hash<NcursesUi::TextAnchor> anchor = <NcursesUi::TextAnchor>{"line_id": text.getLineId(source.y), "offset": source.x};
-                select((ev.mouse.button_state & Ncurses::BUTTON_SHIFT) && selection_start ? selection_start : anchor, anchor);
+                if (!(ev.mouse.button_state & Ncurses::BUTTON_SHIFT) || !mouse_anchor) { mouse_anchor = anchor; }
+                select(mouse_anchor, anchor);
                 return <NcursesUi::EventResult>{"handled": True};
             }
         }
-        return ScrollableWidget::processEvent(ev);
+        hash<NcursesUi::EventResult> result = ScrollableWidget::processEvent(ev);
+        if (result.handled && ev.type == Ncurses::InputType::Mouse && ev.mouse
+                && (ev.mouse.button_state & (Ncurses::BUTTON1_CLICKED | Ncurses::BUTTON1_PRESSED))) {
+            follow_tail = getScrollY() >= max(0, text.totalRows() - getViewportRect().rows);
+            if (follow_tail) { unread = 0; }
+        }
+        return result;
     }
     private NcursesUi::TranscriptBlockState getBlock(int id) {
         if (!exists blocks{string(id)}) { throw "TRANSCRIPT-BLOCK-ERROR", "Block is no longer retained"; }
@@ -303,6 +321,9 @@ public class TranscriptWidget inherits NcursesUi::ScrollableWidget {
     }
     private nothing collapseHeader(NcursesUi::TranscriptBlockState block) {
         int line = text.lineForId(block.line_ids[block.first]);
+        string key = string(block.line_ids[block.first]);
+        if (block.collapsed) { original_headers{key} = block.text[block.first]; }
+        else { remove original_headers{key}; }
         text.setLineVisible(line, True);
         text.setLine(line, block.text[block.first] + (block.collapsed && block.line_ids.size() - block.first > 1
             ? sprintf(" [ +%d lines ]", block.line_ids.size() - block.first - 1) : ""));
@@ -319,7 +340,7 @@ public class TranscriptWidget inherits NcursesUi::ScrollableWidget {
         while (block_start < block_order.size()) {
             int id = block_order[block_start]; NcursesUi::TranscriptBlockState block = blocks{string(id)};
             while (block.first < block.line_ids.size() && text.lineForId(block.line_ids[block.first]) < 0) {
-                remove links{string(block.line_ids[block.first])}; ++block.first; ++pruned_lines;
+                remove links{string(block.line_ids[block.first])}; remove original_headers{string(block.line_ids[block.first])}; ++block.first; ++pruned_lines;
             }
             if (block.first == block.line_ids.size()) { remove blocks{string(id)}; ++block_start; continue; }
             if (block.first >= max(256, block.line_ids.size() / 2)) {
@@ -330,6 +351,7 @@ public class TranscriptWidget inherits NcursesUi::ScrollableWidget {
             break;
         }
         if (block_start >= max(256, block_order.size() / 2)) { block_order = retainedOrder(); block_start = 0; }
+        if (mouse_anchor && text.lineForId(mouse_anchor.line_id) < 0) { mouse_anchor = NOTHING; }
         if (!exists first) { selection_start = NOTHING; selection_end = NOTHING; }
         else {
             if (selection_start && text.lineForId(selection_start.line_id) < 0) { selection_start = <NcursesUi::TextAnchor>{"line_id": first, "offset": 0}; }
@@ -341,7 +363,7 @@ public class TranscriptWidget inherits NcursesUi::ScrollableWidget {
         list<hash<NcursesUi::TranscriptMatch>> next = (); hash<string, list<hash<NcursesUi::TranscriptMatch>>> grouped = {};
         if (search != "") {
             for (int line = 0; line < text.lineCount(); ++line) {
-                string plain = NcursesUi::TerminalText::plainAnsi(text.getLine(line)); int offset = plain.find(search);
+                string plain = getSourceLine(line); int offset = plain.find(search);
                 while (offset >= 0) {
                     int id = text.getLineId(line);
                     hash<NcursesUi::TranscriptMatch> match = <NcursesUi::TranscriptMatch>{"line_id": id,

@@ -1384,7 +1384,7 @@ hash<InputEvent> Window::readEvent(*int timeout_ms, *int poll_ms) [flags=NAMED_A
                 }
             } else {
                 h->setKeyValue("type", NC_INPUT_CHAR, xsink);
-                QoreStringNode* ch = win->session->readCharacter(win->win, rc, xsink);
+                QoreStringNode* ch = win->session->readCharacter(win->win, rc == 13 ? 10 : rc, xsink);
                 if (*xsink) { return nothing(); }
                 h->setKeyValue("ch", ch, xsink);
             }

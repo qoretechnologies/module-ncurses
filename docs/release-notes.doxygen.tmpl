@@ -66,7 +66,10 @@
 
     qrepl uses separate transcript and draft viewports, retains failed drafts,
     exposes output/history search and internal clipboard bindings, and anchors
-    completion to the wrapped caret. Its capture worker uses explicit flush and
+    completion to the wrapped caret. Ordinary Enter is normalized without changing
+    literal paste or Alt input. Clipped subtree invalidation, clean panel removal,
+    transcript mouse anchors, scrollbar following and collapse source text are covered
+    by regressions. Its capture worker uses explicit flush and
     shutdown acknowledgement, preserves blank lines and split UTF-8, and reports
     invalid output bytes without sending malformed strings to the renderer.
 */

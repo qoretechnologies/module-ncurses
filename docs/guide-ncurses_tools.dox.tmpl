@@ -35,7 +35,9 @@ qrepl
     Alt-key menu shortcuts provide file, edit, view and help actions. Command history
     is persisted in <tt>~/.qore-repl-history</tt>. Output capture preserves complete
     lines and marks unterminated output with a reversed percent sign. Capture workers
-    enqueue text only; widget mutation and drawing stay on the UI thread.
+    enqueue text only; widget mutation and drawing stay on the UI thread. Each worker
+    drain uses a finite byte-count snapshot, so continuously produced output cannot
+    starve flush or shutdown. Ordinary Enter remains LF even with paste enabled.
 
     @section ncursestoolshelpers Building a Custom Console
 

@@ -24,7 +24,37 @@ class TranscriptTest inherits Test {
         addTestCase("wrapped links and callback failures use source coordinates", \links());
         addTestCase("empty transcripts and invalid references are safe", \empty());
         addTestCase("stream retention visits only expired identities and updates collapsed suffixes", \incrementalRetention());
+        addTestCase("mouse selection retains its anchor when crossing and scrollbars pause following", \mouseReading());
+        addTestCase("collapsed indicators never enter source selection search or links", \collapseSource());
         set_return_value(main());
+    }
+    private hash<Ncurses::InputEvent> click(int row, int col, bool extend = False) {
+        return <Ncurses::InputEvent>{"type": Ncurses::InputType::Mouse,
+            "mouse": <Ncurses::MouseEvent>{"y": row, "x": col, "button_state": Ncurses::BUTTON1_CLICKED | (extend ? Ncurses::BUTTON_SHIFT : 0)}};
+    }
+    mouseReading() {
+        NcursesUi::TestHarness th(8, 30); on_exit th.close(); NcursesUi::TranscriptWidget w(); w.setFrameValues(0, 0, 3, 20);
+        w.appendLine("0123456789abcdef"); w.drawTree(th.screen());
+        w.processEvent(click(0, 10)); w.processEvent(click(0, 5, True)); assertEq("56789", w.getSelectedText());
+        w.processEvent(click(0, 15, True)); assertEq("abcde", w.getSelectedText());
+        w.processEvent(click(0, 2, True)); assertEq("23456789", w.getSelectedText());
+        w.appendLines(("one", "two", "three", "four", "five", "six")); w.drawTree(th.screen()); assertTrue(w.isFollowing());
+        assertTrue(w.processEvent(click(0, 19)).handled); assertFalse(w.isFollowing()); w.drawTree(th.screen()); assertEq(0, w.getScrollY());
+        w.appendLine("seven"); w.drawTree(th.screen()); assertEq(0, w.getScrollY()); assertEq(1, w.getUnreadCount());
+        w.processEvent(click(2, 19)); assertTrue(w.isFollowing()); assertEq(0, w.getUnreadCount()); w.drawTree(th.screen());
+        assertEq(5, w.getScrollY());
+    }
+    collapseSource() {
+        NcursesUi::TestHarness th(8, 30); on_exit th.close(); NcursesUi::TranscriptWidget w(); w.setFrameValues(0, 0, 3, 30);
+        int block = w.appendBlock(("header", "body")); list<int> ids = w.getBlocks()[0].line_ids;
+        w.select(anchor(ids[0], 0), anchor(ids[1], 4)); string original = w.getSelectedText(); w.setCollapsed(block, True);
+        assertEq("header\nbody", original); assertEq(original, w.getSelectedText()); assertEq("header", w.getSourceLine(0));
+        w.setSearch("lines"); assertEq((), w.getMatches()); w.setSearch("header"); assertEq(1, w.getMatches().size());
+        assertThrows("TRANSCRIPT-LINK-ERROR", sub () { w.setLinks((<NcursesUi::TranscriptLink>{"line_id": ids[0], "start": 7, "end": 10, "target": "invalid"},)); });
+        w.drawTree(th.screen()); assertTrue(th.screen().readText(0, 0, 30).find("lines") >= 0);
+        w.processEvent(click(0, 10)); w.processEvent(click(0, 20, True)); assertEq("", w.getSelectedText());
+        w.setCollapsed(block, False); assertEq("header", w.getSourceLine(0));
+        w.setCollapsed(block, True); w.setRetentionLimit(1); assertEq("body", w.getSourceLine(0));
     }
     incrementalRetention() {
         NcursesUi::TranscriptWidget t(); t.setRetentionLimit(10); t.setFrameValues(0, 0, 4, 20);
