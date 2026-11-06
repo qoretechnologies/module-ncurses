@@ -11,6 +11,14 @@ class FormEditorControl inherits NcursesUi::TextEditorWidget {
         if (before != getText()) { changed(getText()); } return result;
     }
 }
+/** @internal Preserves the distinction between an unset Boolean and an explicit False. */
+class FormCheckboxControl inherits NcursesUi::CheckboxWidget {
+    private { code<nothing(bool)> changed; }
+    constructor(code<nothing(bool)> callback, bool value) : CheckboxWidget("", value) {
+        changed = callback; setOnToggle(callback);
+    }
+    nothing setChecked(bool value) { CheckboxWidget::setChecked(value); changed(value); }
+}
 /** Composable form driven by FormModel, with wrapped labels/help/errors and typed controls.
     Bind the application's focus manager with setFocusManager() to focus the first
     invalid field. Tab order follows schema order; focused controls scroll into view
@@ -117,9 +125,10 @@ public class FormWidget inherits NcursesUi::Widget {
         }
         if (message.isVisible()) { ordered += message; int rows = message.getPreferredSizeForWidth(view.cols).rows; heights += rows; total += rows; }
         ordered += submit_button; heights += 1; ++total; ordered += cancel_button; heights += 1; ++total;
-        *NcursesUi::Widget current = findFocused(); int offset = 0;
+        *NcursesUi::Widget current = findFocused();
+        *NcursesUi::Widget reveal = model.getState() == NcursesUi::ActionState::Completed ? message : current; int offset = 0;
         for (int i = 0; i < ordered.size(); ++i) {
-            if (ordered[i] == current) {
+            if (ordered[i] == reveal) {
                 if (offset < scroll_y) { scroll_y = offset; }
                 else if (offset + heights[i] > scroll_y + view.rows) { scroll_y = offset + min(heights[i], max(1, view.rows)) - max(1, view.rows); }
             }
@@ -168,8 +177,9 @@ public class FormWidget inherits NcursesUi::Widget {
     private NcursesUi::Widget createControl(hash<NcursesUi::FormField> field) {
         string name = field.name; auto value = model.getValue(name);
         if (field.type == NcursesUi::FieldType::Boolean) {
-            NcursesUi::CheckboxWidget control("", !!value);
-            control.setOnToggle(sub (bool checked) { storeValue(name, checked); markDirty(); }); return control;
+            return new NcursesUi::FormCheckboxControl(sub (bool checked) {
+                if (!synchronizing) { storeValue(name, checked); markDirty(); }
+            }, !!value);
         }
         if (field.type == NcursesUi::FieldType::Choice) {
             NcursesUi::DescribedChoiceWidget control(field.choices); control.setAutoHeight(1, 4);
@@ -208,7 +218,9 @@ public class FormWidget inherits NcursesUi::Widget {
         foreach hash<NcursesUi::FormField> field in (fields) {
             if (field.read_only) { continue; }
             NcursesUi::Widget control = controls{field.name};
-            if (field.type == NcursesUi::FieldType::Boolean) { storeValue(field.name, cast<NcursesUi::CheckboxWidget>(control).isChecked()); }
+            # Boolean adapters publish actual edits, including explicit setChecked(False).
+            # An untouched unchecked display must not turn NOTHING into False.
+            if (field.type == NcursesUi::FieldType::Boolean) { continue; }
             else if (field.type == NcursesUi::FieldType::Choice) {
                 if (imported_invalid_choices{field.name}) { continue; }
                 *hash<NcursesUi::ChoiceSelection> selection = cast<NcursesUi::DescribedChoiceWidget>(control).getSelection(); storeValue(field.name, selection ? selection.value : NOTHING);

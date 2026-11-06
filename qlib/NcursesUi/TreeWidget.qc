@@ -127,7 +127,7 @@ public class TreeWidget inherits NcursesUi::ScrollableWidget {
     /** Reflows indentation for narrow terminals before drawing. @param window target */
     nothing draw(Ncurses::Window window) {
         prepareDrawViewport(window);
-        bool reflow = rendered_width != contentRect().cols;
+        bool reflow = rendered_width != getViewportRect().cols;
         if (reflow) { render(); }
         if (reflow || reveal_selection || last_viewport != getViewportRect()) { revealSelection(); }
         reveal_selection = False; last_viewport = getViewportRect();
@@ -164,7 +164,7 @@ public class TreeWidget inherits NcursesUi::ScrollableWidget {
             next = event.mouse.y - view.y + getScrollY();
             if (next >= 0 && next < visible_paths.size()) {
                 string path = visible_paths[next]; hash<NcursesUi::TreeNode> item = nodes{path};
-                int column = event.mouse.x - view.x + getScrollX(); int indent = min(item.entry.depth * 2, max(0, contentRect().cols / 3));
+                int column = event.mouse.x - view.x + getScrollX(); int indent = min(item.entry.depth * 2, max(0, getViewportRect().cols / 3));
                 if (item.entry.branch && ((column >= indent && column < indent + 2)
                         || (event.mouse.button_state & Ncurses::BUTTON1_DOUBLE_CLICKED))) {
                     selected = path; setExpanded(path, !expanded{path}); notifySelection();
@@ -216,7 +216,7 @@ public class TreeWidget inherits NcursesUi::ScrollableWidget {
     }
     private string renderLine(string path) {
         hash<NcursesUi::TreeNode> item = nodes{path}; ++rendered_rows;
-        string row = strmul(" ", min(item.entry.depth * 2, max(0, contentRect().cols / 3)))
+        string row = strmul(" ", min(item.entry.depth * 2, max(0, getViewportRect().cols / 3)))
             + (item.entry.branch ? ((expanded{path} || filter != "") ? "▾ " : "▸ ") : "  ")
             + item.display_label + ": " + item.preview;
         return path == selected ? "\e[7m" + row + "\e[0m" : row;
@@ -228,7 +228,7 @@ public class TreeWidget inherits NcursesUi::ScrollableWidget {
     }
     private nothing render() {
         list<string> rows = (); foreach string path in (visible_paths) { rows += renderLine(path); }
-        lines.setLines(rows); rendered_width = contentRect().cols; markDirty();
+        lines.setLines(rows); rendered_width = getViewportRect().cols; markDirty();
     }
     private static string literal(string value) {
         value = value.substr(0, 256); value = replace(value, "\\", "\\\\");

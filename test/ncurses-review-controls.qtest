@@ -20,7 +20,41 @@ class ReviewControlsTest inherits Test {
         addTestCase("replaced scalar branches allow parent navigation", \treeScalar());
         addTestCase("password submit mode transitions never expose history or failed drafts", \passwordHistory());
         addTestCase("form focus scrolls within ancestor and target-window clipping", \clippedFocus());
+        addTestCase("form completion reveals the receipt from an early field", \formReceipt());
+        addTestCase("untouched required Boolean stays unset until an explicit edit", \unsetBoolean());
+        addTestCase("tree indentation and branch hit testing use clipped viewport width", \treeClipped());
         set_return_value(main());
+    }
+    formReceipt() {
+        NcursesUi::TestHarness th(4, 24); on_exit th.close(); NcursesUi::Application app(th.session());
+        NcursesUi::FormModel model(fields()); NcursesUi::FormWidget form(model); app.setRoot(form); form.setFocusManager(app.getFocusManager());
+        form.setOnSubmit(auto sub (hash<auto> values) { return values; }); app.getFocusManager().setFocus(form.getControl("count")); app.drawAll();
+        assertEq(0, form.getScrollY()); app.processEvent(key("KEY_ENTER")); app.drawAll();
+        assertEq(NcursesUi::ActionState::Completed, model.getState()); assertTrue(form.getScrollY() > 0);
+        assertTrue(join("\n", th.screen().readLines()).find("Submitted") >= 0); assertFalse(form.isDirty()); assertFalse(form.submit());
+    }
+    unsetBoolean() {
+        list<hash<NcursesUi::FormField>> schema = (<NcursesUi::FormField>{"name": "flag", "label": "Required Boolean", "type": NcursesUi::FieldType::Boolean, "required": True},);
+        NcursesUi::FormModel model(schema); NcursesUi::FormWidget form(model); int calls = 0;
+        form.setOnSubmit(auto sub (hash<auto> values) { ++calls; return values; });
+        assertFalse(form.submit()); assertNothing(model.getValue("flag")); assertEq(0, calls);
+        NcursesUi::CheckboxWidget checkbox = cast<NcursesUi::CheckboxWidget>(form.getControl("flag"));
+        checkbox.setChecked(False); assertTrue(form.submit()); assertEq(False, model.getResult().flag); assertEq(1, calls);
+        model.reset(); model.setValue("flag", NOTHING); assertFalse(form.submit()); assertNothing(model.getValue("flag"));
+        checkbox.toggle(); checkbox.toggle(); assertEq(False, model.getValue("flag")); assertTrue(form.submit()); assertEq(2, calls);
+        model.reset(); model.setValue("flag", False); assertTrue(form.submit()); assertEq(False, model.getResult().flag);
+        NcursesUi::FormModel optional((<NcursesUi::FormField>{"name": "flag", "label": "Optional", "type": NcursesUi::FieldType::Boolean},));
+        NcursesUi::FormWidget optional_form(optional); optional_form.setOnSubmit(auto sub (hash<auto> values) { return values; }); assertTrue(optional_form.submit()); assertNothing(optional.getResult().flag);
+    }
+    treeClipped() {
+        NcursesUi::TestHarness th(12, 100); on_exit th.close(); NcursesUi::Widget parent(); parent.setFrameValues(0, 0, 3, 6);
+        NcursesUi::TreeWidget tree({"a": {"b": {"c": {"d": {"Z": {"leaf": 42}}}}}}); tree.setFrameValues(0, 0, 10, 100); parent.addChild(tree); tree.selectPath("/a/b/c/d/Z"); parent.drawTree(th.screen());
+        hash<NcursesUi::Rect> view = tree.getViewportRect(); int row = 5 - tree.getScrollY();
+        assertTrue(th.screen().readText(row, 0, 20).find("Z") >= 0); int column = min(10, max(0, view.cols / 3));
+        tree.processEvent(click(row, column)); assertTrue(tree.isExpanded("/a/b/c/d/Z")); parent.drawTree(th.screen());
+        parent.setFrameValues(0, 0, 3, 5); parent.drawTree(th.screen()); assertTrue(th.screen().readText(5 - tree.getScrollY(), 0, 20).find("Z") >= 0);
+        NcursesUi::TreeWidget separate({"a": {"b": {"c": {"Z": 42}}}}); separate.setFrameValues(0, 0, 10, 100); separate.selectPath("/a/b/c/Z");
+        Ncurses::Window small(th.session(), 2, 6, 0, 0); separate.drawTree(small); assertTrue(small.readText(4 - separate.getScrollY(), 0, 20).find("Z") >= 0); assertFalse(separate.isDirty());
     }
     passwordHistory() {
         QoreHistory::History history(); history.add("safe command"); NcursesUi::TextInputWidget input(); input.setHistory(history);

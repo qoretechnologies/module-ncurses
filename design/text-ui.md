@@ -141,3 +141,5 @@ first visible line), and adopt that source identity for subsequent expansion/res
 Transcript tail following establishes target-window bounds before scrolling; search
 navigation reveals the selected match on both axes. Preferred editor columns persist
 only across consecutive vertical moves, identified by the model revision.
+
+Form Boolean controls preserve unset values until a toggle or explicit `setChecked()` edit; an explicit `False` satisfies required Boolean validation. Completed forms reveal the submission receipt even when submission originates in an early field. Tree indentation and branch hit testing use the effective ancestor/target-clipped viewport width.
