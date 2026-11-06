@@ -394,4 +394,133 @@ code.setSearch("print");
     rejected; replace a document using setText(). The native ANSI parser ignores numeric
     parameters outside the supported integer range without overflow and cooperates with
     cancellation during parsing, measurement, wrapping and drawing.
+    @section ncursesui_assistance Editor Assistance
+
+    AssistanceModel binds an EditorBuffer. CompletionItem carries a stable ID, label,
+    rank, optional filter text/detail/documentation, replacement text and an explicit
+    SourceRange of character offsets. Ranges must align with grapheme boundaries.
+    DiagnosticItem adds range/severity/message; SignatureHelp names parameters and
+    the active parameter; AssistanceAction provides an exact edit or application hook.
+    A provider returns a typed AssistanceResponse without performing UI operations.
+
+    @code{.py}
+%modern
+%requires ncurses
+%requires NcursesUi
+NcursesUi::EditorBuffer editor(); editor.setText("greet(na)"); editor.setCursor(8);
+NcursesUi::AssistanceModel help(editor);
+hash<NcursesUi::AssistanceRequest> request = help.beginRequest();
+@assert(help.complete(request, <NcursesUi::AssistanceResponse>{"completions": (
+    <NcursesUi::CompletionItem>{"id": "name", "label": "name", "text": "name",
+        "range": <NcursesUi::SourceRange>{"start": 6, "end": 8}, "rank": 10},
+)}));
+@assert(help.applyCompletion("name"));
+@assert(editor.getText() == "greet(name)");
+@assert(editor.undo());
+request = help.beginRequest(); editor.insert("x");
+@assert(!help.complete(request, <NcursesUi::AssistanceResponse>{}));
+    @endcode
+
+    Request tokens include model identity, generation, text/caret and editor revision.
+    Editing, cancellation or replacement makes earlier results stale. complete()/fail()
+    run on the UI thread; callback failures retain the draft. AssistancePopupWidget
+    anchors to TextEditorWidget::getCaretScreenPosition(), clamps/flips after resize,
+    hides/cancels for an unavailable/offscreen editor, and presents filterable results
+    with scrollable documentation. Up/Down navigate, Enter activates, Tab changes to
+    documentation, and Escape dismisses. The application owns popup push/pop and panel
+    destruction through setOnDismiss(). See @c examples/editor-assistance.qr.
+
+    @section ncursesui_async UI Delivery and Operation State
+
+    Application::createEventScope(callback, owner) creates an explicit receiver lifetime.
+    Workers call scope.post(payload); only the UI thread invokes the callback. Treat
+    posted payloads as immutable. The queue is FIFO and bounded (4096 pending entries
+    by default), with a finite initial batch per drain so producers cannot starve input.
+    Close a scope on teardown; hidden, disabled or detached widget owners are disposed
+    on the next UI reconciliation. Late posts return False. An already selected callback
+    may finish if a worker closes its scope concurrently. UI-thread disposal prevents
+    later invocation. Receiver/payload destruction occurs outside the queue lock.
+
+    @code{.py}
+%modern
+%requires ncurses
+%requires NcursesUi
+NcursesUi::UiEventQueue queue(NOTHING);
+list<string> received = ();
+NcursesUi::UiEventScope scope = queue.createScope(sub (auto data) { received += string(data); });
+on_exit scope.close();
+Counter finished(1);
+background sub () { on_exit finished.dec(); scope.post("ready"); }();
+finished.waitForZero();
+@assert(received == ());
+@assert(queue.drain() == 1);
+@assert(received == ("ready",));
+    @endcode
+
+    Application wires its queue to Session::wakeup(), drains before drawing and after
+    input, and supports setReadTimeout(-1, 25) for event-driven operation. The default
+    100 ms timeout remains compatible with existing tick users. Owned tick callbacks
+    can be removed by subscription ID; they run after loop iterations, not on a separate
+    timer. Callback failures propagate after consuming that delivery; later queued data
+    remains available. Wake failure rolls back an undelivered post. Close releases all
+    receivers before closing the terminal. UI methods reject cross-thread delivery/run.
+
+    ActionModel owns Pending/Running/Cancelled/Failed/Completed state, timestamps,
+    progress and receipts. begin()/dispatch() returns a model-specific attempt token;
+    progress()/complete()/fail() ignore stale attempts, and cancel() invalidates them.
+    Finite progress requires a positive known total and completed units within it;
+    NOTHING represents unknown totals. Completed actions require explicit reset().
+    ProgressWidget supports Enter start/retry and C/Escape cancel, with application
+    callbacks. TimelineWidget appends timestamped immutable TimelineEvent snapshots,
+    retains stable IDs while bounded history trims old lines, and exposes expandable
+    details, search, selection and activation. Enter/Space toggles details; A invokes
+    an application hook. Combine DescribedChoiceWidget stable values with ActionModel
+    for approval/review semantics; @c examples/async-review.qr demonstrates this composition.
+
+    @section ncursesui_filesmedia File Selection and Media Fallbacks
+
+    FileSelectionModel stores typed FileSelectionEntry metadata with stable ID, path,
+    name, optional size, type, enabled state and validation error. setFilter() or dotted
+    case-insensitive setExtensions() filters the view without discarding hidden checked
+    entries. Refresh preserves IDs still present. Summaries count selected, hidden and
+    unavailable entries. Single mode replaces selection; multi mode keeps explicit checks.
+    FileSelectionWidget supports Space selection, list navigation, Enter open, S save,
+    E export and an application-owned Escape callback. Single mode selects the highlighted
+    entry on activation if empty; multi mode requires explicit selection.
+
+    Operations are application callbacks returning True for completion or False for
+    cancellation; exceptions record failure and propagate. Running/completed guards
+    prevent repeated actions until reset(). Only NOTHING means validator success.
+    inspectLocalPaths() explicitly inspects regular-file metadata through Qore's
+    sandbox-checked filesystem APIs, returning per-file errors. validateLocalSelection()
+    rechecks paths before dispatch; applications must still handle removal/access races
+    during actual I/O. Directory navigation remains available through FileBrowserWidget.
+
+    AttachmentWidget presents AttachmentInfo names, sizes/types, errors and optional
+    application-provided text/chart previews. Unsupported media retains a readable
+    summary and explicit configured open/save/export actions. No decoder, file read,
+    network request or external application starts implicitly. TextChart summarizes all
+    finite samples and renders ASCII sparklines by default; Unicode blocks are opt-in.
+    NOTHING samples are gaps, displayed as ?. Width reduction samples evenly including
+    endpoints when possible; a one-cell chart shows the latest position. Summaries retain
+    count/min/max/last available value regardless of width. TextChartWidget wraps the
+    summary and fits the sparkline to the effective viewport. See @c examples/file-attachments.qr.
+
+    @code{.py}
+%modern
+%requires ncurses
+%requires NcursesUi
+NcursesUi::FileSelectionModel files((
+    <NcursesUi::FileSelectionEntry>{"id": "report", "path": "report.csv", "name": "report.csv", "size": 128},
+));
+files.setExtensions((".csv",));
+@assert(files.toggle("report"));
+files.setHandler(NcursesUi::FileOperation::Export, bool sub (list<hash<NcursesUi::FileSelectionEntry>> selected) {
+    return False; # cancelled destination selection; no file was written
+});
+@assert(!files.dispatch(NcursesUi::FileOperation::Export));
+@assert(files.getSelected()[0].id == "report");
+NcursesUi::TextChart chart((1.0, 4.0, NOTHING, 2.0), "Requests", "count");
+@assert(chart.sparkline(4) == ".@?-");
+    @endcode
 */

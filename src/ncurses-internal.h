@@ -42,7 +42,7 @@ extern thread_local int ncurses_lock_depth;
 extern std::atomic<unsigned> ncurses_fork_generation;
 
 //! Holds ncurses_lock and counts the holds of the current thread
-/** The lock is held while a thread waits for terminal input and while user callbacks run (Session::withLock()), which
+/** The lock is released while a thread waits for terminal input and held while user callbacks run (Session::withLock()), which
     can call fork(); a child process created with fork() takes it again as often as the forking thread held it (see
     ncurses_fork_child())
 */
@@ -99,6 +99,7 @@ constexpr int NC_INPUT_MOUSE = 3;
 constexpr int NC_INPUT_RESIZE = 4;
 constexpr int NC_INPUT_ALT = 5;
 constexpr int NC_INPUT_PASTE = 6;
+constexpr int NC_INPUT_WAKE = 7;
 
 // Private input marker outside ncurses/Unicode key ranges. Mouse payloads must
 // follow ungetch's LIFO ordering, not ncurses's separate mouse-event ring.
@@ -172,6 +173,19 @@ public:
     FILE* in_file = nullptr;
     FILE* out_file = nullptr;
 
+    // All state is protected by NcursesLockHelper. Descriptors live until destruction.
+    int wake_pipe[2] = {-1, -1};
+    unsigned wake_generation = 0;
+    bool wake_pending = false;
+    bool input_reading = false;
+    unsigned input_generation = 0;
+    bool ensureWakePipe(ExceptionSink* xsink);
+    bool notifyInput(ExceptionSink* xsink);
+    void wakeup(ExceptionSink* xsink);
+    bool takeWake(ExceptionSink* xsink);
+    bool waitForInput(int timeout_ms, int fallback_poll_ms, ExceptionSink* xsink);
+    void closeWakePipe();
+
     NcursesSession();
     ~NcursesSession();
 
@@ -180,6 +194,15 @@ public:
     short getColorPair(int fg, int bg, ExceptionSink* xsink);
     // Caller holds NcursesCallGuard for this session.
     void injectMouse(const MEVENT& event, ExceptionSink* xsink);
+};
+
+// A session has one input consumer. Another thread may wake, inject, draw, or close it.
+class NcursesInputReadGuard {
+    NcursesSession* session;
+    bool acquired = false;
+public:
+    NcursesInputReadGuard(NcursesSession* s, ExceptionSink* xsink);
+    ~NcursesInputReadGuard();
 };
 
 // Roll back an entire injected batch if validation, capacity, allocation or cancellation fails.

@@ -1,0 +1,66 @@
+#!/usr/bin/env qore
+# Copyright 2026 Qore Technologies, s.r.o.
+%modern
+%prepend-module-path "${SCRIPT_DIR}/../build-debug"
+%prepend-module-path "${SCRIPT_DIR}/../qlib"
+%requires ncurses
+%requires QUnit
+%exec-class WakeupTest
+class WakeupTest inherits Test {
+    constructor() : Test("WakeupTest", "1.0", \ARGV) {
+        addTestCase("coalesced wakes survive read boundaries without fake input", \wake());
+        addTestCase("workers wake indefinite readers and inject typed input", \workers());
+        addTestCase("close and cancellation release indefinite reads", \closing());
+        addTestCase("argument validation and lock safety", \validation());
+        addTestCase("wake preserves partial native bracketed paste", \paste());
+        set_return_value(main());
+    }
+    private Ncurses::Session session(Ncurses::TestTerminal terminal) {
+        terminal.open(); return new Ncurses::Session({"test_terminal": terminal, "raw": True, "echo": False, "bracketed_paste": True, "esc_delay": 1});
+    }
+    wake() {
+        Ncurses::TestTerminal terminal(10, 30); Ncurses::Session s = session(terminal); on_exit s.close();
+        s.wakeup(); s.wakeup(); assertEq(Ncurses::InputType::Wake, s.screen().readEvent(-1).type); assertNothing(s.screen().readEvent(0));
+        s.injectInput("界"); s.wakeup(); assertEq("界", s.screen().readEvent(0).ch); assertEq(Ncurses::InputType::Wake, s.screen().readEvent(0).type); assertNothing(s.screen().readEvent(0));
+        s.wakeup(); assertEq(Ncurses::InputType::Wake, s.screen().readEvent(0).type); assertNothing(s.screen().readEvent(1, 100000));
+        s.close(); assertThrows("NCURSES-ERROR", sub () { s.wakeup(); }); assertThrows("NCURSES-ERROR", sub () { s.screen().readEvent(0); });
+    }
+    workers() {
+        Ncurses::TestTerminal terminal(10, 30); Ncurses::Session s = session(terminal); on_exit s.close();
+        Queue ready(); Queue result(); Counter done(1);
+        background sub () { on_exit done.dec(); ready.push(True); try { result.push(s.screen().readEvent(-1)); } catch (hash<ExceptionInfo> ex) { result.push(ex); } }();
+        ready.get(); s.wakeup(); done.waitForZero(); assertEq(Ncurses::InputType::Wake, result.get().type);
+        Counter injected(1);
+        background sub () { on_exit injected.dec(); ready.push(True); try { result.push(s.screen().readEvent(-1)); } catch (hash<ExceptionInfo> ex) { result.push(ex); } }();
+        ready.get(); s.injectEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Paste, "ch": "line\n界"}); injected.waitForZero(); hash<Ncurses::InputEvent> event = result.get(); assertEq(Ncurses::InputType::Paste, event.type); assertEq("line\n界", event.ch);
+        assertNothing(s.screen().readEvent(0)); terminal.writeInput("z"); assertEq("z", s.screen().readEvent(-1).ch);
+    }
+    closing() {
+        Ncurses::TestTerminal terminal(10, 30); Ncurses::Session s = session(terminal);
+        Queue ready(); Queue result(); Counter done(1);
+        background sub () { on_exit done.dec(); ready.push(True); try { s.screen().readEvent(-1); result.push("NONE"); } catch (hash<ExceptionInfo> ex) { result.push(ex.err); } }();
+        ready.get(); s.close(); done.waitForZero(); assertEq("NCURSES-ERROR", result.get());
+        Ncurses::TestTerminal other(10, 30); s = session(other); on_exit s.close(); Queue go(); Counter cancelled(1);
+        int tid = background sub () {
+            on_exit cancelled.dec(); defer_thread_cancel(sub () { ready.push(True); go.get(); });
+            try { s.screen().readEvent(-1); result.push("NONE"); }
+            catch (hash<ExceptionInfo> ex) { clear_thread_cancel(); result.push(ex.err); }
+        }();
+        ready.get(); cancel_thread(tid, "wake cancellation test"); go.push(True); cancelled.waitForZero(); assertEq("THREAD-CANCELLED", result.get());
+        s.wakeup(); assertEq(Ncurses::InputType::Wake, s.screen().readEvent(0).type);
+    }
+    validation() {
+        Ncurses::TestTerminal terminal(10, 30); Ncurses::Session s = session(terminal); on_exit s.close();
+        foreach int value in ((-2, 2147483648)) { assertThrows("NCURSES-ERROR", sub () { s.screen().readEvent(value); }); }
+        foreach int value in ((0, -1, 2147483648)) { assertThrows("NCURSES-ERROR", sub () { s.screen().readEvent(0, value); }); }
+        s.withLock(sub () { assertNothing(s.screen().readEvent(0)); });
+        assertThrows("NCURSES-INPUT-LOCK-ERROR", sub () { s.withLock(sub () { s.screen().readEvent(-1); }); });
+        s.injectInput("x"); s.withLock(sub () { assertEq("x", s.screen().readEvent(-1).ch); });
+        assertNothing(s.screen().readEvent(0));
+    }
+    paste() {
+        Ncurses::TestTerminal terminal(10, 30); Ncurses::Session s = session(terminal); on_exit s.close();
+        terminal.writeInput("\e[200~first"); assertNothing(s.screen().readEvent(0)); s.wakeup(); assertEq(Ncurses::InputType::Wake, s.screen().readEvent(-1).type);
+        terminal.writeInput("\n界\e[201~z"); hash<Ncurses::InputEvent> event = s.screen().readEvent(-1); assertEq(Ncurses::InputType::Paste, event.type); assertEq("first\n界", event.ch); assertEq("z", s.screen().readEvent(-1).ch);
+    }
+}

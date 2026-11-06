@@ -1,0 +1,65 @@
+#!/usr/bin/env qore
+# Copyright 2026 Qore Technologies, s.r.o.
+%requires ncurses
+%requires NcursesUi
+%exec-class AssistanceDemo
+
+class AssistanceDemo {
+    private {
+        Ncurses::Session session;
+        NcursesUi::Application app;
+        NcursesUi::TextEditorWidget editor();
+        NcursesUi::AssistanceModel model;
+        *NcursesUi::AssistancePopupWidget popup;
+        NcursesUi::UiEventScope delivery;
+        Counter workers(0);
+    }
+    constructor(*Ncurses::Session terminal) {
+        session = terminal ?? new Ncurses::Session({"raw": True, "mouse": True, "bracketed_paste": True});
+        app = new NcursesUi::Application(session); app.setReadTimeout(-1, 25); app.setRoot(editor);
+        editor.setText("greet(na)"); editor.getBuffer().setCursor(8); app.getFocusManager().setFocus(editor);
+        model = new NcursesUi::AssistanceModel(editor.getBuffer());
+        delivery = app.createEventScope(sub (auto payload) {
+            hash<NcursesUi::AssistanceRequest> request = payload.request;
+            if (exists payload.error) { model.fail(request, string(payload.error)); return; }
+            if (!model.complete(request, payload.response)) { return; }
+            popup = new NcursesUi::AssistancePopupWidget(session, editor, model);
+            popup.setOnDismiss(sub () { app.popModal(); popup.destroyPanel(); popup = NOTHING; });
+            hash<Ncurses::Size> size = session.screen().size();
+            if (popup.positionAtCaret(size.rows, size.cols)) { popup.createPanel(); app.pushPopup(popup); }
+        }, editor);
+        app.setGlobalKeyHandler(hash<NcursesUi::EventResult> sub (hash<Ncurses::InputEvent> event) {
+            if (event.type == Ncurses::InputType::Char && event.ch == "\x11") { app.quit(); }
+            else if (event.type == Ncurses::InputType::Key && event.name == "KEY_F(1)" && !app.getDispatcher().hasModal()) { request(); }
+            else { return <NcursesUi::EventResult>{}; }
+            return <NcursesUi::EventResult>{"handled": True};
+        });
+        if (!terminal) { on_exit close(); app.run(); }
+    }
+    # F1 requests a small sample provider. Its exact source range replaces a quoted
+    # or partial token without guessing a whitespace-delimited word in the widget.
+    nothing request() {
+        hash<NcursesUi::AssistanceRequest> request = model.beginRequest(); NcursesUi::UiEventScope target = delivery; workers.inc();
+        try {
+            background sub () {
+                on_exit workers.dec();
+                try {
+                    int start = request.cursor;
+                    while (start > 0 && request.text.substr(start - 1, 1) =~ /[A-Za-z_]/) { --start; }
+                    hash<NcursesUi::SourceRange> range = <NcursesUi::SourceRange>{"start": start, "end": request.cursor};
+                    target.post({"request": request, "response": <NcursesUi::AssistanceResponse>{
+                        "completions": (<NcursesUi::CompletionItem>{"id": "name", "label": "name", "text": "name", "range": range,
+                            "documentation": "The name to greet.\nType to filter; Tab reads documentation; Enter accepts; Escape cancels.", "rank": 10},),
+                        "signature": <NcursesUi::SignatureHelp>{"label": "greet(name)", "parameters": ("name",), "active_parameter": 0}
+                    }});
+                } catch (hash<ExceptionInfo> ex) { target.post({"request": request, "error": ex.desc}); }
+            }();
+        } catch (hash<ExceptionInfo> ex) { workers.dec(); model.fail(request, ex.desc); rethrow; }
+    }
+    NcursesUi::Application getApplication() { return app; }
+    NcursesUi::TextEditorWidget getEditor() { return editor; }
+    NcursesUi::AssistanceModel getModel() { return model; }
+    *NcursesUi::AssistancePopupWidget getPopup() { return popup; }
+    nothing joinWorkers() { workers.waitForZero(); }
+    nothing close() { delivery.close(); workers.waitForZero(); if (popup) { popup.destroyPanel(); } app.close(); }
+}

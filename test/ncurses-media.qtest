@@ -1,0 +1,57 @@
+#!/usr/bin/env qore
+# Copyright 2026 Qore Technologies, s.r.o.
+%modern
+%prepend-module-path "${SCRIPT_DIR}/../qlib"
+%requires ncurses
+%requires NcursesUi
+%requires QUnit
+%include "test/TestHarness.qc"
+%exec-class MediaTest
+class MediaTest inherits Test {
+    constructor() : Test("MediaTest", "1.0", \ARGV) {
+        addTestCase("ASCII Unicode empty constant negative sparse and extreme charts", \charts());
+        addTestCase("chart source snapshots are immutable and invalid data is rejected", \invalid());
+        addTestCase("unsupported attachments show metadata errors and explicit fallback actions", \attachments());
+        addTestCase("attachment cancellation failure reentrancy and completed dispatch", \operations());
+        addTestCase("narrow clipped and hidden media retains understandable text", \geometry());
+        set_return_value(main());
+    }
+    private hash<NcursesUi::AttachmentInfo> info() { return <NcursesUi::AttachmentInfo>{"id": "0", "name": "picture.png", "path": "/example/picture.png", "type": "image/png", "size": 42}; }
+    charts() {
+        NcursesUi::TextChart empty(); assertEq("Chart: No data", empty.getSummary()); assertEq("", empty.sparkline(10));
+        NcursesUi::TextChart chart((-7.0, -6.0, -5.0, -4.0, -3.0, -2.0, -1.0, 0.0), "Temperature", "C");
+        assertEq(".:-=+*#@", chart.sparkline(8)); assertEq("▁▂▃▄▅▆▇█", chart.sparkline(8, True)); assertEq(".@", chart.sparkline(2)); assertEq("@", chart.sparkline(1)); assertEq("", chart.sparkline(0)); assertEq("Temperature: 8 samples; min -7.0 C; max 0.0 C; last 0.0 C", chart.getSummary());
+        NcursesUi::TextChart constant((2.0, 2.0, 2.0)); assertEq("===", constant.sparkline(10));
+        NcursesUi::TextChart sparse((NOTHING, 1.0, NOTHING, 2.0, NOTHING)); assertEq("?.?@?", sparse.sparkline(5)); assertTrue(sparse.getSummary().find("3 gaps") >= 0); assertTrue(sparse.getSummary().find("last 2") >= 0);
+        NcursesUi::TextChart gaps((NOTHING, NOTHING)); assertEq("??", gaps.sparkline(10)); assertEq("Chart: No data; 2 gaps", gaps.getSummary());
+        NcursesUi::TextChart extreme((-1e308, 0.0, 1e308)); assertEq(".=@", extreme.sparkline(3));
+    }
+    invalid() {
+        assertThrows("CHART-DATA-ERROR", sub () { new NcursesUi::TextChart((float("nan"),)); }); assertThrows("CHART-DATA-ERROR", sub () { new NcursesUi::TextChart((float("inf"),)); });
+        list<*float> values = (1.0, 2.0); NcursesUi::TextChart chart(values); values[0] = 99.0; list<*float> copy = chart.getSamples(); copy[1] = 50.0; assertEq((1.0, 2.0), chart.getSamples()); assertThrows("CHART-WIDTH-ERROR", sub () { chart.sparkline(-1); });
+    }
+    attachments() {
+        NcursesUi::AttachmentWidget widget(info()); string text = join("\n", widget.getSummaryLines()); assertTrue(text.find("picture.png") >= 0); assertTrue(text.find("image/png") >= 0); assertTrue(text.find("42 bytes") >= 0); assertTrue(text.find("No terminal preview") >= 0); assertTrue(text.find("No application actions configured") >= 0);
+        assertFalse(widget.activate(NcursesUi::FileOperation::Open)); assertFalse(widget.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "e"}).handled);
+        hash<NcursesUi::AttachmentInfo> invalid = info(); invalid.size = -1; assertThrows("FILE-SELECTION-DATA", sub () { widget.setAttachment(invalid); }); assertEq(info(), widget.getAttachment());
+        hash<NcursesUi::AttachmentInfo> unavailable = info(); unavailable.error = "Removed"; widget.setAttachment(unavailable); int calls = 0;
+        widget.setHandler(NcursesUi::FileOperation::Open, bool sub (hash<NcursesUi::AttachmentInfo> item) { ++calls; return True; }); assertFalse(widget.activate(NcursesUi::FileOperation::Open)); assertEq(0, calls); assertTrue(join("\n", widget.getSummaryLines()).find("Unavailable: Removed") >= 0);
+        hash<NcursesUi::AttachmentInfo> preview = info(); preview.text_preview = "0\n\x1b[31mPreview\r\n\ttext"; preview.description = "0"; widget.setAttachment(preview); assertEq(preview.text_preview, widget.getAttachment().text_preview); text = join("\n", widget.getSummaryLines()); assertTrue(text.find("Text preview:\n0") >= 0); assertEq(-1, text.find("\x1b")); assertEq(-1, text.find("No terminal preview"));
+    }
+    operations() {
+        NcursesUi::AttachmentWidget widget(info()); int calls = 0;
+        widget.setHandler(NcursesUi::FileOperation::Open, bool sub (hash<NcursesUi::AttachmentInfo> item) { ++calls; assertEq(info(), item); return False; }); assertFalse(widget.activate(NcursesUi::FileOperation::Open)); assertEq(NcursesUi::ActionState::Cancelled, widget.getState()); assertTrue(join("\n", widget.getSummaryLines()).find("Cancelled") >= 0);
+        widget.setHandler(NcursesUi::FileOperation::Export, bool sub (hash<NcursesUi::AttachmentInfo> item) { throw "EXPORT-ERROR", "offline"; }); assertThrows("EXPORT-ERROR", sub () { widget.activate(NcursesUi::FileOperation::Export); }); assertEq("offline", widget.getError()); assertEq(NcursesUi::ActionState::Failed, widget.getState());
+        widget.setHandler(NcursesUi::FileOperation::Save, bool sub (hash<NcursesUi::AttachmentInfo> item) { assertFalse(widget.activate(NcursesUi::FileOperation::Save)); assertThrows("FILE-SELECTION-BUSY", sub () { widget.setAttachment(info()); }); return True; });
+        assertTrue(widget.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "S"}).handled); assertEq(NcursesUi::ActionState::Completed, widget.getState()); assertFalse(widget.activate(NcursesUi::FileOperation::Open)); assertEq(1, calls); assertTrue(join("\n", widget.getSummaryLines()).find("Completed") >= 0);
+        widget.reset(); widget.setEnabled(False); assertFalse(widget.activate(NcursesUi::FileOperation::Open)); assertEq(1, calls);
+    }
+    geometry() {
+        NcursesUi::TestHarness th(12, 40); on_exit th.close(); NcursesUi::Widget root(); root.setFrameValues(0, 0, 3, 9);
+        NcursesUi::TextChart chart((1.0, 4.0, 2.0, NOTHING, 3.0), "Load"); NcursesUi::TextChartWidget widget(chart); widget.setFrameValues(0, 0, 12, 40); root.addChild(widget); root.drawTree(th.screen()); assertFalse(root.isDirty()); assertTrue(th.screen().readText(0, 0, 10).find("Load") >= 0);
+        widget.setUnicode(True); root.drawTree(th.screen()); assertFalse(widget.isDirty()); root.setVisible(False); widget.setChart(new NcursesUi::TextChart((), "Empty")); root.drawTree(th.screen()); assertFalse(root.isDirty()); root.setVisible(True); root.drawTree(th.screen()); assertTrue(th.screen().readText(0, 0, 10).find("Empty") >= 0);
+        hash<NcursesUi::AttachmentInfo> value = info(); value.path = "/" + strmul("long/path/", 30); value.chart = chart; NcursesUi::AttachmentWidget attachment(value); attachment.setFrameValues(0, 0, 1, 1); attachment.drawTree(th.screen()); assertFalse(attachment.isDirty()); assertTrue(join("\n", attachment.getSummaryLines()).find("Load:") >= 0);
+        attachment.setFrameValues(0, 0, 12, 40); Ncurses::Window small(th.session(), 2, 6, 0, 0); attachment.drawTree(small); assertEq(5, attachment.getViewportRect().cols); assertFalse(attachment.isDirty());
+        attachment.scrollTo(NcursesUi::ScrollDirection::End); attachment.drawTree(small); assertTrue(attachment.getScrollY() > 0); assertFalse(attachment.isDirty());
+    }
+}

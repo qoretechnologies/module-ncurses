@@ -11,6 +11,7 @@
 #include <unistd.h>
 
 #include <memory>
+#include <chrono>
 #include <thread>
 
 // libpanel allocates a per-SCREEN "pseudo panel" the first time new_panel() is
@@ -171,6 +172,157 @@ private:
 
 NcursesSession::NcursesSession() = default;
 
+namespace {
+class InputDescriptor {
+public:
+    int fd = -1;
+    ~InputDescriptor() { if (fd >= 0) { ::close(fd); } }
+};
+
+int inputFcntl(int fd, int command, int value, ExceptionSink* xsink) {
+    while (true) {
+        if (qore_check_cancel(xsink, "preparing terminal input")) { return -1; }
+        int rc = fcntl(fd, command, value);
+        if (rc >= 0) { return rc; }
+        if (errno == EINTR) { continue; }
+        xsink->raiseErrnoException("NCURSES-ERROR", errno, "cannot prepare terminal input descriptor");
+        return -1;
+    }
+}
+}
+
+void NcursesSession::closeWakePipe() {
+    for (int& fd : wake_pipe) { if (fd >= 0) { ::close(fd); fd = -1; } }
+}
+
+bool NcursesSession::ensureWakePipe(ExceptionSink* xsink) {
+    unsigned generation = ncurses_fork_generation.load(std::memory_order_relaxed);
+    if (wake_pipe[0] >= 0 && wake_generation == generation) { return true; }
+    // A child must never consume or notify its parent's wake channel.
+    closeWakePipe(); wake_pending = false;
+    InputDescriptor input, output;
+    int descriptors[2];
+    while (::pipe(descriptors) != 0) {
+        if (errno == EINTR) {
+            if (qore_check_cancel(xsink, "creating terminal wake channel")) { return false; }
+            continue;
+        }
+        xsink->raiseErrnoException("NCURSES-ERROR", errno, "cannot create terminal wake channel"); return false;
+    }
+    input.fd = descriptors[0]; output.fd = descriptors[1];
+    for (int fd : descriptors) {
+        int flags = inputFcntl(fd, F_GETFL, 0, xsink);
+        if (flags < 0 || inputFcntl(fd, F_SETFL, flags | O_NONBLOCK, xsink) < 0
+                || inputFcntl(fd, F_SETFD, FD_CLOEXEC, xsink) < 0) { return false; }
+    }
+    wake_pipe[0] = input.fd; wake_pipe[1] = output.fd;
+    input.fd = output.fd = -1; wake_generation = generation;
+    return true;
+}
+
+bool NcursesSession::notifyInput(ExceptionSink* xsink) {
+    if (!ensureWakePipe(xsink)) { return false; }
+    char byte = 0;
+    while (true) {
+        ssize_t rc = ::write(wake_pipe[1], &byte, 1);
+        if (rc == 1 || (rc < 0 && (errno == EAGAIN || errno == EWOULDBLOCK))) { return true; }
+        if (rc < 0 && errno == EINTR) {
+            if (xsink && qore_check_cancel(xsink, "waking terminal input")) { return false; }
+            continue;
+        }
+        if (xsink) { xsink->raiseErrnoException("NCURSES-ERROR", rc == 0 ? EIO : errno, "cannot wake terminal input"); }
+        return false;
+    }
+}
+
+void NcursesSession::wakeup(ExceptionSink* xsink) {
+    NcursesLockHelper guard;
+    checkOpen(xsink);
+    if (*xsink || !notifyInput(xsink)) { return; }
+    wake_pending = true;
+}
+
+bool NcursesSession::takeWake(ExceptionSink* xsink) {
+    if (!ensureWakePipe(xsink)) { return false; }
+    bool pending = wake_pending; wake_pending = false; return pending;
+}
+
+bool NcursesSession::waitForInput(int timeout_ms, int fallback_poll_ms, ExceptionSink* xsink) {
+    if (ncurses_lock_depth) {
+        xsink->raiseException("NCURSES-INPUT-LOCK-ERROR", "blocking readEvent() cannot run inside Session::withLock()");
+        return false;
+    }
+    InputDescriptor input;
+    int wake_fd;
+    {
+        NcursesLockHelper guard;
+        checkOpen(xsink);
+        if (*xsink || !ensureWakePipe(xsink)) { return false; }
+        if (wake_pending || !injected_input.empty()) { return true; }
+        // Clear old notifications while producers are excluded, then release the
+        // lock before waiting. Notifications published afterward remain readable.
+        char bytes[256];
+        while (true) {
+            if (qore_check_cancel(xsink, "preparing terminal wait")) { return false; }
+            ssize_t rc = ::read(wake_pipe[0], bytes, sizeof(bytes));
+            if (rc > 0) { continue; }
+            if (rc < 0 && errno == EINTR) { continue; }
+            if (rc < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) { break; }
+            xsink->raiseErrnoException("NCURSES-ERROR", rc == 0 ? EIO : errno, "cannot drain terminal wake channel");
+            return false;
+        }
+        input.fd = inputFcntl(fileno(in_file ? in_file : stdin), F_DUPFD_CLOEXEC, 0, xsink);
+        if (input.fd < 0) { return false; }
+        wake_fd = wake_pipe[0];
+    }
+    auto start = std::chrono::steady_clock::now();
+    while (true) {
+        if (qore_check_cancel(xsink, "waiting for terminal input")) { return false; }
+        int remaining = timeout_ms;
+        if (timeout_ms >= 0) {
+            auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now() - start).count();
+            if (elapsed >= timeout_ms) { return false; }
+            remaining -= static_cast<int>(elapsed);
+        }
+        struct pollfd descriptors[2] = {{input.fd, POLLIN, 0}, {wake_fd, POLLIN, 0}};
+#ifdef _QORE_HAS_CANCELLABLE_POLL
+        (void)fallback_poll_ms;
+        int ready = qore_cancellable_poll(descriptors, 2, remaining, xsink, "waiting for terminal input");
+        if (ready == QORE_POLL_CANCELLED) { return false; }
+#else
+        int interval = std::min(fallback_poll_ms, QORE_IO_POLL_INTERVAL_MS);
+        int ready = ::poll(descriptors, 2, remaining < 0 ? interval : std::min(remaining, interval));
+#endif
+        if (ready < 0) {
+            if (errno == EINTR) { continue; }
+            xsink->raiseErrnoException("NCURSES-ERROR", errno, "cannot wait for terminal input"); return false;
+        }
+        if (!ready) { continue; }
+        if (descriptors[1].revents & POLLIN) { return true; }
+        if ((descriptors[0].revents | descriptors[1].revents) & (POLLHUP | POLLERR | POLLNVAL)) {
+            xsink->raiseException("NCURSES-INPUT-CLOSED", "terminal input or wake channel has closed"); return false;
+        }
+        if (descriptors[0].revents & POLLIN) { return true; }
+    }
+}
+
+NcursesInputReadGuard::NcursesInputReadGuard(NcursesSession* s, ExceptionSink* xsink) : session(s) {
+    NcursesLockHelper guard;
+    session->checkOpen(xsink);
+    if (*xsink) { return; }
+    unsigned generation = ncurses_fork_generation.load(std::memory_order_relaxed);
+    if (session->input_reading && session->input_generation == generation) {
+        xsink->raiseException("NCURSES-INPUT-BUSY", "a readEvent() call is already active for this session"); return;
+    }
+    session->input_reading = acquired = true; session->input_generation = generation;
+}
+
+NcursesInputReadGuard::~NcursesInputReadGuard() {
+    if (acquired) { NcursesLockHelper guard; session->input_reading = false; }
+}
+
+
 NcursesPasteKeypadGuard::NcursesPasteKeypadGuard(NcursesSession* s, WINDOW* w) : session(s), window(w) {
     NcursesCallGuard guard(session); original = is_keypad(window);
     if (session->paste_active) { disable(); }
@@ -187,6 +339,7 @@ bool NcursesSession::pushInput(int code, ExceptionSink* xsink) {
     }
     try { injected_input.push_back(code); }
     catch (const std::bad_alloc&) { xsink->raiseException("NCURSES-ERROR", "cannot allocate injected input"); return false; }
+    if (!notifyInput(xsink)) { injected_input.pop_back(); return false; }
     return true;
 }
 
@@ -352,6 +505,7 @@ void NcursesSession::setBracketedPaste(bool enabled, size_t limit, ExceptionSink
 
 NcursesSession::~NcursesSession() {
     close(nullptr);
+    closeWakePipe();
     // delscreen runs only in the dtor — by which time NcursesPanel and
     // NcursesWindow holders that ref'd this session have been deref'd and
     // destructed. Doing it here (and not in close()) lets a panel/window
@@ -378,10 +532,13 @@ NcursesSession::~NcursesSession() {
 }
 
 void NcursesSession::close(ExceptionSink* xsink) {
-    if (closed) {
-        return;
-    }
     NcursesLockHelper al;
+    if (closed) { return; }
+    // Existing readers retain the descriptors until destruction. Do not signal a
+    // parent's pipe when closing an inherited session in a fork child.
+    if (wake_pipe[0] >= 0 && wake_generation == ncurses_fork_generation.load(std::memory_order_relaxed)) {
+        notifyInput(xsink);
+    }
     if (screen) {
         set_term(screen);
         if (bracketed_paste) {

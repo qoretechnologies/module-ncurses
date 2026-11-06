@@ -16,8 +16,8 @@
     dismissal. Text inputs and combo boxes share grapheme-safe editing and mouse
     caret mapping. Cursor indices remain character offsets; partial replacement
     ranges expand to whole graphemes. Session::setCursor() now returns the prior
-    visibility so modal transitions can restore it exactly. Composite file-browser
-    bound form controls synchronize pending model writes before all input dispatch;
+    visibility so modal transitions can restore it exactly. Bound form controls
+    synchronize pending model writes before all input dispatch. Composite file-browser
     pane navigation stays synchronized with managed focus, and combo-box mouse
     placement and dropdown scrolling share the clipped drawing geometry.
     Composite mouse delegation preserves preview navigation. Focus callbacks share a thread-local transition guard,
@@ -95,4 +95,28 @@
     custom choice carets preserve manual scrolling, and tree rebuilds notify selected-entry changes.
     Present validator errors, including empty/numeric strings, always prevent submission.
     Numeric text identities remain valid, and incomplete field/choice metadata is rejected atomically.
+    AssistanceModel and AssistancePopupWidget add ranked/filterable completion,
+    precise grapheme-aligned replacement ranges, diagnostic navigation, signature
+    help, documented suggestions and guarded actions. Request identity, generation
+    and editor revision reject stale results; provider errors preserve editing.
+
+    ActionModel, ProgressWidget and TimelineWidget provide explicit operation states,
+    determinate/unknown-total progress, timestamped expandable history, cancellation,
+    retry and receipts. They compose with described choices for keyboard review actions.
+    UiEventQueue/UiEventScope deliver bounded FIFO worker data on the UI thread,
+    dispose hidden/disabled/detached owners, and release captures outside queue locks.
+    Application integrates event delivery, removable owned tick callbacks and native
+    wake notifications. Idle readEvent() waits release the ncurses lock, cancellation
+    interrupts them, and Session::wakeup() coalesces work without synthesizing input.
+    Only one input reader may be active per session; fork children isolate wake pipes.
+
+    FileSelectionModel/Widget add stable single/multiple selections, filtering,
+    hidden/unavailable selection summaries, local-path validation and application-owned
+    open/save/export callbacks. AttachmentWidget presents metadata, text/chart previews
+    and explicit unsupported-media fallbacks. TextChart/TextChartWidget offer numeric
+    summaries and ASCII or optional Unicode sparklines with gaps and finite-data checks.
+    List navigation uses the clipped viewport while retaining left-clipped text suffixes;
+    combined double-click masks activate correctly. Progress bars fit their first paint
+    even when content creates a scrollbar. Executable examples exercise real worker
+    delivery, review actions, precise assistance edits and file/media controls.
 */

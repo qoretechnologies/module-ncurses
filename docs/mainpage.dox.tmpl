@@ -66,9 +66,16 @@
     @section ncurses_threads Threading
 
     Terminal calls are serialized by a module-level recursive lock.
-    @ref Qore::Ncurses::Window::readEvent() "Window::readEvent()" releases that lock between
-    input checks so other threads can draw. Use @ref Qore::Ncurses::Session::withLock() "Session::withLock()"
+    @ref Qore::Ncurses::Window::readEvent() "Window::readEvent()" releases that lock while
+    waiting for input. A session permits one active input reader; other threads may
+    draw, inject input or call Session::wakeup(). Wake notifications are coalesced and
+    returned as InputType::Wake without keyboard characters. Ready input takes priority.
+    Idle waits support cooperative cancellation; escape/multibyte decoding retains
+    ncurses's escape delay and bounded continuation delays. Use @ref Qore::Ncurses::Session::withLock() "Session::withLock()"
     for a short group of related drawing operations; protect application-owned data separately.
-    Stop background readers before closing the session. See @ref ncurses_examplesguide "Examples"
+    Blocking input inside withLock() is rejected. Closing wakes an active reader with
+    a closed-session error; join it before releasing its resources. Widget/model mutation
+    belongs to the UI thread: workers post through Application::createEventScope().
+    See @ref ncurses_examplesguide "Examples"
     for the threaded-input demo and @ref ncurses_apiguide "API Overview" for batched refreshes.
 */

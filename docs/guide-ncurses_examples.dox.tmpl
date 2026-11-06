@@ -11,6 +11,10 @@
 qore --enable-debug examples/dashboard.qr
 qore --enable-debug examples/panels.qr
 qore --enable-debug examples/threaded_input.qr
+qore --enable-debug examples/forms-inspectors.qr
+qore --enable-debug examples/editor-assistance.qr
+qore --enable-debug examples/async-review.qr
+qore --enable-debug examples/file-attachments.qr
     @endverbatim
 
     - \c examples/dashboard.qr updates a status display with
@@ -20,6 +24,20 @@ qore --enable-debug examples/threaded_input.qr
       Press \c t to change which panel is on top and \c q to exit.
     - \c examples/threaded_input.qr runs input in a background thread, shares state through a
       mutex, and joins the reader before closing the session. See @ref ncurses_threads "Threading".
+
+    - @c examples/forms-inspectors.qr submits a validated form into an inspector;
+      F2 focuses the inspector, F5 reopens the form, and Ctrl-Q quits.
+    - @c examples/editor-assistance.qr requests a worker provider with F1. Type to
+      filter, Tab reads documentation, Enter applies an exact edit, and Escape cancels.
+      Ctrl-Q quits. The worker posts data; the UI thread applies current responses.
+    - @c examples/async-review.qr composes stable approval/decline choices, operation
+      progress and a timeline. Enter submits review, C cancels, Enter retries failed or
+      cancelled progress, F2/F3 switch progress/history, and Ctrl-Q quits. Completed
+      actions cannot accidentally run again. No timing sleeps are used.
+    - @c examples/file-attachments.qr demonstrates text/chart previews and unsupported
+      media metadata. Space selects, Enter opens an application-provided preview,
+      Tab changes pane, E demonstrates export cancellation, F5 starts another selection,
+      and Ctrl-Q quits. The example neither reads nor writes the sample paths.
 
     For an uninstalled build, prefix commands with <tt>QORE_MODULE_DIR=build:qlib</tt>.
     See @ref ncurses_quickstartguide "Quick Start" for terminal setup and

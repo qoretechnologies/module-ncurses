@@ -1,0 +1,87 @@
+#!/usr/bin/env qore
+# Copyright 2026 Qore Technologies, s.r.o.
+%requires ncurses
+%requires NcursesUi
+%exec-class AsyncReviewDemo
+
+class ReviewDemoRoot inherits NcursesUi::Widget {
+    private { NcursesUi::BoxLayout layout_manager(); }
+    nothing layout() { layout_manager.apply(self); }
+}
+# An application chooses the meaning of stable review IDs. Workers post data;
+# only the owning UI thread updates operation state and widgets.
+class AsyncReviewDemo {
+    private {
+        Ncurses::Session session;
+        NcursesUi::Application app;
+        ReviewDemoRoot root();
+        NcursesUi::ActionModel action("prepare-report", "Prepare report");
+        NcursesUi::ProgressWidget progress;
+        NcursesUi::TimelineWidget timeline();
+        NcursesUi::DescribedChoiceWidget review;
+        NcursesUi::UiEventScope delivery;
+        Counter workers(0);
+    }
+    constructor(*Ncurses::Session terminal) {
+        session = terminal ?? new Ncurses::Session({"raw": True, "mouse": True, "bracketed_paste": True});
+        app = new NcursesUi::Application(session); app.setReadTimeout(-1, 25);
+        progress = new NcursesUi::ProgressWidget(action);
+        review = new NcursesUi::DescribedChoiceWidget((
+            <NcursesUi::ChoiceItem>{"value": "approve", "label": "Prepare", "description": "Compute a local example report", "default_value": True},
+            <NcursesUi::ChoiceItem>{"value": "reject", "label": "Decline", "description": "Keep a cancelled receipt without starting work"}
+        ));
+        review.setVSizePolicy(NcursesUi::SizePolicy::Fixed); review.setPreferredSize(5, 40);
+        progress.setVSizePolicy(NcursesUi::SizePolicy::Fixed); progress.setPreferredSize(8, 40);
+        root.addChild(review); root.addChild(progress); root.addChild(timeline); app.setRoot(root);
+        delivery = app.createEventScope(sub (auto payload) {
+            hash<NcursesUi::ActionRequest> token = payload.token;
+            if (exists payload.error) { if (action.fail(token, string(payload.error))) { record("Failed", NcursesUi::ActionState::Failed); } }
+            else if (exists payload.result) { if (action.complete(token, payload.result)) { record("Report prepared", NcursesUi::ActionState::Completed); } }
+            else { action.progress(token, float(payload.done), 4.0, "Processing report sections"); }
+        }, progress);
+        progress.setOnStart(sub (hash<NcursesUi::ActionRequest> token) {
+            record("Started", NcursesUi::ActionState::Running);
+            NcursesUi::UiEventScope target = delivery; workers.inc();
+            try {
+                background sub () {
+                    on_exit workers.dec();
+                    try {
+                        int sum = 0;
+                        for (int section = 1; section <= 4; ++section) {
+                            for (int i = 1; i <= 1000; ++i) { sum += i; }
+                            if (!target.post({"token": token, "done": section})) { return; }
+                        }
+                        target.post({"token": token, "result": {"checksum": sum}});
+                    } catch (hash<ExceptionInfo> ex) { target.post({"token": token, "error": ex.desc}); }
+                }();
+            } catch (hash<ExceptionInfo> ex) { workers.dec(); rethrow; }
+        });
+        progress.setOnCancel(sub (hash<NcursesUi::ActionRequest> token) { record("Cancelled", NcursesUi::ActionState::Cancelled); });
+        review.setOnSubmit(sub (hash<NcursesUi::ChoiceSelection> choice) {
+            if (choice.value == "approve") { progress.start(); }
+            else { action.cancel(); record("Declined", NcursesUi::ActionState::Cancelled); }
+            app.getFocusManager().setFocus(progress);
+        });
+        app.setGlobalKeyHandler(hash<NcursesUi::EventResult> sub (hash<Ncurses::InputEvent> event) {
+            if (event.type == Ncurses::InputType::Char && event.ch == "\x11") { app.quit(); }
+            else if (event.type == Ncurses::InputType::Key && event.name == "KEY_F(2)") { app.getFocusManager().setFocus(progress); }
+            else if (event.type == Ncurses::InputType::Key && event.name == "KEY_F(3)") { app.getFocusManager().setFocus(timeline); }
+            else { return <NcursesUi::EventResult>{}; }
+            return <NcursesUi::EventResult>{"handled": True};
+        });
+        app.getFocusManager().setFocus(review);
+        if (!terminal) { on_exit close(); app.run(); }
+    }
+    private nothing record(string title, int state) {
+        timeline.appendEvent(<NcursesUi::TimelineEvent>{"id": string(timeline.getEventIds().size()), "title": title, "state": state,
+            "details": ("Operation: " + action.getId(), "F2: progress; F3: timeline; Enter: details; Ctrl-Q: quit")});
+    }
+    NcursesUi::Application getApplication() { return app; }
+    NcursesUi::ActionModel getAction() { return action; }
+    NcursesUi::ProgressWidget getProgress() { return progress; }
+    NcursesUi::DescribedChoiceWidget getReview() { return review; }
+    NcursesUi::TimelineWidget getTimeline() { return timeline; }
+    # A deterministic join for teardown/testing, never part of event-loop polling.
+    nothing joinWorkers() { workers.waitForZero(); }
+    nothing close() { delivery.close(); workers.waitForZero(); app.close(); }
+}

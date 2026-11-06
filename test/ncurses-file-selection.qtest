@@ -1,0 +1,99 @@
+#!/usr/bin/env qore
+# Copyright 2026 Qore Technologies, s.r.o.
+%modern
+%prepend-module-path "${SCRIPT_DIR}/../qlib"
+%requires ncurses
+%requires NcursesUi
+%requires QUnit
+%include "test/TestHarness.qc"
+%exec-class FileSelectionTest
+class FileSelectionTest inherits Test {
+    constructor() : Test("FileSelectionTest", "1.0", \ARGV) {
+        addTestCase("single and multiple selections survive filters and metadata refresh", \selection());
+        addTestCase("invalid metadata and filter callbacks are atomic", \validation());
+        addTestCase("open save export cancellation failure and completed guards", \operations());
+        addTestCase("local removed inaccessible and non-file paths expose errors", \localFiles());
+        addTestCase("keyboard mouse narrow clipping and hidden model updates", \widget());
+        addTestCase("mouse activation empty filters long paths and callback failures", \mouseAndErrors());
+        addTestCase("list clipping navigation and direct mouse guards share a viewport", \listViewport());
+        set_return_value(main());
+    }
+    private list<hash<NcursesUi::FileSelectionEntry>> files() { return (
+        <NcursesUi::FileSelectionEntry>{"id": "0", "path": "/example/zero.txt", "name": "zero.txt", "size": 0},
+        <NcursesUi::FileSelectionEntry>{"id": "csv", "path": "/example/data.CSV", "name": "data.CSV", "size": 30},
+        <NcursesUi::FileSelectionEntry>{"id": "denied", "path": "/example/denied.txt", "name": "denied.txt", "error": "Permission denied"}
+    ); }
+    private hash<Ncurses::InputEvent> chr(string value) { return <Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": value}; }
+    private hash<Ncurses::InputEvent> key(string value) { return <Ncurses::InputEvent>{"type": Ncurses::InputType::Key, "name": value}; }
+    listViewport() {
+        NcursesUi::TestHarness th(12, 40); on_exit th.close(); NcursesUi::Widget root(); root.setFrameValues(1, 2, 3, 8); NcursesUi::ListWidget list_widget(); list_widget.setFrameValues(0, 2, 10, 30); root.addChild(list_widget);
+        list<hash<auto>> rows = (); for (int i = 0; i < 20; ++i) { rows += {"label": "Row " + i}; } list_widget.setItems(rows); list_widget.setSelectedIndex(19); root.drawTree(th.screen());
+        assertEq(17, list_widget.getScrollOffset()); assertEq("Row 19", th.screen().readText(3, 2, 6));
+        list_widget.processEvent(key("KEY_PPAGE")); assertEq(16, list_widget.getSelectedIndex());
+        assertFalse(list_widget.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Mouse, "mouse": <Ncurses::MouseEvent>{"y": 1, "x": 0, "button_state": Ncurses::BUTTON1_CLICKED}}).handled); assertEq(16, list_widget.getSelectedIndex());
+        list_widget.setEnabled(False); assertFalse(list_widget.processEvent(key("KEY_HOME")).handled); assertEq(16, list_widget.getSelectedIndex()); list_widget.setEnabled(True);
+        list_widget.setSelectedIndex(19); root.drawTree(th.screen()); list_widget.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Mouse, "mouse": <Ncurses::MouseEvent>{"y": 1, "x": 9, "button_state": Ncurses::BUTTON1_CLICKED}}); assertEq(0, list_widget.getScrollOffset()); root.drawTree(th.screen()); assertEq(0, list_widget.getScrollOffset());
+        root.setFrameValues(1, 2, 2, 8); root.drawTree(th.screen()); assertEq(18, list_widget.getScrollOffset()); assertEq("Row 19", th.screen().readText(2, 2, 6));
+        list_widget.setItems((rows[0],)); root.drawTree(th.screen()); assertEq(0, list_widget.getScrollOffset()); assertEq(0, list_widget.getSelectedIndex());
+        list_widget.setFrameValues(0, 0, 10, 30); root.removeChild(list_widget); list_widget.setItems(rows); list_widget.setSelectedIndex(19); Ncurses::Window small(th.session(), 2, 7, 0, 0); list_widget.drawTree(small); assertEq(18, list_widget.getScrollOffset()); assertEq("Row 19", small.readText(1, 0, 6));
+        list_widget.setFrameValues(0, 0, 1, 1); list_widget.drawTree(th.screen()); assertEq("R", th.screen().readText(0, 0, 1));
+    }
+    mouseAndErrors() {
+        NcursesUi::TestHarness th(12, 35); on_exit th.close(); NcursesUi::FileSelectionModel model(files()); NcursesUi::FileSelectionWidget widget(model); widget.setFrameValues(0, 0, 10, 30); widget.drawTree(th.screen());
+        widget.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Mouse, "mouse": <Ncurses::MouseEvent>{"y": 0, "x": 0, "button_state": Ncurses::BUTTON1_CLICKED}}); assertEq("0", model.getSelected()[0].id);
+        int calls = 0; model.setHandler(NcursesUi::FileOperation::Open, bool sub (list<hash<NcursesUi::FileSelectionEntry>> selected) { ++calls; return True; });
+        widget.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Mouse, "mouse": <Ncurses::MouseEvent>{"y": 0, "x": 0, "button_state": Ncurses::BUTTON1_CLICKED | Ncurses::BUTTON1_DOUBLE_CLICKED}}); assertEq(1, calls); assertEq(NcursesUi::ActionState::Completed, model.getState());
+        model.reset(); model.clearSelection(); model.setExtensions((".absent",)); widget.drawTree(th.screen()); assertNothing(widget.getHighlighted()); assertFalse(widget.activate(NcursesUi::FileOperation::Open)); assertTrue(exists model.getError());
+        model.setExtensions(()); list<hash<NcursesUi::FileSelectionEntry>> entries = files(); entries[0].path = "/" + strmul("long/path/", 40); model.setFiles(entries); widget.drawTree(th.screen()); assertEq(entries[0].path, widget.getHighlighted().path);
+        model.setHandler(NcursesUi::FileOperation::Save, bool sub (list<hash<NcursesUi::FileSelectionEntry>> selected) { throw "SAVE-ERROR", "full"; }); assertThrows("SAVE-ERROR", sub () { widget.processEvent(chr("S")); }); assertEq("full", model.getError()); assertEq("0", model.getSelected()[0].id); widget.drawTree(th.screen()); assertTrue(widget.getStatusText().find("full") >= 0);
+        widget.setOnDismiss(sub () { throw "DISMISS-ERROR", "retained"; }); assertThrows("DISMISS-ERROR", sub () { widget.processEvent(chr("\x1b")); }); assertEq("0", model.getSelected()[0].id);
+        assertThrows("FILE-SELECTION-DATA", sub () { model.setFiles((<NcursesUi::FileSelectionEntry>{"id": "bad", "name": "Missing path"},)); }); assertEq(entries, model.getFiles());
+        model.setValidator(*string sub (list<hash<NcursesUi::FileSelectionEntry>> selected) { return ""; }); assertFalse(model.dispatch(NcursesUi::FileOperation::Open)); assertEq("", model.getError());
+    }
+    selection() {
+        NcursesUi::FileSelectionModel model(files()); assertTrue(model.toggle("0")); assertEq("0", model.getSelected()[0].id); assertFalse(model.toggle("denied")); assertTrue(model.toggle("csv")); assertEq(1, model.getSelected().size());
+        model.setMultiple(True); model.toggle("0"); assertEq(("0", "csv"), map $1.id, model.getSelected());
+        model.setExtensions((".csv",)); assertEq(("csv",), model.getVisibleIds()); assertEq("2 selected (1 hidden by filter)", model.getSummary());
+        model.setMultiple(False); assertEq("0", model.getSelected()[0].id); assertEq("1 selected (1 hidden by filter)", model.getSummary());
+        list<hash<NcursesUi::FileSelectionEntry>> refreshed = files(); refreshed[0].error = "Removed"; model.setFiles(refreshed); assertEq("1 selected (1 hidden by filter) (1 unavailable)", model.getSummary()); assertTrue(model.toggle("0")); assertEq(0, model.getSelected().size());
+        model.setExtensions(()); assertEq(3, model.getVisibleIds().size()); model.clearSelection(); assertEq("0 selected", model.getSummary());
+    }
+    validation() {
+        NcursesUi::FileSelectionModel model(files()); model.toggle("0"); list<hash<NcursesUi::FileSelectionEntry>> invalid = files(); invalid += invalid[0];
+        assertThrows("FILE-SELECTION-DATA", sub () { model.setFiles(invalid); }); assertEq(files(), model.getFiles());
+        invalid = files(); invalid[0].size = -1; assertThrows("FILE-SELECTION-DATA", sub () { model.setFiles(invalid); });
+        assertThrows("FILE-SELECTION-FILTER", sub () { model.setExtensions(("txt",)); }); assertEq(3, model.getVisibleIds().size());
+        assertThrows("FILTER-ERROR", sub () { model.setFilter(bool sub (hash<NcursesUi::FileSelectionEntry> file) { throw "FILTER-ERROR", "failed"; }); }); assertEq(3, model.getVisibleIds().size()); assertEq("0", model.getSelected()[0].id);
+        assertThrows("FILE-SELECTION-BUSY", sub () { model.setFilter(bool sub (hash<NcursesUi::FileSelectionEntry> file) { model.clearSelection(); return True; }); }); assertEq("0", model.getSelected()[0].id);
+        assertThrows("FILE-SELECTION-ID", sub () { model.toggle("missing"); }); assertThrows("FILE-SELECTION-OPERATION", sub () { model.dispatch(3); });
+    }
+    operations() {
+        NcursesUi::FileSelectionModel model(files(), True); list<string> actions = ();
+        model.setHandler(NcursesUi::FileOperation::Open, bool sub (list<hash<NcursesUi::FileSelectionEntry>> selected) { actions += "open:" + selected[0].id; return True; });
+        assertFalse(model.dispatch(NcursesUi::FileOperation::Open)); assertTrue(exists model.getError()); assertEq((), actions);
+        model.toggle("0"); model.setValidator(*string sub (list<hash<NcursesUi::FileSelectionEntry>> selected) { return "0"; }); assertFalse(model.dispatch(NcursesUi::FileOperation::Open)); assertEq("0", model.getError());
+        model.setValidator(NOTHING); assertTrue(model.dispatch(NcursesUi::FileOperation::Open)); assertEq(("open:0",), actions); assertFalse(model.dispatch(NcursesUi::FileOperation::Open)); assertEq(NcursesUi::ActionState::Completed, model.getState());
+        assertThrows("FILE-SELECTION-BUSY", sub () { model.toggle("csv"); }); model.reset();
+        model.setHandler(NcursesUi::FileOperation::Save, bool sub (list<hash<NcursesUi::FileSelectionEntry>> selected) { return False; }); assertFalse(model.dispatch(NcursesUi::FileOperation::Save)); assertEq(NcursesUi::ActionState::Cancelled, model.getState()); assertEq("0", model.getSelected()[0].id);
+        model.setHandler(NcursesUi::FileOperation::Export, bool sub (list<hash<NcursesUi::FileSelectionEntry>> selected) { throw "EXPORT-ERROR", "offline"; }); assertThrows("EXPORT-ERROR", sub () { model.dispatch(NcursesUi::FileOperation::Export); }); assertEq(NcursesUi::ActionState::Failed, model.getState()); assertEq("offline", model.getError());
+        model.setHandler(NcursesUi::FileOperation::Export, bool sub (list<hash<NcursesUi::FileSelectionEntry>> selected) { assertFalse(model.dispatch(NcursesUi::FileOperation::Export)); return True; }); assertTrue(model.dispatch(NcursesUi::FileOperation::Export));
+    }
+    localFiles() {
+        string path = "/tmp/ncurses-file-selection-" + getpid() + ".txt"; on_exit { if (is_file(path)) { unlink(path); } }
+        { File file(); file.open2(path, O_CREAT | O_TRUNC | O_WRONLY, 0600); file.write("hello"); }
+        list<hash<NcursesUi::FileSelectionEntry>> entries = NcursesUi::FileSelectionModel::inspectLocalPaths((path, path + ".missing", "/tmp")); assertEq(5, entries[0].size); assertNothing(entries[0].error); assertTrue(exists entries[1].error); assertEq("Not a regular file", entries[2].error);
+        NcursesUi::FileSelectionModel model((entries[0],)); model.toggle(path); model.setValidator(\NcursesUi::FileSelectionModel::validateLocalSelection()); int calls = 0;
+        model.setHandler(NcursesUi::FileOperation::Open, bool sub (list<hash<NcursesUi::FileSelectionEntry>> selected) { ++calls; return True; }); unlink(path); assertFalse(model.dispatch(NcursesUi::FileOperation::Open)); assertEq(0, calls); assertTrue(model.getError().find(path) >= 0);
+    }
+    widget() {
+        NcursesUi::TestHarness th(10, 30); on_exit th.close(); NcursesUi::Application app(th.session()); NcursesUi::FileSelectionModel model(files(), True); NcursesUi::FileSelectionWidget widget(model); app.setRoot(widget); app.getFocusManager().setFocus(widget);
+        model.setHandler(NcursesUi::FileOperation::Open, bool sub (list<hash<NcursesUi::FileSelectionEntry>> selected) { return True; }); app.drawAll(); assertFalse(widget.isDirty());
+        app.processEvent(chr(" ")); app.processEvent(key("KEY_DOWN")); app.processEvent(chr(" ")); assertEq(2, model.getSelected().size()); assertEq("csv", widget.getHighlighted().id);
+        model.setExtensions((".csv",)); app.drawAll(); assertTrue(widget.getStatusText().find("1 hidden") >= 0); assertEq("csv", widget.getHighlighted().id);
+        app.processEvent(key("KEY_ENTER")); app.drawAll(); assertEq(NcursesUi::ActionState::Completed, model.getState()); assertTrue(widget.getStatusText().find("Completed") >= 0); assertFalse(widget.activate(NcursesUi::FileOperation::Open));
+        model.reset(); model.clearSelection(); model.setExtensions(()); widget.highlight("0"); widget.setFrameValues(0, 0, 1, 2); widget.drawTree(th.screen()); assertFalse(widget.isDirty());
+        widget.setVisible(False); model.toggle("csv"); app.drawAll(); widget.setVisible(True); app.drawAll(); assertTrue(widget.getStatusText().find("1 selected") >= 0);
+        widget.setOnDismiss(sub () { model.clearSelection(); }); widget.processEvent(chr("\x1b")); assertEq(0, model.getSelected().size());
+        widget.setEnabled(False); assertFalse(widget.activate(NcursesUi::FileOperation::Open)); app.close();
+    }
+}

@@ -77,7 +77,13 @@ class DocsTest(unittest.TestCase):
         compounds = {c.findtext('name'): c for c in ET.parse(BUILD / 'NcursesUi.tag').findall('compound')}
         for name, method in [('Widget', 'addChild'), ('Application', 'run'),
                              ('DialogWidget', 'confirm'), ('ListWidget', 'setItems'),
-                             ('ScrollableWidget', 'setContent'), ('TableWidget', 'setColumns')]:
+                             ('ScrollableWidget', 'setContent'), ('TableWidget', 'setColumns'),
+                             ('AssistanceModel', 'complete'), ('AssistancePopupWidget', 'positionAtCaret'),
+                             ('ActionModel', 'progress'), ('ProgressWidget', 'cancel'),
+                             ('TimelineWidget', 'appendEvent'), ('UiEventQueue', 'drain'),
+                             ('UiEventScope', 'close'), ('FileSelectionModel', 'dispatch'),
+                             ('FileSelectionWidget', 'activate'), ('AttachmentWidget', 'setAttachment'),
+                             ('TextChart', 'sparkline'), ('TextChartWidget', 'setChart')]:
             with self.subTest(name=name):
                 compound = compounds['NcursesUi::' + name]
                 self.assertIn(method, [m.findtext('name') for m in compound.findall('member')])

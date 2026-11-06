@@ -1,0 +1,82 @@
+#!/usr/bin/env qore
+# Copyright 2026 Qore Technologies, s.r.o.
+%modern
+%prepend-module-path "${SCRIPT_DIR}/../qlib"
+%requires ncurses
+%requires NcursesUi
+%requires QUnit
+%include "test/TestHarness.qc"
+%exec-class ActionsTest
+class ActionsTest inherits Test {
+    constructor() : Test("ActionsTest", "1.0", \ARGV) {
+        addTestCase("operation state transitions and stale attempts", \lifecycle());
+        addTestCase("progress rejects invalid data without mutation", \progress());
+        addTestCase("starter failures and reentrancy preserve coherent states", \failures());
+        addTestCase("progress keyboard mouse cancellation and receipts", \widget());
+        addTestCase("hidden progress controls reconcile model updates", \hidden());
+        addTestCase("progress bars fit the scrollbar viewport on their first paint", \firstPaint());
+        set_return_value(main());
+    }
+    firstPaint() {
+        NcursesUi::TestHarness th(8, 30); on_exit th.close(); NcursesUi::ActionModel model("id", "Run"); NcursesUi::ProgressWidget widget(model); widget.setFrameValues(0, 0, 4, 20);
+        hash<NcursesUi::ActionRequest> token = model.begin(); model.progress(token, 1.0, 2.0); widget.drawTree(th.screen());
+        assertEq("]", th.screen().readText(2, 18, 1)); list<string> before = th.screen().readLines(); widget.drawTree(th.screen(), True); assertEq(before, th.screen().readLines()); assertFalse(widget.isDirty());
+    }
+    lifecycle() {
+        assertThrows("ACTION-ID-ERROR", sub () { new NcursesUi::ActionModel("", "Invalid"); });
+        NcursesUi::ActionModel zero("0", "0"); assertEq("0", zero.begin().id);
+        NcursesUi::ActionModel model("run", "Run operation"); assertEq(NcursesUi::ActionState::Pending, model.getState()); assertNothing(model.getStarted());
+        hash<NcursesUi::ActionRequest> token = model.begin(); assertEq("run", token.id); assertEq(NcursesUi::ActionState::Running, model.getState()); assertTrue(exists model.getStarted());
+        assertThrows("ACTION-STATE-ERROR", sub () { model.begin(); }); assertThrows("ACTION-STATE-ERROR", sub () { model.reset(); });
+        assertEq(token, model.cancel()); assertNothing(model.cancel()); assertEq(NcursesUi::ActionState::Cancelled, model.getState()); assertTrue(exists model.getFinished()); assertFalse(model.complete(token, "late")); assertFalse(model.fail(token, "late"));
+        hash<NcursesUi::ActionRequest> next = model.begin(); assertTrue(next.generation > token.generation); assertFalse(model.progress(token, -1.0, 0.0)); assertTrue(model.fail(next, "offline")); assertEq("offline", model.getError());
+        next = model.begin(); assertTrue(model.complete(next, {"receipt": "done"})); assertEq("done", model.getResult().receipt); assertEq(NcursesUi::ActionState::Completed, model.getState()); assertFalse(model.complete(next)); assertNothing(model.cancel());
+        assertThrows("ACTION-STATE-ERROR", sub () { model.begin(); }); model.reset(); assertEq(NcursesUi::ActionState::Pending, model.getState()); assertNothing(model.getResult()); assertNothing(model.getStarted());
+        NcursesUi::ActionModel replacement("run", "Run operation"); hash<NcursesUi::ActionRequest> replacement_token = replacement.begin(); assertFalse(replacement.complete(token)); assertTrue(replacement.complete(replacement_token));
+        assertTrue(exists model.cancel()); assertNothing(model.getStarted());
+    }
+    progress() {
+        NcursesUi::ActionModel model("run", "Run"); hash<NcursesUi::ActionRequest> token = model.begin();
+        assertTrue(model.progress(token, NOTHING, NOTHING, "Initializing")); assertNothing(model.getTotal()); assertNothing(model.getCompleted()); assertEq("Initializing", model.getMessage());
+        assertTrue(model.progress(token, 3.0, 10.0)); assertEq(3.0, model.getCompleted()); assertEq(10.0, model.getTotal());
+        assertThrows("ACTION-PROGRESS-ERROR", sub () { model.progress(token, -1.0, 10.0); });
+        assertThrows("ACTION-PROGRESS-ERROR", sub () { model.progress(token, 0.0, 0.0); });
+        assertThrows("ACTION-PROGRESS-ERROR", sub () { model.progress(token, NOTHING, 10.0); });
+        assertThrows("ACTION-PROGRESS-ERROR", sub () { model.progress(token, 11.0, 10.0); });
+        assertThrows("ACTION-PROGRESS-ERROR", sub () { model.progress(token, float("nan"), 10.0); });
+        assertThrows("ACTION-PROGRESS-ERROR", sub () { model.progress(token, 1.0, float("inf")); });
+        assertEq(3.0, model.getCompleted()); assertEq(10.0, model.getTotal());
+        assertTrue(model.complete(token)); assertEq(10.0, model.getCompleted()); assertFalse(model.progress(token, 2.0, 10.0));
+        model.reset(); token = model.begin(); assertTrue(model.progress(token, 12.0, NOTHING)); assertNothing(model.getTotal()); assertEq(12.0, model.getCompleted());
+    }
+    failures() {
+        NcursesUi::ActionModel model("run", "Run");
+        assertThrows("START-ERROR", sub () { model.dispatch(sub (hash<NcursesUi::ActionRequest> token) { throw "START-ERROR", "unavailable"; }); });
+        assertEq(NcursesUi::ActionState::Failed, model.getState()); assertEq("unavailable", model.getError());
+        assertThrows("ACTION-STATE-ERROR", sub () { model.dispatch(sub (hash<NcursesUi::ActionRequest> token) { model.dispatch(sub (hash<NcursesUi::ActionRequest> nested) {}); }); });
+        assertEq(NcursesUi::ActionState::Failed, model.getState());
+        model.dispatch(sub (hash<NcursesUi::ActionRequest> token) { model.cancel(); assertFalse(model.complete(token)); }); assertEq(NcursesUi::ActionState::Cancelled, model.getState());
+        model.dispatch(sub (hash<NcursesUi::ActionRequest> token) { assertTrue(model.complete(token, 42)); }); assertEq(42, model.getResult());
+    }
+    widget() {
+        NcursesUi::TestHarness th(12, 30); on_exit th.close(); NcursesUi::ActionModel model("run", "Example operation"); NcursesUi::ProgressWidget widget(model); widget.setFrameValues(0, 0, 10, 25);
+        int starts = 0; *hash<NcursesUi::ActionRequest> request;
+        widget.setOnStart(sub (hash<NcursesUi::ActionRequest> token) { request = token; ++starts; });
+        widget.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Key, "name": "KEY_ENTER"}); assertEq(1, starts); assertFalse(widget.start());
+        widget.drawTree(th.screen()); assertTrue(join("\n", widget.getStatusLines()).find("Working") >= 0); assertFalse(widget.isDirty());
+        model.progress(request, 5.0, 10.0, "Halfway"); widget.drawTree(th.screen()); assertTrue(join("\n", widget.getStatusLines()).find("50%") >= 0); assertFalse(widget.isDirty());
+        widget.setOnCancel(sub (hash<NcursesUi::ActionRequest> token) { assertEq(request, token); throw "CANCEL-ERROR", "notification failed"; });
+        assertThrows("CANCEL-ERROR", sub () { widget.cancel(); }); assertEq(NcursesUi::ActionState::Cancelled, model.getState()); assertFalse(model.complete(request)); assertFalse(widget.cancel());
+        assertTrue(widget.start()); assertEq(2, starts); model.complete(request, "receipt"); widget.drawTree(th.screen()); assertTrue(join("\n", widget.getStatusLines()).find("Completed") >= 0); assertFalse(widget.start()); assertFalse(widget.cancel());
+        model.reset(); widget.setOnStart(sub (hash<NcursesUi::ActionRequest> token) { ++starts; model.complete(token); }); widget.drawTree(th.screen());
+        widget.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Mouse, "mouse": <Ncurses::MouseEvent>{"y": 2, "x": 1, "button_state": Ncurses::BUTTON1_CLICKED}}); assertEq(3, starts); assertEq(NcursesUi::ActionState::Completed, model.getState());
+        widget.setFrameValues(0, 0, 1, 1); widget.drawTree(th.screen()); assertFalse(widget.isDirty());
+    }
+    hidden() {
+        NcursesUi::TestHarness th(10, 30); on_exit th.close(); NcursesUi::Widget root(); root.setFrameValues(0, 0, 10, 30);
+        NcursesUi::ActionModel model("id", "Hidden update"); NcursesUi::ProgressWidget widget(model); widget.setFrameValues(0, 0, 8, 25); root.addChild(widget); root.drawTree(th.screen());
+        root.setVisible(False); hash<NcursesUi::ActionRequest> token = model.begin(); model.complete(token); root.drawTree(th.screen()); assertFalse(root.isDirty());
+        root.setVisible(True); root.drawTree(th.screen()); assertTrue(join("\n", widget.getStatusLines()).find("Completed") >= 0); assertFalse(root.isDirty());
+        model.reset(); widget.setOnStart(sub (hash<NcursesUi::ActionRequest> token) {}); root.setEnabled(False); assertFalse(widget.start()); assertFalse(widget.cancel()); assertEq(NcursesUi::ActionState::Pending, model.getState());
+    }
+}

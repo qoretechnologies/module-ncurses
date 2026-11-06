@@ -1,0 +1,124 @@
+#!/usr/bin/env qore
+# Copyright 2026 Qore Technologies, s.r.o.
+%modern
+%prepend-module-path "${SCRIPT_DIR}/../qlib"
+%requires ncurses
+%requires NcursesUi
+%requires QUnit
+%include "test/TestHarness.qc"
+%exec-class UiQueueTest
+class QueueCleanupProbe {
+    private { code<nothing()> callback; }
+    constructor(code<nothing()> callback) { self.callback = callback; }
+    destructor() { callback(); }
+}
+class UiQueueTest inherits Test {
+    constructor() : Test("UiQueueTest", "1.0", \ARGV) {
+        addTestCase("worker delivery is FIFO and UI-thread-owned", \delivery());
+        addTestCase("queue and scope disposal reject late work", \disposal());
+        addTestCase("bounded capacity and notification rollback", \bounds());
+        addTestCase("callback errors preserve later work and nested drain fails", \failures());
+        addTestCase("drain handles only its finite initial batch", \finite());
+        addTestCase("availability rejects hidden and replaced receivers", \availability());
+        addTestCase("application wakes for worker results and closes owned scopes", \application());
+        addTestCase("nested modals preserve background delivery and dispose popped owners", \modals());
+        addTestCase("owned tick callbacks can remove each other without stale invocation", \ticks());
+        addTestCase("self-posted work cannot starve keyboard input", \fairness());
+        addTestCase("payload cleanup runs outside queue locks", \cleanup());
+        set_return_value(main());
+    }
+    application() {
+        NcursesUi::TestHarness th(8, 30); on_exit th.close(); NcursesUi::Application app(th.session()); NcursesUi::Widget root(); app.setRoot(root); app.setReadTimeout(-1, 25);
+        int calls = 0; int thread = gettid();
+        NcursesUi::UiEventScope scope = app.createEventScope(sub (auto value) { assertEq(thread, gettid()); assertEq("result", value); ++calls; app.quit(); }, root);
+        Counter done(1); Queue result(); background sub () { on_exit done.dec(); result.push(scope.post("result")); }();
+        app.run(); done.waitForZero(); assertTrue(result.get()); assertEq(1, calls); assertFalse(app.isRunning());
+        NcursesUi::Widget replacement(); app.setRoot(replacement); assertFalse(scope.post("stale"));
+        NcursesUi::UiEventScope hidden = app.createEventScope(sub (auto value) { ++calls; }, replacement);
+        replacement.setVisible(False); app.drawAll(); replacement.setVisible(True); assertFalse(hidden.post("late"));
+        NcursesUi::UiEventScope final_scope = app.createEventScope(sub (auto value) { ++calls; }); app.close(); assertFalse(final_scope.post("late")); assertEq(1, calls);
+    }
+    modals() {
+        NcursesUi::TestHarness th(8, 30); on_exit th.close(); NcursesUi::Application app(th.session()); NcursesUi::Widget root(); app.setRoot(root);
+        NcursesUi::TextInputWidget input(); input.setFrameValues(0, 0, 1, 20); root.addChild(input); app.getFocusManager().setFocus(input);
+        int calls = 0; NcursesUi::UiEventScope scope = app.createEventScope(sub (auto value) { input.setText(string(value)); ++calls; }, input);
+        NcursesUi::Widget dialog(); dialog.setFrameValues(1, 1, 4, 20); NcursesUi::TextInputWidget nested(); nested.setFrameValues(2, 2, 1, 10); dialog.addChild(nested); app.pushModal(dialog);
+        NcursesUi::UiEventScope modal_scope = app.createEventScope(sub (auto value) { nested.setText(string(value)); }, nested);
+        scope.post("background"); modal_scope.post("modal"); assertEq(2, app.processPending()); assertEq("background", input.getText()); assertEq("modal", nested.getText()); assertEq(nested, app.getFocusManager().getCurrentFocus());
+        app.popModal(); assertFalse(modal_scope.post("late")); assertEq(input, app.getFocusManager().getCurrentFocus());
+        scope.post("after"); app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Wake}); assertEq("after", input.getText()); assertEq(2, calls);
+        app.close();
+    }
+    ticks() {
+        NcursesUi::TestHarness th(8, 30); on_exit th.close(); NcursesUi::Application app(th.session()); NcursesUi::Widget root(); app.setRoot(root); app.setReadTimeout(-1, 25);
+        int removed; int calls = 0;
+        int first = app.addOwnedTickCallback(sub () { ++calls; assertTrue(app.removeTickCallback(removed)); app.quit(); }, root);
+        removed = app.addOwnedTickCallback(sub () { calls += 100; }, root);
+        th.session().injectInput("x"); app.run(); assertEq(1, calls); assertTrue(app.removeTickCallback(first)); assertFalse(app.removeTickCallback(first));
+        int hidden = app.addOwnedTickCallback(sub () { calls += 100; }, root); root.setVisible(False); app.drawAll(); assertFalse(app.removeTickCallback(hidden));
+        root.setVisible(True); app.close();
+    }
+    fairness() {
+        NcursesUi::TestHarness th(8, 30); on_exit th.close(); NcursesUi::Application app(th.session()); NcursesUi::Widget root(); app.setRoot(root); app.setReadTimeout(-1, 25);
+        int calls = 0; *NcursesUi::UiEventScope scope;
+        scope = app.createEventScope(sub (auto value) { ++calls; scope.post(value); }); scope.post("work");
+        app.setGlobalKeyHandler(hash<NcursesUi::EventResult> sub (hash<Ncurses::InputEvent> event) { assertEq("q", event.ch); app.quit(); return <NcursesUi::EventResult>{"handled": True}; });
+        th.session().injectInput("q"); app.run(); assertTrue(calls > 0); assertTrue(calls <= 2); scope.close(); app.close();
+    }
+    cleanup() {
+        NcursesUi::UiEventQueue queue(NOTHING); int released = 0;
+        NcursesUi::UiEventScope scope = queue.createScope(sub (auto value) {});
+        scope.post(new QueueCleanupProbe(sub () { assertEq(0, queue.getPendingCount()); ++released; })); scope.close(); assertEq(1, released);
+        NcursesUi::UiEventScope second = queue.createScope(sub (auto value) {});
+        second.post(new QueueCleanupProbe(sub () { assertEq(0, queue.getPendingCount()); ++released; })); queue.close(); assertEq(2, released);
+    }
+    delivery() {
+        NcursesUi::UiEventQueue queue(NOTHING); list<int> values = (); int owner = gettid();
+        NcursesUi::UiEventScope scope = queue.createScope(sub (auto value) { assertEq(owner, gettid()); values += int(value); });
+        Counter done(1); Queue errors(); background sub () {
+            on_exit done.dec(); scope.post(1); scope.post(2);
+            try { queue.drain(); errors.push("NONE"); } catch (hash<ExceptionInfo> ex) { errors.push(ex.err); }
+            try { queue.createScope(sub (auto value) {}); errors.push("NONE"); } catch (hash<ExceptionInfo> ex) { errors.push(ex.err); }
+        }();
+        done.waitForZero(); assertEq("UI-THREAD-ERROR", errors.get()); assertEq("UI-THREAD-ERROR", errors.get()); assertEq(2, queue.getPendingCount()); assertEq((), values);
+        assertEq(2, queue.drain()); assertEq((1, 2), values); assertEq(0, queue.getPendingCount()); assertEq(0, queue.drain());
+    }
+    disposal() {
+        NcursesUi::UiEventQueue queue(NOTHING); int calls = 0; NcursesUi::UiEventScope scope = queue.createScope(sub (auto value) { ++calls; });
+        scope.post("old"); assertTrue(scope.close()); assertFalse(scope.close()); assertEq(0, queue.getPendingCount()); assertFalse(scope.post("late")); assertEq(0, queue.drain()); assertEq(0, calls);
+        NcursesUi::UiEventScope next = queue.createScope(sub (auto value) { ++calls; }); next.post("queued"); queue.close(); queue.close(); assertFalse(next.post("late")); assertEq(0, queue.getPendingCount()); assertEq(0, queue.drain()); assertEq(0, calls);
+        assertThrows("UI-QUEUE-CLOSED", sub () { queue.createScope(sub (auto value) {}); });
+        NcursesUi::UiEventQueue released(NOTHING); { NcursesUi::UiEventScope temporary = released.createScope(sub (auto value) {}); temporary.post("held"); }
+        assertEq(0, released.getPendingCount());
+    }
+    bounds() {
+        assertThrows("UI-QUEUE-LIMIT", sub () { new NcursesUi::UiEventQueue(NOTHING, 0); });
+        bool fail_notify = False; int notifications = 0; list<int> values = ();
+        NcursesUi::UiEventQueue queue(sub () { ++notifications; if (fail_notify) { throw "WAKE-ERROR", "notify failed"; } }, 2);
+        NcursesUi::UiEventScope scope = queue.createScope(sub (auto value) { values += int(value); }); scope.post(1); scope.post(2);
+        assertThrows("UI-QUEUE-FULL", sub () { scope.post(3); }); assertEq(2, notifications); assertEq(2, queue.drain()); assertEq((1, 2), values);
+        fail_notify = True; assertThrows("WAKE-ERROR", sub () { scope.post(3); }); assertEq(0, queue.getPendingCount()); fail_notify = False; scope.post(4); assertEq(1, queue.drain()); assertEq((1, 2, 4), values);
+        # The wake callback may deliver synchronously; a later wake exception must
+        # not claim the already-executed delivery was rolled back.
+        *NcursesUi::UiEventQueue immediate; int calls = 0;
+        immediate = new NcursesUi::UiEventQueue(sub () { immediate.drain(); throw "WAKE-ERROR", "already delivered"; });
+        NcursesUi::UiEventScope synchronous = immediate.createScope(sub (auto value) { ++calls; }); assertTrue(synchronous.post("value")); assertEq(1, calls);
+    }
+    failures() {
+        NcursesUi::UiEventQueue queue(NOTHING); list<int> values = ();
+        NcursesUi::UiEventScope scope = queue.createScope(sub (auto value) { if (value == 1) { throw "CALLBACK-ERROR", "failed"; } values += int(value); });
+        scope.post(1); scope.post(2); assertThrows("CALLBACK-ERROR", sub () { queue.drain(); }); assertEq(1, queue.getPendingCount()); assertEq(1, queue.drain()); assertEq((2,), values);
+        NcursesUi::UiEventScope nested = queue.createScope(sub (auto value) { queue.drain(); }); nested.post("nested"); assertThrows("UI-QUEUE-REENTRANT", sub () { queue.drain(); }); assertEq(0, queue.getPendingCount());
+        scope.post(3); assertEq(1, queue.drain()); assertEq((2, 3), values);
+    }
+    finite() {
+        NcursesUi::UiEventQueue queue(NOTHING); *NcursesUi::UiEventScope scope; int calls = 0;
+        scope = queue.createScope(sub (auto value) { ++calls; scope.post(value); }); scope.post("work"); assertEq(1, queue.drain()); assertEq(1, calls); assertEq(1, queue.getPendingCount()); assertEq(1, queue.drain()); assertEq(2, calls); scope.close(); assertEq(0, queue.getPendingCount());
+    }
+    availability() {
+        NcursesUi::UiEventQueue queue(NOTHING); NcursesUi::Widget owner(); int calls = 0;
+        NcursesUi::UiEventScope scope = queue.createScope(sub (auto value) { ++calls; }, bool sub () { return owner.isAvailable(); });
+        scope.post("old"); owner.setVisible(False); assertEq(0, queue.drain()); assertEq(0, calls); owner.setVisible(True); assertFalse(scope.post("late"));
+        NcursesUi::UiEventScope next = queue.createScope(sub (auto value) { ++calls; }, bool sub () { return owner.isAvailable(); }); next.post("new"); assertEq(1, queue.drain()); assertEq(1, calls);
+    }
+}

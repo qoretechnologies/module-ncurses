@@ -50,7 +50,7 @@ FAILED=0
 ${MODULE_SRC_DIR}/test/docker_test/check-loaded-modules.sh ${MODULE_SRC_DIR}/build gosu qore:qore
 
 for test in test/*.qtest; do
-    if ! gosu qore:qore qore --enable-debug $test -vv; then
+    if ! gosu qore:qore qore --enable-debug --warnings-are-errors $test -vv; then
         echo "FAILED: $test"
         FAILED=1
     fi
