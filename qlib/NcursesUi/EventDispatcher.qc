@@ -230,7 +230,7 @@ public class EventDispatcher {
                 return <NcursesUi::EventResult>{"handled": False};
             }
             if (primaryClick(ev)) {
-                *NcursesUi::Widget target = hit;
+                *NcursesUi::Widget target = hit.mouseFocusTarget(ev.mouse.y, ev.mouse.x);
                 while (target && scope.containsWidget(target)) {
                     if (target.isFocusable()) {
                         focus_mgr.setFocus(target);
@@ -263,6 +263,9 @@ public class EventDispatcher {
         }
         # Disabled visible controls still cover widgets below them.
         if (!w.isAvailable()) {
+            return w;
+        }
+        if (w.handlesChildMouseEvents()) {
             return w;
         }
         list<NcursesUi::Widget> kids = w.getChildren();

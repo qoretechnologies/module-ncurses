@@ -113,6 +113,9 @@ module NcursesUi {
     Use @ref NcursesUi::FocusManager::setFocus() "setFocus()" for application
     focus changes. Callbacks may inspect focus but cannot initiate a nested
     focus or modal-stack transition; callback failures leave no stale owner.
+    This guard also covers callbacks from direct focus changes and subtree
+    hide, disable, and detach operations. Cleanup may release focus, but a focus
+    callback cannot acquire focus on another widget.
 
     @subsection ncursesui_events Event Dispatch
 
@@ -121,6 +124,12 @@ module NcursesUi {
     - Keyboard events go to the focused descendant and bubble through its ancestors.
     - A primary mouse click focuses the eligible hit target; misses and wheel events
       never fall through to an unrelated focused control.
+    - Composites with local child coordinates override
+      @ref NcursesUi::Widget::handlesChildMouseEvents() "handlesChildMouseEvents()"
+      to receive screen-coordinate mouse events before their children, and
+      @ref NcursesUi::Widget::mouseFocusTarget() "mouseFocusTarget()" to select
+      the appropriate child for primary activation. File-browser preview
+      navigation and pane coordinate conversion use this contract.
     - A modal captures all remaining input. Tab/Shift+Tab stay in its focus scope;
       controls with internal Tab navigation handle the key first.
     - @ref NcursesUi::Application::pushPopup() "pushPopup()" opts into outside-click

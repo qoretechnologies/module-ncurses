@@ -19,4 +19,7 @@
     visibility so modal transitions can restore it exactly. Composite file-browser
     pane navigation stays synchronized with managed focus, and combo-box mouse
     placement and dropdown scrolling share the clipped drawing geometry.
+    Composite mouse delegation preserves panel-local coordinate conversion and
+    preview navigation. Focus callbacks share a thread-local transition guard,
+    including cleanup triggered by hiding, disabling, and detaching widgets.
 */

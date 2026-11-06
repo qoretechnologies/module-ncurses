@@ -82,6 +82,8 @@ class NcursesFocusTest inherits Test {
         addTestCase("reparent callbacks cannot create cycles or duplicate ownership", \reparentCallback());
         addTestCase("focus traversal callbacks cannot mutate modal capture", \traversalModalCallback());
         addTestCase("file-browser navigation reconciles managed pane focus", \fileBrowserFocus());
+        addTestCase("widget cleanup callbacks share focus and modal guards", \cleanupGuard());
+        addTestCase("composite mouse dispatch preserves panel coordinate conversion", \compositeMouse());
         set_return_value(main());
     }
     private hash<Ncurses::InputEvent> ch(string text) {
@@ -425,6 +427,96 @@ class NcursesFocusTest inherits Test {
         app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Key, "name": "KEY_UP"});
         assertEq(selected - 1, browser.getFileList().getSelectedIndex());
         app.popModal();
+    }
+
+    cleanupGuard() {
+        foreach string action in (("hide", "disable", "detach", "unfocusable", "blur", "hide-parent", "disable-parent", "detach-parent")) {
+            foreach string change in (("focus", "scope", "direct", "pop", "push")) {
+                NcursesUi::Widget root(); NcursesUi::Widget modal(); NcursesUi::Widget group();
+                FocusProbe a(); FocusProbe b(); a.setFocusable(True); b.setFocusable(True);
+                modal.addChild(group); group.addChild(a); modal.addChild(b);
+                NcursesUi::EventDispatcher ed(); ed.setRootScope(root); ed.pushModal(modal);
+                NcursesUi::FocusManager fm = ed.getFocusManager();
+                NcursesUi::Widget popup();
+                a.leave_callback = sub () {
+                    if (change == "focus") { fm.setFocus(b); }
+                    else if (change == "scope") { fm.setScope(root); }
+                    else if (change == "direct") { b.setFocused(True); }
+                    else if (change == "pop") { ed.popModal(); }
+                    else { ed.pushPopup(popup); }
+                };
+                bool failed = False;
+                try {
+                    if (action == "hide") { a.setVisible(False); }
+                    else if (action == "disable") { a.setEnabled(False); }
+                    else if (action == "detach") { a.clearParent(); }
+                    else if (action == "unfocusable") { a.setFocusable(False); }
+                    else if (action == "blur") { a.setFocused(False); }
+                    else if (action == "hide-parent") { group.setVisible(False); }
+                    else if (action == "disable-parent") { group.setEnabled(False); }
+                    else { group.clearParent(); }
+                } catch (hash<ExceptionInfo> ex) {
+                    failed = ex.err == ((change == "focus" || change == "scope" || change == "direct")
+                        ? "FOCUS-CHANGE-ERROR" : "MODAL-SCOPE-ERROR");
+                }
+                assertTrue(failed, action + "/" + change);
+                assertFalse(a.hasFocus()); assertFalse(b.hasFocus());
+                assertEq(modal, ed.topModal()); assertEq(modal, fm.getScope());
+                assertFalse(exists fm.getCurrentFocus()); assertFalse(fm.isChangingFocus());
+                a.leave_callback = NOTHING; fm.setFocus(b); assertEq(b, fm.getCurrentFocus());
+                ed.popModal();
+            }
+        }
+        # A callback on an explicitly focused widget also guards an unbound manager.
+        FocusProbe direct(); direct.setFocusable(True); NcursesUi::FocusManager fm();
+        direct.enter_callback = sub () { fm.setFocus(direct); };
+        bool failed = False;
+        try { direct.setFocused(True); } catch (hash<ExceptionInfo> ex) { failed = ex.err == "FOCUS-CHANGE-ERROR"; }
+        assertTrue(failed); assertFalse(direct.hasFocus()); assertFalse(fm.isChangingFocus());
+        direct.enter_callback = NOTHING; fm.setFocus(direct); assertEq(direct, fm.getCurrentFocus());
+        direct.leave_callback = sub () {
+            assertTrue(fm.isChangingFocus()); assertFalse(exists fm.getCurrentFocus());
+        };
+        direct.setFocused(False); assertFalse(fm.isChangingFocus()); assertFalse(exists fm.getCurrentFocus());
+    }
+    compositeMouse() {
+        NcursesUi::TestHarness th(24, 80); on_exit th.close();
+        string dir = "/tmp/ncurses-focus-mouse-" + string(getpid());
+        mkdir(dir, 0700); on_exit rmdir(dir);
+        mkdir(dir + "/a", 0700); on_exit rmdir(dir + "/a");
+        mkdir(dir + "/b", 0700); on_exit rmdir(dir + "/b");
+        mkdir(dir + "/a/first", 0700); on_exit rmdir(dir + "/a/first");
+        mkdir(dir + "/a/second", 0700); on_exit rmdir(dir + "/a/second");
+        NcursesUi::Application app(th.session()); NcursesUi::Widget root(); app.setRoot(root);
+        NcursesUi::FileBrowserWidget browser(th.session(), dir);
+        browser.setFrameValues(2, 5, 16, 60); browser.createPanel(); app.pushModal(browser); app.drawAll();
+        browser.getFileList().setSelectedIndex(2);
+        assertTrue(app.processEvent(mouse(3, 6)).handled);
+        assertEq(0, browser.getFileList().getSelectedIndex());
+        assertEq(browser.getFileList(), app.getFocusManager().getCurrentFocus());
+        app.processEvent(mouse(4, 6)); assertEq(1, browser.getFileList().getSelectedIndex());
+        # Directory preview click-through must run in the composite, not its child.
+        hash<NcursesUi::Rect> preview = browser.getPreviewWidget().getFrame();
+        app.processEvent(mouse(2 + preview.y + 1, 5 + preview.x));
+        assertEq(realpath(dir + "/a"), browser.getCurrentDir());
+        assertEq("second", browser.getSelectedFile().label);
+        assertEq(browser.getFileList(), app.getFocusManager().getCurrentFocus());
+        browser.navigateBack(); app.drawAll();
+        browser.getFileList().setSelectedIndex(2); browser.getFileList().setEnabled(False);
+        app.processEvent(mouse(3, 6)); assertEq(2, browser.getFileList().getSelectedIndex());
+        assertFalse(browser.getFileList().hasFocus());
+        browser.getFileList().setEnabled(True);
+        # Outside-modal clicks do not get translated into child coordinates.
+        app.processEvent(mouse(0, 0)); assertEq(2, browser.getFileList().getSelectedIndex());
+        bool dismissed = False; browser.setOnDismiss(sub () { dismissed = True; });
+        app.processEvent(mouse(2, 5 + 55)); assertTrue(dismissed);
+        app.popModal(); browser.destroyPanel();
+        # The same composite routing works as a normal child, with another owner.
+        root.addChild(browser); browser.createPanel();
+        FocusProbe other(); other.setFocusable(True); root.addChild(other);
+        app.getFocusManager().setFocus(other); app.drawAll();
+        app.processEvent(mouse(3, 6)); assertEq(0, browser.getFileList().getSelectedIndex());
+        assertFalse(other.hasFocus()); assertEq(browser.getFileList(), app.getFocusManager().getCurrentFocus());
     }
 
 }

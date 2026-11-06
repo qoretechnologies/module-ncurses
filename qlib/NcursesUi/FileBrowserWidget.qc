@@ -375,6 +375,30 @@ public class FileBrowserWidget inherits NcursesUi::PanelWidget {
         pw.noutrefresh();
     }
 
+    /** Keeps mouse delegation in the browser's panel-local coordinate space.
+        @return True
+        @since ncurses 1.0
+    */
+    bool handlesChildMouseEvents() {
+        return True;
+    }
+
+    /** Returns the pane under a screen-coordinate mouse activation.
+        @param py screen row
+        @param px screen column
+        @return available pane, or NOTHING for borders and disabled panes
+        @since ncurses 1.0
+    */
+    *NcursesUi::Widget mouseFocusTarget(int py, int px) {
+        hash<NcursesUi::Rect> f = getFrame();
+        foreach NcursesUi::Widget pane in ((file_list, preview_widget)) {
+            if (pane.isFocusable() && pane.hitTest(py - f.y, px - f.x)) {
+                return pane;
+            }
+        }
+        return NOTHING;
+    }
+
     /** Delegates events to the focused pane.
         @param ev the input event
         @return EventResult
@@ -429,6 +453,9 @@ public class FileBrowserWidget inherits NcursesUi::PanelWidget {
             hash<NcursesUi::Rect> preview_frame = preview_widget.getFrame();
 
             if (NcursesUi::Geometry::rectContains(list_frame, local_y, local_x)) {
+                if (!file_list.isAvailable()) {
+                    return <NcursesUi::EventResult>{"handled": True};
+                }
                 setFocusedPane(0);
                 # adjust mouse coords to list frame's coordinate system
                 hash<Ncurses::InputEvent> adjusted = ev;
@@ -437,6 +464,9 @@ public class FileBrowserWidget inherits NcursesUi::PanelWidget {
                 markDirty();
                 return file_list.processEvent(adjusted);
             } else if (NcursesUi::Geometry::rectContains(preview_frame, local_y, local_x)) {
+                if (!preview_widget.isAvailable()) {
+                    return <NcursesUi::EventResult>{"handled": True};
+                }
                 # check for click-through on directory preview items
                 int bs = ev.mouse.button_state;
                 if (preview_dir_items.size() > 0 && preview_dir_path

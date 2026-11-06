@@ -45,6 +45,11 @@ public class FocusManager {
         @since ncurses 1.0
     */
     *NcursesUi::Widget getCurrentFocus() {
+        if (isChangingFocus()) {
+            # Queries during callbacks must not initiate implicit transitions.
+            return current_focus && eligible(current_focus) && current_focus.hasFocus()
+                ? current_focus : NOTHING;
+        }
         if (current_focus && (!eligible(current_focus) || !current_focus.hasFocus())) {
             setFocus(NOTHING);
         }
@@ -63,7 +68,7 @@ public class FocusManager {
         @since ncurses 1.0
     */
     bool isChangingFocus() {
-        return changing;
+        return changing || _focus_callback_depth > 0;
     }
 
     /** Sets focus to a specific widget.
@@ -76,7 +81,7 @@ public class FocusManager {
         @since ncurses 1.0
     */
     nothing setFocus(*NcursesUi::Widget w) {
-        if (changing) {
+        if (isChangingFocus()) {
             throw "FOCUS-CHANGE-ERROR", "A focus callback cannot start another focus change";
         }
         if (w && !eligible(w)) {
@@ -117,7 +122,7 @@ public class FocusManager {
         @since ncurses 1.0
     */
     nothing setScope(*NcursesUi::Widget root) {
-        if (changing) {
+        if (isChangingFocus()) {
             throw "FOCUS-CHANGE-ERROR", "A focus callback cannot change focus scope";
         }
         scope_root = root;

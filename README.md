@@ -193,4 +193,9 @@ modifiers, regional-indicator pairs, and joined emoji therefore remain intact.
 unsupported request). Applications can ignore the result as before. Modal text
 inputs show their caret; closing the last modal restores the prior visibility.
 Focus callbacks that raise leave no stale owner; nested focus/modal transitions
-from a focus callback raise an explicit error.
+from a focus callback raise an explicit error, including callbacks caused by
+hiding, disabling, or detaching a widget. Focus queries remain safe during cleanup.
+Composite controls with local child coordinates can override
+`handlesChildMouseEvents()` and `mouseFocusTarget(y, x)` to keep mouse delegation
+and focus selection in their own coordinate space; the file browser uses this
+contract for pane selection and directory-preview navigation.

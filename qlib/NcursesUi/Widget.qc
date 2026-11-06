@@ -22,6 +22,9 @@
 */
 
 public namespace NcursesUi {
+#! Internal callback depth, shared by focus managers on the current UI thread.
+thread_local int _focus_callback_depth;
+
 /** Base widget for the NcursesUi toolkit.
 
     Provides a tree structure (parent/children), geometry management,
@@ -276,13 +279,19 @@ public class Widget {
 
     /** Sets the focused state directly.
         @param v True to set focused
+        @throw FOCUS-CHANGE-ERROR if a focus callback tries to acquire focus
         @since ncurses 1.0
     */
     nothing setFocused(bool v) {
         v = v && isFocusable();
         if (focused != v) {
+            if (v && _focus_callback_depth > 0) {
+                throw "FOCUS-CHANGE-ERROR", "A focus callback cannot acquire focus";
+            }
             focused = v;
             markDirty();
+            ++_focus_callback_depth;
+            on_exit --_focus_callback_depth;
             if (v) {
                 try {
                     onFocusIn();
@@ -343,6 +352,29 @@ public class Widget {
     */
     bool wantsCursor() {
         return False;
+    }
+
+    /** Reports whether this composite delegates mouse events to its own children.
+        The dispatcher stops descending here and delivers screen coordinates to
+        processEvent(). Override this when children use a local coordinate space
+        or the composite implements interactions before child dispatch.
+        @return False by default
+        @since ncurses 1.0
+    */
+    bool handlesChildMouseEvents() {
+        return False;
+    }
+
+    /** Returns the focus target for a primary mouse activation.
+        Composites that handle child mouse events may return a child; the
+        dispatcher validates its scope and availability before changing focus.
+        @param py screen row
+        @param px screen column
+        @return this widget by default; NOTHING to preserve current focus
+        @since ncurses 1.0
+    */
+    *NcursesUi::Widget mouseFocusTarget(int py, int px) {
+        return self;
     }
 
     private nothing clearFocusTree() {
