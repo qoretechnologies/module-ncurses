@@ -1,4 +1,7 @@
 #!/usr/bin/env qore
+# Copyright 2026 Qore Technologies, s.r.o.
+
+%prepend-module-path "${SCRIPT_DIR}/../qlib"
 
 %requires ncurses
 %requires NcursesUi
@@ -578,11 +581,10 @@ class NcursesScrollTest inherits Test {
         llc.setLine(100, "nope");
         assertEq(3, llc.lineCount());
 
-        # replace with shorter line - max_width may not shrink (lazy)
+        # Replacing the longest line must shrink the horizontal extent.
         llc.setLine(0, "x");
         assertEq(3, llc.lineCount());
-        # max_width is only updated upward, not recalculated downward
-        assertTrue(llc.totalCols() >= 8);  # "replaced" = 8
+        assertEq(8, llc.totalCols());  # "replaced" = 8
     }
 
     # --- LineListContent insertLine tests ---

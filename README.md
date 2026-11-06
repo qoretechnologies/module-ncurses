@@ -122,6 +122,49 @@ All ncurses calls are serialized with a module-level recursive lock. Input calls
 
 Doxygen documentation is generated from the QPP sources and `docs/mainpage.dox.tmpl`.
 
+## Scrollable text and cursor positions
+
+`LineListContent` measures wrapping before the viewport scrolls or draws. Use
+`ScrollableWidget.setCursorLine(line, offset)` with a source character offset
+excluding ANSI escapes; the widget maps it to terminal rows and columns. It
+keeps a newly positioned caret visible, including after an exactly full final
+row. Manual scrolling releases caret following until the next cursor update.
+Horizontal slices preserve styling and keep complete graphemes inside the
+widget rectangle. Resize preserves the source position at the top of the view.
+
+`Window.claimCursor(y, x)` returns an ownership token for shared drawing surfaces.
+`Window.releaseCursor(token)` releases only that active request, so clearing an
+old widget cursor cannot cancel a newer cursor from another widget. Cursor
+visibility remains a session setting.
+
+## CI verification after merges
+
+For pushes to `develop`, the `tree-already-tested` preflight checks whether the
+current commit or an immediate parent with the identical Git tree already has a
+successful module pipeline. It requires successful `test-ubuntu` and
+`test-alpine` jobs. When that evidence is available, the platform jobs report
+success to GitHub with a link to the earlier pipeline and finish before building
+or testing. GitLab still creates the preflight and lightweight platform jobs.
+
+Feature branches, tags, scheduled pipelines and pipelines started manually run
+the full tests. Set `QORE_CI_FORCE_FULL=1` to require full verification on a
+`develop` push, for example after updating the test images or dependencies
+without changing this repository's tree.
+
+The preflight first uses `CI_JOB_TOKEN`. If the server refuses pipeline reads,
+configure the masked CI variable `QORE_CI_READ_API_TOKEN` with a token that has
+`read_api` access to `mirror/module-ncurses`. Missing credentials, API errors,
+invalid responses and incomplete platform results retain the full pipeline.
+This follows Qore's successful-tree reuse mechanism introduced in commit
+`22a9b5c721`, with explicit validation of the module's two platform jobs.
+
+The deterministic preflight and status-reporting tests run on both CI platforms
+before the module build. To run them locally:
+
+```bash
+python3 test/test_tree_tested.py
+```
+
 ## License
 
 MIT.

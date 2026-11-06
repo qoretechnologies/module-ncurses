@@ -45,6 +45,15 @@ public class ScrollableWidget inherits NcursesUi::Widget {
         int wheel_lines = 3;
         #! optional cursor position (line index and column) for cursor display
         *hash<auto> cursor_pos;
+        #! prepared viewport width and whether it reserves a scrollbar
+        int viewport_cols = 0;
+        bool need_scrollbar = False;
+        #! a source anchor retained across changes in wrap width
+        *hash<Ncurses::Position> scroll_anchor;
+        #! keep a newly positioned editing cursor visible; manual scrolling releases it
+        bool reveal_cursor = False;
+        *Ncurses::Window cursor_window;
+        int cursor_request = 0;
     }
 
     /** Creates a new ScrollableWidget.
@@ -56,12 +65,20 @@ public class ScrollableWidget inherits NcursesUi::Widget {
         setFocusable(True);
     }
 
+    destructor() {
+        releaseCursor();
+    }
+
     /** Sets the content provider.
         @param c the content
         @since ncurses 1.0
     */
     nothing setContent(*NcursesUi::ScrollableContent c) {
+        releaseCursor();
         content = c;
+        scroll_anchor = NOTHING;
+        cursor_pos = NOTHING;
+        reveal_cursor = False;
         scrollY = 0;
         scrollX = 0;
         markDirty();
@@ -93,7 +110,10 @@ public class ScrollableWidget inherits NcursesUi::Widget {
         @since ncurses 1.0
     */
     nothing setScrollY(int y) {
+        prepareViewport();
         scrollY = clampScrollY(y);
+        reveal_cursor = False;
+        rememberAnchor();
         markDirty();
     }
 
@@ -108,18 +128,23 @@ public class ScrollableWidget inherits NcursesUi::Widget {
 
     /** Sets the cursor position to display within the content.
         @param line the content line index
-        @param col the column position
+        @param col source character offset excluding ANSI escapes (not display columns)
         @since ncurses 1.0
     */
     nothing setCursorLine(int line, int col) {
         cursor_pos = {"line": line, "col": col};
+        reveal_cursor = True;
+        markDirty();
     }
 
     /** Clears the cursor position (no cursor displayed).
         @since ncurses 1.0
     */
     nothing clearCursorLine() {
+        releaseCursor();
         cursor_pos = NOTHING;
+        reveal_cursor = False;
+        markDirty();
     }
 
     /** Returns the current cursor position, if set.
@@ -135,6 +160,8 @@ public class ScrollableWidget inherits NcursesUi::Widget {
         @since ncurses 1.0
     */
     nothing scrollTo(int dir, int amount = 1) {
+        prepareViewport();
+        reveal_cursor = False;
         hash<NcursesUi::Rect> cr = contentRect();
         int visible_rows = cr.rows;
 
@@ -156,6 +183,7 @@ public class ScrollableWidget inherits NcursesUi::Widget {
             int maxX = maxScrollX();
             scrollX = max(0, min(maxX, scrollX + amount));
         }
+        rememberAnchor();
         markDirty();
     }
 
@@ -164,41 +192,36 @@ public class ScrollableWidget inherits NcursesUi::Widget {
         @since ncurses 1.0
     */
     nothing draw(Ncurses::Window w) {
+        releaseCursor();
+        prepareViewport();
         hash<NcursesUi::Rect> cr = contentRect();
-        int visible_rows = cr.rows;
-        int visible_cols = cr.cols;
-
-        # reserve space for scrollbar
-        bool need_scrollbar = show_scrollbar && content
-            && content.totalRows() > visible_rows;
-        if (need_scrollbar) {
-            visible_cols = max(1, visible_cols - 1);
+        if (cr.rows <= 0 || viewport_cols <= 0) {
+            return;
         }
-
-        # draw content
+        *hash<Ncurses::Position> caret = cursorPosition();
+        if (reveal_cursor && caret && caret.y >= 0) {
+            scrollY = max(0, min(scrollY, caret.y));
+            scrollY = max(scrollY, caret.y - cr.rows + 1);
+            scrollX = max(0, min(scrollX, caret.x));
+            scrollX = max(scrollX, caret.x - viewport_cols + 1);
+        }
         if (content) {
-            scrollY = clampScrollY(scrollY);
-            content.drawContent(w, scrollY, scrollX, visible_rows, visible_cols,
-                cr.y, cr.x);
+            content.drawContent(w, scrollY, scrollX, cr.rows, viewport_cols, cr.y, cr.x);
         }
-
-        # draw scrollbar
         if (need_scrollbar && content) {
-            drawScrollbar(w, cr, visible_rows);
+            drawScrollbar(w, cr, cr.rows);
         }
-
-        # position cursor if set — convert logical line to display row
-        # when the content supports word-wrap
-        if (cursor_pos) {
-            int display_line = cursor_pos.line;
-            if (content.hasCallableMethod("displayRowForLine")) {
-                display_line = content.displayRowForLine(cursor_pos.line);
-            }
-            int row = cr.y + (display_line - scrollY);
-            if (row >= cr.y && row < cr.y + visible_rows) {
-                w.moveCursor(row, cr.x + cursor_pos.col);
+        if (caret && caret.y >= scrollY && caret.y < scrollY + cr.rows
+                && caret.x >= scrollX && caret.x < scrollX + viewport_cols) {
+            hash<Ncurses::Size> size = w.size();
+            int y = cr.y + caret.y - scrollY;
+            int x = cr.x + caret.x - scrollX;
+            if (y >= 0 && x >= 0 && y < size.rows && x < size.cols) {
+                cursor_window = w;
+                cursor_request = w.claimCursor(y, x);
             }
         }
+        rememberAnchor();
     }
 
     /** Handles scroll-related events.
@@ -207,6 +230,7 @@ public class ScrollableWidget inherits NcursesUi::Widget {
         @since ncurses 1.0
     */
     hash<NcursesUi::EventResult> processEvent(hash<Ncurses::InputEvent> ev) {
+        prepareViewport();
         if (ev.type == Ncurses::InputType::Key) {
             string name = ev.name ?? "";
             if (name == "KEY_UP") {
@@ -234,17 +258,17 @@ public class ScrollableWidget inherits NcursesUi::Widget {
             if (bs & Ncurses::BUTTON1_CLICKED || bs & Ncurses::BUTTON1_PRESSED) {
                 hash<NcursesUi::Rect> cr = contentRect();
                 int visible_rows = cr.rows;
-                bool need_scrollbar = show_scrollbar && content
-                    && content.totalRows() > visible_rows;
                 if (need_scrollbar) {
                     int bar_x = cr.x + cr.cols - 1;
                     if (ev.mouse.x == bar_x && ev.mouse.y >= cr.y
                             && ev.mouse.y < cr.y + visible_rows) {
                         int click_y = ev.mouse.y - cr.y;
-                        int total = content.totalRows();
+                        int total = totalDisplayRows();
                         int max_scroll = max(1, total - visible_rows);
                         scrollY = clampScrollY(
                             click_y * max_scroll / max(1, visible_rows - 1));
+                        reveal_cursor = False;
+                        rememberAnchor();
                         markDirty();
                         return <NcursesUi::EventResult>{"handled": True};
                     }
@@ -262,24 +286,69 @@ public class ScrollableWidget inherits NcursesUi::Widget {
         return <NcursesUi::EventResult>{"handled": False};
     }
 
-    private int maxScrollX() {
+    #! Resolve wrapping and scrollbar width before querying or clamping extents.
+    private nothing prepareViewport() {
+        hash<NcursesUi::Rect> cr = contentRect();
+        int old_cols = viewport_cols;
+        viewport_cols = max(0, cr.cols);
+        need_scrollbar = False;
+        if (content) {
+            content.prepareViewport(viewport_cols);
+            need_scrollbar = show_scrollbar && cr.rows > 0 && cr.cols > 1
+                && totalDisplayRows() > cr.rows;
+            if (need_scrollbar) {
+                --viewport_cols;
+                content.prepareViewport(viewport_cols);
+            }
+            if (old_cols != viewport_cols && scroll_anchor) {
+                hash<Ncurses::Position> anchor = content.sourceToVisual(scroll_anchor.y, scroll_anchor.x);
+                scrollY = max(0, anchor.y);
+            }
+        }
+        scrollY = clampScrollY(scrollY);
+        scrollX = max(0, min(scrollX, maxScrollX()));
+    }
+
+    private nothing releaseCursor() {
+        if (cursor_window && cursor_request) {
+            cursor_window.releaseCursor(cursor_request);
+        }
+        cursor_request = 0;
+        cursor_window = NOTHING;
+    }
+
+    private nothing rememberAnchor() {
+        if (content) {
+            scroll_anchor = content.visualToSource(scrollY, 0);
+        }
+    }
+
+    private *hash<Ncurses::Position> cursorPosition() {
+        return content && cursor_pos ? content.sourceToVisual(cursor_pos.line, cursor_pos.col) : NOTHING;
+    }
+
+    private int totalDisplayRows() {
         if (!content) {
             return 0;
         }
-        hash<NcursesUi::Rect> cr = contentRect();
-        int visible_cols = cr.cols;
-        if (show_scrollbar && content.totalRows() > cr.rows) {
-            visible_cols = max(1, visible_cols - 1);
+        *hash<Ncurses::Position> caret = cursorPosition();
+        return max(content.totalRows(), caret && caret.y >= 0 ? caret.y + 1 : 0);
+    }
+
+    private int maxScrollX() {
+        if (!content || viewport_cols <= 0) {
+            return 0;
         }
-        return max(0, content.totalCols() - visible_cols);
+        if (content instanceof NcursesUi::LineListContent && content.getWordWrap()) {
+            return 0;
+        }
+        *hash<Ncurses::Position> caret = cursorPosition();
+        int cols = max(content.totalCols(), caret && caret.y >= 0 ? caret.x + 1 : 0);
+        return max(0, cols - viewport_cols);
     }
 
     private int maxScrollY() {
-        if (!content) {
-            return 0;
-        }
-        hash<NcursesUi::Rect> cr = contentRect();
-        return max(0, content.totalRows() - cr.rows);
+        return max(0, totalDisplayRows() - max(0, contentRect().rows));
     }
 
     private int clampScrollY(int y) {
@@ -294,7 +363,7 @@ public class ScrollableWidget inherits NcursesUi::Widget {
     }
 
     private nothing drawScrollbar(Ncurses::Window w, hash<NcursesUi::Rect> cr, int visible_rows) {
-        int total = content.totalRows();
+        int total = totalDisplayRows();
         if (total <= 0 || visible_rows <= 0) {
             return;
         }

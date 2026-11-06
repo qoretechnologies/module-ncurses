@@ -25,6 +25,8 @@ echo "export QORE_GID=999" >> ${ENV_FILE}
 
 export MAKE_JOBS=4
 
+python3 "${MODULE_SRC_DIR}/test/test_tree_tested.py"
+
 # build module and install
 echo && echo "-- building module --"
 mkdir -p ${MODULE_SRC_DIR}/build
@@ -35,7 +37,7 @@ make install
 
 # add Qore user and group
 groupadd -o -g ${QORE_GID} qore
-useradd -o -m -d /home/qore -u ${QORE_UID} -g ${QORE_GID} qore
+useradd -r -o -m -d /home/qore -u ${QORE_UID} -g ${QORE_GID} qore
 
 # own everything by the qore user
 chown -R qore:qore ${MODULE_SRC_DIR}
@@ -48,7 +50,7 @@ FAILED=0
 ${MODULE_SRC_DIR}/test/docker_test/check-loaded-modules.sh ${MODULE_SRC_DIR}/build gosu qore:qore
 
 for test in test/*.qtest; do
-    if ! gosu qore:qore qore $test -vv; then
+    if ! gosu qore:qore qore --enable-debug $test -vv; then
         echo "FAILED: $test"
         FAILED=1
     fi

@@ -23,13 +23,13 @@
 
 public namespace NcursesUi {
 
-#! Unicode-safe helpers for laying out unstyled terminal text
+#! Unicode-safe helpers for laying out plain and ANSI-styled terminal text
 /** All width arguments and results are terminal display columns. Clipping
     iterates Unicode extended grapheme clusters, so combining sequences and
     joined characters are never split.
 
-    @note These helpers accept plain text. Use @ref Qore::Ncurses::Ansi for
-        strings containing ANSI SGR styling.
+    @note Width and string clipping helpers accept plain text. Use
+        @ref plainAnsi() and @ref drawAnsiSlice() for ANSI-styled text.
 */
 public class TerminalText {
     /** Returns the terminal display width of plain text.
@@ -174,6 +174,84 @@ public class TerminalText {
             source_col = end_col;
         }
         return out + strmul(" ", width - used);
+    }
+
+    /** Removes ANSI styling without changing source character offsets.
+        @param text styled text
+        @return text with SGR sequences removed
+        @since ncurses 1.0
+    */
+    static string plainAnsi(string text) {
+        return (map $1.text, Ncurses::Ansi::parse(text)).join("");
+    }
+
+    /** Draws a styled display-column slice without splitting graphemes.
+        Partial graphemes at either edge are replaced with spaces. Styling of
+        a grapheme follows its first source character, including when an SGR
+        sequence occurs between its base and combining characters.
+        @param w target window
+        @param y target row
+        @param x target column
+        @param text ANSI SGR text
+        @param start_col first source display column
+        @param width maximum output columns
+        @since ncurses 1.0
+    */
+    static nothing drawAnsiSlice(Ncurses::Window w, int y, int x, string text, int start_col, int width) {
+        if (width <= 0) {
+            return;
+        }
+        hash<Ncurses::Size> size = w.size();
+        if (y < 0 || y >= size.rows) {
+            return;
+        }
+        start_col = max(0, start_col);
+        if (x < 0) {
+            start_col -= x;
+            width += x;
+            x = 0;
+        }
+        width = min(width, size.cols - x);
+        if (width <= 0) {
+            return;
+        }
+        list<hash> segments = Ncurses::Ansi::parse(text);
+        string plain = (map $1.text, segments).join("");
+        int segment = 0;
+        int segment_end = segments ? segments[0].text.length() : 0;
+        int chars = 0;
+        int col = 0;
+        int drawn = 0;
+        start_col = max(0, start_col);
+        string run = "";
+        *hash style;
+        foreach string cluster in (graphemes(plain)) {
+            while (segment + 1 < segments.size() && chars >= segment_end) {
+                ++segment;
+                segment_end += segments[segment].text.length();
+            }
+            int cells = displayWidth(cluster);
+            int begin = max(col, start_col);
+            int end = min(col + cells, start_col + width);
+            if (end > begin) {
+                *hash next_style = segments[segment].style;
+                if (run && next_style != style) {
+                    w.drawText(y, x + drawn, run, style);
+                    drawn += displayWidth(run);
+                    run = "";
+                }
+                style = next_style;
+                run += begin == col && end == col + cells ? cluster : strmul(" ", end - begin);
+            }
+            col += cells;
+            chars += cluster.length();
+            if (col >= start_col + width) {
+                break;
+            }
+        }
+        if (run) {
+            w.drawText(y, x + drawn, run, style);
+        }
     }
 
     private static list<string> graphemes(string text) {

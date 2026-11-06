@@ -4255,9 +4255,10 @@ class QRepl {
         if (prompt_line_idx >= 0) {
             output_content.setLine(prompt_line_idx, line);
         }
-        # position cursor on the prompt line
-        int cursor_col = prompt_text.length() + buffer.getCursor();
-        output_widget.setCursorLine(prompt_line_idx, cursor_col);
+        # Pass an ANSI-free source offset; the widget maps graphemes and wrapped
+        # rows to terminal cells and keeps the insertion point in the viewport.
+        int cursor_offset = NcursesUi::TerminalText::plainAnsi(prompt_text).length() + buffer.getCursor();
+        output_widget.setCursorLine(prompt_line_idx, cursor_offset);
         output_widget.markDirty();
     }
 

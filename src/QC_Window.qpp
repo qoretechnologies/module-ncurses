@@ -25,6 +25,7 @@
 */
 
 #include "ncurses-internal.h"
+#include <qore/QoreRegexInterface.h>
 
 //! Ncurses window
 /** Represents a drawable window.
@@ -162,14 +163,74 @@ nothing Window::moveCursor(int y, int x) [flags=NAMED_ARGS] {
         return nothing();
     }
     NcursesCallGuard guard(win->session);
-    wmove(win->win, y, x);
+    int rows = 0;
+    int cols = 0;
+    getmaxyx(win->win, rows, cols);
+    if (y < 0 || x < 0 || y >= rows || x >= cols
+            || wmove(win->win, static_cast<int>(y), static_cast<int>(x)) == ERR) {
+        return nothing();
+    }
     if (win->session && !win->leave_ok) {
+        win->session->nextCursorRequest();
         win->session->cursor_win = win->win;
         win->session->cursor_y = y;
         win->session->cursor_x = x;
         win->session->cursor_set = true;
     }
     return nothing();
+}
+
+//! Positions the cursor and returns an ownership token
+/** Widgets sharing a window can release their own cursor without clearing a
+    newer request from another widget. A later moveCursor(), restoreCursor(),
+    or claimCursor() invalidates the previous token.
+    @param y row
+    @param x column
+    @return positive request token, or zero for invalid coordinates or leave-ok mode
+    @par Example
+    @code{.py}
+int request = window.claimCursor(1, 2);
+window.releaseCursor(request);
+    @endcode
+    @since %ncurses 1.0
+*/
+int Window::claimCursor(int y, int x) [flags=NAMED_ARGS] {
+    win->checkOpen(xsink);
+    if (*xsink) {
+        return 0;
+    }
+    NcursesCallGuard guard(win->session);
+    int rows = 0;
+    int cols = 0;
+    getmaxyx(win->win, rows, cols);
+    if (y < 0 || x < 0 || y >= rows || x >= cols || !win->session || win->leave_ok
+            || wmove(win->win, static_cast<int>(y), static_cast<int>(x)) == ERR) {
+        return 0;
+    }
+    win->session->cursor_win = win->win;
+    win->session->cursor_y = y;
+    win->session->cursor_x = x;
+    win->session->cursor_set = true;
+    return win->session->nextCursorRequest();
+}
+
+//! Releases a cursor request only if it is still owned by this window
+/** Releasing an old token, zero, or a token after session closure is a no-op.
+    This relinquishes positioning; cursor visibility remains session policy.
+    @param request token returned by claimCursor()
+    @return True if the matching active request was released
+    @since %ncurses 1.0
+*/
+bool Window::releaseCursor(int request) [flags=NAMED_ARGS] {
+    NcursesCallGuard guard(win->session);
+    if (request <= 0 || !win->session || win->session->closed
+            || !win->session->cursor_set || win->session->cursor_win != win->win
+            || win->session->cursor_request != request) {
+        return false;
+    }
+    win->session->cursor_set = false;
+    win->session->cursor_win = nullptr;
+    return true;
 }
 
 //! Returns the current cursor position
@@ -276,8 +337,10 @@ nothing Window::drawText(int y, int x, string text, *hash style) [flags=NAMED_AR
     @param style optional style hash
 
     The text is clipped to the visible window region to prevent out-of-bounds
-    writes. If the text would start before column 0, the leading characters are
-    skipped.
+    writes. Coordinates and widths use terminal display cells. Complete
+    graphemes outside the window are skipped; a grapheme intersecting either
+    clipping edge is replaced by spaces so UTF-8 and combining sequences are
+    never split.
 
     @since %ncurses 1.0
 */
@@ -296,23 +359,49 @@ nothing Window::drawTextClipped(int y, int x, string text, *hash style) [flags=N
     if (y < 0 || y >= rows || cols <= 0) {
         return nothing();
     }
-    int start = 0;
-    int col = x;
-    if (col < 0) {
-        start = -col;
-        col = 0;
-    }
-    if (col >= cols) {
+    if (x >= cols) {
         return nothing();
     }
-    int len = text->size();
-    if (start >= len) {
+    // Clip complete graphemes by terminal cells, not UTF-8 byte offsets. A
+    // partially visible grapheme is represented by spaces on either edge.
+    QoreRegexInterface graphemes(xsink, "(\\X)", QRE_GLOBAL | QRE_UTF8);
+    if (*xsink) {
         return nothing();
     }
-    int maxlen = cols - col;
-    int n = len - start;
-    if (n > maxlen) {
-        n = maxlen;
+    ReferenceHolder<QoreListNode> clusters(graphemes.extractSubstrings(*text, xsink), xsink);
+    if (*xsink || !clusters) {
+        return nothing();
+    }
+    QoreString output(QCS_UTF8);
+    int64 col = x;
+    size_t count = 0;
+    ConstListIterator i(*clusters);
+    while (i.next()) {
+        if (++count % 100 == 0 && qore_check_cancel(xsink, "clipping terminal text")) {
+            return nothing();
+        }
+        const QoreStringNode* cluster = i.getValue().get<const QoreStringNode>();
+        assert(cluster);
+        int64 width = cluster->getCharWidth(xsink);
+        if (*xsink) {
+            return nothing();
+        }
+        int64 end = col + width;
+        if (end > 0 && width > 0) {
+            if (col >= 0 && end <= cols) {
+                output.concat(cluster, xsink);
+                if (*xsink) {
+                    return nothing();
+                }
+            } else {
+                output.concat(std::string(static_cast<size_t>(std::min<int64>(end, cols)
+                    - std::max<int64>(col, 0)), ' ').c_str());
+            }
+        }
+        col = end;
+        if (col >= cols) {
+            break;
+        }
     }
     StyleSpec spec;
     parseStyle(style, spec, xsink);
@@ -325,7 +414,7 @@ nothing Window::drawTextClipped(int y, int x, string text, *hash style) [flags=N
     if (*xsink) {
         return nothing();
     }
-    mvwaddnstr(win->win, y, col, text->c_str() + start, n);
+    mvwaddnstr(win->win, y, static_cast<int>(std::max<int64>(0, x)), output.c_str(), output.size());
     restoreStyle(win, old_attr, old_pair);
     return nothing();
 }
@@ -678,10 +767,17 @@ nothing Window::restoreCursor(hash position) [flags=NAMED_ARGS] {
         return nothing();
     }
     NcursesCallGuard guard(win->session);
-    int y = position ? position->getKeyValue("y").getAsBigInt() : 0;
-    int x = position ? position->getKeyValue("x").getAsBigInt() : 0;
-    wmove(win->win, y, x);
+    int64 y = position ? position->getKeyValue("y").getAsBigInt() : 0;
+    int64 x = position ? position->getKeyValue("x").getAsBigInt() : 0;
+    int rows = 0;
+    int cols = 0;
+    getmaxyx(win->win, rows, cols);
+    if (y < 0 || x < 0 || y >= rows || x >= cols
+            || wmove(win->win, static_cast<int>(y), static_cast<int>(x)) == ERR) {
+        return nothing();
+    }
     if (win->session && !win->leave_ok) {
+        win->session->nextCursorRequest();
         win->session->cursor_win = win->win;
         win->session->cursor_y = y;
         win->session->cursor_x = x;

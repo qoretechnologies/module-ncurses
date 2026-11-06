@@ -41,6 +41,34 @@ public class ScrollableContent {
     */
     abstract int totalCols();
 
+    /** Prepares content dimensions for a viewport width before querying extents.
+        The default implementation is suitable for content without wrapping.
+        @param cols available terminal columns; zero means no drawable content
+        @since ncurses 1.0
+    */
+    nothing prepareViewport(int cols) {
+    }
+
+    /** Maps a logical text position to a display row and column.
+        @param line logical line index
+        @param offset character offset excluding ANSI escapes
+        @return display row/column; the default maps coordinates unchanged
+        @since ncurses 1.0
+    */
+    hash<Ncurses::Position> sourceToVisual(int line, int offset) {
+        return <Ncurses::Position>{"y": line, "x": offset};
+    }
+
+    /** Maps a display position to a logical line and character offset.
+        @param row display row
+        @param col display column
+        @return logical line in @c y and character offset in @c x
+        @since ncurses 1.0
+    */
+    hash<Ncurses::Position> visualToSource(int row, int col) {
+        return <Ncurses::Position>{"y": row, "x": col};
+    }
+
     /** Draws the visible portion of the content.
         @param w the window to draw into
         @param scrollY vertical scroll offset (first visible row)
