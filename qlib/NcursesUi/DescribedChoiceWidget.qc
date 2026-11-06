@@ -40,7 +40,7 @@ public class DescribedChoiceWidget inherits NcursesUi::ScrollableWidget {
         checkEditable(); hash<string, bool> values = {}; *hash<NcursesUi::ChoiceSelection> next; int default_count = 0; int index = -1;
         for (int i = 0; i < options.size(); ++i) {
             hash<NcursesUi::ChoiceItem> item = options[i];
-            if (exists values{item.value}) { throw "CHOICE-DEFINITION-ERROR", "Duplicate choice value"; }
+            if (!exists item.value || !exists item.label || exists values{item.value}) { throw "CHOICE-DEFINITION-ERROR", "Invalid or duplicate choice"; }
             values{item.value} = True;
             if (item.default_value) {
                 if (item.disabled || ++default_count > 1) { throw "CHOICE-DEFINITION-ERROR", "Invalid default choice"; }
@@ -113,11 +113,11 @@ public class DescribedChoiceWidget inherits NcursesUi::ScrollableWidget {
     bool submit() {
         if (state == NcursesUi::ActionState::Running || state == NcursesUi::ActionState::Completed || !on_submit) { return False; }
         error = !selected ? "Choose a response" : (selected.is_custom && selected.value =~ /\A\s*\z/ ? "Enter a response" : NOTHING);
-        if (error) { refreshLines(); return False; }
+        if (exists error) { refreshLines(); return False; }
         state = NcursesUi::ActionState::Running; refreshLines();
         try {
             if (validator) { error = validator(selected); }
-            if (error) { state = NcursesUi::ActionState::Pending; refreshLines(); return False; }
+            if (exists error) { state = NcursesUi::ActionState::Pending; refreshLines(); return False; }
             on_submit(selected); state = NcursesUi::ActionState::Completed;
         } catch (hash<ExceptionInfo> ex) { state = NcursesUi::ActionState::Failed; error = ex.desc; refreshLines(); rethrow; }
         refreshLines(); return True;
@@ -212,14 +212,14 @@ public class DescribedChoiceWidget inherits NcursesUi::ScrollableWidget {
             else if (i == highlight) { row = "\e[7m" + row + "\e[0m"; }
             # Labels and descriptions may contain hard newlines; all their rows map to the same stable option.
             list<string> rows = split("\n", row);
-            if (!free && items[i].description) { rows += split("\n", "  " + items[i].description); }
-            if (!free && items[i].recommendation) { rows += split("\n", "  " + items[i].recommendation); }
+            if (!free && items[i].description != "") { rows += split("\n", "  " + items[i].description); }
+            if (!free && items[i].recommendation != "") { rows += split("\n", "  " + items[i].recommendation); }
             foreach string line in (rows) { text += line; owners += i; }
         }
         if (!text) { text += "No available choices"; owners += -1; }
         if (state == NcursesUi::ActionState::Running) { text += "Submitting…"; owners += -1; }
         else if (state == NcursesUi::ActionState::Completed) { text += "Submitted"; owners += -1; }
-        if (error) { foreach string line in (split("\n", "Error: " + error)) { text += line; owners += -1; } }
+        if (exists error) { foreach string line in (split("\n", "Error: " + error)) { text += line; owners += -1; } }
         lines.setLines(text); option_lines = starts; line_owner = owners; markDirty();
     }
 }

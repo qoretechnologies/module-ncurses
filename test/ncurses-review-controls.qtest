@@ -27,7 +27,29 @@ class ReviewControlsTest inherits Test {
         addTestCase("custom choice paint preserves manual scrolling until editing resumes", \customScroll());
         addTestCase("form submission rollback snapshots imported model values", \formRollback());
         addTestCase("tree rebuild notifies selection changes exactly once after commit", \treeNotifications());
+        addTestCase("numeric text identities and present validator errors preserve semantics", \textSemantics());
+        addTestCase("missing typed metadata fails before replacing live controls", \metadata());
         set_return_value(main());
+    }
+    textSemantics() {
+        NcursesUi::TestHarness th(12, 30); on_exit th.close();
+        NcursesUi::FormModel model((<NcursesUi::FormField>{"name": "0", "label": "Zero", "help": "0", "validate": *string sub (auto value) { return "0"; }},));
+        assertFalse(model.validate()); assertEq("0", model.firstInvalid()); assertEq("0", model.getErrors(){"0"}); model.setFieldError("0", ""); assertFalse(model.validate()); assertTrue(exists model.getErrors(){"0"});
+        NcursesUi::FormWidget form(model); form.setFrameValues(0, 0, 12, 30); form.drawTree(th.screen()); assertTrue(join("\n", th.screen().readLines()).find("Error: ") >= 0);
+        model.setFieldError("0", NOTHING); model.setFields((<NcursesUi::FormField>{"name": "0", "label": "Zero", "validate": *string sub (auto value) { return ""; }},)); assertFalse(model.validate()); assertEq("", model.getErrors(){"0"});
+        NcursesUi::DescribedChoiceWidget choice((<NcursesUi::ChoiceItem>{"value": "0", "label": "Zero", "description": "0", "recommendation": "0", "default_value": True},));
+        int submitted = 0; choice.setOnSubmit(sub (hash<NcursesUi::ChoiceSelection> value) { ++submitted; });
+        choice.setValidator(*string sub (hash<NcursesUi::ChoiceSelection> value) { return "0"; }); assertFalse(choice.submit()); assertEq("0", choice.getError()); assertEq(0, submitted);
+        choice.setValidator(*string sub (hash<NcursesUi::ChoiceSelection> value) { return ""; }); assertFalse(choice.submit()); assertEq("", choice.getError());
+        choice.setValidator(NOTHING); assertTrue(choice.submit()); assertEq(1, submitted);
+    }
+    metadata() {
+        NcursesUi::FormModel model(fields()); list<hash<NcursesUi::FormField>> before_fields = model.getFields();
+        assertThrows("FORM-DEFINITION-ERROR", sub () { model.setFields((<NcursesUi::FormField>{"name": "bad", "label": "Bad", "type": 42},)); }); assertEq(before_fields, model.getFields());
+        assertThrows("FORM-DEFINITION-ERROR", sub () { model.setFields((<NcursesUi::FormField>{"name": "missing label"},)); }); assertEq(before_fields, model.getFields());
+        assertThrows("FORM-DEFINITION-ERROR", sub () { model.setFields((<NcursesUi::FormField>{"name": "choice", "type": NcursesUi::FieldType::Choice, "choices": (<NcursesUi::ChoiceItem>{"value": "x"},)},)); }); assertEq(3, model.getValue("count"));
+        NcursesUi::DescribedChoiceWidget choice(options()); list<hash<NcursesUi::ChoiceItem>> before = choice.getItems();
+        assertThrows("CHOICE-DEFINITION-ERROR", sub () { choice.setItems((<NcursesUi::ChoiceItem>{"label": "Missing value"},)); }); assertEq(before, choice.getItems()); assertEq("11", choice.getSelection().value);
     }
     horizontalReset() {
         NcursesUi::TestHarness th(6, 25); on_exit th.close(); NcursesUi::CodeViewWidget code(strmul("x", 60) + "needle"); code.setFrameValues(0, 0, 3, 20); code.setSearch("needle"); code.findNext(); assertTrue(code.getScrollX() > 0);

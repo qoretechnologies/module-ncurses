@@ -61,11 +61,11 @@ public class FormModel {
         checkEditable(); hash<string, int> next_positions = {}; hash<auto> next_values = {};
         for (int i = 0; i < definitions.size(); ++i) {
             hash<NcursesUi::FormField> field = definitions[i];
-            if (!field.name || exists next_positions{field.name} || field.type < NcursesUi::FieldType::Text
+            if (field.name == "" || !exists field.label || exists next_positions{field.name} || !exists field.type || field.type < NcursesUi::FieldType::Text
                     || field.type > NcursesUi::FieldType::Choice) { throw "FORM-DEFINITION-ERROR", "Invalid or duplicate field definition"; }
             hash<string, bool> options = {}; int defaults = 0;
             foreach hash<NcursesUi::ChoiceItem> option in (field.choices) {
-                if (exists options{option.value}) { throw "FORM-DEFINITION-ERROR", "Duplicate choice value for " + field.name; }
+                if (!exists option.value || !exists option.label || exists options{option.value}) { throw "FORM-DEFINITION-ERROR", "Invalid or duplicate choice for " + field.name; }
                 options{option.value} = True;
                 if (option.default_value) {
                     if (option.disabled || ++defaults > 1) { throw "FORM-DEFINITION-ERROR", "Invalid default choice for " + field.name; }
@@ -106,7 +106,7 @@ public class FormModel {
     */
     nothing setFieldError(string name, *string message) {
         checkEditable(); field(name);
-        if (message) { errors{name} = message; control_errors{name} = message; }
+        if (exists message) { errors{name} = message; control_errors{name} = message; }
         else { remove errors{name}; remove control_errors{name}; }
         ++revision;
     }
@@ -146,8 +146,8 @@ public class FormModel {
                 foreach hash<NcursesUi::ChoiceItem> option in (f.choices) { if (value == option.value && !option.disabled) { found = True; break; } }
                 if (!found) { error = "Choose an available value"; }
             }
-            if (!error && f.validate) { error = f.validate(value); }
-            if (error) { next{f.name} = error; }
+            if (!exists error && f.validate) { error = f.validate(value); }
+            if (exists error) { next{f.name} = error; }
         }
         if (form_validator && !control_errors) {
             hash<string, string> extra = form_validator(values);

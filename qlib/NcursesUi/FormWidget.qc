@@ -170,7 +170,7 @@ public class FormWidget inherits NcursesUi::Widget {
         hash<string, NcursesUi::LabelWidget> next_errors = {}; hash<string, bool> next_invalid = {};
         foreach hash<NcursesUi::FormField> field in (next) {
             next_labels{field.name} = new NcursesUi::LabelWidget(field.label + (field.required ? " *" : ""));
-            next_help{field.name} = new NcursesUi::LabelWidget(field.help); next_help{field.name}.setVisible(!!field.help);
+            next_help{field.name} = new NcursesUi::LabelWidget(field.help); next_help{field.name}.setVisible(field.help != "");
             next_errors{field.name} = new NcursesUi::LabelWidget(); next_errors{field.name}.setVisible(False);
             next_controls{field.name} = createControl(field);
             if (field.type == NcursesUi::FieldType::Choice && exists model.getValue(field.name) && !choiceAvailable(field, string(model.getValue(field.name)))) { next_invalid{field.name} = True; }
@@ -265,13 +265,14 @@ public class FormWidget inherits NcursesUi::Widget {
         foreach hash<NcursesUi::FormField> field in (fields) {
             NcursesUi::Widget control = controls{field.name};
             if (control.isEnabled() != (editable && !field.read_only)) { control.setEnabled(editable && !field.read_only); }
-            string text = messages{field.name} ?? (imported_invalid_choices{field.name} ? "Choose an available value" : ""); errors{field.name}.setText(text ? "Error: " + text : ""); errors{field.name}.setVisible(!!text);
+            string text = messages{field.name} ?? (imported_invalid_choices{field.name} ? "Choose an available value" : ""); bool invalid = exists messages{field.name} || imported_invalid_choices{field.name}; errors{field.name}.setText(invalid ? "Error: " + text : ""); errors{field.name}.setVisible(invalid);
         }
         string status = messages{""} ?? model.getFailure() ?? "";
         if (state == NcursesUi::ActionState::Running) { status = "Submitting…"; }
         else if (state == NcursesUi::ActionState::Completed) { status = "Submitted"; }
         else if (state == NcursesUi::ActionState::Cancelled) { status = "Cancelled"; }
-        message.setText(status); message.setVisible(!!status); submit_button.setEnabled(editable && !!on_submit);
+        if (status == "" && (exists messages{""} || exists model.getFailure())) { status = "Validation failed"; }
+        message.setText(status); message.setVisible(status != ""); submit_button.setEnabled(editable && !!on_submit);
         cancel_button.setEnabled(state != NcursesUi::ActionState::Completed); revision = model.getRevision();
     }
 }
