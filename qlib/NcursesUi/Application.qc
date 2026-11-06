@@ -113,8 +113,8 @@ public class Application {
         @since ncurses 1.0
     */
     nothing setRoot(NcursesUi::Widget w) {
-        root = w;
         dispatcher.setRootScope(w);
+        root = w;
         layoutRoot();
     }
 

@@ -26,7 +26,9 @@ public namespace NcursesUi {
 
     Combines a text input field with a filterable dropdown list.
     Type to filter options, use Up/Down to navigate the dropdown,
-    Enter to select.
+    Enter to select. Drawing establishes the target window's available extent;
+    dropdown scrolling and mouse hit-testing use that same clipped geometry.
+    Before the first draw, the widget frame supplies the available extent.
 
     @since ncurses 1.0
 */
@@ -41,6 +43,8 @@ public class ComboBoxWidget inherits NcursesUi::Widget {
         int scroll_x = 0;
         *Ncurses::Window cursor_window;
         int cursor_request = 0;
+        #! most recently painted window extent, shared by drawing and hit testing
+        *hash<Ncurses::Size> draw_size;
         #! whether dropdown is open
         bool dropdown_open = False;
         #! highlighted option in dropdown
@@ -173,19 +177,18 @@ public class ComboBoxWidget inherits NcursesUi::Widget {
         @since ncurses 1.0
     */
     nothing draw(Ncurses::Window w) {
-        hash<NcursesUi::Rect> cr = contentRect();
-
         releaseCursor();
-        hash<Ncurses::Size> size = w.size();
-        if (cr.rows <= 0 || cr.cols <= 0 || cr.y < 0 || cr.y >= size.rows || cr.x < 0 || cr.x >= size.cols) {
+        draw_size = w.size();
+        hash<NcursesUi::Rect> cr = drawableRect();
+        if (cr.rows <= 0 || cr.cols <= 0) {
             return;
         }
-        int cols = min(cr.cols, size.cols - cr.x);
+        int cols = cr.cols;
         int width = max(0, cols - 2);
         updateScroll(width);
         string padded = TerminalText::columnSlice(buffer.getText(), scroll_x, width);
         string arrow = dropdown_open ? "^" : "v";
-        string input_text = TerminalText::clipRight(padded + " " + arrow, cols);
+        string input_text = cols == 1 ? arrow : padded + " " + arrow;
 
         hash<auto> style;
         if (hasFocus()) {
@@ -199,7 +202,7 @@ public class ComboBoxWidget inherits NcursesUi::Widget {
             cursor_window = w;
         }
         # Clear rows occupied by a previous dropdown, including an empty filter.
-        for (int row = cr.y + 1; row < min(cr.y + cr.rows, size.rows); ++row) {
+        for (int row = cr.y + 1; row < cr.y + cr.rows; ++row) {
             w.drawHLine(row, cr.x, cols, " ");
         }
         ensureDropdownVisible();
@@ -207,7 +210,7 @@ public class ComboBoxWidget inherits NcursesUi::Widget {
         # draw dropdown if open
         if (dropdown_open && filtered_options.size() > 0) {
             int dd_rows = min(filtered_options.size(), max_dropdown_items);
-            dd_rows = min(dd_rows, min(cr.rows, size.rows - cr.y) - 1);  # available space below input
+            dd_rows = min(dd_rows, cr.rows - 1);  # available space below input
 
             for (int i = 0; i < dd_rows; ++i) {
                 int idx = dropdown_scroll + i;
@@ -266,8 +269,9 @@ public class ComboBoxWidget inherits NcursesUi::Widget {
                 }
             }
         } else if (ev.type == Ncurses::InputType::Mouse && ev.mouse) {
-            hash<NcursesUi::Rect> cr = contentRect();
-            if (ev.mouse.y == cr.y && hitTest(ev.mouse.y, ev.mouse.x)
+            hash<NcursesUi::Rect> cr = drawableRect();
+            if (ev.mouse.y == cr.y && isVisible()
+                    && NcursesUi::Geometry::rectContains(cr, ev.mouse.y, ev.mouse.x)
                     && (ev.mouse.button_state & (Ncurses::BUTTON1_CLICKED | Ncurses::BUTTON1_PRESSED
                         | Ncurses::BUTTON1_DOUBLE_CLICKED | Ncurses::BUTTON1_TRIPLE_CLICKED))) {
                 if (ev.mouse.x >= cr.x + max(0, cr.cols - 2)) {
@@ -354,8 +358,22 @@ public class ComboBoxWidget inherits NcursesUi::Widget {
         dropdown_scroll = 0;
     }
 
+    private hash<NcursesUi::Rect> drawableRect() {
+        hash<NcursesUi::Rect> rect = contentRect();
+        rect.rows = max(0, rect.rows);
+        rect.cols = max(0, rect.cols);
+        if (rect.y < 0 || rect.x < 0) {
+            rect.rows = 0;
+            rect.cols = 0;
+        } else if (draw_size) {
+            rect.rows = max(0, min(rect.rows, draw_size.rows - rect.y));
+            rect.cols = max(0, min(rect.cols, draw_size.cols - rect.x));
+        }
+        return rect;
+    }
+
     private nothing ensureDropdownVisible() {
-        int visible = min(filtered_options.size(), min(max_dropdown_items, max(0, contentRect().rows - 1)));
+        int visible = min(filtered_options.size(), min(max_dropdown_items, max(0, drawableRect().rows - 1)));
         if (!visible || highlight_index < 0) {
             dropdown_scroll = 0;
             return;

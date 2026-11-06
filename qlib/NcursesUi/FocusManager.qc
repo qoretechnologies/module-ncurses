@@ -37,14 +37,33 @@ public class FocusManager {
         bool changing = False;
     }
 
-    /** Returns the currently focused widget.
+    /** Returns the current valid owner, reconciling explicit child focus.
+        Composite controls may explicitly change their focused child during
+        navigation. An invalid owner is cleared and an explicitly focused
+        descendant is adopted; unrelated eligible controls are not selected.
+        @return focused widget or NOTHING
         @since ncurses 1.0
     */
     *NcursesUi::Widget getCurrentFocus() {
         if (current_focus && (!eligible(current_focus) || !current_focus.hasFocus())) {
             setFocus(NOTHING);
         }
+        if (!current_focus && !changing && scope_root) {
+            *NcursesUi::Widget explicit_focus = scope_root.findFocused();
+            if (explicit_focus) {
+                setFocus(explicit_focus);
+            }
+        }
         return current_focus;
+    }
+
+    /** Returns whether focus callbacks are currently being delivered.
+        Scope owners must reject structural transitions until they finish.
+        @return True during a focus change
+        @since ncurses 1.0
+    */
+    bool isChangingFocus() {
+        return changing;
     }
 
     /** Sets focus to a specific widget.

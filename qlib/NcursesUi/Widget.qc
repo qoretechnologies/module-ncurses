@@ -97,6 +97,16 @@ public class Widget {
         if (child.parent_widget) {
             child.parent_widget.removeChild(child);
         }
+        # Focus-loss callbacks can change either ancestry or the child's parent.
+        if (child.containsWidget(self)) {
+            throw "WIDGET-TREE-ERROR", "A reparenting callback created an ancestor relationship";
+        }
+        if (child.parent_widget == self) {
+            return;
+        }
+        if (child.parent_widget) {
+            throw "WIDGET-TREE-ERROR", "A reparenting callback attached the child to another parent";
+        }
         children += child;
         child.parent_widget = self;
         markDirty();
@@ -278,6 +288,11 @@ public class Widget {
                     onFocusIn();
                 } catch (hash<ExceptionInfo> ex) {
                     focused = False;
+                    try {
+                        onFocusOut();
+                    } catch (hash<ExceptionInfo> cleanup_error) {
+                        # Preserve the focus-in failure after attempting cleanup.
+                    }
                     rethrow;
                 }
             } else {

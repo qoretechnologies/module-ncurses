@@ -146,7 +146,7 @@ public class FileBrowserWidget inherits NcursesUi::PanelWidget {
                 current_dir = resolved;
                 updateTitle();
                 clearPreview();
-                focused_pane = 0;
+                setFocusedPane(0);
                 refreshListing();
                 updateStatusText();
             }
@@ -175,7 +175,7 @@ public class FileBrowserWidget inherits NcursesUi::PanelWidget {
             current_dir = prev;
             updateTitle();
             clearPreview();
-            focused_pane = 0;
+            setFocusedPane(0);
             refreshListing();
             updateStatusText();
             return True;
@@ -285,7 +285,28 @@ public class FileBrowserWidget inherits NcursesUi::PanelWidget {
         @since ncurses 1.0
     */
     int getFocusedPane() {
+        if (file_list.hasFocus()) {
+            return 0;
+        }
+        if (preview_widget.hasFocus()) {
+            return 1;
+        }
         return focused_pane;
+    }
+
+    private nothing setFocusedPane(int pane) {
+        bool has_focus = file_list.hasFocus() || preview_widget.hasFocus();
+        focused_pane = pane;
+        if (has_focus) {
+            # Explicit child focus is reconciled by the manager after navigation.
+            file_list.setFocused(False);
+            preview_widget.setFocused(False);
+            if (pane == 0) {
+                file_list.setFocused(True);
+            } else {
+                preview_widget.setFocused(True);
+            }
+        }
     }
 
     /** Returns the current status line text.
@@ -341,7 +362,7 @@ public class FileBrowserWidget inherits NcursesUi::PanelWidget {
         # draw vertical divider between panes
         int div_x = cr.x + list_cols;
         hash<auto> div_style;
-        if (focused_pane == 0) {
+        if (getFocusedPane() == 0) {
             div_style = {"fg": Ncurses::Color::Blue};
         } else {
             div_style = {"fg": Ncurses::Color::Cyan, "attrs": Ncurses::Attr::Bold};
@@ -408,7 +429,7 @@ public class FileBrowserWidget inherits NcursesUi::PanelWidget {
             hash<NcursesUi::Rect> preview_frame = preview_widget.getFrame();
 
             if (NcursesUi::Geometry::rectContains(list_frame, local_y, local_x)) {
-                focused_pane = 0;
+                setFocusedPane(0);
                 # adjust mouse coords to list frame's coordinate system
                 hash<Ncurses::InputEvent> adjusted = ev;
                 adjusted.mouse.x = local_x;
@@ -436,12 +457,12 @@ public class FileBrowserWidget inherits NcursesUi::PanelWidget {
                                 break;
                             }
                         }
-                        focused_pane = 0;
+                        setFocusedPane(0);
                         markDirty();
                         return <NcursesUi::EventResult>{"handled": True};
                     }
                 }
-                focused_pane = 1;
+                setFocusedPane(1);
                 hash<Ncurses::InputEvent> adjusted = ev;
                 adjusted.mouse.x = local_x;
                 adjusted.mouse.y = local_y;
@@ -453,7 +474,7 @@ public class FileBrowserWidget inherits NcursesUi::PanelWidget {
         }
 
         # route keyboard events to focused pane
-        if (focused_pane == 0) {
+        if (getFocusedPane() == 0) {
             return file_list.processEvent(ev);
         } else {
             return preview_widget.processEvent(ev);

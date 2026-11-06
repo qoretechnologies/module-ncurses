@@ -53,6 +53,9 @@ public class EventDispatcher {
         @since ncurses 1.0
     */
     nothing setRootScope(NcursesUi::Widget root) {
+        if (changing_scope || focus_mgr.isChangingFocus()) {
+            throw "MODAL-SCOPE-ERROR", "A focus callback cannot replace the root scope";
+        }
         if (modal_stack) {
             modal_stack[0].previous_scope = root;
             *NcursesUi::Widget previous = modal_stack[0].previous_focus;
@@ -87,7 +90,7 @@ public class EventDispatcher {
     }
 
     private nothing pushScope(NcursesUi::Widget w, bool popup) {
-        if (changing_scope) {
+        if (changing_scope || focus_mgr.isChangingFocus()) {
             throw "MODAL-SCOPE-ERROR", "A focus callback cannot change the modal stack";
         }
         changing_scope = True;
@@ -131,7 +134,7 @@ public class EventDispatcher {
         @since ncurses 1.0
     */
     *NcursesUi::Widget popModal() {
-        if (changing_scope) {
+        if (changing_scope || focus_mgr.isChangingFocus()) {
             throw "MODAL-SCOPE-ERROR", "A focus callback cannot change the modal stack";
         }
         changing_scope = True;
@@ -223,7 +226,7 @@ public class EventDispatcher {
                 focus_mgr.reconcile(scope);
             }
             *NcursesUi::Widget hit = hitTestTree(scope, ev.mouse.y, ev.mouse.x);
-            if (!hit) {
+            if (!hit || !hit.isAvailable()) {
                 return <NcursesUi::EventResult>{"handled": False};
             }
             if (primaryClick(ev)) {
@@ -255,8 +258,12 @@ public class EventDispatcher {
     }
 
     private *NcursesUi::Widget hitTestTree(NcursesUi::Widget w, int py, int px) {
-        if (!w.isAvailable() || !w.hitTest(py, px)) {
+        if (!w.isVisible() || !w.hitTest(py, px)) {
             return NOTHING;
+        }
+        # Disabled visible controls still cover widgets below them.
+        if (!w.isAvailable()) {
+            return w;
         }
         list<NcursesUi::Widget> kids = w.getChildren();
         for (int i = kids.size() - 1; i >= 0; --i) {

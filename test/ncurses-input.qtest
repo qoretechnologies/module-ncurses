@@ -30,6 +30,7 @@ class NcursesInputTest inherits Test {
         addTestCase("input history changes notify once", \historyChanges());
         addTestCase("combo accepts terminal Enter variants", \enterVariants());
         addTestCase("combo active choice stays in the actual dropdown rows", \comboViewport());
+        addTestCase("combo clipping shares geometry with scrolling and mouse input", \clippedCombo());
         set_return_value(main());
     }
     private hash<Ncurses::InputEvent> key(string name) {
@@ -292,6 +293,27 @@ class NcursesInputTest inherits Test {
         combo.setOptions(()); combo.draw(th.screen());
         assertEq(-1, combo.getHighlightIndex());
         assertEq("    ", th.screen().readText(2, 1, 4));
+    }
+
+    clippedCombo() {
+        NcursesUi::TestHarness th(8, 20); on_exit th.close();
+        NcursesUi::ComboBoxWidget choices(("one", "two", "three", "four", "five"));
+        choices.setFrameValues(5, 1, 5, 12);
+        for (int i = 0; i < 4; ++i) { choices.processEvent(key("KEY_DOWN")); }
+        choices.draw(th.screen());
+        assertEq("four", th.screen().readText(7, 1, 4));
+        choices.processEvent(key("KEY_DOWN")); choices.draw(th.screen());
+        assertEq("five", th.screen().readText(7, 1, 4));
+        NcursesUi::ComboBoxWidget input(); input.setFrameValues(1, 14, 3, 12); input.setText("abcdefghij");
+        input.setFocused(True); input.draw(th.screen()); assertEq("hij ", th.screen().readText(1, 14, 4));
+        assertTrue(input.processEvent(click(1, 15)).handled); assertEq(8, input.getCursorPos());
+        assertTrue(input.processEvent(click(1, 19)).handled); assertTrue(input.isDropdownOpen());
+        assertFalse(input.processEvent(click(1, 20)).handled);
+        input.setFrameValues(2, 19, 1, 12); input.draw(th.screen());
+        assertEq("^", th.screen().readText(2, 19, 1));
+        input.processEvent(click(2, 19)); assertFalse(input.isDropdownOpen());
+        input.setFrameValues(2, 20, 1, 12); input.draw(th.screen());
+        assertFalse(input.processEvent(click(2, 20)).handled);
     }
 
 }
