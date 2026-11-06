@@ -86,6 +86,7 @@ class NcursesFocusTest inherits Test {
         addTestCase("composite mouse dispatch preserves panel coordinate conversion", \compositeMouse());
         addTestCase("modal initialization rolls back callback availability changes", \modalAvailability());
         addTestCase("composite keys never reach unavailable panes", \compositeAvailability());
+        addTestCase("outside menu multi-clicks release the panel and focus", \menuMultiClick());
         set_return_value(main());
     }
     private hash<Ncurses::InputEvent> ch(string text) {
@@ -581,6 +582,25 @@ class NcursesFocusTest inherits Test {
             preview.setEnabled(True); preview.setVisible(True);
         }
         app.popModal();
+    }
+
+    menuMultiClick() {
+        NcursesUi::TestHarness th(12, 40); on_exit th.close();
+        NcursesUi::Application app(th.session()); NcursesUi::Widget root(); app.setRoot(root);
+        NcursesUi::MenuBarWidget bar(); bar.setApplication(app); bar.setFrameValues(0, 0, 1, 40);
+        bar.addMenu("File", ({"label": "Open", "command": "open"},)); root.addChild(bar);
+        NcursesUi::TextInputWidget input(); input.setFrameValues(8, 1, 1, 15); root.addChild(input);
+        app.getFocusManager().setFocus(input);
+        foreach int state in ((Ncurses::BUTTON1_CLICKED, Ncurses::BUTTON1_PRESSED,
+                Ncurses::BUTTON1_DOUBLE_CLICKED, Ncurses::BUTTON1_TRIPLE_CLICKED)) {
+            bar.openMenu(0); app.drawAll();
+            NcursesUi::PanelWidget dropdown = cast<NcursesUi::PanelWidget>(app.getDispatcher().topModal());
+            assertTrue(exists dropdown.getWindow());
+            app.processEvent(mouse(8, 3, state));
+            assertFalse(bar.isDropdownOpen()); assertFalse(app.getDispatcher().hasModal());
+            assertFalse(exists dropdown.getWindow());
+            assertEq(input, app.getFocusManager().getCurrentFocus());
+        }
     }
 
 }

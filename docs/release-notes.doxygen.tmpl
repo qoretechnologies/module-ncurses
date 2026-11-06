@@ -24,4 +24,6 @@
     including cleanup triggered by hiding, disabling, and detaching widgets.
     Modal initialization rolls back if a focus callback makes its root
     unavailable, and file-browser keyboard delegation excludes unavailable panes.
+    Outside primary clicks, including double and triple clicks, close menu panels
+    and release menu state before forwarding the event to the underlying control.
 */
