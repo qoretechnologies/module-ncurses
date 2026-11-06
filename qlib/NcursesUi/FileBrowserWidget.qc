@@ -343,21 +343,22 @@ public class FileBrowserWidget inherits NcursesUi::PanelWidget {
         int status_row = cr.y + cr.rows - 1;
 
         # split: 35% file list (left), 65% preview (right)
-        int list_cols = max(10, cr.cols * 35 / 100);
+        int list_cols = min(cr.cols - 2, max(1, cr.cols * 35 / 100));
         int preview_cols = cr.cols - list_cols - 1;  # -1 for divider
 
-        # set frames for children (panel-local coordinates)
+        # Child frames and mouse events use screen coordinates.
+        hash<NcursesUi::Rect> absolute = contentRect();
         hash<NcursesUi::Rect> list_frame = NcursesUi::Geometry::makeRect(
-            cr.y, cr.x, content_rows, list_cols);
+            absolute.y, absolute.x, content_rows, list_cols);
         hash<NcursesUi::Rect> preview_frame = NcursesUi::Geometry::makeRect(
-            cr.y, cr.x + list_cols + 1, content_rows, preview_cols);
+            absolute.y, absolute.x + list_cols + 1, content_rows, preview_cols);
 
         file_list.setFrame(list_frame);
         preview_widget.setFrame(preview_frame);
 
         # draw both panes
-        file_list.draw(pw);
-        preview_widget.draw(pw);
+        file_list.drawTree(pw);
+        preview_widget.drawTree(pw);
 
         # draw vertical divider between panes
         int div_x = cr.x + list_cols;
@@ -375,7 +376,7 @@ public class FileBrowserWidget inherits NcursesUi::PanelWidget {
         pw.noutrefresh();
     }
 
-    /** Keeps mouse delegation in the browser's panel-local coordinate space.
+    /** Keeps mouse delegation in the browser's screen coordinate space.
         @return True
         @since ncurses 1.0
     */
@@ -390,9 +391,8 @@ public class FileBrowserWidget inherits NcursesUi::PanelWidget {
         @since ncurses 1.0
     */
     *NcursesUi::Widget mouseFocusTarget(int py, int px) {
-        hash<NcursesUi::Rect> f = getFrame();
         foreach NcursesUi::Widget pane in ((file_list, preview_widget)) {
-            if (pane.isFocusable() && pane.hitTest(py - f.y, px - f.x)) {
+            if (pane.isFocusable() && pane.hitTest(py, px)) {
                 return pane;
             }
         }
@@ -439,10 +439,8 @@ public class FileBrowserWidget inherits NcursesUi::PanelWidget {
             # hit-test against file list vs preview frames
             int mx = ev.mouse.x;
             int my_val = ev.mouse.y;
-            # convert absolute coords to panel-local
-            hash<NcursesUi::Rect> f = getFrame();
-            int local_x = mx - f.x;
-            int local_y = my_val - f.y;
+            int local_x = mx;
+            int local_y = my_val;
 
             # check close button
             if (isCloseHit(mx, my_val)) {

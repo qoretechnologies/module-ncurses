@@ -194,11 +194,11 @@ public class MenuBarWidget inherits NcursesUi::Widget {
         @since ncurses 1.0
     */
     nothing draw(Ncurses::Window w) {
-        hash<NcursesUi::Rect> cr = contentRect();
+        hash<NcursesUi::Rect> cr = drawContentRect(w);
         int row = cr.y;
 
         # fill bar background
-        w.drawHLine(row, cr.x, cr.cols, " ", bar_style);
+        TerminalText::clearSpan(w, row, cr.x, cr.cols, bar_style);
 
         # draw menu labels with underlined hotkey character (first char of label)
         int x_pos = cr.x;
@@ -210,13 +210,13 @@ public class MenuBarWidget inherits NcursesUi::Widget {
             }
             hash<auto> style = (i == active_menu) ? active_style : bar_style;
             hash<auto> hk_style = style + {"attrs": (style.attrs ?? 0) | Ncurses::Attr::Underline};
-            w.drawText(row, x_pos, " ", style);
+            w.drawTextClipped(row, x_pos, " ", style);
             list<string> graphemes = (mlabel =~ x/(\X)/g) ?? ();
             string first = graphemes ? graphemes[0] : "";
             int first_len = first.length();
             int first_width = TerminalText::displayWidth(first);
-            w.drawText(row, x_pos + 1, first, hk_style);
-            w.drawText(row, x_pos + 1 + first_width,
+            w.drawTextClipped(row, x_pos + 1, first, hk_style);
+            w.drawTextClipped(row, x_pos + 1 + first_width,
                 mlabel.substr(first_len) + " ", style);
             x_pos += full_len;
         }

@@ -266,7 +266,11 @@ short NcursesSession::getColorPair(int fg, int bg, ExceptionSink* xsink) {
     return pair;
 }
 
-NcursesWindow::NcursesWindow(NcursesSession* s, WINDOW* w, bool own) : session(s), win(w), owned(own), wrap_mode(1) {
+NcursesWindow::NcursesWindow(NcursesSession* s, WINDOW* w, bool own, NcursesWindow* p)
+        : session(s), win(w), owned(own), wrap_mode(1), parent(p) {
+    if (parent) {
+        parent->ref();
+    }
     if (session) {
         session->ref();
     }
@@ -289,6 +293,9 @@ NcursesWindow::~NcursesWindow() {
             }
         }
         session->deref(nullptr);
+    }
+    if (parent) {
+        parent->deref(nullptr);
     }
     win = nullptr;
     session = nullptr;

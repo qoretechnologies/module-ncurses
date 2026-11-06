@@ -185,6 +185,7 @@ public class Widget {
     */
     nothing setFrame(hash<NcursesUi::Rect> r) {
         frame = r;
+        frame.rows = max(0, frame.rows); frame.cols = max(0, frame.cols);
         markDirty();
     }
 
@@ -196,7 +197,7 @@ public class Widget {
         @since ncurses 1.0
     */
     nothing setFrameValues(int y, int x, int rows, int cols) {
-        frame = NcursesUi::Geometry::makeRect(y, x, rows, cols);
+        frame = NcursesUi::Geometry::makeRect(y, x, max(0, rows), max(0, cols));
         markDirty();
     }
 
@@ -205,6 +206,16 @@ public class Widget {
     */
     hash<NcursesUi::Rect> getFrame() {
         return frame;
+    }
+
+    /** Moves a subtree in screen coordinates without changing its layout sizes.
+        @param dy row displacement
+        @param dx column displacement
+    */
+    nothing translate(int dy, int dx) {
+        frame.y += dy; frame.x += dx;
+        foreach NcursesUi::Widget child in (children) { child.translate(dy, dx); }
+        markDirty();
     }
 
     /** Sets the padding insets.
@@ -223,6 +234,38 @@ public class Widget {
         return NcursesUi::Geometry::rectInset(frame, padding);
     }
 
+    /** Converts the logical content rectangle to target-window coordinates.
+        Layout and input always use screen coordinates; drawing uses this method.
+        @param w target window
+        @return window-local content rectangle (possibly clipped by the window)
+    */
+    hash<NcursesUi::Rect> drawContentRect(Ncurses::Window w) {
+        hash<NcursesUi::Rect> rect = contentRect();
+        hash<Ncurses::Position> origin = w.position();
+        rect.y -= origin.y; rect.x -= origin.x;
+        return rect;
+    }
+
+    /** Returns the frame intersected with every ancestor's content rectangle.
+        @return visible screen rectangle; zero dimensions mean fully clipped
+    */
+    hash<NcursesUi::Rect> visibleRect() {
+        hash<NcursesUi::Rect> rect = frame;
+        *NcursesUi::Widget ancestor = getParent();
+        while (ancestor) {
+            rect = NcursesUi::Geometry::intersect(rect, ancestor.contentRect());
+            ancestor = ancestor.getParent();
+        }
+        return rect;
+    }
+
+    /** Releases rendering resources when this subtree has no drawable area.
+        Subclasses owning cursor requests override this and call the base method.
+    */
+    nothing onDrawClipped() {
+        foreach NcursesUi::Widget child in (children) { child.onDrawClipped(); }
+    }
+
     /** Tests if a point is inside this widget's frame.
         @param py the row coordinate
         @param px the column coordinate
@@ -233,7 +276,7 @@ public class Widget {
         if (!visible) {
             return False;
         }
-        return NcursesUi::Geometry::rectContains(frame, py, px);
+        return NcursesUi::Geometry::rectContains(visibleRect(), py, px);
     }
 
     # ---- State ----
@@ -498,6 +541,12 @@ public class Widget {
         # default: no-op; subclasses override
     }
 
+    /** Relayout hook for an active modal after terminal resize.
+        @param rows terminal height
+        @param cols terminal width
+    */
+    nothing fitToScreen(int rows, int cols) { layout(); }
+
     # ---- Drawing ----
 
     /** Draw override point. Called when the widget needs to be redrawn.
@@ -513,15 +562,19 @@ public class Widget {
         @since ncurses 1.0
     */
     nothing drawTree(Ncurses::Window w) {
-        if (!visible) {
-            return;
+        if (!visible) { onDrawClipped(); return; }
+        hash<Ncurses::Position> origin = w.position(); hash<Ncurses::Size> size = w.size();
+        hash<NcursesUi::Rect> bounds = NcursesUi::Geometry::makeRect(origin.y, origin.x, size.rows, size.cols);
+        hash<NcursesUi::Rect> clip = NcursesUi::Geometry::intersect(visibleRect(), bounds);
+        if (clip.rows <= 0 || clip.cols <= 0) { onDrawClipped(); clearDirty(); return; }
+        Ncurses::Window target = w;
+        if (clip != frame) {
+            target = w.subWindow(clip.rows, clip.cols, clip.y - origin.y, clip.x - origin.x);
+            target.setLeaveOk(False);
         }
-        draw(w);
-        foreach NcursesUi::Widget child in (children) {
-            if (child.isVisible()) {
-                child.drawTree(w);
-            }
-        }
+        draw(target);
+        foreach NcursesUi::Widget child in (children) { child.drawTree(target); }
+        if (target != w) { target.noutrefresh(); }
         clearDirty();
     }
 

@@ -35,6 +35,8 @@ public namespace NcursesUi {
 */
 public class PanelWidget inherits NcursesUi::Widget {
     private {
+        bool open_requested = False;
+        *hash<NcursesUi::Rect> requested_frame;
         #! the ncurses session
         Ncurses::Session session;
         #! the panel (NOTHING when not shown)
@@ -94,8 +96,26 @@ public class PanelWidget inherits NcursesUi::Widget {
     */
     hash<NcursesUi::Rect> localContentRect() {
         hash<NcursesUi::Rect> cr = contentRect();
-        hash<NcursesUi::Rect> f = getFrame();
-        return NcursesUi::Geometry::makeRect(cr.y - f.y, cr.x - f.x, cr.rows, cr.cols);
+        if (win) {
+            hash<Ncurses::Position> origin = win.position(); hash<Ncurses::Size> size = win.size();
+            cr = NcursesUi::Geometry::intersect(cr, NcursesUi::Geometry::makeRect(origin.y, origin.x, size.rows, size.cols));
+            cr.y -= origin.y; cr.x -= origin.x;
+        } else {
+            cr.y -= getFrame().y; cr.x -= getFrame().x;
+        }
+        return cr;
+    }
+
+    /** Sets the requested logical screen frame independently of native clipping.
+        @param frame logical panel geometry
+    */
+    nothing setFrame(hash<NcursesUi::Rect> frame) {
+        Widget::setFrame(frame); requested_frame = getFrame();
+    }
+
+    /** Sets logical panel geometry. @param y row @param x column @param rows height @param cols width */
+    nothing setFrameValues(int y, int x, int rows, int cols) {
+        setFrame(NcursesUi::Geometry::makeRect(y, x, rows, cols));
     }
 
     /** Sets the title.
@@ -171,32 +191,46 @@ public class PanelWidget inherits NcursesUi::Widget {
         @since ncurses 1.0
     */
     nothing createPanel() {
-        destroyPanel();
-        hash<NcursesUi::Rect> f = getFrame();
-        if (f.rows <= 0 || f.cols <= 0) {
-            return;
-        }
-        panel = new Ncurses::Panel(session, f.rows, f.cols, f.y, f.x);
-        win = panel.window();
-        win.enableKeypad(True);
-        win.setLeaveOk(True);
-        panel.show();
-        panel.top();
-        setVisible(True);
+        syncNative();
+        open_requested = True;
         markDirty();
+    }
+
+    private nothing syncNative(*Ncurses::Window target) {
+        hash<Ncurses::Size> screen_size = session.screen().size();
+        hash<NcursesUi::Rect> rect = NcursesUi::Geometry::intersect(visibleRect(),
+            NcursesUi::Geometry::makeRect(0, 0, screen_size.rows, screen_size.cols));
+        if (target) {
+            hash<Ncurses::Position> origin = target.position(); hash<Ncurses::Size> size = target.size();
+            rect = NcursesUi::Geometry::intersect(rect, NcursesUi::Geometry::makeRect(origin.y, origin.x, size.rows, size.cols));
+        }
+        if (rect.rows <= 0 || rect.cols <= 0) { releaseNative(); return; }
+        if (win) {
+            hash<Ncurses::Position> origin = win.position(); hash<Ncurses::Size> size = win.size();
+            if (rect == NcursesUi::Geometry::makeRect(origin.y, origin.x, size.rows, size.cols)) { return; }
+        }
+        Ncurses::Panel replacement(session, rect.rows, rect.cols, rect.y, rect.x);
+        Ncurses::Window replacement_win = replacement.window();
+        replacement_win.enableKeypad(True); replacement_win.setLeaveOk(False);
+        if (isVisible()) { replacement.show(); replacement.top(); } else { replacement.hide(); }
+        onDrawClipped();
+        panel = replacement; win = replacement_win;
+        close_col = -1; close_len = 0;
+        markDirty();
+    }
+
+    private nothing releaseNative() {
+        onDrawClipped();
+        panel = NOTHING; win = NOTHING;
+        close_col = -1; close_len = 0;
     }
 
     /** Destroys the ncurses panel.
         @since ncurses 1.0
     */
     nothing destroyPanel() {
-        if (panel) {
-            panel.hide();
-            panel = NOTHING;
-            win = NOTHING;
-        }
-        close_col = -1;
-        close_len = 0;
+        releaseNative();
+        open_requested = False;
     }
 
     /** Shows the panel and brings it to the front.
@@ -233,16 +267,47 @@ public class PanelWidget inherits NcursesUi::Widget {
     }
 
     /** Resizes the panel to a new frame.
-        Destroys and recreates the panel.
+        Prepares replacement native resources before releasing the old surface. Logical
+        geometry is retained when an ancestor clips the native surface.
         @param r the new frame rectangle
         @since ncurses 1.0
     */
     nothing resize(hash<NcursesUi::Rect> r) {
+        hash<NcursesUi::Rect> old = getFrame();
+        *hash<NcursesUi::Rect> old_requested = requested_frame;
+        requested_frame = r;
         setFrame(r);
-        if (panel) {
-            destroyPanel();
-            createPanel();
+        if (open_requested) {
+            try { createPanel(); } catch (hash<ExceptionInfo> ex) { setFrame(old); requested_frame = old_requested; rethrow; }
         }
+        hash<NcursesUi::Rect> current = getFrame();
+        foreach NcursesUi::Widget child in (getChildren()) {
+            child.translate(current.y - old.y, current.x - old.x);
+        }
+    }
+
+    /** Moves the panel and descendants, recreating its native window when open.
+        @param dy row displacement
+        @param dx column displacement
+    */
+    nothing translate(int dy, int dx) {
+        hash<NcursesUi::Rect> frame = requested_frame ?? getFrame();
+        frame.y = getFrame().y + dy; frame.x = getFrame().x + dx;
+        resize(frame);
+    }
+
+    /** Fits an active panel to the terminal, retaining its requested size for regrowth.
+        @param rows terminal height
+        @param cols terminal width
+    */
+    nothing fitToScreen(int rows, int cols) {
+        hash<NcursesUi::Rect> desired = requested_frame ?? getFrame();
+        hash<NcursesUi::Rect> r = desired;
+        r.rows = max(0, min(rows, r.rows)); r.cols = max(0, min(cols, r.cols));
+        r.y = max(0, min(r.y, rows - r.rows)); r.x = max(0, min(r.x, cols - r.cols));
+        resize(r);
+        requested_frame = desired;
+        layout();
     }
 
     /** Draws the panel border and title.
@@ -254,10 +319,10 @@ public class PanelWidget inherits NcursesUi::Widget {
             return;
         }
         win.erase();
-        if (has_border) {
+        if (has_border && win.size().rows >= 2 && win.size().cols >= 2) {
             win.box({"fg": Ncurses::Color::Blue});
             if (title) {
-                hash<NcursesUi::Rect> f = getFrame();
+                hash<Ncurses::Size> f = win.size();
                 string decorated = " " + title + " ";
                 int title_x;
                 if (center_title) {
@@ -266,17 +331,17 @@ public class PanelWidget inherits NcursesUi::Widget {
                 } else {
                     title_x = 2;
                 }
-                win.drawText(0, title_x, decorated,
+                win.drawTextClipped(0, title_x, decorated,
                     {"fg": Ncurses::Color::Yellow, "attrs": Ncurses::Attr::Bold});
             }
             close_col = -1;
             close_len = 0;
             if (closable) {
-                hash<NcursesUi::Rect> f = getFrame();
+                hash<Ncurses::Size> f = win.size();
                 string label = "[X]";
                 close_len = TerminalText::displayWidth(label);
                 close_col = max(1, f.cols - close_len - 2);
-                win.drawText(0, close_col, label,
+                win.drawTextClipped(0, close_col, label,
                     {"fg": Ncurses::Color::Red, "attrs": Ncurses::Attr::Bold});
             }
         }
@@ -285,21 +350,25 @@ public class PanelWidget inherits NcursesUi::Widget {
 
     /** Draws this panel widget and all visible children.
         Uses the panel's own window instead of the parent's.
-        @param w the parent window (ignored)
+        @param w the parent drawing surface; native geometry is constrained to its bounds
         @since ncurses 1.0
     */
     nothing drawTree(Ncurses::Window w) {
-        if (!isVisible() || !win) {
-            return;
-        }
+        if (!isVisible() || !open_requested) { onDrawClipped(); return; }
+        syncNative(w);
+        if (!win) { return; }
+        panel.show();
         bringToFront();
         draw(win);
-        foreach NcursesUi::Widget child in (getChildren()) {
-            if (child.isVisible()) {
-                child.drawTree(win);
-            }
-        }
+        foreach NcursesUi::Widget child in (getChildren()) { child.drawTree(win); }
+        win.noutrefresh();
         clearDirty();
+    }
+
+    /** Hides the native panel and releases descendant cursor requests when clipped. */
+    nothing onDrawClipped() {
+        if (panel) { panel.hide(); }
+        Widget::onDrawClipped();
     }
 
     /** Tests if a mouse click hit the close button.
@@ -312,13 +381,14 @@ public class PanelWidget inherits NcursesUi::Widget {
         if (!closable || close_col < 0 || close_len <= 0) {
             return False;
         }
-        hash<NcursesUi::Rect> f = getFrame();
-        int local_x = mx - f.x;
-        int local_y = my_row - f.y;
+        if (!win) { return False; }
+        hash<Ncurses::Position> origin = win.position();
+        int local_x = mx - origin.x;
+        int local_y = my_row - origin.y;
         if (local_y != 0) {
             return False;
         }
-        return local_x >= close_col && local_x < close_col + close_len;
+        return local_x >= close_col && local_x < min(win.size().cols, close_col + close_len);
     }
 }
 

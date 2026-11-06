@@ -19,11 +19,32 @@
     visibility so modal transitions can restore it exactly. Composite file-browser
     pane navigation stays synchronized with managed focus, and combo-box mouse
     placement and dropdown scrolling share the clipped drawing geometry.
-    Composite mouse delegation preserves panel-local coordinate conversion and
-    preview navigation. Focus callbacks share a thread-local transition guard,
+    Composite mouse delegation preserves preview navigation. Focus callbacks share a thread-local transition guard,
     including cleanup triggered by hiding, disabling, and detaching widgets.
     Modal initialization rolls back if a focus callback makes its root
     unavailable, and file-browser keyboard delegation excludes unavailable panes.
     Outside primary clicks, including double and triple clicks, close menu panels
     and release menu state before forwarding the event to the underlying control.
+
+    Panel children now share the screen-coordinate layout/input contract and
+    convert drawing to window-local coordinates. Clipped inputs keep the caret
+    visible at the right edge; panel windows accept focused child cursor requests.
+    Derived native windows retain their parents, preventing shared-storage leaks
+    when the parent wrapper is released first. Panel replacement preserves the
+    old resources on creation failure. Box layouts constrain overflowing requests,
+    and active dialogs and anchored popups reflow on resize. Tiny dialogs expose
+    every action through keyboard navigation and scroll wrapped messages.
+
+    Tables add stable identity across refreshes, numeric/date/string/custom
+    sorting, filtering, horizontal column navigation, row actions, primary mouse
+    selection, double-click activation and wheel navigation. Equal sort keys are
+    stable; invalid data/comparator failures preserve the preceding view.
+    Radio groups, menus and combo boxes keep active choices visible using actual
+    drawable rows, support page/home/end and mouse navigation, and clear obsolete
+    rows. Disabled-only menus no longer risk an unbounded navigation loop.
+    Nested panels retain logical geometry and open intent independently of clipped
+    native resources, including full clipping and later regrowth. Hit testing
+    follows ancestor clipping; left-clipped lists, checkboxes, menus and status
+    bars render their visible suffixes. Table column selection stays visible after
+    resize, and empty row hashes remain valid selections for actions and activation.
 */

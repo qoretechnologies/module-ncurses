@@ -187,6 +187,12 @@ public class ScrollableWidget inherits NcursesUi::Widget {
         markDirty();
     }
 
+    /** Releases cursor ownership when the widget has no drawable area. */
+    nothing onDrawClipped() {
+        releaseCursor();
+        Widget::onDrawClipped();
+    }
+
     /** Draws the content and scrollbar.
         @param w the window to draw into
         @since ncurses 1.0
@@ -194,7 +200,7 @@ public class ScrollableWidget inherits NcursesUi::Widget {
     nothing draw(Ncurses::Window w) {
         releaseCursor();
         prepareViewport();
-        hash<NcursesUi::Rect> cr = contentRect();
+        hash<NcursesUi::Rect> cr = drawContentRect(w);
         if (cr.rows <= 0 || viewport_cols <= 0) {
             return;
         }

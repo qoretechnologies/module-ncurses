@@ -84,10 +84,10 @@ public class Geometry {
         @since ncurses 1.0
     */
     static hash<NcursesUi::Rect> rectInset(hash<NcursesUi::Rect> rect, hash<NcursesUi::Insets> insets) {
-        int y = rect.y + insets.top;
-        int x = rect.x + insets.left;
-        int rows = max(0, rect.rows - insets.top - insets.bottom);
-        int cols = max(0, rect.cols - insets.left - insets.right);
+        int y = rect.y + min(max(0, rect.rows), max(0, insets.top));
+        int x = rect.x + min(max(0, rect.cols), max(0, insets.left));
+        int rows = max(0, rect.rows - max(0, insets.top) - max(0, insets.bottom));
+        int cols = max(0, rect.cols - max(0, insets.left) - max(0, insets.right));
         return <NcursesUi::Rect>{
             "y": y,
             "x": x,
@@ -95,6 +95,17 @@ public class Geometry {
             "cols": cols,
         };
     }
+    /** Intersects screen rectangles; disjoint rectangles have zero area.
+        @param a first rectangle
+        @param b second rectangle
+        @return bounded intersection
+    */
+    static hash<NcursesUi::Rect> intersect(hash<NcursesUi::Rect> a, hash<NcursesUi::Rect> b) {
+        int y = max(a.y, b.y); int x = max(a.x, b.x);
+        return makeRect(y, x, max(0, min(a.y + a.rows, b.y + b.rows) - y),
+            max(0, min(a.x + a.cols, b.x + b.cols) - x));
+    }
+
 }
 
 } # namespace NcursesUi

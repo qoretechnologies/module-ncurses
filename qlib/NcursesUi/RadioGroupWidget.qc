@@ -31,6 +31,7 @@ public namespace NcursesUi {
 */
 public class RadioGroupWidget inherits NcursesUi::Widget {
     private {
+        *hash<NcursesUi::Rect> draw_bounds;
         #! list of option labels
         list<string> options = ();
         #! currently selected index
@@ -38,7 +39,8 @@ public class RadioGroupWidget inherits NcursesUi::Widget {
         #! currently highlighted index (for keyboard navigation)
         int highlight_index = 0;
         #! callback fired on selection change
-        *code on_select;
+        *code<nothing(int)> on_select;
+        int scroll_offset = 0;
     }
 
     /** Creates a new RadioGroupWidget.
@@ -48,10 +50,8 @@ public class RadioGroupWidget inherits NcursesUi::Widget {
     */
     constructor(list<string> opts, int initial_index = 0) {
         options = opts;
-        if (initial_index >= 0 && initial_index < options.size()) {
-            selected_index = initial_index;
-            highlight_index = initial_index;
-        }
+        selected_index = options ? max(0, min(initial_index, options.size() - 1)) : -1;
+        highlight_index = selected_index;
         setFocusable(True);
     }
 
@@ -87,7 +87,7 @@ public class RadioGroupWidget inherits NcursesUi::Widget {
         if (idx >= 0 && idx < options.size()) {
             selected_index = idx;
             highlight_index = idx;
-            markDirty();
+            ensureVisible(); markDirty();
         }
     }
 
@@ -95,7 +95,7 @@ public class RadioGroupWidget inherits NcursesUi::Widget {
         @param cb callback receiving the selected index
         @since ncurses 1.0
     */
-    nothing setOnSelect(*code cb) {
+    nothing setOnSelect(*code<nothing(int)> cb) {
         on_select = cb;
     }
 
@@ -112,13 +112,9 @@ public class RadioGroupWidget inherits NcursesUi::Widget {
     */
     nothing setOptions(list<string> opts) {
         options = opts;
-        if (selected_index >= options.size()) {
-            selected_index = 0;
-        }
-        if (highlight_index >= options.size()) {
-            highlight_index = 0;
-        }
-        markDirty();
+        selected_index = options ? max(0, min(selected_index, options.size() - 1)) : -1;
+        highlight_index = options ? max(0, min(highlight_index, options.size() - 1)) : -1;
+        ensureVisible(); markDirty();
     }
 
     /** Draws the radio group.
@@ -126,22 +122,17 @@ public class RadioGroupWidget inherits NcursesUi::Widget {
         @since ncurses 1.0
     */
     nothing draw(Ncurses::Window w) {
-        hash<NcursesUi::Rect> cr = contentRect();
-
-        for (int i = 0; i < options.size() && i < cr.rows; ++i) {
-            string indicator = (i == selected_index) ? "(o)" : "( )";
-            string text = indicator + " " + options[i];
-
-            # truncate to fit
-            text = TerminalText::clipRight(text, cr.cols);
-
-            hash<auto> style;
-            if (hasFocus() && i == highlight_index) {
-                style = {"attrs": Ncurses::Attr::Bold};
-            }
-
-            w.drawHLine(cr.y + i, cr.x, cr.cols, " ");
-            w.drawText(cr.y + i, cr.x, text, style);
+        hash<Ncurses::Position> origin = w.position(); hash<Ncurses::Size> size = w.size();
+        draw_bounds = NcursesUi::Geometry::makeRect(origin.y, origin.x, size.rows, size.cols);
+        ensureVisible();
+        hash<NcursesUi::Rect> cr = viewRect(); cr.y -= origin.y; cr.x -= origin.x;
+        for (int row = 0; row < cr.rows; ++row) {
+            int i = scroll_offset + row;
+            w.drawHLine(cr.y + row, cr.x, cr.cols, " ");
+            if (i >= options.size()) { continue; }
+            string text = (cr.cols > 4 ? (i == selected_index ? "(o) " : "( ) ") : "") + options[i];
+            w.drawText(cr.y + row, cr.x, TerminalText::clipRight(text, cr.cols),
+                hasFocus() && i == highlight_index ? {"attrs": Ncurses::Attr::Bold} : {});
         }
     }
 
@@ -151,49 +142,56 @@ public class RadioGroupWidget inherits NcursesUi::Widget {
         @since ncurses 1.0
     */
     hash<NcursesUi::EventResult> processEvent(hash<Ncurses::InputEvent> ev) {
-        if (options.empty()) {
-            return <NcursesUi::EventResult>{"handled": False};
-        }
-
+        if (!isAvailable() || !options) { return <NcursesUi::EventResult>{"handled": False}; }
         if (ev.type == Ncurses::InputType::Key) {
-            string name = ev.name ?? "";
-            if (name == "KEY_UP") {
-                if (highlight_index > 0) {
-                    highlight_index -= 1;
-                    markDirty();
-                }
-                return <NcursesUi::EventResult>{"handled": True};
-            } else if (name == "KEY_DOWN") {
-                if (highlight_index < options.size() - 1) {
-                    highlight_index += 1;
-                    markDirty();
-                }
-                return <NcursesUi::EventResult>{"handled": True};
+            switch (ev.name ?? "") {
+                case "KEY_UP": --highlight_index; break;
+                case "KEY_DOWN": ++highlight_index; break;
+                case "KEY_HOME": highlight_index = 0; break;
+                case "KEY_END": highlight_index = options.size() - 1; break;
+                case "KEY_PPAGE": highlight_index -= max(1, viewRect().rows); break;
+                case "KEY_NPAGE": highlight_index += max(1, viewRect().rows); break;
+                case "KEY_ENTER": selectHighlighted(); return <NcursesUi::EventResult>{"handled": True, "action": "select"};
+                default: return <NcursesUi::EventResult>{"handled": False};
             }
-        } else if (ev.type == Ncurses::InputType::Char) {
-            int code = ord(ev.ch ?? "");
-            if (code == 0x20 || code == 0x0a) {
-                selectHighlighted();
-                return <NcursesUi::EventResult>{"handled": True, "action": "select"};
+        } else if (ev.type == Ncurses::InputType::Char && (ev.ch == " " || ev.ch == "\n" || ev.ch == "\r")) {
+            selectHighlighted(); return <NcursesUi::EventResult>{"handled": True, "action": "select"};
+        } else if (ev.type == Ncurses::InputType::Mouse && ev.mouse) {
+            hash<NcursesUi::Rect> cr = viewRect();
+            if (!NcursesUi::Geometry::rectContains(cr, ev.mouse.y, ev.mouse.x)) {
+                return <NcursesUi::EventResult>{"handled": False};
             }
-        } else if (ev.type == Ncurses::InputType::Mouse) {
             int bs = ev.mouse.button_state;
-            if (bs & Ncurses::BUTTON1_CLICKED || bs & Ncurses::BUTTON1_PRESSED) {
-                hash<NcursesUi::Rect> cr = contentRect();
-                int click_row = ev.mouse.y - cr.y;
-                if (click_row >= 0 && click_row < options.size()) {
-                    highlight_index = click_row;
-                    selectHighlighted();
-                    return <NcursesUi::EventResult>{"handled": True, "action": "select"};
-                }
-            }
-        }
-        return <NcursesUi::EventResult>{"handled": False};
+            if (bs & Ncurses::BUTTON4_PRESSED) { --highlight_index; }
+            else if (bs & Ncurses::BUTTON5_PRESSED) { ++highlight_index; }
+            else if (bs & (Ncurses::BUTTON1_PRESSED | Ncurses::BUTTON1_CLICKED
+                    | Ncurses::BUTTON1_DOUBLE_CLICKED | Ncurses::BUTTON1_TRIPLE_CLICKED)) {
+                int index = scroll_offset + ev.mouse.y - cr.y;
+                if (index >= options.size()) { return <NcursesUi::EventResult>{"handled": False}; }
+                highlight_index = index; selectHighlighted();
+                return <NcursesUi::EventResult>{"handled": True, "action": "select"};
+            } else { return <NcursesUi::EventResult>{"handled": False}; }
+        } else { return <NcursesUi::EventResult>{"handled": False}; }
+        highlight_index = max(0, min(highlight_index, options.size() - 1));
+        ensureVisible(); markDirty();
+        return <NcursesUi::EventResult>{"handled": True};
+    }
+
+    private hash<NcursesUi::Rect> viewRect() {
+        hash<NcursesUi::Rect> rect = NcursesUi::Geometry::intersect(contentRect(), visibleRect());
+        return draw_bounds ? NcursesUi::Geometry::intersect(rect, draw_bounds) : rect;
+    }
+
+    private nothing ensureVisible() {
+        int count = max(1, viewRect().rows);
+        scroll_offset = max(0, min(scroll_offset, options.size() - count));
+        if (highlight_index < scroll_offset) { scroll_offset = max(0, highlight_index); }
+        else if (highlight_index >= scroll_offset + count) { scroll_offset = highlight_index - count + 1; }
     }
 
     private nothing selectHighlighted() {
         selected_index = highlight_index;
-        markDirty();
+        ensureVisible(); markDirty();
         if (on_select) {
             on_select(selected_index);
         }

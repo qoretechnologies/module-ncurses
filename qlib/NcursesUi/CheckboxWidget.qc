@@ -106,7 +106,7 @@ public class CheckboxWidget inherits NcursesUi::Widget {
         @since ncurses 1.0
     */
     nothing draw(Ncurses::Window w) {
-        hash<NcursesUi::Rect> cr = contentRect();
+        hash<NcursesUi::Rect> cr = drawContentRect(w);
         string indicator = checked ? "[X]" : "[ ]";
         string text = indicator + " " + label;
 
@@ -118,8 +118,8 @@ public class CheckboxWidget inherits NcursesUi::Widget {
             style = {"attrs": Ncurses::Attr::Bold};
         }
 
-        w.drawHLine(cr.y, cr.x, cr.cols, " ");
-        w.drawText(cr.y, cr.x, text, style);
+        TerminalText::clearSpan(w, cr.y, cr.x, cr.cols);
+        w.drawTextClipped(cr.y, cr.x, text, style);
     }
 
     /** Handles toggle events.
