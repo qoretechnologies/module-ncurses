@@ -38,14 +38,18 @@ qclass Ansi [dom=TERMINAL_IO; arg=void* na; ns=Qore::Ncurses];
 //! Parses ANSI SGR text into segments
 /** @param text text with ANSI SGR color codes
     @return list of segments with keys: \c text and \c style
+    @note Oversized unsupported numeric parameters are ignored without changing the style.
+    @throw THREAD-CANCELLED if cooperative cancellation is requested while parsing
 
     @since %ncurses 1.0
 */
-static list<hash> Ansi::parse(string text) [flags=CONSTANT,NAMED_ARGS] {
+static list<hash> Ansi::parse(string text) [flags=RET_VALUE_ONLY,NAMED_ARGS] {
     std::vector<AnsiSegment> segs;
-    parseAnsiSegments(text, segs);
+    if (!parseAnsiSegments(text, segs, xsink)) { return nothing(); }
     ReferenceHolder<QoreListNode> list(new QoreListNode(autoTypeInfo), xsink);
+    size_t processed = 0;
     for (const auto& seg : segs) {
+        if (++processed % 100 == 0 && qore_check_cancel(xsink, "building ANSI segments")) { return nothing(); }
         ReferenceHolder<QoreHashNode> h(new QoreHashNode(autoTypeInfo), xsink);
         ReferenceHolder<QoreStringNode> t(new QoreStringNode(seg.text.c_str(), text->getEncoding()), xsink);
         h->setKeyValue("text", t.release(), xsink);
@@ -70,16 +74,19 @@ static list<hash> Ansi::parse(string text) [flags=CONSTANT,NAMED_ARGS] {
 //! Returns the terminal display width of ANSI SGR text
 /** @param text text with ANSI SGR color codes
     @return terminal display columns occupied by the text (ANSI codes excluded)
+    @throw THREAD-CANCELLED if cooperative cancellation is requested while parsing
 
     @since %ncurses 1.0
 */
-static int Ansi::len(string text) [flags=CONSTANT,NAMED_ARGS] {
+static int Ansi::len(string text) [flags=RET_VALUE_ONLY,NAMED_ARGS] {
     std::vector<AnsiSegment> segs;
-    parseAnsiSegments(text, segs);
-    int total = 0;
+    if (!parseAnsiSegments(text, segs, xsink)) { return 0; }
+    int64_t total = 0;
+    size_t processed = 0;
     for (const auto& seg : segs) {
+        if (++processed % 100 == 0 && qore_check_cancel(xsink, "measuring ANSI segments")) { return 0; }
         QoreString tmp(seg.text.c_str(), seg.text.size(), QCS_UTF8);
-        total += static_cast<int>(tmp.getCharWidth(xsink));
+        total += tmp.getCharWidth(xsink);
         if (*xsink) {
             return 0;
         }
@@ -101,7 +108,7 @@ static list<string> Ansi::wrap(string text, int width, enum<WrapMode> mode = Wra
         return list.release();
     }
     std::vector<AnsiSegment> segs;
-    parseAnsiSegments(text, segs);
+    if (!parseAnsiSegments(text, segs, xsink)) { return nothing(); }
     struct StyledChar {
         std::string bytes;
         int width;

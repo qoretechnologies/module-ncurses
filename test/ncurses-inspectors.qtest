@@ -1,0 +1,116 @@
+#!/usr/bin/env qore
+# Copyright 2026 Qore Technologies, s.r.o.
+%modern
+%prepend-module-path "${SCRIPT_DIR}/../qlib"
+%requires ncurses
+%requires NcursesUi
+%requires QUnit
+%include "test/TestHarness.qc"
+%exec-class InspectorsTest
+class InspectorsTest inherits Test {
+    constructor() : Test("InspectorsTest", "1.0", \ARGV) {
+        addTestCase("tree preserves source types and escaped stable identities", \types());
+        addTestCase("tree navigation filtering and replacement retain valid selection", \navigation());
+        addTestCase("deep and large data use bounded iterative indexing", \limits());
+        addTestCase("copy export activation and callback failures preserve typed data", \callbacks());
+        addTestCase("mouse selection narrow layouts and control bytes remain clipped", \display());
+        addTestCase("code views preserve original exports and styled searchable display", \codeView());
+        addTestCase("code highlighter validation and callback failures are atomic", \codeFailures());
+        set_return_value(main());
+    }
+    codeView() {
+        NcursesUi::TestHarness th(8, 30); on_exit th.close(); string original = "print(\"界\");\r\n\tsecond\n";
+        NcursesUi::CodeViewWidget view(original, "qore"); view.setFrameValues(0, 0, 3, 12); assertFalse(view.isFollowing());
+        assertEq(original, view.getText()); assertEq("print(\"界\");\n    second\n", view.getDisplayText()); assertEq("qore", view.getLanguage());
+        view.setHighlighter(string sub (string text, string language) { assertEq("qore", language); return "\e[32m" + text + "\e[0m"; });
+        assertEq(Ncurses::Color::Green, Ncurses::Ansi::parse(view.getTranscriptContent().getLine(1))[0].style.fg);
+        view.setSearch("second"); assertEq(1, view.getMatches().size()); view.findNext(); view.drawTree(th.screen());
+        list<int> ids = view.getBlocks()[0].line_ids; assertEq(3, ids.size());
+        view.select(<NcursesUi::TextAnchor>{"line_id": ids[1], "offset": 0}, <NcursesUi::TextAnchor>{"line_id": ids[1], "offset": 10});
+        string copied; view.setOnCopy(sub (string text) { copied = text; }); assertTrue(view.copySelection()); assertEq("    second", copied);
+        assertTrue(view.copyAll()); assertEq(original, copied); string exported; string syntax;
+        view.setOnExport(sub (string text, string language) { exported = text; syntax = language; }); assertTrue(view.exportText()); assertEq(original, exported); assertEq("qore", syntax);
+        view.setWordWrap(True); view.setFrameValues(0, 0, 2, 4); view.drawTree(th.screen()); assertEq(original, view.getText());
+        view.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Paste, "ch": "edit"}); assertEq(original, view.getText());
+    }
+    codeFailures() {
+        NcursesUi::CodeViewWidget view("draft\n", "text"); list<hash<NcursesUi::TranscriptBlockInfo>> blocks = view.getBlocks();
+        assertFalse(view.copyAll()); assertFalse(view.exportText());
+        assertThrows("CODEVIEW-HIGHLIGHT-ERROR", sub () { view.setHighlighter(string sub (string text, string language) { return "different"; }); });
+        assertEq("draft\n", view.getText()); assertEq(blocks, view.getBlocks());
+        assertThrows("CODEVIEW-BUSY-ERROR", sub () { view.setHighlighter(string sub (string text, string language) { view.setText("changed"); return text; }); });
+        assertEq(blocks, view.getBlocks());
+        assertThrows("CODEVIEW-BUSY-ERROR", sub () { view.setHighlighter(string sub (string text, string language) { view.clear(); return text; }); });
+        assertEq(blocks, view.getBlocks()); assertThrows("CODEVIEW-DOCUMENT-ERROR", sub () { view.appendLine("bad"); });
+        assertThrows("CODEVIEW-DOCUMENT-ERROR", sub () { view.setRetentionLimit(1); });
+        bool fail = False; view.setHighlighter(string sub (string text, string language) { if (fail) { throw "HIGHLIGHT-ERROR", "offline"; } return text; });
+        fail = True; assertThrows("HIGHLIGHT-ERROR", sub () { view.setText("new"); }); assertEq("draft\n", view.getText());
+        view.setOnExport(sub (string text, string language) { throw "EXPORT-ERROR", "unavailable"; }); assertThrows("EXPORT-ERROR", sub () { view.exportText(); }); assertEq("draft\n", view.getText());
+        view.setOnCopy(sub (string text) { throw "COPY-ERROR", "unavailable"; }); assertThrows("COPY-ERROR", sub () { view.copyAll(); }); assertEq("draft\n", view.getText());
+        view.setHighlighter(NOTHING); view.setText(""); assertEq("", view.getText()); assertEq(1, view.getTranscriptContent().lineCount());
+    }
+    private hash<Ncurses::InputEvent> key(string name) { return <Ncurses::InputEvent>{"type": Ncurses::InputType::Key, "name": name}; }
+    private hash<auto> data() { return {"name": "界é", "enabled": False, "count": 42, "null": NOTHING, "empty": "", "items": ("first", {"k/v~": "nested"}), "a/b": {"~": True}, "": "empty key"}; }
+    types() {
+        NcursesUi::KeyValueWidget tree(data()); assertEq("", tree.getSelectedPath()); assertEq("Values", tree.getEntry("").label);
+        assertEq(False, tree.getEntry("/enabled").value); assertEq(42, tree.getEntry("/count").value); assertNothing(tree.getEntry("/null").value);
+        assertEq("", tree.getEntry("/empty").value); assertEq("empty key", tree.getEntry("/").value);
+        assertEq(True, tree.getEntry("/a~1b/~0").value); assertEq("nested", tree.getEntry("/items/1/k~1v~0").value);
+        assertEq(3, tree.getEntry("/items/1/k~1v~0").depth); assertTrue(tree.getEntry("/items").branch); assertFalse(tree.getEntry("/null").branch);
+        assertThrows("TREE-PATH-ERROR", sub () { tree.getEntry("missing"); });
+        NcursesUi::TreeWidget empty({}); assertEq(("",), empty.getVisiblePaths()); empty.setExpanded("", False); assertEq(("",), empty.getVisiblePaths());
+        empty.setData(()); assertTrue(empty.getEntry("").branch); empty.setData(NOTHING); assertFalse(empty.getEntry("").branch); assertNothing(empty.getEntry("").value);
+    }
+    navigation() {
+        NcursesUi::TreeWidget tree(data()); tree.setFrameValues(0, 0, 3, 20); tree.selectPath("/items/1/k~1v~0");
+        assertTrue(tree.isExpanded("/items")); assertTrue(tree.isExpanded("/items/1")); assertEq("/items/1/k~1v~0", tree.getSelectedPath());
+        tree.processEvent(key("KEY_LEFT")); assertEq("/items/1", tree.getSelectedPath()); tree.processEvent(key("KEY_LEFT")); assertFalse(tree.isExpanded("/items/1"));
+        tree.processEvent(key("KEY_RIGHT")); assertTrue(tree.isExpanded("/items/1")); tree.processEvent(key("KEY_RIGHT")); assertEq("/items/1/k~1v~0", tree.getSelectedPath());
+        tree.setFilter("NESTED"); assertEq(("", "/items", "/items/1", "/items/1/k~1v~0"), tree.getVisiblePaths());
+        tree.selectPath(""); tree.processEvent(key("KEY_RIGHT")); assertEq("/items", tree.getSelectedPath());
+        tree.selectPath("/items/1"); assertThrows("TREE-PATH-ERROR", sub () { tree.selectPath("/count"); });
+        tree.setFilter("missing query"); assertEq((), tree.getVisiblePaths()); assertNothing(tree.getSelectedPath()); tree.processEvent(key("KEY_DOWN")); assertNothing(tree.getSelectedPath());
+        tree.setFilter(""); tree.selectPath("/items/1/k~1v~0"); hash<auto> replacement = data(); replacement.items = ("first", {"new": 4});
+        tree.setData(replacement); assertEq("/items/1", tree.getSelectedPath()); assertTrue(tree.isExpanded("/items/1"));
+        tree.processEvent(key("KEY_END")); assertEq("/", tree.getSelectedPath()); tree.processEvent(key("KEY_HOME")); assertEq("", tree.getSelectedPath());
+        tree.processEvent(key("KEY_NPAGE")); assertTrue(tree.getSelectedPath() != ""); tree.processEvent(key("KEY_PPAGE")); assertEq("", tree.getSelectedPath());
+    }
+    limits() {
+        auto deep = "leaf"; for (int i = 0; i < 300; ++i) { deep = {"next": deep}; }
+        NcursesUi::TreeWidget tree(deep); tree.setFilter("leaf"); assertEq(301, tree.getVisiblePaths().size());
+        string path = strmul("/next", 300); tree.selectPath(path); assertEq("leaf", tree.getSelectedEntry().value);
+        tree.setLimits(100, 20); assertThrows("TREE-LIMIT-ERROR", sub () { tree.setData(deep); }); assertEq(path, tree.getSelectedPath());
+        assertThrows("TREE-LIMIT-ERROR", sub () { tree.setLimits(0, 1); }); assertThrows("TREE-LIMIT-ERROR", sub () { tree.setLimits(10, -1); });
+        list<int> values = (); for (int i = 0; i < 3000; ++i) { values += i; }
+        assertThrows("TREE-LIMIT-ERROR", sub () { tree.setData(values); }); tree.setLimits(4000, 2); tree.setFilter(""); tree.setData(values);
+        assertEq(3001, tree.getVisiblePaths().size()); int before = tree.getUpdateStats().rendered_rows; tree.selectPath("/2999");
+        assertTrue(tree.getUpdateStats().rendered_rows - before <= 2); before = tree.getUpdateStats().rendered_rows;
+        tree.processEvent(key("KEY_UP")); tree.processEvent(key("KEY_DOWN")); assertTrue(tree.getUpdateStats().rendered_rows - before <= 4); assertEq(2999, tree.getSelectedEntry().value);
+        tree.setFilter("2999"); assertEq(("", "/2999"), tree.getVisiblePaths());
+    }
+    callbacks() {
+        NcursesUi::TreeWidget tree(data()); tree.selectPath("/name"); string copied; string exported_path; auto exported;
+        tree.setOnCopy(sub (string text) { copied = text; }); tree.setOnExport(sub (string path, auto value) { exported_path = path; exported = value; });
+        assertTrue(tree.copySelection()); assertEq("界é", copied); tree.selectPath("/items"); assertTrue(tree.exportSelection()); assertEq("/items", exported_path); assertEq(data().items, exported);
+        tree.setOnCopy(sub (string text) { throw "COPY-ERROR", "unavailable"; }); assertThrows("COPY-ERROR", sub () { tree.copySelection(); }); assertEq("/items", tree.getSelectedPath());
+        tree.setOnExport(sub (string path, auto value) { throw "EXPORT-ERROR", "unavailable"; }); assertThrows("EXPORT-ERROR", sub () { tree.exportSelection(); });
+        tree.setOnActivate(sub (hash<NcursesUi::TreeEntry> entry) { throw "ACTIVATE-ERROR", "unavailable"; }); tree.selectPath("/count");
+        assertThrows("ACTIVATE-ERROR", sub () { tree.processEvent(key("KEY_ENTER")); }); assertEq(42, tree.getSelectedEntry().value);
+        tree.setOnSelect(sub (*hash<NcursesUi::TreeEntry> entry) { throw "SELECT-ERROR", "unavailable"; });
+        assertThrows("SELECT-ERROR", sub () { tree.selectPath("/name"); }); assertEq("/name", tree.getSelectedPath());
+        tree.setFilter("no match"); assertFalse(tree.copySelection()); assertFalse(tree.exportSelection());
+    }
+    display() {
+        NcursesUi::TestHarness th(6, 24); on_exit th.close(); NcursesUi::TreeWidget tree({"control": "a\nb\e[31m", "wide": "界é"});
+        tree.setFrameValues(1, 2, 3, 18); tree.drawTree(th.screen());
+        assertTrue(th.screen().readText(2, 2, 18).find("\\n") >= 0);
+        tree.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Mouse,
+            "mouse": <Ncurses::MouseEvent>{"y": 3, "x": 4, "button_state": Ncurses::BUTTON1_CLICKED}});
+        assertEq("/wide", tree.getSelectedPath()); tree.setFrameValues(1, 2, 1, 3); tree.drawTree(th.screen());
+        tree.setFrameValues(1, 2, 0, 0); tree.drawTree(th.screen()); assertFalse(tree.isDirty());
+        tree.setFrameValues(1, 2, 3, 18); tree.drawTree(th.screen()); assertEq("/wide", tree.getSelectedPath());
+        hash<Ncurses::InputEvent> click = <Ncurses::InputEvent>{"type": Ncurses::InputType::Mouse,
+            "mouse": <Ncurses::MouseEvent>{"y": 1, "x": 2, "button_state": Ncurses::BUTTON1_CLICKED}};
+        tree.processEvent(click); assertEq(("",), tree.getVisiblePaths()); tree.processEvent(click); assertEq(3, tree.getVisiblePaths().size());
+    }
+}

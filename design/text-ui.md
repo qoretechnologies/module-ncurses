@@ -96,3 +96,33 @@ Shutdown notifies and joins the worker before releasing pipe resources.
 Ordinary Enter CR is normalized to LF by native event decoding. Paste payloads and
 Alt input preserve literal CR, so enabling nonl() for paste does not change widget
 activation bindings.
+
+## Forms, choices and inspectors
+
+FormModel owns typed values independently of controls. Validation locks reentrant
+mutation; a submission snapshot includes its generation. Cancellation invalidates
+that generation, so delayed completion cannot replace a newer state. Control parse
+errors are separate from derived validation errors. FormWidget preserves invalid
+numeric drafts, observes external model changes and rebuilds schema controls only
+after constructing the replacement tree. Focus determines the form scroll offset.
+Password inputs render one mask cell per grapheme and disable history use.
+
+Described choices separate stable values from labels and distinguish custom text in
+a typed result. Descriptions wrap through the shared content provider. Successful
+submission is one-shot; validation/callback failures retain selection and custom text.
+
+Tree inspection indexes source data iteratively with bounded node/depth counts.
+Paths use JSON Pointer escaping. Filtering propagates matches to ancestors in one
+reverse pass, independent of expansion state. Visible path indexes make keyboard
+selection lookup constant time; only old/new selected rows are reformatted. Previews
+escape control characters, while export callbacks receive original typed values.
+
+Code views keep original source separately from normalized display text. Syntax
+callbacks must preserve plain display content, and complete segment styles restart
+at hard newlines. Replacement validates styling before changing the document. Full
+copy/export retain original bytes; visible selection follows normalized positions.
+
+Native ANSI parameter accumulation checks integer bounds before multiplication.
+Unsupported oversized parameters are ignored; subsequent valid parameters still
+apply. Segment and parameter scans check cancellation and callers propagate errors.
+Fallible parse/width methods use RET_VALUE_ONLY, and width accumulation uses 64 bits.

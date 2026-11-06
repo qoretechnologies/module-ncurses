@@ -72,4 +72,14 @@
     by regressions. Its capture worker uses explicit flush and
     shutdown acknowledgement, preserves blank lines and split UTF-8, and reports
     invalid output bytes without sending malformed strings to the renderer.
+
+    FormModel/FormWidget add typed metadata, field/form validation, inline errors,
+    draft-preserving submission, cancellation generations and first-error focus.
+    LabelWidget, ButtonWidget and DescribedChoiceWidget provide wrapped help, guarded
+    actions, stable described choices, defaults/disabled options and custom responses.
+    TextInputWidget supports password masking, safe paste and failed-submit rollback.
+    TreeWidget/KeyValueWidget provide bounded iterative typed inspection, stable paths,
+    filtering, expansion and copy/export callbacks. CodeViewWidget adds source-preserving
+    export and validated syntax styling. Oversized ANSI parameters no longer overflow
+    into unrelated styles; parsing and style scans support cooperative cancellation.
 */

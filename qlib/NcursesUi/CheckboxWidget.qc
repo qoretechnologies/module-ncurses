@@ -36,7 +36,7 @@ public class CheckboxWidget inherits NcursesUi::Widget {
         #! whether the checkbox is checked
         bool checked = False;
         #! callback fired on toggle
-        *code on_toggle;
+        *code<nothing(bool)> on_toggle;
     }
 
     /** Creates a new CheckboxWidget.
@@ -70,6 +70,7 @@ public class CheckboxWidget inherits NcursesUi::Widget {
         @since ncurses 1.0
     */
     nothing toggle() {
+        if (!isAvailable()) { return; }
         checked = !checked;
         markDirty();
         if (on_toggle) {
@@ -81,7 +82,7 @@ public class CheckboxWidget inherits NcursesUi::Widget {
         @param cb callback receiving the new checked state
         @since ncurses 1.0
     */
-    nothing setOnToggle(*code cb) {
+    nothing setOnToggle(*code<nothing(bool)> cb) {
         on_toggle = cb;
     }
 

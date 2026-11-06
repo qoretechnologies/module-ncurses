@@ -1,0 +1,247 @@
+#!/usr/bin/env qore
+# Copyright 2026 Qore Technologies, s.r.o.
+%modern
+%prepend-module-path "${SCRIPT_DIR}/../qlib"
+%requires ncurses
+%requires NcursesUi
+%requires QUnit
+%include "test/TestHarness.qc"
+%exec-class FormsTest
+class FormsTest inherits Test {
+    constructor() : Test("FormsTest", "1.0", \ARGV) {
+        addTestCase("typed defaults, required values and immutable metadata", \types());
+        addTestCase("validation and control errors clear independently", \validation());
+        addTestCase("submission guards drafts and ignores stale generations", \submission());
+        addTestCase("validation and submit failures preserve values", \failures());
+        addTestCase("text submission failures restore drafts and password geometry", \textInput());
+        addTestCase("buttons reject duplicate actions and labels wrap", \buttons());
+        addTestCase("described choices use stable identities and preserve custom drafts", \choices());
+        addTestCase("choice submission is one-shot and callback failures are retryable", \choiceFailures());
+        addTestCase("form controls validate typed drafts and focus errors on short screens", \formUi());
+        addTestCase("forms retain failed drafts and restore nested modal focus", \formModal());
+        addTestCase("model resets and schema changes update controls without losing invalid drafts", \formUpdates());
+        set_return_value(main());
+    }
+    textInput() {
+        NcursesUi::TestHarness th(8, 24); on_exit th.close();
+        NcursesUi::TextInputWidget input(); input.setFrameValues(1, 2, 1, 5); input.setText("é界👩‍💻Z"); input.getBuffer().setCursor(3);
+        input.setPassword(True); input.setFocused(True); input.drawTree(th.screen());
+        assertEq(4, th.screen().cursor().x); assertEq("**** ", th.screen().readText(1, 2, 5));
+        input.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Mouse,
+            "mouse": <Ncurses::MouseEvent>{"y": 1, "x": 5, "button_state": Ncurses::BUTTON1_CLICKED}});
+        assertEq(6, input.getCursorPos()); input.drawTree(th.screen()); assertEq(5, th.screen().cursor().x);
+        input.setOnSubmit(sub (string text) { input.setText("replacement"); throw "SUBMIT-ERROR", "unavailable"; });
+        assertThrows("SUBMIT-ERROR", sub () { input.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "\n"}); });
+        assertEq("é界👩‍💻Z", input.getText()); assertEq(6, input.getCursorPos());
+        input.setOnSubmit(sub (string text) { input.setText("next"); });
+        input.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "\n"}); assertEq("next", input.getText());
+        input.setClearOnSubmit(False); string submitted; input.setOnSubmit(sub (string text) { submitted = text; });
+        input.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "\n"}); assertEq("next", submitted); assertEq("next", input.getText());
+        input.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Paste, "ch": "\r\n界\t\x1b"}); assertEq("next 界    ", input.getText());
+        input.setOnSubmit(sub (string text) { input.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "\n"}); });
+        assertThrows("INPUT-BUSY-ERROR", sub () { input.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "\n"}); });
+        assertEq("next 界    ", input.getText()); input.setPassword(False); input.drawTree(th.screen());
+        assertFalse(input.isPassword());
+        NcursesUi::TextInputWidget moved(); moved.setFrameValues(0, 0, 1, 5); moved.setText("abcdefgh"); moved.setFocused(True);
+        Ncurses::Window narrow(th.session(), 1, 5, 0, 0); moved.draw(narrow); moved.translate(2, 8);
+        moved.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Mouse,
+            "mouse": <Ncurses::MouseEvent>{"y": 2, "x": 8, "button_state": Ncurses::BUTTON1_CLICKED}});
+        assertEq(4, moved.getCursorPos()); moved.drawTree(th.screen()); assertEq(8, th.screen().cursor().x);
+    }
+    buttons() {
+        NcursesUi::TestHarness th(8, 24); on_exit th.close();
+        NcursesUi::ButtonWidget button("Send", "submit"); button.setFrameValues(0, 0, 1, 10); int calls = 0;
+        button.setSingleUse(True); button.setOnActivate(sub (string id) { assertEq("submit", id); ++calls; assertFalse(button.activate()); });
+        button.setEnabled(False); assertFalse(button.activate()); assertEq(0, calls); button.setEnabled(True);
+        assertTrue(button.activate()); assertEq(1, calls); assertTrue(button.isCompleted()); assertFalse(button.activate());
+        button.reset(); button.setOnActivate(sub (string id) { throw "ACTION-ERROR", "offline"; });
+        assertThrows("ACTION-ERROR", sub () { button.activate(); }); assertFalse(button.isBusy()); assertFalse(button.isCompleted());
+        button.setOnActivate(sub (string id) { ++calls; }); button.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Key, "name": "KEY_ENTER"}); assertEq(2, calls);
+        NcursesUi::LabelWidget label("abcd界ef"); label.setFrameValues(2, 0, 3, 4); assertEq(2, label.getPreferredSizeForWidth(4).rows);
+        label.drawTree(th.screen()); assertEq("abcd", th.screen().readText(2, 0, 4)); assertEq("界ef", th.screen().readText(3, 0, 5)); assertFalse(label.isFocusable()); label.setText("one\n"); assertEq(2, label.getPreferredSizeForWidth(10).rows);
+    }
+    private hash<Ncurses::InputEvent> key(string name) { return <Ncurses::InputEvent>{"type": Ncurses::InputType::Key, "name": name}; }
+    private hash<Ncurses::InputEvent> ch(string text) { return <Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": text}; }
+    choices() {
+        NcursesUi::TestHarness th(6, 20); on_exit th.close();
+        list<hash<NcursesUi::ChoiceItem>> options = (<NcursesUi::ChoiceItem>{"value": "a", "label": "Same", "description": "a long description", "recommendation": "Recommended"},
+            <NcursesUi::ChoiceItem>{"value": "disabled", "label": "Off", "disabled": True}, <NcursesUi::ChoiceItem>{"value": "b", "label": "Same"});
+        NcursesUi::DescribedChoiceWidget choices(options); choices.setFrameValues(0, 0, 2, 10); assertNothing(choices.getSelection());
+        choices.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Mouse,
+            "mouse": <Ncurses::MouseEvent>{"y": 1, "x": 4, "button_state": Ncurses::BUTTON1_CLICKED}});
+        assertEq("a", choices.getSelection().value);
+        choices.processEvent(ch(" ")); assertEq("a", choices.getSelection().value); choices.processEvent(key("KEY_DOWN")); choices.processEvent(ch(" "));
+        assertEq("b", choices.getSelection().value); assertTrue(choices.getScrollY() > 0); choices.drawTree(th.screen());
+        assertThrows("CHOICE-VALUE-ERROR", sub () { choices.setValue("disabled"); }); assertEq("b", choices.getSelection().value);
+        options += options[0]; assertThrows("CHOICE-DEFINITION-ERROR", sub () { choices.setItems(options); }); assertEq(3, choices.getItems().size());
+        choices.setItems((<NcursesUi::ChoiceItem>{"value": "b", "label": "Renamed"},)); assertEq("b", choices.getSelection().value);
+        choices.setItems(()); assertNothing(choices.getSelection()); choices.processEvent(key("KEY_DOWN")); choices.drawTree(th.screen());
+        assertThrows("CHOICE-DEFINITION-ERROR", sub () { choices.setCustomAllowed(True, "bad\nlabel"); });
+        choices.setCustomAllowed(True); choices.setFocused(True); choices.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Paste, "ch": "界\r\nresponse"});
+        assertEq("界 response", choices.getSelection().value); assertTrue(choices.getSelection().is_custom); choices.drawTree(th.screen());
+        choices.setFrameValues(0, 0, 1, 3); choices.drawTree(th.screen()); assertTrue(th.screen().cursor().x < 3);
+        choices.setCustomAllowed(False); assertNothing(choices.getSelection()); assertEq("界 response", choices.getCustomText());
+        choices.setCustomAllowed(True); choices.processEvent(ch("\n")); assertEq("界 response", choices.getSelection().value);
+        choices.setItems((<NcursesUi::ChoiceItem>{"value": "d", "label": "Default", "default_value": True},)); assertTrue(choices.getSelection().is_custom);
+        choices.setValue(NOTHING); choices.setItems(choices.getItems()); assertEq("d", choices.getSelection().value);
+        int notifications = 0; *hash<NcursesUi::ChoiceSelection> observed;
+        choices.setOnChange(sub (*hash<NcursesUi::ChoiceSelection> value) { ++notifications; observed = value; });
+        choices.setValue(NOTHING); assertEq(1, notifications); assertNothing(observed);
+        choices.setValue(NOTHING); assertEq(1, notifications);
+        choices.setValue("d"); assertEq("d", observed.value);
+        choices.setItems(()); assertEq(3, notifications); assertNothing(observed);
+        choices.setCustomText("draft"); choices.setCustomAllowed(False); assertEq(5, notifications); assertNothing(observed);
+        assertThrows("CHOICE-SIZE-ERROR", sub () { choices.setAutoHeight(3, 1); });
+    }
+    choiceFailures() {
+        NcursesUi::DescribedChoiceWidget choices(); choices.setCustomAllowed(True); int count = 0;
+        choices.setOnSubmit(sub (hash<NcursesUi::ChoiceSelection> value) { ++count; }); assertFalse(choices.submit()); assertEq("Choose a response", choices.getError());
+        choices.setCustomText("   "); assertFalse(choices.submit()); assertEq("Enter a response", choices.getError()); assertEq(0, count);
+        choices.setCustomText("draft"); choices.setValidator(*string sub (hash<NcursesUi::ChoiceSelection> value) { return "Try again"; });
+        assertFalse(choices.submit()); assertEq("draft", choices.getCustomText()); assertEq(0, count);
+        choices.setValidator(*string sub (hash<NcursesUi::ChoiceSelection> value) { choices.setCustomText("changed"); return NOTHING; });
+        assertThrows("CHOICE-BUSY-ERROR", sub () { choices.submit(); }); assertEq("draft", choices.getCustomText());
+        choices.setValidator(NOTHING); choices.setOnSubmit(sub (hash<NcursesUi::ChoiceSelection> value) { throw "SUBMIT-ERROR", "offline"; });
+        assertThrows("SUBMIT-ERROR", sub () { choices.submit(); }); assertEq(NcursesUi::ActionState::Failed, choices.getState()); assertEq("draft", choices.getSelection().value);
+        choices.setOnSubmit(sub (hash<NcursesUi::ChoiceSelection> value) { assertFalse(choices.submit()); ++count; });
+        assertTrue(choices.submit()); assertEq(1, count); assertFalse(choices.submit()); assertEq(1, count);
+        choices.processEvent(ch("x")); assertEq("draft", choices.getCustomText());
+        assertThrows("CHOICE-BUSY-ERROR", sub () { choices.setValue(NOTHING); }); choices.resetSubmission(); choices.setCustomText("retry"); assertTrue(choices.submit()); assertEq(2, count);
+        NcursesUi::TestHarness th(8, 30); on_exit th.close(); NcursesUi::Application app(th.session()); NcursesUi::Widget root();
+        root.addChild(choices); NcursesUi::TextInputWidget after(); root.addChild(after); app.setRoot(root);
+        app.getFocusManager().setFocus(choices); app.getDispatcher().dispatch(root, ch("\t")); assertEq(after, app.getFocusManager().getCurrentFocus());
+        choices.setFrameValues(0, 0, 5, 30); choices.drawTree(th.screen()); assertTrue(th.screen().readText(1, 0, 30).find("Submitted") >= 0);
+    }
+    formUi() {
+        NcursesUi::TestHarness th(6, 24); on_exit th.close(); NcursesUi::Application app(th.session());
+        list<hash<NcursesUi::FormField>> definitions = fields();
+        definitions += <NcursesUi::FormField>{"name": "password", "label": "Password", "type": NcursesUi::FieldType::Password, "default_value": "secret"};
+        definitions += <NcursesUi::FormField>{"name": "body", "label": "Description", "type": NcursesUi::FieldType::Multiline, "help": "Describe the change"};
+        definitions += <NcursesUi::FormField>{"name": "ratio", "label": "Ratio", "type": NcursesUi::FieldType::Number};
+        NcursesUi::FormModel model(definitions); NcursesUi::FormWidget form(model); form.setFocusManager(app.getFocusManager());
+        hash<auto> submitted; form.setOnSubmit(auto sub (hash<auto> values) { submitted = values; return "done"; }); app.setRoot(form); app.drawAll();
+        assertFalse(form.submit()); assertEq(form.getControl("name"), app.getFocusManager().getCurrentFocus());
+        app.getDispatcher().dispatch(form, ch("界")); assertEq("界", model.getValue("name"));
+        app.getFocusManager().setFocus(form.getControl("count")); cast<NcursesUi::TextInputWidget>(form.getControl("count")).setText("999999999999999999999");
+        assertFalse(form.submit()); assertEq("count", model.firstInvalid()); assertEq(3, model.getValue("count"));
+        app.drawAll(); assertTrue(form.getControl("count").visibleRect().rows > 0);
+        cast<NcursesUi::TextInputWidget>(form.getControl("count")).setText("-9223372036854775808"); cast<NcursesUi::TextInputWidget>(form.getControl("ratio")).setText("1.25e2");
+        cast<NcursesUi::TextEditorWidget>(form.getControl("body")).setText("one\ntwo");
+        cast<NcursesUi::TextInputWidget>(form.getControl("ratio")).setText("1e99999999999999999999999999999");
+        assertFalse(form.submit()); assertEq("ratio", model.firstInvalid());
+        assertThrows("FORM-VALUE-ERROR", sub () { model.setValue("ratio", number("1e99999999999999999999999999999")); });
+        cast<NcursesUi::TextInputWidget>(form.getControl("ratio")).setText("1.25e2");
+        app.getFocusManager().setFocus(form.getControl("password")); app.drawAll();
+        assertTrue(form.getScrollY() > 0); hash<NcursesUi::Rect> password = form.getControl("password").getFrame(); assertEq("******", th.screen().readText(password.y, password.x, 6));
+        assertFalse(form.getControl("id").isEnabled());
+        assertTrue(form.submit()); assertEq(-9223372036854775807 - 1, submitted.count); assertEq(125n, submitted.ratio); assertEq("one\ntwo", submitted.body);
+        assertEq("secret", submitted.password); assertEq("done", model.getResult()); assertEq("界", cast<NcursesUi::TextInputWidget>(form.getControl("name")).getText());
+        assertFalse(form.submit()); assertFalse(form.getControl("name").isEnabled()); app.drawAll(); assertFalse(form.isDirty());
+        assertThrows("FORM-FIELD-ERROR", sub () { form.getControl("missing"); });
+    }
+    formModal() {
+        NcursesUi::TestHarness th(10, 30); on_exit th.close(); NcursesUi::Application app(th.session()); NcursesUi::TextInputWidget root(); app.setRoot(root);
+        app.getFocusManager().setFocus(root); NcursesUi::FormModel model(fields()); model.setValue("name", "draft");
+        NcursesUi::FormWidget form(model); form.setFrameValues(1, 2, 6, 20); form.setFocusManager(app.getFocusManager());
+        form.setOnSubmit(auto sub (hash<auto> values) { throw "FORM-SUBMIT-ERROR", "offline"; }); app.pushModal(form); app.drawAll();
+        assertThrows("FORM-SUBMIT-ERROR", sub () { form.submit(); }); assertEq("draft", cast<NcursesUi::TextInputWidget>(form.getControl("name")).getText()); assertEq("draft", model.getValue("name"));
+        app.getFocusManager().setFocus(form.getControl("count")); app.drawAll();
+        NcursesUi::DialogWidget nested(th.session(), "Help", "Details", ("OK",)); nested.setFrameValues(2, 3, 4, 15); nested.createPanel();
+        app.pushModal(nested); app.drawAll(); app.popModal(); nested.destroyPanel(); assertEq(form.getControl("count"), app.getFocusManager().getCurrentFocus());
+        form.setFrameValues(0, 0, 2, 8); app.drawAll(); assertTrue(form.getControl("count").visibleRect().rows > 0);
+        form.setOnSubmit(auto sub (hash<auto> values) { return values; }); assertTrue(form.submit());
+        app.popModal(); app.drawAll(); assertEq(root, app.getFocusManager().getCurrentFocus()); assertEq("draft", model.getValue("name"));
+    }
+    formUpdates() {
+        NcursesUi::TestHarness th(8, 30); on_exit th.close(); NcursesUi::Application app(th.session());
+        NcursesUi::FormModel model(fields()); model.setValue("name", "draft"); model.setValue("mode", "missing");
+        NcursesUi::FormWidget form(model); form.setFocusManager(app.getFocusManager()); form.setOnSubmit(auto sub (hash<auto> values) { return values; });
+        app.setRoot(form); app.drawAll(); assertNothing(cast<NcursesUi::DescribedChoiceWidget>(form.getControl("mode")).getSelection());
+        assertFalse(form.submit()); assertEq("missing", model.getValue("mode")); assertEq("mode", model.firstInvalid());
+        cast<NcursesUi::DescribedChoiceWidget>(form.getControl("mode")).setValue("slow"); assertEq("slow", model.getValue("mode"));
+        cast<NcursesUi::TextInputWidget>(form.getControl("count")).setText("bad"); assertFalse(form.submit()); assertEq("count", model.firstInvalid());
+        app.drawAll(); assertEq("bad", cast<NcursesUi::TextInputWidget>(form.getControl("count")).getText());
+        model.reset(True); app.drawAll(); assertEq("3", cast<NcursesUi::TextInputWidget>(form.getControl("count")).getText());
+        assertEq("", cast<NcursesUi::TextInputWidget>(form.getControl("name")).getText()); assertEq("fast", cast<NcursesUi::DescribedChoiceWidget>(form.getControl("mode")).getSelection().value);
+        model.setValue("name", "external"); model.setValue("count", 9); app.drawAll();
+        assertEq("external", cast<NcursesUi::TextInputWidget>(form.getControl("name")).getText()); assertEq("9", cast<NcursesUi::TextInputWidget>(form.getControl("count")).getText());
+        model.setValue("mode", "slow"); hash<NcursesUi::FormSubmission> async_request = model.beginSubmit(); app.drawAll();
+        assertEq("slow", cast<NcursesUi::DescribedChoiceWidget>(form.getControl("mode")).getSelection().value);
+        assertFalse(form.getControl("mode").isEnabled()); model.cancel(); assertFalse(model.complete(async_request.generation, "late"));
+        model.reset(); model.setValue("mode", "off"); app.drawAll(); assertFalse(form.submit()); assertEq("off", model.getValue("mode"));
+        model.setFields((<NcursesUi::FormField>{"name": "new", "label": "New", "default_value": "replacement"},));
+        assertEq("replacement", cast<NcursesUi::TextInputWidget>(form.getControl("new")).getText()); app.drawAll(); assertFalse(form.isDirty());
+        assertThrows("FORM-FIELD-ERROR", sub () { form.getControl("name"); });
+        int cancelled = 0; form.setOnCancel(sub () { ++cancelled; }); assertTrue(form.submit()); form.cancel(); assertEq(0, cancelled);
+        model.reset(); form.cancel(); assertEq(1, cancelled); assertEq("replacement", model.getValue("new"));
+        model.reset(); model.setValue("new", "before paint"); assertTrue(form.submit()); assertEq("before paint", model.getResult().new);
+        model.reset(); model.setFields((<NcursesUi::FormField>{"name": "replacement", "label": "Replacement", "default_value": "new schema"},));
+        assertTrue(form.submit()); assertEq("new schema", model.getResult().replacement);
+        model.reset(); model.setFields((<NcursesUi::FormField>{"name": "new", "label": "New", "default_value": "replacement"},));
+        list<hash<NcursesUi::FormField>> invalid = fields(); invalid[4].default_value = "off";
+        assertThrows("FORM-DEFINITION-ERROR", sub () { model.setFields(invalid); }); assertEq("replacement", model.getValue("new"));
+    }
+    private list<hash<NcursesUi::FormField>> fields() {
+        return (<NcursesUi::FormField>{"name": "name", "label": "Name", "required": True},
+            <NcursesUi::FormField>{"name": "count", "label": "Count", "type": NcursesUi::FieldType::Integer, "default_value": 3},
+            <NcursesUi::FormField>{"name": "enabled", "label": "Enabled", "type": NcursesUi::FieldType::Boolean, "required": True, "default_value": False},
+            <NcursesUi::FormField>{"name": "id", "label": "Identity", "read_only": True, "default_value": "stable"},
+            <NcursesUi::FormField>{"name": "mode", "label": "Mode", "type": NcursesUi::FieldType::Choice,
+                "choices": (<NcursesUi::ChoiceItem>{"value": "fast", "label": "Run", "default_value": True},
+                    <NcursesUi::ChoiceItem>{"value": "slow", "label": "Run"},
+                    <NcursesUi::ChoiceItem>{"value": "off", "label": "Unavailable", "disabled": True})});
+    }
+    types() {
+        NcursesUi::FormModel model(fields()); assertEq(3, model.getValue("count")); assertEq(False, model.getValue("enabled"));
+        assertEq("fast", model.getValue("mode")); assertFalse(model.validate()); assertEq("name", model.firstInvalid());
+        model.setValue("name", " \t "); assertFalse(model.validate()); model.setValue("name", "界"); assertTrue(model.validate()); assertNothing(model.firstInvalid());
+        assertThrows("FORM-VALUE-ERROR", sub () { model.setValue("count", "4"); }); assertEq(3, model.getValue("count"));
+        assertThrows("FORM-READONLY-ERROR", sub () { model.setValue("id", "changed"); }); assertEq("stable", model.getValue("id"));
+        assertThrows("FORM-FIELD-ERROR", sub () { model.getValue("missing"); });
+        hash<auto> before = model.getValues(); list<hash<NcursesUi::FormField>> duplicate = fields(); duplicate += duplicate[0];
+        assertThrows("FORM-DEFINITION-ERROR", sub () { model.setFields(duplicate); }); assertEq(before, model.getValues());
+        duplicate = fields(); duplicate[1].default_value = "bad";
+        assertThrows("FORM-DEFINITION-ERROR", sub () { model.setFields(duplicate); }); assertEq(before, model.getValues());
+        model.setValue("mode", "off"); assertFalse(model.validate()); assertEq("mode", model.firstInvalid());
+        model.setValue("mode", "slow"); assertTrue(model.validate());
+    }
+    validation() {
+        NcursesUi::FormModel model(fields()); model.setValue("name", "valid"); bool reject = True;
+        model.setValidator(hash<string,string> sub (hash<auto> values) { return reject ? {"": "Not available", "name": "Try later"} : {}; });
+        assertFalse(model.validate()); assertEq("name", model.firstInvalid()); reject = False; assertTrue(model.validate()); assertEq({}, model.getErrors());
+        model.setValidator(hash<string,string> sub (hash<auto> values) { throw "STALE-VALIDATION", "must not validate an unparsed draft"; });
+        model.setFieldError("count", "Enter an integer"); assertFalse(model.validate()); assertEq("count", model.firstInvalid());
+        model.setValidator(NOTHING); model.setValue("count", 42); assertTrue(model.validate()); assertEq(42, model.getValue("count"));
+        model.setValidator(hash<string,string> sub (hash<auto> values) { return {"unknown": "Bad"}; });
+        assertThrows("FORM-VALIDATOR-ERROR", sub () { model.validate(); }); assertEq(42, model.getValue("count"));
+        model.setValidator(NOTHING); assertTrue(model.validate()); model.setFieldError("count", "Bad"); model.setFieldError("count", NOTHING); assertTrue(model.validate());
+    }
+    submission() {
+        NcursesUi::FormModel model(fields()); assertNothing(model.beginSubmit()); model.setValue("name", "draft");
+        hash<NcursesUi::FormSubmission> first = model.beginSubmit(); assertEq("draft", first.values.name);
+        assertEq(NcursesUi::ActionState::Running, model.getState());
+        assertThrows("FORM-BUSY-ERROR", sub () { model.setValue("name", "changed"); });
+        assertThrows("FORM-BUSY-ERROR", sub () { model.beginSubmit(); });
+        model.cancel(); assertEq(NcursesUi::ActionState::Cancelled, model.getState()); assertFalse(model.complete(first.generation, "old"));
+        model.reset(); hash<NcursesUi::FormSubmission> next = model.beginSubmit(); assertFalse(model.fail(first.generation, "old error"));
+        assertTrue(model.complete(next.generation, "receipt")); assertEq("receipt", model.getResult());
+        assertFalse(model.complete(next.generation, "duplicate")); model.cancel(); assertEq(NcursesUi::ActionState::Completed, model.getState());
+        assertThrows("FORM-BUSY-ERROR", sub () { model.beginSubmit(); }); model.reset(); assertEq("draft", model.getValue("name"));
+        model.reset(True); assertNothing(model.getValue("name"));
+        model.setValue("name", "again"); assertFalse(model.submit(auto sub (hash<auto> values) { model.cancel(); return "late"; }));
+        assertEq(NcursesUi::ActionState::Cancelled, model.getState());
+    }
+    failures() {
+        list<hash<NcursesUi::FormField>> definitions = fields();
+        definitions[0].validate = *string sub (auto value) { throw "VALIDATION-FAILED", "validator offline"; };
+        NcursesUi::FormModel model(definitions); model.setValue("name", "draft"); hash<auto> before = model.getValues();
+        assertThrows("VALIDATION-FAILED", sub () { model.validate(); }); assertEq(before, model.getValues());
+        model.setFields(fields()); model.setValue("name", "draft");
+        model.setValidator(hash<string,string> sub (hash<auto> values) { model.setValue("name", "reentrant"); return {}; });
+        assertThrows("FORM-BUSY-ERROR", sub () { model.validate(); }); assertEq("draft", model.getValue("name"));
+        model.setValidator(NOTHING);
+        assertThrows("SUBMIT-FAILED", sub () { model.submit(auto sub (hash<auto> values) { throw "SUBMIT-FAILED", "offline"; }); });
+        assertEq(NcursesUi::ActionState::Failed, model.getState()); assertEq("offline", model.getFailure()); assertEq("draft", model.getValue("name"));
+        assertTrue(model.submit(auto sub (hash<auto> values) { return values.count + 1; })); assertEq(4, model.getResult());
+    }
+}
