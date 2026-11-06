@@ -351,7 +351,8 @@ public class DropdownMenuWidget inherits NcursesUi::PanelWidget {
             return <NcursesUi::EventResult>{"handled": True};
         } else if (ev.type == Ncurses::InputType::Mouse) {
             int bs = ev.mouse.button_state;
-            if (bs & Ncurses::BUTTON1_CLICKED || bs & Ncurses::BUTTON1_PRESSED) {
+            if (bs & (Ncurses::BUTTON1_CLICKED | Ncurses::BUTTON1_PRESSED
+                    | Ncurses::BUTTON1_DOUBLE_CLICKED | Ncurses::BUTTON1_TRIPLE_CLICKED)) {
                 # check if click is inside the dropdown bounds
                 hash<NcursesUi::Rect> f = getFrame();
                 if (!NcursesUi::Geometry::rectContains(f, ev.mouse.y, ev.mouse.x)) {

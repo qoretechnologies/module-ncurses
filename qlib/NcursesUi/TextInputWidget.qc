@@ -41,11 +41,13 @@ public class TextInputWidget inherits NcursesUi::Widget {
         #! the prompt string
         string prompt = "";
         #! callback on submit (Enter)
-        *code on_submit;
+        *code<nothing(string)> on_submit;
         #! callback on text change
-        *code on_change;
+        *code<nothing(string)> on_change;
         #! horizontal scroll offset for long input
         int scroll_x = 0;
+        *Ncurses::Window cursor_window;
+        int cursor_request = 0;
     }
 
     /** Creates a new TextInputWidget.
@@ -115,7 +117,7 @@ public class TextInputWidget inherits NcursesUi::Widget {
         @param cb callback receiving the submitted text
         @since ncurses 1.0
     */
-    nothing setOnSubmit(*code cb) {
+    nothing setOnSubmit(*code<nothing(string)> cb) {
         on_submit = cb;
     }
 
@@ -123,7 +125,7 @@ public class TextInputWidget inherits NcursesUi::Widget {
         @param cb callback receiving the current text
         @since ncurses 1.0
     */
-    nothing setOnChange(*code cb) {
+    nothing setOnChange(*code<nothing(string)> cb) {
         on_change = cb;
     }
 
@@ -134,188 +136,133 @@ public class TextInputWidget inherits NcursesUi::Widget {
         return buffer.getCursor();
     }
 
-    /** Draws the text input.
+    destructor() {
+        releaseCursor();
+    }
+
+    /** Returns True because this widget edits text with a terminal caret.
+        @return True
+        @since ncurses 1.0
+    */
+    bool wantsCursor() {
+        return True;
+    }
+
+    /** Releases this input's cursor request when focus leaves it.
+        @since ncurses 1.0
+    */
+    nothing onFocusOut() {
+        releaseCursor();
+    }
+
+    /** Draws the input, clipping to its rectangle and the target window.
         @param w the window
         @since ncurses 1.0
     */
     nothing draw(Ncurses::Window w) {
+        releaseCursor();
         hash<NcursesUi::Rect> cr = contentRect();
-        int row = cr.y;
-        int width = cr.cols;
-
-        # prompt + text
-        string full = prompt + buffer.getText();
-        int cursor_screen = TerminalText::displayWidth(
-            prompt + buffer.getText().substr(0, buffer.getCursor()));
-
-        # adjust scroll_x so cursor is visible
-        if (cursor_screen < scroll_x) {
-            scroll_x = cursor_screen;
-        } else if (cursor_screen >= scroll_x + width) {
-            scroll_x = cursor_screen - width + 1;
+        hash<Ncurses::Size> size = w.size();
+        if (cr.rows <= 0 || cr.cols <= 0 || cr.y < 0 || cr.y >= size.rows) {
+            return;
         }
-
-        # Extract a display-column window; scroll_x is a column offset, not a
-        # character index.
-        string visible = TerminalText::columnSlice(full, scroll_x, width);
-
-        hash<auto> style;
-        if (hasFocus()) {
-            style = {"attrs": Ncurses::Attr::Bold};
+        int left = max(0, cr.x);
+        int width = max(0, min(cr.x + cr.cols, size.cols) - left);
+        if (!width) {
+            return;
         }
-        w.drawText(row, cr.x, visible, style);
-
-        # position cursor
-        if (hasFocus()) {
-            int cx = cr.x + cursor_screen - scroll_x;
-            if (cx >= cr.x && cx < cr.x + width) {
-                w.moveCursor(row, cx);
-            }
+        int cursor_col = cursorColumn();
+        updateScroll(cr.cols);
+        string visible = TerminalText::columnSlice(prompt + buffer.getText(), scroll_x + left - cr.x, width);
+        w.drawText(cr.y, left, visible, hasFocus() ? {"attrs": Ncurses::Attr::Bold} : {});
+        int x = cr.x + cursor_col - scroll_x;
+        if (hasFocus() && x >= left && x < left + width) {
+            cursor_request = w.claimCursor(cr.y, x);
+            cursor_window = w;
         }
     }
 
-    /** Handles input events.
+    /** Handles text editing, history, submission, and mouse caret placement.
         @param ev the input event
-        @return EventResult
+        @return whether the event was handled, with action "submit" on Enter
         @since ncurses 1.0
     */
     hash<NcursesUi::EventResult> processEvent(hash<Ncurses::InputEvent> ev) {
-        if (ev.type == Ncurses::InputType::Key) {
-            return processKeyEvent(ev);
-        } else if (ev.type == Ncurses::InputType::Char) {
-            return processCharEvent(ev);
-        }
-        return <NcursesUi::EventResult>{"handled": False};
-    }
-
-    private hash<NcursesUi::EventResult> processKeyEvent(hash<Ncurses::InputEvent> ev) {
-        string name = ev.name ?? "";
-
-        if (name == "KEY_LEFT") {
-            buffer.moveLeft();
-            markDirty();
-            return <NcursesUi::EventResult>{"handled": True};
-        } else if (name == "KEY_RIGHT") {
-            buffer.moveRight();
-            markDirty();
-            return <NcursesUi::EventResult>{"handled": True};
-        } else if (name == "KEY_HOME") {
-            buffer.moveHome();
-            markDirty();
-            return <NcursesUi::EventResult>{"handled": True};
-        } else if (name == "KEY_END") {
-            buffer.moveEnd();
-            markDirty();
-            return <NcursesUi::EventResult>{"handled": True};
-        } else if (name == "KEY_BACKSPACE") {
-            buffer.backspace();
-            markDirty();
-            notifyChange();
-            return <NcursesUi::EventResult>{"handled": True};
-        } else if (name == "KEY_DC") {
-            buffer.deleteChar();
-            markDirty();
-            notifyChange();
-            return <NcursesUi::EventResult>{"handled": True};
-        } else if (name == "KEY_UP") {
-            if (history) {
-                *string prev = history.prev();
-                if (exists prev) {
-                    buffer.setText(prev);
-                    markDirty();
-                }
+        if (ev.type == Ncurses::InputType::Mouse) {
+            hash<NcursesUi::Rect> cr = contentRect();
+            if (ev.mouse && ev.mouse.y == cr.y && hitTest(ev.mouse.y, ev.mouse.x)
+                    && (ev.mouse.button_state & (Ncurses::BUTTON1_CLICKED | Ncurses::BUTTON1_PRESSED
+                        | Ncurses::BUTTON1_DOUBLE_CLICKED | Ncurses::BUTTON1_TRIPLE_CLICKED))) {
+                updateScroll(cr.cols);
+                int col = scroll_x + ev.mouse.x - cr.x - TerminalText::displayWidth(prompt);
+                buffer.setCursor(NcursesReplUi::TextPosition::offsetForColumn(buffer.getText(), col));
+                markDirty();
+                return <NcursesUi::EventResult>{"handled": True};
             }
-            return <NcursesUi::EventResult>{"handled": True};
-        } else if (name == "KEY_DOWN") {
-            if (history) {
-                *string nxt = history.next();
-                if (exists nxt) {
-                    buffer.setText(nxt);
-                    markDirty();
-                }
-            }
-            return <NcursesUi::EventResult>{"handled": True};
-        }
-        return <NcursesUi::EventResult>{"handled": False};
-    }
-
-    private hash<NcursesUi::EventResult> processCharEvent(hash<Ncurses::InputEvent> ev) {
-        string ch = ev.ch ?? "";
-        if (ch == "") {
             return <NcursesUi::EventResult>{"handled": False};
         }
-        int code = ord(ch);
-
-        if (code == 0x0a) {
-            # submit
-            string text = buffer.getText();
+        string before = buffer.getText();
+        if ((ev.type == Ncurses::InputType::Char && (ev.ch == "\n" || ev.ch == "\r"))
+                || (ev.type == Ncurses::InputType::Key && ev.name == "KEY_ENTER")) {
             if (history) {
-                history.add(text);
+                history.add(before);
             }
             buffer.reset();
+            scroll_x = 0;
             markDirty();
+            if (before != "") {
+                notifyChange();
+            }
             if (on_submit) {
-                on_submit(text);
+                on_submit(before);
             }
             return <NcursesUi::EventResult>{"handled": True, "action": "submit"};
-        } else if (code == 0x01) {
-            # Ctrl+A - home
-            buffer.moveHome();
-            markDirty();
-            return <NcursesUi::EventResult>{"handled": True};
-        } else if (code == 0x05) {
-            # Ctrl+E - end
-            buffer.moveEnd();
-            markDirty();
-            return <NcursesUi::EventResult>{"handled": True};
-        } else if (code == 0x0b) {
-            # Ctrl+K - kill to end
-            buffer.killToEnd();
-            markDirty();
-            notifyChange();
-            return <NcursesUi::EventResult>{"handled": True};
-        } else if (code == 0x15) {
-            # Ctrl+U - kill to start
-            buffer.killToStart();
-            markDirty();
-            notifyChange();
-            return <NcursesUi::EventResult>{"handled": True};
-        } else if (code == 0x17) {
-            # Ctrl+W - delete word back
-            buffer.deleteWordBack();
-            markDirty();
-            notifyChange();
-            return <NcursesUi::EventResult>{"handled": True};
-        } else if (code == 0x02) {
-            # Ctrl+B - left
-            buffer.moveLeft();
-            markDirty();
-            return <NcursesUi::EventResult>{"handled": True};
-        } else if (code == 0x06) {
-            # Ctrl+F - right
-            buffer.moveRight();
-            markDirty();
-            return <NcursesUi::EventResult>{"handled": True};
-        } else if (code == 0x04) {
-            # Ctrl+D - delete char
-            buffer.deleteChar();
-            markDirty();
-            notifyChange();
-            return <NcursesUi::EventResult>{"handled": True};
-        } else if (code == 0x7f || code == 0x08) {
-            # Backspace
-            buffer.backspace();
-            markDirty();
-            notifyChange();
-            return <NcursesUi::EventResult>{"handled": True};
-        } else if (code >= 32) {
-            # printable character
-            buffer.insertChar(ch);
-            markDirty();
-            notifyChange();
-            return <NcursesUi::EventResult>{"handled": True};
         }
-        return <NcursesUi::EventResult>{"handled": False};
+        bool handled;
+        if (ev.type == Ncurses::InputType::Key && (ev.name == "KEY_UP" || ev.name == "KEY_DOWN")) {
+            if (history) {
+                *string entry = ev.name == "KEY_UP" ? history.prev() : history.next();
+                if (exists entry) {
+                    buffer.setText(entry);
+                }
+            }
+            handled = True;
+        } else {
+            handled = buffer.processEvent(ev);
+        }
+        if (handled) {
+            markDirty();
+            if (buffer.getText() != before) {
+                notifyChange();
+            }
+        }
+        return <NcursesUi::EventResult>{"handled": handled};
+    }
+
+    private int cursorColumn() {
+        return TerminalText::displayWidth(prompt)
+            + NcursesReplUi::TextPosition::columnForOffset(buffer.getText(), buffer.getCursor());
+    }
+
+    private nothing updateScroll(int width) {
+        int col = cursorColumn();
+        if (width <= 0) {
+            scroll_x = 0;
+            return;
+        }
+        int last = max(0, TerminalText::displayWidth(prompt + buffer.getText()) - width + 1);
+        scroll_x = max(0, min(scroll_x, min(col, last)));
+        if (col >= scroll_x + width) {
+            scroll_x = col - width + 1;
+        }
+    }
+
+    private nothing releaseCursor() {
+        if (cursor_window && cursor_request) {
+            cursor_window.releaseCursor(cursor_request);
+        }
+        cursor_window = NOTHING;
+        cursor_request = 0;
     }
 
     private nothing notifyChange() {

@@ -26,7 +26,9 @@ public namespace NcursesUi {
 
     Combines a text input field with a filterable dropdown list.
     Type to filter options, use Up/Down to navigate the dropdown,
-    Enter to select.
+    Enter to select. Drawing establishes the target window's available extent;
+    dropdown scrolling and mouse hit-testing use that same clipped geometry.
+    Before the first draw, the widget frame supplies the available extent.
 
     @since ncurses 1.0
 */
@@ -37,9 +39,12 @@ public class ComboBoxWidget inherits NcursesUi::Widget {
         #! filtered options
         list<string> filtered_options = ();
         #! current text input
-        string text = "";
-        #! cursor position
-        int cursor = 0;
+        NcursesReplUi::InputBuffer buffer();
+        int scroll_x = 0;
+        *Ncurses::Window cursor_window;
+        int cursor_request = 0;
+        #! most recently painted window extent, shared by drawing and hit testing
+        *hash<Ncurses::Size> draw_size;
         #! whether dropdown is open
         bool dropdown_open = False;
         #! highlighted option in dropdown
@@ -49,9 +54,9 @@ public class ComboBoxWidget inherits NcursesUi::Widget {
         #! max visible dropdown items
         int max_dropdown_items = 8;
         #! callback on selection
-        *code on_select;
+        *code<nothing(string)> on_select;
         #! callback on text change
-        *code on_change;
+        *code<nothing(string)> on_change;
         #! input style
         hash<auto> input_style;
         #! highlight style
@@ -89,7 +94,7 @@ public class ComboBoxWidget inherits NcursesUi::Widget {
         @since ncurses 1.0
     */
     string getText() {
-        return text;
+        return buffer.getText();
     }
 
     /** Sets the text.
@@ -97,8 +102,7 @@ public class ComboBoxWidget inherits NcursesUi::Widget {
         @since ncurses 1.0
     */
     nothing setText(string t) {
-        text = t;
-        cursor = text.length();
+        buffer.setText(t);
         updateFilter();
         markDirty();
     }
@@ -128,7 +132,7 @@ public class ComboBoxWidget inherits NcursesUi::Widget {
         @param cb callback(string selected_text)
         @since ncurses 1.0
     */
-    nothing setOnSelect(*code cb) {
+    nothing setOnSelect(*code<nothing(string)> cb) {
         on_select = cb;
     }
 
@@ -136,8 +140,36 @@ public class ComboBoxWidget inherits NcursesUi::Widget {
         @param cb callback(string text)
         @since ncurses 1.0
     */
-    nothing setOnChange(*code cb) {
+    nothing setOnChange(*code<nothing(string)> cb) {
         on_change = cb;
+    }
+
+    /** Returns the cursor as a Qore character offset at a grapheme boundary.
+        @return character offset in the current text
+        @since ncurses 1.0
+    */
+    int getCursorPos() {
+        return buffer.getCursor();
+    }
+
+    /** Returns True because the combo box includes a text editor.
+        @return True
+        @since ncurses 1.0
+    */
+    bool wantsCursor() {
+        return True;
+    }
+
+    destructor() {
+        releaseCursor();
+    }
+
+    /** Releases the cursor and closes the dropdown on focus loss.
+        @since ncurses 1.0
+    */
+    nothing onFocusOut() {
+        releaseCursor();
+        closeDropdown();
     }
 
     /** Draws the combo box.
@@ -145,20 +177,35 @@ public class ComboBoxWidget inherits NcursesUi::Widget {
         @since ncurses 1.0
     */
     nothing draw(Ncurses::Window w) {
-        hash<NcursesUi::Rect> cr = contentRect();
-
-        # draw input line
-        string display = text;
-        string padded = TerminalText::fitRight(display, max(0, cr.cols - 2));
+        releaseCursor();
+        draw_size = w.size();
+        hash<NcursesUi::Rect> cr = drawableRect();
+        if (cr.rows <= 0 || cr.cols <= 0) {
+            return;
+        }
+        int cols = cr.cols;
+        int width = max(0, cols - 2);
+        updateScroll(width);
+        string padded = TerminalText::columnSlice(buffer.getText(), scroll_x, width);
         string arrow = dropdown_open ? "^" : "v";
-        string input_text = padded + " " + arrow;
+        string input_text = cols == 1 ? arrow : padded + " " + arrow;
 
         hash<auto> style;
         if (hasFocus()) {
             style = {"attrs": Ncurses::Attr::Bold};
         }
-        w.drawHLine(cr.y, cr.x, cr.cols, " ");
+        w.drawHLine(cr.y, cr.x, cols, " ");
         w.drawText(cr.y, cr.x, input_text, style);
+        if (hasFocus() && width > 0) {
+            int col = NcursesReplUi::TextPosition::columnForOffset(buffer.getText(), buffer.getCursor());
+            cursor_request = w.claimCursor(cr.y, cr.x + col - scroll_x);
+            cursor_window = w;
+        }
+        # Clear rows occupied by a previous dropdown, including an empty filter.
+        for (int row = cr.y + 1; row < cr.y + cr.rows; ++row) {
+            w.drawHLine(row, cr.x, cols, " ");
+        }
+        ensureDropdownVisible();
 
         # draw dropdown if open
         if (dropdown_open && filtered_options.size() > 0) {
@@ -174,7 +221,7 @@ public class ComboBoxWidget inherits NcursesUi::Widget {
 
                 if (idx >= 0 && idx < filtered_options.size()) {
                     string opt_text = TerminalText::fitRight(
-                        filtered_options[idx], cr.cols);
+                        filtered_options[idx], cols);
 
                     hash<auto> opt_style = (idx == highlight_index) ? highlight_style : {};
                     w.drawText(row, cr.x, opt_text, opt_style);
@@ -191,7 +238,9 @@ public class ComboBoxWidget inherits NcursesUi::Widget {
     hash<NcursesUi::EventResult> processEvent(hash<Ncurses::InputEvent> ev) {
         if (ev.type == Ncurses::InputType::Key) {
             string name = ev.name ?? "";
-            if (name == "KEY_UP" && dropdown_open) {
+            if (name == "KEY_ENTER") {
+                return activateSelection();
+            } else if (name == "KEY_UP" && dropdown_open) {
                 if (highlight_index > 0) {
                     highlight_index -= 1;
                     ensureDropdownVisible();
@@ -207,43 +256,63 @@ public class ComboBoxWidget inherits NcursesUi::Widget {
                     markDirty();
                 }
                 return <NcursesUi::EventResult>{"handled": True};
-            } else if (name == "KEY_BACKSPACE") {
-                if (cursor > 0) {
-                    text = text.substr(0, cursor - 1) + text.substr(cursor);
-                    cursor -= 1;
-                    updateFilter();
-                    markDirty();
-                    notifyChange();
-                }
-                return <NcursesUi::EventResult>{"handled": True};
             }
         } else if (ev.type == Ncurses::InputType::Char) {
             string ch = ev.ch ?? "";
             int code = ord(ch);
-            if (code == 0x0a) {
-                if (dropdown_open && highlight_index >= 0
-                        && highlight_index < filtered_options.size()) {
-                    selectOption(filtered_options[highlight_index]);
-                } else {
-                    closeDropdown();
-                }
-                return <NcursesUi::EventResult>{"handled": True, "action": "select"};
+            if (code == 0x0a || code == 0x0d) {
+                return activateSelection();
             } else if (code == 0x1b) {
                 if (dropdown_open) {
                     closeDropdown();
                     return <NcursesUi::EventResult>{"handled": True};
                 }
-            } else if (code >= 32) {
-                text = text.substr(0, cursor) + ch + text.substr(cursor);
-                cursor += ch.length();
-                updateFilter();
-                openDropdown();
-                markDirty();
-                notifyChange();
+            }
+        } else if (ev.type == Ncurses::InputType::Mouse && ev.mouse) {
+            hash<NcursesUi::Rect> cr = drawableRect();
+            if (ev.mouse.y == cr.y && isVisible()
+                    && NcursesUi::Geometry::rectContains(cr, ev.mouse.y, ev.mouse.x)
+                    && (ev.mouse.button_state & (Ncurses::BUTTON1_CLICKED | Ncurses::BUTTON1_PRESSED
+                        | Ncurses::BUTTON1_DOUBLE_CLICKED | Ncurses::BUTTON1_TRIPLE_CLICKED))) {
+                if (ev.mouse.x >= cr.x + max(0, cr.cols - 2)) {
+                    if (dropdown_open) {
+                        closeDropdown();
+                    } else {
+                        openDropdown();
+                    }
+                } else {
+                    updateScroll(max(0, cr.cols - 2));
+                    buffer.setCursor(NcursesReplUi::TextPosition::offsetForColumn(
+                        buffer.getText(), scroll_x + ev.mouse.x - cr.x));
+                    markDirty();
+                }
                 return <NcursesUi::EventResult>{"handled": True};
             }
         }
+        string before = buffer.getText();
+        if (buffer.processEvent(ev)) {
+            if (buffer.getText() != before) {
+                updateFilter();
+                if (ev.type == Ncurses::InputType::Char && ord(ev.ch ?? "") >= 32) {
+                    openDropdown();
+                }
+                markDirty();
+                notifyChange();
+            } else {
+                markDirty();
+            }
+            return <NcursesUi::EventResult>{"handled": True};
+        }
         return <NcursesUi::EventResult>{"handled": False};
+    }
+
+    private hash<NcursesUi::EventResult> activateSelection() {
+        if (dropdown_open && highlight_index >= 0 && highlight_index < filtered_options.size()) {
+            selectOption(filtered_options[highlight_index]);
+        } else {
+            closeDropdown();
+        }
+        return <NcursesUi::EventResult>{"handled": True, "action": "select"};
     }
 
     private nothing openDropdown() {
@@ -262,8 +331,7 @@ public class ComboBoxWidget inherits NcursesUi::Widget {
     }
 
     private nothing selectOption(string opt) {
-        text = opt;
-        cursor = text.length();
+        buffer.setText(opt);
         closeDropdown();
         markDirty();
         if (on_select) {
@@ -272,6 +340,7 @@ public class ComboBoxWidget inherits NcursesUi::Widget {
     }
 
     private nothing updateFilter() {
+        string text = buffer.getText();
         if (text == "") {
             filtered_options = all_options;
         } else {
@@ -289,8 +358,27 @@ public class ComboBoxWidget inherits NcursesUi::Widget {
         dropdown_scroll = 0;
     }
 
+    private hash<NcursesUi::Rect> drawableRect() {
+        hash<NcursesUi::Rect> rect = contentRect();
+        rect.rows = max(0, rect.rows);
+        rect.cols = max(0, rect.cols);
+        if (rect.y < 0 || rect.x < 0) {
+            rect.rows = 0;
+            rect.cols = 0;
+        } else if (draw_size) {
+            rect.rows = max(0, min(rect.rows, draw_size.rows - rect.y));
+            rect.cols = max(0, min(rect.cols, draw_size.cols - rect.x));
+        }
+        return rect;
+    }
+
     private nothing ensureDropdownVisible() {
-        int visible = min(filtered_options.size(), max_dropdown_items);
+        int visible = min(filtered_options.size(), min(max_dropdown_items, max(0, drawableRect().rows - 1)));
+        if (!visible || highlight_index < 0) {
+            dropdown_scroll = 0;
+            return;
+        }
+        dropdown_scroll = min(dropdown_scroll, max(0, filtered_options.size() - visible));
         if (highlight_index < dropdown_scroll) {
             dropdown_scroll = highlight_index;
         } else if (highlight_index >= dropdown_scroll + visible) {
@@ -298,9 +386,30 @@ public class ComboBoxWidget inherits NcursesUi::Widget {
         }
     }
 
+    private nothing updateScroll(int width) {
+        int col = NcursesReplUi::TextPosition::columnForOffset(buffer.getText(), buffer.getCursor());
+        if (width <= 0) {
+            scroll_x = 0;
+            return;
+        }
+        int last = max(0, TerminalText::displayWidth(buffer.getText()) - width + 1);
+        scroll_x = max(0, min(scroll_x, min(col, last)));
+        if (col >= scroll_x + width) {
+            scroll_x = col - width + 1;
+        }
+    }
+
+    private nothing releaseCursor() {
+        if (cursor_window && cursor_request) {
+            cursor_window.releaseCursor(cursor_request);
+        }
+        cursor_window = NOTHING;
+        cursor_request = 0;
+    }
+
     private nothing notifyChange() {
         if (on_change) {
-            on_change(text);
+            on_change(buffer.getText());
         }
     }
 }

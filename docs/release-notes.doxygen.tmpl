@@ -10,4 +10,20 @@
     and clips styled Unicode text at widget boundaries. Cursor requests can be
     released without disturbing a newer request from another widget. Develop
     pipelines reuse successful platform tests for identical Git trees.
+
+    Focus routing reaches nested controls, modal scopes preserve Tab traversal
+    and restore eligible prior focus, and explicit popups support outside-click
+    dismissal. Text inputs and combo boxes share grapheme-safe editing and mouse
+    caret mapping. Cursor indices remain character offsets; partial replacement
+    ranges expand to whole graphemes. Session::setCursor() now returns the prior
+    visibility so modal transitions can restore it exactly. Composite file-browser
+    pane navigation stays synchronized with managed focus, and combo-box mouse
+    placement and dropdown scrolling share the clipped drawing geometry.
+    Composite mouse delegation preserves panel-local coordinate conversion and
+    preview navigation. Focus callbacks share a thread-local transition guard,
+    including cleanup triggered by hiding, disabling, and detaching widgets.
+    Modal initialization rolls back if a focus callback makes its root
+    unavailable, and file-browser keyboard delegation excludes unavailable panes.
+    Outside primary clicks, including double and triple clicks, close menu panels
+    and release menu state before forwarding the event to the underlying control.
 */

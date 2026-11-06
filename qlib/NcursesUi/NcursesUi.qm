@@ -97,21 +97,45 @@ module NcursesUi {
     or @ref NcursesUi::SplitLayout::setFixedSize() "SplitLayout::setFixedSize()".
     For a complete list/status layout example, see @ref ncurses_ui_app "List and Status Application".
 
+    Widget trees, input buffers, and focus managers belong to the application's
+    UI thread. Update them from that thread and its callbacks; do not mutate
+    the same UI state concurrently from worker threads. Binary terminal calls
+    retain the ncurses session's locking discipline.
+
     @subsection ncursesui_focus Focus Management
 
     @ref NcursesUi::FocusManager "FocusManager" traverses the widget tree to
     move focus between widgets. Widgets declare whether they accept focus via
     @ref NcursesUi::Widget::setFocusable() "setFocusable()". Tab / Shift+Tab cycle through focusable widgets using
-    the @ref NcursesUi::FocusDirection "FocusDirection" enum.
+    the @ref NcursesUi::FocusDirection "FocusDirection" enum. Non-focusable
+    containers do not interrupt routing to descendants. Hidden and disabled
+    subtrees are excluded; detaching or reparenting a subtree clears its focus.
+    Use @ref NcursesUi::FocusManager::setFocus() "setFocus()" for application
+    focus changes. Callbacks may inspect focus but cannot initiate a nested
+    focus or modal-stack transition; callback failures leave no stale owner.
+    This guard also covers callbacks from direct focus changes and subtree
+    hide, disable, and detach operations. Cleanup may release focus, but a focus
+    callback cannot acquire focus on another widget.
 
     @subsection ncursesui_events Event Dispatch
 
     @ref NcursesUi::EventDispatcher "EventDispatcher" routes input events:
-    - Keyboard events go to the focused widget (or the top modal if one is active)
-    - Mouse events are dispatched via hit-testing against widget geometries
-    - Global key handlers can be registered for application-wide shortcuts
-    - A modal stack captures all input for the topmost modal (used by dialogs
-      and dropdown menus)
+    - Explicit global handlers run first, including while a modal is active.
+    - Keyboard events go to the focused descendant and bubble through its ancestors.
+    - A primary mouse click focuses the eligible hit target; misses and wheel events
+      never fall through to an unrelated focused control.
+    - Composites with local child coordinates override
+      @ref NcursesUi::Widget::handlesChildMouseEvents() "handlesChildMouseEvents()"
+      to receive screen-coordinate mouse events before their children, and
+      @ref NcursesUi::Widget::mouseFocusTarget() "mouseFocusTarget()" to select
+      the appropriate child for primary activation. File-browser preview
+      navigation and pane coordinate conversion use this contract.
+    - A modal captures all remaining input. Tab/Shift+Tab stay in its focus scope;
+      controls with internal Tab navigation handle the key first.
+    - @ref NcursesUi::Application::pushPopup() "pushPopup()" opts into outside-click
+      dismissal and click-through. Ordinary modals never pass outside clicks through.
+    - Popping nested scopes restores the previous eligible focus. Text editors show
+      a caret, and closing the last modal restores the prior cursor visibility.
 
     @subsection ncursesui_panels Panels and Modals
 
@@ -298,6 +322,14 @@ public hashdecl EventResult {
     *string action;
     #! optional associated data
     *hash<auto> data;
+}
+
+/** @internal A modal scope and the focus suspended while it is active. */
+hashdecl ModalFocusState {
+    NcursesUi::Widget widget;
+    *NcursesUi::Widget previous_focus;
+    *NcursesUi::Widget previous_scope;
+    bool popup = False;
 }
 
 /** Size policy for layout managers.

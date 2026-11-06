@@ -1,0 +1,319 @@
+#!/usr/bin/env qore
+# Copyright 2026 Qore Technologies, s.r.o.
+%modern
+%prepend-module-path "${SCRIPT_DIR}/../qlib"
+%requires ncurses
+%requires NcursesUi
+%requires NcursesReplUi
+%requires QoreHistory
+%requires QUnit
+%include "test/TestHarness.qc"
+%exec-class NcursesInputTest
+
+class NcursesInputTest inherits Test {
+    constructor() : Test("NcursesInputTest", "1.0", \ARGV) {
+        addTestCase("extended grapheme movement and deletion", \clusters());
+        addTestCase("external character offsets snap without changing representation", \offsets());
+        addTestCase("selection replacement expands partial and reversed ranges", \replacement());
+        addTestCase("insertion and deletion resegment adjacent graphemes", \joining());
+        addTestCase("empty and boundary edits", \empty());
+        addTestCase("word operations preserve whitespace combining clusters", \words());
+        addTestCase("display cells map to character offsets", \columns());
+        addTestCase("input and combo share editing key bindings", \widgetEditing());
+        addTestCase("text input click uses prompt and horizontal scroll", \inputClick());
+        addTestCase("input cursor ownership follows focus", \cursorRelease());
+        addTestCase("zero and clipped input rectangles", \geometry());
+        addTestCase("combo caret scrolls and supports click placement", \comboCursor());
+        addTestCase("combo backspace controls and dropdown remnants", \comboClear());
+        addTestCase("callbacks observe changes and recover after exceptions", \callbacks());
+        addTestCase("short replacement reveals the start of the input", \shrink());
+        addTestCase("input history changes notify once", \historyChanges());
+        addTestCase("combo accepts terminal Enter variants", \enterVariants());
+        addTestCase("combo active choice stays in the actual dropdown rows", \comboViewport());
+        addTestCase("combo clipping shares geometry with scrolling and mouse input", \clippedCombo());
+        set_return_value(main());
+    }
+    private hash<Ncurses::InputEvent> key(string name) {
+        return <Ncurses::InputEvent>{"type": Ncurses::InputType::Key, "name": name};
+    }
+    private hash<Ncurses::InputEvent> ch(string text) {
+        return <Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": text};
+    }
+    private hash<Ncurses::InputEvent> click(int y, int x) {
+        return <Ncurses::InputEvent>{"type": Ncurses::InputType::Mouse,
+            "mouse": <Ncurses::MouseEvent>{"y": y, "x": x, "button_state": Ncurses::BUTTON1_CLICKED}};
+    }
+    private list<string> samples() {
+        return ("é", "👩‍💻", "🇨🇿", "👍🏽", "界", "가");
+    }
+    clusters() {
+        foreach string cluster in (samples()) {
+            NcursesReplUi::InputBuffer b();
+            b.setText("A" + cluster + "Z");
+            b.moveLeft();
+            assertEq(1 + cluster.length(), b.getCursor());
+            b.moveLeft();
+            assertEq(1, b.getCursor());
+            b.moveRight();
+            assertEq(1 + cluster.length(), b.getCursor());
+            b.backspace();
+            assertEq("AZ", b.getText());
+            assertEq(1, b.getCursor());
+            b.setText(cluster + "Z");
+            b.moveHome();
+            b.deleteChar();
+            assertEq("Z", b.getText());
+            assertEq(0, b.getCursor());
+        }
+    }
+    offsets() {
+        NcursesReplUi::InputBuffer b();
+        b.setText("Aé👩‍💻Z");
+        b.setCursor(2);
+        assertEq(1, b.getCursor());
+        b.setCursor(4);
+        assertEq(3, b.getCursor());
+        b.setCursor(-100);
+        assertEq(0, b.getCursor());
+        b.setCursor(999);
+        assertEq(b.getText().length(), b.getCursor());
+        b.setText("abc");
+        b.setCursor(2);
+        assertEq(2, b.getCursor());
+    }
+    replacement() {
+        NcursesReplUi::InputBuffer b();
+        b.setText("Aé👩‍💻Z");
+        b.replaceRange(2, 4, "X");
+        assertEq("AXZ", b.getText());
+        assertEq(2, b.getCursor());
+        b.setText("AéZ");
+        b.replaceRange(3, 2, "");
+        assertEq("AZ", b.getText());
+        b.setText("AéZ");
+        b.replaceRange(2, 2, "x");
+        assertEq("AxéZ", b.getText());
+        assertEq(2, b.getCursor());
+        b.replaceRange(-99, 999, "");
+        assertEq("", b.getText());
+    }
+    joining() {
+        NcursesReplUi::InputBuffer b();
+        b.setText("eZ");
+        b.setCursor(1);
+        b.insertChar("́");
+        assertEq("éZ", b.getText());
+        assertEq(2, b.getCursor());
+        b.backspace();
+        assertEq("Z", b.getText());
+        b.setText("👩💻");
+        b.setCursor(1);
+        b.insertChar("‍");
+        assertEq("👩‍💻", b.getText());
+        assertEq(3, b.getCursor());
+        b.setText("🇨x🇿");
+        b.setCursor(1);
+        b.deleteChar();
+        assertEq("🇨🇿", b.getText());
+        assertEq(2, b.getCursor());
+        b.backspace();
+        assertEq("", b.getText());
+    }
+    empty() {
+        NcursesReplUi::InputBuffer b();
+        b.backspace(); b.deleteChar(); b.moveLeft(); b.moveRight();
+        b.moveWordLeft(); b.moveWordRight(); b.deleteWordBack(); b.deleteWordForward();
+        b.killToEnd(); b.killToStart(); b.insertChar("");
+        assertEq("", b.getText());
+        assertEq(0, b.getCursor());
+        assertFalse(b.processEvent(ch("")));
+        assertFalse(b.processEvent(key("KEY_F(1)")));
+    }
+    words() {
+        NcursesReplUi::InputBuffer b();
+        b.setText("é ́界 👩‍💻");
+        b.moveWordLeft();
+        assertEq(6, b.getCursor());
+        b.moveWordLeft();
+        assertEq(4, b.getCursor());
+        b.moveWordLeft();
+        assertEq(0, b.getCursor());
+        b.moveWordRight();
+        assertEq(4, b.getCursor());
+        b.deleteWordForward();
+        assertEq("é ́👩‍💻", b.getText());
+        b.deleteWordBack();
+        assertEq("👩‍💻", b.getText());
+        assertEq(0, b.getCursor());
+    }
+    columns() {
+        string s = "Aé界Z";
+        assertEq(1, NcursesReplUi::TextPosition::columnForOffset(s, 2));
+        assertEq(2, NcursesReplUi::TextPosition::columnForOffset(s, 3));
+        assertEq(3, NcursesReplUi::TextPosition::offsetForColumn(s, 3));
+        assertEq(4, NcursesReplUi::TextPosition::offsetForColumn(s, 4));
+        assertEq(0, NcursesReplUi::TextPosition::offsetForColumn(s, -2));
+        assertEq(s.length(), NcursesReplUi::TextPosition::offsetForColumn(s, 999));
+    }
+    widgetEditing() {
+        NcursesUi::TextInputWidget input();
+        NcursesUi::ComboBoxWidget combo();
+        foreach NcursesUi::Widget w in ((input, combo)) {
+            foreach hash<Ncurses::InputEvent> ev in ((ch("Aé界"), key("KEY_LEFT"), key("KEY_BACKSPACE"), ch("Z"))) {
+                assertTrue(w.processEvent(ev).handled);
+            }
+        }
+        assertEq("AZ界", input.getText());
+        assertEq(input.getText(), combo.getText());
+        assertEq(input.getCursorPos(), combo.getCursorPos());
+        foreach NcursesUi::Widget w in ((input, combo)) {
+            w.processEvent(ch(chr(1)));
+            w.processEvent(key("KEY_DC"));
+        }
+        assertEq("Z界", input.getText());
+        assertEq(input.getText(), combo.getText());
+    }
+    inputClick() {
+        NcursesUi::TestHarness th(6, 20); on_exit th.close();
+        NcursesUi::TextInputWidget input("> ");
+        input.setFrameValues(1, 2, 1, 7); input.setFocused(True);
+        input.setText("Aé界Z"); input.draw(th.screen());
+        assertTrue(input.processEvent(click(1, 5)).handled);
+        assertEq(3, input.getCursorPos());
+        input.processEvent(click(1, 2));
+        assertEq(0, input.getCursorPos());
+        assertFalse(input.processEvent(click(2, 5)).handled);
+        input.setText("abcdefghij"); input.draw(th.screen());
+        input.processEvent(click(1, 2));
+        assertEq(4, input.getCursorPos());
+    }
+    cursorRelease() {
+        NcursesUi::TestHarness th(6, 20); on_exit th.close();
+        NcursesUi::TextInputWidget input(); input.setFrameValues(1, 1, 1, 8);
+        input.setFocused(True); input.setText("abc"); input.draw(th.screen());
+        input.setFocused(False);
+        th.screen().drawText(4, 2, "x"); th.screen().noutrefresh(); th.refresh();
+        assertEq(4, th.screen().cursor().y);
+        assertEq(3, th.screen().cursor().x);
+    }
+    geometry() {
+        NcursesUi::TestHarness th(6, 20); on_exit th.close();
+        NcursesUi::TextInputWidget input(); input.setFocused(True); input.setText("abcdef");
+        th.screen().drawText(1, 0, "guard");
+        input.setFrameValues(1, 5, 0, 5); input.draw(th.screen());
+        assertEq("guard", th.screen().readText(1, 0, 5));
+        input.setFrameValues(1, 18, 1, 8); input.draw(th.screen());
+        assertEq("ab", th.screen().readText(1, 18, 2));
+        input.setFrameValues(-1, 0, 1, 8); input.draw(th.screen());
+        assertEq("guard", th.screen().readText(1, 0, 5));
+    }
+    comboCursor() {
+        NcursesUi::TestHarness th(6, 20); on_exit th.close();
+        NcursesUi::ComboBoxWidget combo(); combo.setFrameValues(1, 1, 3, 8);
+        combo.setFocused(True); combo.setText("abcdef界"); combo.draw(th.screen());
+        th.screen().noutrefresh(); th.refresh();
+        assertEq(6, th.screen().cursor().x);
+        combo.processEvent(click(1, 2));
+        assertEq(4, combo.getCursorPos());
+        combo.processEvent(key("KEY_DC"));
+        assertEq("abcdf界", combo.getText());
+    }
+    comboClear() {
+        NcursesUi::TestHarness th(6, 20); on_exit th.close();
+        NcursesUi::ComboBoxWidget combo(("alpha", "beta")); combo.setFrameValues(1, 1, 3, 8);
+        combo.processEvent(key("KEY_DOWN")); combo.draw(th.screen());
+        assertEq("alpha", th.screen().readText(2, 1, 5));
+        combo.processEvent(ch(chr(27))); combo.draw(th.screen());
+        assertEq("     ", th.screen().readText(2, 1, 5));
+        combo.setText("é"); combo.processEvent(ch(chr(127)));
+        assertEq("", combo.getText());
+        combo.setText("é"); combo.processEvent(ch(chr(8)));
+        assertEq("", combo.getText());
+    }
+    callbacks() {
+        NcursesUi::TextInputWidget input();
+        int calls = 0;
+        input.setOnChange(sub (string text) { ++calls; });
+        input.processEvent(ch("x")); input.processEvent(key("KEY_LEFT")); input.processEvent(key("KEY_BACKSPACE"));
+        assertEq(1, calls);
+        input.setOnChange(sub (string text) { throw "CHANGE-ERROR", "expected"; });
+        bool failed = False;
+        try { input.processEvent(ch("é")); } catch (hash<ExceptionInfo> ex) { failed = ex.err == "CHANGE-ERROR"; }
+        assertTrue(failed);
+        assertEq("éx", input.getText());
+        assertEq(2, input.getCursorPos());
+        input.setOnChange(NOTHING);
+        input.processEvent(key("KEY_BACKSPACE"));
+        assertEq("x", input.getText());
+    }
+    shrink() {
+        NcursesUi::TestHarness th(6, 20); on_exit th.close();
+        NcursesUi::TextInputWidget input(); input.setFrameValues(1, 1, 1, 8); input.setFocused(True);
+        input.setText("abcdefghijklmnopqrstuvwxyz"); input.draw(th.screen());
+        input.setText("abc"); input.draw(th.screen());
+        assertEq("abc     ", th.screen().readText(1, 1, 8));
+        NcursesUi::ComboBoxWidget combo(); combo.setFrameValues(3, 1, 1, 8); combo.setFocused(True);
+        combo.setText("abcdefghijklmnopqrstuvwxyz"); combo.draw(th.screen());
+        combo.setText("abc"); combo.draw(th.screen());
+        assertEq("abc   ", th.screen().readText(3, 1, 6));
+    }
+    historyChanges() {
+        QoreHistory::History history(); history.add("é界");
+        NcursesUi::TextInputWidget input(); input.setHistory(history);
+        list<string> changes = ();
+        input.setOnChange(sub (string text) { changes += text; });
+        input.processEvent(key("KEY_UP"));
+        assertEq("é界", input.getText()); assertEq(3, input.getCursorPos());
+        assertEq(("é界",), changes);
+        input.processEvent(key("KEY_BACKSPACE"));
+        assertEq("é", input.getText()); assertEq(2, changes.size());
+    }
+    enterVariants() {
+        foreach hash<Ncurses::InputEvent> event in ((ch("\n"), ch("\r"), key("KEY_ENTER"))) {
+            NcursesUi::ComboBoxWidget combo(("é界",));
+            string selected = "";
+            combo.setOnSelect(sub (string text) { selected = text; });
+            combo.processEvent(key("KEY_DOWN"));
+            assertTrue(combo.processEvent(event).handled);
+            assertEq("é界", selected); assertEq(3, combo.getCursorPos());
+            assertFalse(combo.isDropdownOpen());
+        }
+    }
+
+    comboViewport() {
+        NcursesUi::TestHarness th(8, 20); on_exit th.close();
+        NcursesUi::ComboBoxWidget combo(("one", "two", "three", "four", "five"));
+        combo.setFrameValues(1, 1, 3, 12);
+        for (int i = 0; i < 4; ++i) { combo.processEvent(key("KEY_DOWN")); }
+        combo.draw(th.screen());
+        assertEq(3, combo.getHighlightIndex());
+        assertEq("four", th.screen().readText(3, 1, 4));
+        combo.setFrameValues(1, 1, 2, 12); combo.draw(th.screen());
+        assertEq("four", th.screen().readText(2, 1, 4));
+        combo.setOptions(()); combo.draw(th.screen());
+        assertEq(-1, combo.getHighlightIndex());
+        assertEq("    ", th.screen().readText(2, 1, 4));
+    }
+
+    clippedCombo() {
+        NcursesUi::TestHarness th(8, 20); on_exit th.close();
+        NcursesUi::ComboBoxWidget choices(("one", "two", "three", "four", "five"));
+        choices.setFrameValues(5, 1, 5, 12);
+        for (int i = 0; i < 4; ++i) { choices.processEvent(key("KEY_DOWN")); }
+        choices.draw(th.screen());
+        assertEq("four", th.screen().readText(7, 1, 4));
+        choices.processEvent(key("KEY_DOWN")); choices.draw(th.screen());
+        assertEq("five", th.screen().readText(7, 1, 4));
+        NcursesUi::ComboBoxWidget input(); input.setFrameValues(1, 14, 3, 12); input.setText("abcdefghij");
+        input.setFocused(True); input.draw(th.screen()); assertEq("hij ", th.screen().readText(1, 14, 4));
+        assertTrue(input.processEvent(click(1, 15)).handled); assertEq(8, input.getCursorPos());
+        assertTrue(input.processEvent(click(1, 19)).handled); assertTrue(input.isDropdownOpen());
+        assertFalse(input.processEvent(click(1, 20)).handled);
+        input.setFrameValues(2, 19, 1, 12); input.draw(th.screen());
+        assertEq("^", th.screen().readText(2, 19, 1));
+        input.processEvent(click(2, 19)); assertFalse(input.isDropdownOpen());
+        input.setFrameValues(2, 20, 1, 12); input.draw(th.screen());
+        assertFalse(input.processEvent(click(2, 20)).handled);
+    }
+
+}

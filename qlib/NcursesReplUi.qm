@@ -50,7 +50,13 @@ module NcursesReplUi {
 
     @ref NcursesReplUi::InputBuffer "InputBuffer" manages a text buffer with
     cursor tracking. It supports insertion, deletion, cursor movement, and
-    Emacs-style kill operations.
+    Emacs-style kill operations. Movement, deletion, and range replacement use
+    extended grapheme boundaries. Cursor indices remain Qore character offsets,
+    preserving existing ASCII/source-index callers. An external index inside a
+    cluster rounds down; replacement ranges expand to whole clusters. Use
+    @ref NcursesReplUi::TextPosition "TextPosition" to convert offsets to terminal
+    columns or mouse cells back to source offsets. The same conversions are used
+    by wrapped content, text inputs, combo boxes, and qrepl's input buffer.
 
     @par Example:
     @code{.py}
@@ -126,7 +132,81 @@ int start_idx = NcursesReplUi::ScrollCalc::scrollStart(100, 20, 5);
 
 public namespace NcursesReplUi {
 
-/** Input buffer with cursor tracking.
+/** Shared conversions between Unicode character offsets, extended grapheme
+    boundaries, and terminal display columns. Character offsets retain Qore
+    string indexing semantics; they are neither byte offsets nor cluster indices.
+    @since ncurses 1.0
+*/
+public class TextPosition {
+    /** Returns the nearest grapheme boundary in the requested direction.
+        @param text plain source text
+        @param offset character offset, clamped to the source length
+        @param forward True to round up; False to round down
+        @return character offset at a complete grapheme boundary
+    */
+    static int snapOffset(string text, int offset, bool forward = False) {
+        offset = max(0, min(offset, text.length()));
+        int start = 0;
+        foreach string cluster in ((text =~ x/(\X)/g) ?? ()) {
+            int end = start + cluster.length();
+            if (offset == start) {
+                return start;
+            }
+            if (offset < end) {
+                return forward ? end : start;
+            }
+            start = end;
+        }
+        return start;
+    }
+
+    /** Maps a source character offset to terminal columns.
+        @param text plain source text
+        @param offset character offset; positions within a cluster round down
+        @return display columns before the snapped position
+    */
+    static int columnForOffset(string text, int offset) {
+        return char_width(text.substr(0, snapOffset(text, offset)));
+    }
+
+    /** Maps a terminal cell to the start of its source grapheme.
+        @param text plain source text
+        @param col display column, clamped to the text extent
+        @return source character offset (the length for cells beyond the text)
+    */
+    static int offsetForColumn(string text, int col) {
+        col = max(0, col);
+        int offset = 0;
+        int used = 0;
+        foreach string cluster in ((text =~ x/(\X)/g) ?? ()) {
+            int width = char_width(cluster);
+            if (used + width > col) {
+                break;
+            }
+            used += width;
+            offset += cluster.length();
+        }
+        return offset;
+    }
+}
+
+/** Input buffer with cursor tracking at extended grapheme boundaries.
+
+    Cursor positions remain zero-based Qore character offsets for compatibility.
+    External positions within a cluster round down. Editing never splits a
+    combining sequence, emoji modifier, regional-indicator pair, or ZWJ sequence.
+    Replacement ranges expand to complete clusters; the resulting cursor rounds
+    up if inserted text joins a neighboring cluster.
+
+    @par Example
+    @code{.py}
+    NcursesReplUi::InputBuffer input();
+    input.setText("é界");
+    input.moveLeft();
+    # character offset 2, terminal column 1
+    input.backspace();
+    # complete decomposed accent removed; text is now "界"
+    @endcode
 
     @since %ncurses 1.0
 */
@@ -148,7 +228,7 @@ public class InputBuffer {
         @since %ncurses 1.0
     */
     nothing setText(string t) {
-        text = t ?? "";
+        text = t;
         cursor = text.length();
     }
 
@@ -159,74 +239,80 @@ public class InputBuffer {
         return text;
     }
 
-    /** Returns the current cursor position.
+    /** Returns the current cursor position as a Qore character offset.
         @since %ncurses 1.0
     */
     int getCursor() {
         return cursor;
     }
 
-    /** Sets the cursor position.
-        @param pos the new cursor position (clamped to buffer length)
+    /** Sets the cursor position in Qore character offsets.
+        @param pos the new position, clamped to the text and rounded down to a
+            grapheme boundary; ASCII and already valid positions are unchanged
         @since %ncurses 1.0
     */
     nothing setCursor(int pos) {
-        if (pos < 0) {
-            cursor = 0;
-        } else if (pos > text.length()) {
-            cursor = text.length();
-        } else {
-            cursor = pos;
-        }
+        cursor = NcursesReplUi::TextPosition::snapOffset(text, pos);
     }
 
-    /** Inserts a character at the cursor.
+    /** Replaces a range, expanding partial selections to complete graphemes.
+        @param start first character offset (inclusive)
+        @param end last character offset (exclusive); reversed ranges are accepted
+        @param replacement text to insert
+        @note An empty range inserts at the preceding grapheme boundary.
+        @since ncurses 1.0
+    */
+    nothing replaceRange(int start, int end, string replacement) {
+        int first = NcursesReplUi::TextPosition::snapOffset(text, min(start, end));
+        int last = start == end ? first
+            : NcursesReplUi::TextPosition::snapOffset(text, max(start, end), True);
+        string next = text.substr(0, first) + replacement + text.substr(last);
+        int next_cursor = NcursesReplUi::TextPosition::snapOffset(next, first + replacement.length(), True);
+        text = next;
+        cursor = next_cursor;
+    }
+
+    /** Inserts text at the cursor, preserving complete graphemes.
+        @param ch text to insert (empty input leaves the buffer unchanged)
         @since %ncurses 1.0
     */
     nothing insertChar(string ch) {
-        if (!exists ch || ch == "") {
-            return;
+        if (ch != "") {
+            replaceRange(cursor, cursor, ch);
         }
-        text = text.substr(0, cursor) + ch + text.substr(cursor);
-        cursor += ch.length();
     }
 
-    /** Deletes the character before the cursor.
+    /** Deletes the grapheme before the cursor.
         @since %ncurses 1.0
     */
     nothing backspace() {
-        if (cursor <= 0) {
-            return;
+        if (cursor > 0) {
+            replaceRange(cursor - 1, cursor, "");
         }
-        text = text.substr(0, cursor - 1) + text.substr(cursor);
-        cursor -= 1;
     }
 
-    /** Deletes the character at the cursor.
+    /** Deletes the grapheme at the cursor.
         @since %ncurses 1.0
     */
     nothing deleteChar() {
-        if (cursor >= text.length()) {
-            return;
+        if (cursor < text.length()) {
+            replaceRange(cursor, cursor + 1, "");
         }
-        text = text.substr(0, cursor) + text.substr(cursor + 1);
     }
 
-    /** Moves the cursor left.
+    /** Moves the cursor left by one extended grapheme.
         @since %ncurses 1.0
     */
     nothing moveLeft() {
-        if (cursor > 0) {
-            cursor -= 1;
-        }
+        setCursor(max(0, cursor - 1));
     }
 
-    /** Moves the cursor right.
+    /** Moves the cursor right by one extended grapheme.
         @since %ncurses 1.0
     */
     nothing moveRight() {
         if (cursor < text.length()) {
-            cursor += 1;
+            cursor = NcursesReplUi::TextPosition::snapOffset(text, cursor + 1, True);
         }
     }
 
@@ -319,119 +405,62 @@ public class InputBuffer {
         @since %ncurses 1.0
     */
     nothing moveWordLeft() {
-        if (cursor <= 0) {
-            return;
-        }
-        int i = cursor;
-        # skip whitespace backward
-        while (i > 0) {
-            string ch = text.substr(i - 1, 1);
-            if (ch == " " || ch == "\t") {
-                i -= 1;
-            } else {
-                break;
-            }
-        }
-        # skip non-whitespace backward
-        while (i > 0) {
-            string ch = text.substr(i - 1, 1);
-            if (ch == " " || ch == "\t") {
-                break;
-            }
-            i -= 1;
-        }
-        cursor = i;
+        cursor = wordBoundary(False);
     }
 
-    /** Moves the cursor to the end of the next word.
-
-        Skips non-whitespace forward, then skips whitespace forward,
-        mimicking the standard readline Alt+F behavior.
-
+    /** Moves over non-whitespace, then whitespace, to the next word boundary.
         @since %ncurses 1.0
     */
     nothing moveWordRight() {
-        if (cursor >= text.length()) {
-            return;
-        }
-        int i = cursor;
-        # skip non-whitespace forward
-        while (i < text.length()) {
-            string ch = text.substr(i, 1);
-            if (ch == " " || ch == "\t") {
-                break;
-            }
-            i += 1;
-        }
-        # skip whitespace forward
-        while (i < text.length()) {
-            string ch = text.substr(i, 1);
-            if (ch == " " || ch == "\t") {
-                i += 1;
-            } else {
-                break;
-            }
-        }
-        cursor = i;
+        cursor = wordBoundary(True);
     }
 
-    /** Deletes from the cursor to the next word boundary.
-
-        Mimics the standard readline Alt+D behavior: deletes non-whitespace
-        forward, then whitespace forward.
-
+    /** Deletes to the next word boundary without splitting graphemes.
         @since %ncurses 1.0
     */
     nothing deleteWordForward() {
-        if (cursor >= text.length()) {
-            return;
-        }
-        int i = cursor;
-        # skip non-whitespace forward
-        while (i < text.length()) {
-            string ch = text.substr(i, 1);
-            if (ch == " " || ch == "\t") {
-                break;
-            }
-            i += 1;
-        }
-        # skip whitespace forward
-        while (i < text.length()) {
-            string ch = text.substr(i, 1);
-            if (ch == " " || ch == "\t") {
-                i += 1;
-            } else {
-                break;
-            }
-        }
-        text = text.substr(0, cursor) + text.substr(i);
+        replaceRange(cursor, wordBoundary(True), "");
     }
 
-    /** Deletes the previous word.
+    /** Deletes the previous word without splitting graphemes.
         @since %ncurses 1.0
     */
     nothing deleteWordBack() {
-        if (cursor <= 0) {
-            return;
-        }
-        int i = cursor;
-        while (i > 0) {
-            string ch = text.substr(i - 1, 1);
-            if (ch == " " || ch == "\t") {
-                i -= 1;
-            } else {
-                break;
+        replaceRange(wordBoundary(False), cursor, "");
+    }
+
+    private int wordBoundary(bool forward) {
+        list<string> clusters = (text =~ x/(\X)/g) ?? ();
+        list<int> offsets = (0,);
+        int index = 0;
+        int offset = 0;
+        foreach string cluster in (clusters) {
+            offset += cluster.length();
+            offsets += offset;
+            if (offset <= cursor) {
+                ++index;
             }
         }
-        while (i > 0) {
-            string ch = text.substr(i - 1, 1);
-            if (ch == " " || ch == "\t") {
-                break;
+        if (forward) {
+            while (index < clusters.size() && !wordSpace(clusters[index])) {
+                ++index;
             }
-            i -= 1;
+            while (index < clusters.size() && wordSpace(clusters[index])) {
+                ++index;
+            }
+        } else {
+            while (index > 0 && wordSpace(clusters[index - 1])) {
+                --index;
+            }
+            while (index > 0 && !wordSpace(clusters[index - 1])) {
+                --index;
+            }
         }
-        text = text.substr(0, i) + text.substr(cursor);
-        cursor = i;
+        return offsets[index];
+    }
+
+    private static bool wordSpace(string cluster) {
+        return cluster.substr(0, 1) == " " || cluster.substr(0, 1) == "\t";
     }
 
     /** Processes a keyboard event and applies the corresponding editing action.
