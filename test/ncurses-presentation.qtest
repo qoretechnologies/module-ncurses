@@ -10,8 +10,13 @@
 class CaptureFailureButton inherits NcursesUi::ButtonWidget {
     constructor() : ButtonWidget("Run") {}
     nothing onMouseCaptureLost() {
-        ButtonWidget::onMouseCaptureLost(); throw "CAPTURE-CANCEL-ERROR", "Cancellation callback failed";
+        bool held = isPressed(); ButtonWidget::onMouseCaptureLost();
+        if (held) { throw "CAPTURE-CANCEL-ERROR", "Cancellation callback failed"; }
     }
+}
+class CaptureRestoreInput inherits NcursesUi::TextInputWidget {
+    public { bool reject_focus = False; }
+    nothing onFocusIn() { if (reject_focus) { throw "CAPTURE-RESTORE-ERROR", "Restoration callback failed"; } }
 }
 class PresentationTest inherits Test {
     constructor() : Test("PresentationTest", "1.0", \ARGV) {
@@ -21,6 +26,7 @@ class PresentationTest inherits Test {
         addTestCase("described choices separate headings descriptions and focus from selection", \choices());
         addTestCase("native rapid mouse gestures drain before their following keyboard input", \nativeMouse());
         addTestCase("application close releases the terminal when capture cancellation throws", \captureFailure());
+        addTestCase("modal removal completes when capture loss and focus restoration fail", \modalCaptureFailure());
         set_return_value(main());
     }
     captureFailure() {
@@ -31,6 +37,30 @@ class PresentationTest inherits Test {
         assertThrows("CAPTURE-CANCEL-ERROR", sub () { app.close(); });
         assertFalse(button.isPressed()); assertFalse(th.session().isOpen());
         app.getDispatcher().cancelMouseCapture();
+    }
+    modalCaptureFailure() {
+        foreach bool remove_owned in ((False, True)) {
+            foreach bool fail_restore in ((False, True)) {
+                NcursesUi::TestHarness th(8, 32); on_exit th.close(); NcursesUi::Application app(th.session()); on_exit app.close();
+                CaptureRestoreInput editor(); app.setRoot(editor); app.getFocusManager().setFocus(editor);
+                NcursesUi::PanelWidget panel(th.session()); panel.setHasBorder(False); panel.setFrameValues(0, 0, 4, 20);
+                CaptureFailureButton button(); button.setOnActivate(sub (string id) {}); button.setFrameValues(0, 0, 1, 10); panel.addChild(button);
+                panel.createPanel(); on_exit panel.destroyPanel(); app.pushModal(panel); app.drawAll();
+                app.processEvent(mouse(0, 3, Ncurses::BUTTON1_PRESSED)); assertTrue(button.isPressed());
+                editor.reject_focus = fail_restore;
+                assertThrows("CAPTURE-CANCEL-ERROR", sub () {
+                    on_exit panel.destroyPanel();
+                    if (remove_owned) { app.removeModal(panel); } else { app.popModal(); }
+                });
+                assertFalse(app.getDispatcher().hasModal()); assertNothing(panel.getWindow()); assertFalse(button.isPressed());
+                assertEq(editor, app.getFocusManager().getScope());
+                if (fail_restore) { assertNothing(app.getFocusManager().getCurrentFocus()); }
+                else { assertEq(editor, app.getFocusManager().getCurrentFocus()); }
+                app.getDispatcher().cancelMouseCapture(); assertNothing(app.popModal());
+                editor.reject_focus = False; app.getFocusManager().setFocus(editor);
+                app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "x"}); assertEq("x", editor.getText());
+            }
+        }
     }
     nativeMouse() {
         Ncurses::TestTerminal terminal(8, 32);

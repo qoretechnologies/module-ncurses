@@ -168,6 +168,9 @@ Owners remove their exact widget with `Application.removeModal()`. When a scope 
 covered, `EventDispatcher` splices that entry out and transfers its saved scope/focus
 to its immediate successor. Active focus and mouse capture stay with the top overlay;
 later dismissal restores the surviving predecessor, not the destroyed popup.
+Top removal detaches the scope before capture-loss callbacks and attempts focus
+restoration even when cancellation throws. If both callbacks fail, the cancellation
+error remains primary and focus-manager cleanup leaves no stale owner.
 
 `ActionModel` similarly identifies each operation attempt and explicitly represents
 pending, running, cancelled, failed and completed states. Cancellation invalidates the

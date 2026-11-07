@@ -140,6 +140,8 @@ public class EventDispatcher {
     /** Pops the top scope and restores the prior valid focus.
         No unrelated replacement control receives focus when the old target was
         hidden, disabled, detached, or reparented out of its original scope.
+        @note Capture-loss errors propagate after scope removal and attempted focus
+            restoration; if restoration also fails, the original capture error wins.
         @return popped widget, or NOTHING for an empty stack
         @since ncurses 1.0
     */
@@ -149,12 +151,23 @@ public class EventDispatcher {
         }
         changing_scope = True;
         on_exit changing_scope = False;
-        cancelMouseCapture();
         if (!modal_stack) {
+            cancelMouseCapture();
             return NOTHING;
         }
         hash<NcursesUi::ModalFocusState> entry = modal_stack[modal_stack.size() - 1];
         removeTop();
+        try {
+            cancelMouseCapture();
+        } catch (hash<ExceptionInfo> ex) {
+            try {
+                restoreFocus(entry);
+            } catch (hash<ExceptionInfo> restore_error) {
+                # Focus transitions clear their pointers before callbacks. Preserve
+                # the capture failure even if the restoration callback also fails.
+            }
+            rethrow;
+        }
         restoreFocus(entry);
         return entry.widget;
     }

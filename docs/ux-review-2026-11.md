@@ -85,6 +85,10 @@ the image inspections described below precede explicit baseline acceptance.
     and restores editing after Help closes. Both code and standalone assistance
     fixtures cover this path; scope tests also cover active capture, unavailable
     prior focus, ownership cleanup, cursor restoration and callback failures.
+    Top-scope removal also completes before a capture-loss callback runs, and
+    attempts focus restoration if that callback throws. A held-button regression
+    covers both removal APIs and simultaneous restoration failure, preserving the
+    original error while keeping the modal stack and subsequent editing usable.
   - Ubuntu's first follow-up capture matched every native state but exposed LCD
     color fringes in the opaque WebGL glyph atlas. Local grayscale/RGB fontconfig
     profiles reproduced the mismatch. An alpha glyph atlas selects grayscale

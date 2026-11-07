@@ -28,6 +28,8 @@
     Application::removeModal() and EventDispatcher::removeModal() remove scopes
     by widget identity, including beneath another overlay, preserving active focus,
     mouse capture and the surviving overlays' focus-restoration chain.
+    Top-scope cleanup also completes when a mouse-capture-loss callback throws;
+    the original failure propagates after attempting focus restoration.
     Code completion replaces the full token
     around the caret and preserves an existing call parenthesis. Compact dialogs prioritize the wrapped message
     over decorative padding while retaining actions.
