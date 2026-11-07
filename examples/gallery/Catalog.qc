@@ -24,7 +24,7 @@ class Catalog {
                     story.fixture.text = "Execute"; story.steps[0].expected = {"text": "Execute"}; x = 1;
                     expected = {"cursor_x": 1, "text": "Execute"}; break;
                 case "DescribedChoiceWidget": y = 4; expected = {"choice": "execute"}; break;
-                case "FormWidget": y = 7; x = 1; expected = {"include_details": False}; break;
+                case "FormWidget": y = 9; x = 3; expected = {"include_details": False}; break;
                 case "ListWidget": y = 1; expected = {"selected": 1}; break;
                 case "TableWidget": y = 2; expected = {"selected": 1}; break;
                 case "TreeWidget":
@@ -47,6 +47,16 @@ class Catalog {
             story.steps = (story.steps[0], <NcursesGallery::Step>{"checkpoint": "mouse", "instruction": original.mouse,
                 "event": <Ncurses::InputEvent>{"type": Ncurses::InputType::Mouse,
                     "mouse": <Ncurses::MouseEvent>{"y": y, "x": x, "button_state": buttons}}, "expected": expected});
+            if (original.widget == "FormWidget") {
+                story.steps = (story.steps[0],
+                    <NcursesGallery::Step>{"checkpoint": "label", "instruction": "Click Attempts to focus its value without changing it.",
+                        "event": <Ncurses::InputEvent>{"type": Ncurses::InputType::Mouse, "mouse": <Ncurses::MouseEvent>{"y": 4, "x": 4, "button_state": Ncurses::BUTTON1_CLICKED}}, "expected": {"focus": "FormTextInputControl", "cursor_x": 4}},
+                    <NcursesGallery::Step>{"checkpoint": "help", "instruction": "Click the request description to return to its value.",
+                        "event": <Ncurses::InputEvent>{"type": Ncurses::InputType::Mouse, "mouse": <Ncurses::MouseEvent>{"y": 1, "x": 4, "button_state": Ncurses::BUTTON1_CLICKED}}, "expected": {"focus": "FormTextInputControl", "cursor_x": 10}},
+                    <NcursesGallery::Step>{"checkpoint": "checkbox-label", "instruction": "Click Include details to focus the checkbox without toggling it.",
+                        "event": <Ncurses::InputEvent>{"type": Ncurses::InputType::Mouse, "mouse": <Ncurses::MouseEvent>{"y": 8, "x": 4, "button_state": Ncurses::BUTTON1_CLICKED}}, "expected": {"focus": "FormCheckboxControl", "include_details": True}},
+                    story.steps[1]);
+            }
             result += story;
         }
         return result;
@@ -143,8 +153,8 @@ class Catalog {
                 <Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "P"}, {"text": "P"}),
             entry("described-choice", "DescribedChoiceWidget", "Choose an option: the filled circle marks selection; the highlighted title follows keyboard focus.", {"choices": choices},
                 "Up/Down moves focus; Space, Enter or a click selects. Unavailable choices are skipped.", "Click chooses a described row.", {"choice": "preview", "contains": "Recommended first"}, down, {"choice": "preview"}),
-            entry("form", "FormWidget", "Keep labels, defaults, help and validation next to editable fields.", {"name": "Preview"},
-                "Tab moves between fields and actions; Enter submits; Escape cancels.", "Click a field to edit or an action to submit.", {"contains": "Request name"}),
+            entry("form", "FormWidget", "Each field groups a bold label, help and a bounded value. Click the label or help to focus its value.", {"name": "Preview"},
+                "Tab moves between fields and actions; Enter submits; Escape cancels.", "Click a label or description to focus its value; click a value to edit or an action to submit.", {"contains": "Request name"}),
             entry("list", "ListWidget", "Navigate labeled rows with an unambiguous current selection.", {"items": items},
                 "Arrows, Home/End and page keys move selection; Enter activates.", "Click selects; double-click activates; wheel scrolls.", {"selected": 0, "scroll": 0}, down, {"selected": 1}),
             entry("tree", "TreeWidget", "Expand structured values using familiar directional navigation.", {"data": {"name": "Preview", "nested": {"enabled": True, "count": 3}}},

@@ -215,6 +215,14 @@ checks; neither is a human usability study. Apply observable criteria informed b
 - [Proximity](https://lawsofux.com/law-of-proximity/): labels, help and validation
   remain next to their fields; errors retain the user's input. Choice descriptions
   stay with their title, with more space between choices than within a choice.
+  Forms group label → short help → validation error → bounded input, with a blank
+  row before the next field. Help must not look like the following field's label.
+  Empty values still have a visible input boundary. Check actual association by
+  clicking both labels and descriptions: they focus the value without editing or
+  toggling it, including after wrapping/scrolling. Unavailable fields stay inert.
+  [Charm Huh](https://github.com/charmbracelet/huh) is the TUI reference for styled
+  title/description/input grouping; [GOV.UK's text-input guidance](https://design-system.service.gov.uk/components/text-input/)
+  supplies the supporting label/hint ordering. These are design references, not dependencies.
 - [Common region](https://lawsofux.com/law-of-common-region/): floating overlays
   have continuous frames; full-width docked regions use shared separators without
   spending columns on redundant outer side borders.
@@ -229,6 +237,10 @@ checks; neither is a human usability study. Apply observable criteria informed b
   are no intentional typing delays, and 400 ms is not treated as a typing budget.
 - Focus, selection, disabled states and progress remain understandable in
   monochrome through cursor, marks, reverse/bold/dim attributes and explicit text.
+  For forms, verify the focused field's identity and its value together at compact
+  sizes. An oversized group retains the input, label, error and help in that priority;
+  ellipses identify clipped metadata and resizing restores it. One-row stress views
+  prioritize editing and cannot display a separate heading.
 
 Compact checks count content inside the reviewed control's clipped content rectangle
 or that control's editing caret. Panel chrome and an unrelated background cursor

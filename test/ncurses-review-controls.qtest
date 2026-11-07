@@ -143,13 +143,17 @@ class ReviewControlsTest inherits Test {
         NcursesUi::Widget container(); container.setFrameValues(1, 2, 3, 20); root.addChild(container);
         NcursesUi::FormModel model(fields()); NcursesUi::FormWidget form(model); form.setFrameValues(1, 2, 10, 20); container.addChild(form); form.setFocusManager(app.getFocusManager());
         app.getFocusManager().setFocus(form.getControl("other")); app.drawAll(); assertTrue(form.getControl("other").visibleRect().rows > 0);
-        container.setFrameValues(1, 2, 1, 12); app.drawAll(); assertEq(1, form.getControl("other").visibleRect().rows); assertEq(12, form.getControl("other").getFrame().cols);
+        container.setFrameValues(1, 2, 1, 12); app.drawAll(); assertEq(1, form.getControl("other").visibleRect().rows);
+        # The clipped field reserves two cells of indentation and its value boundaries.
+        hash<NcursesUi::Rect> input = form.getControl("other").getFrame(); assertEq(8, input.cols);
+        assertEq("[", th.screen().readText(input.y, input.x - 1, 1));
+        assertEq("]", th.screen().readText(input.y, input.x + input.cols, 1));
         container.setFrameValues(3, 2, 2, 12); app.drawAll(); assertTrue(form.getControl("other").visibleRect().rows > 0); assertTrue(form.getControl("other").getFrame().y >= 3);
         container.setFrameValues(1, 2, 8, 20); app.drawAll();
         form.setOnSubmit(auto sub (hash<auto> values) { return values; }); cast<NcursesUi::TextInputWidget>(form.getControl("count")).setText("bad");
         assertFalse(form.submit()); app.drawAll(); assertEq(form.getControl("count"), app.getFocusManager().getCurrentFocus()); assertTrue(form.getControl("count").visibleRect().rows > 0);
         NcursesUi::FormModel separate_model(fields()); NcursesUi::FormWidget separate(separate_model); separate.setFrameValues(0, 0, 10, 20); separate.getControl("other").setFocused(True);
-        Ncurses::Window small(th.session(), 2, 10, 0, 0); separate.drawTree(small); assertTrue(separate.getControl("other").getFrame().y < 2); assertEq(10, separate.getControl("other").getFrame().cols);
+        Ncurses::Window small(th.session(), 2, 10, 0, 0); separate.drawTree(small); assertTrue(separate.getControl("other").getFrame().y < 2); assertEq(6, separate.getControl("other").getFrame().cols);
     }
     private hash<Ncurses::InputEvent> key(string value) { return <Ncurses::InputEvent>{"type": Ncurses::InputType::Key, "name": value}; }
     private hash<Ncurses::InputEvent> click(int y, int x) { return <Ncurses::InputEvent>{"type": Ncurses::InputType::Mouse, "mouse": <Ncurses::MouseEvent>{"y": y, "x": x, "button_state": Ncurses::BUTTON1_CLICKED}}; }

@@ -24,13 +24,46 @@ exact artifact set, geometry/configuration, browser/font versions, hashes and th
 review's acceptance digest. Each PNG has a neighboring `.json.gz` artifact with the
 full native cell/attribute/cursor/focus/scroll state. The
 [review instructions](../review/README.md) reproduce baseline/current/diff reports.
-The follow-up capture contains 1,344 checkpoints from 206 stories. It retains all
-1,098 previous keys and adds 246 interaction/recovery/code checkpoints. The renderer
-change intentionally replaces their PNG presentation; native state assertions and
-the image inspections described below precede explicit baseline acceptance.
+The current capture contains 1,350 checkpoints from 206 stories. It retains all
+1,344 keys from the previous follow-up and adds six form metadata-focus checkpoints.
+The earlier renderer follow-up retained 1,098 keys and added 246 interaction/recovery/
+code checkpoints. Native state assertions and the image inspections described below
+precede explicit baseline acceptance.
 
 ## Findings and disposition
 
+- [#5628](https://github.com/qoretechnologies/qore/issues/5628): user review found
+  that the form's label/value/help sequence looked like unrelated plain lines, and
+  clicking a label or description did not focus its value. The earlier Form
+  acceptance checked adjacency and reachability without establishing clear grouping.
+  - Fields now show bold cyan headings, short help, any explicit red `Error:` text,
+    then the value, with a blank row between fields. Text values have brackets even
+    when empty; multiline values have side rails. A leading `>` identifies the
+    focused field, and read-only fields have an explicit label. Color is supported
+    by order, spacing, weight, boundaries and text cues in monochrome.
+  - Clicking a label, description or error focuses the associated control through
+    the existing scoped dispatcher without modifying the value, moving its retained
+    caret or toggling a checkbox. Tests cover wrapped/scrolled targets, invalid
+    drafts, unavailable controls, pending schema replacement and synchronization
+    failure. The mouse story includes heading/help focus and checkbox focus before
+    the actual toggle, replayed through browser mouse input.
+  - Compact scrolling reveals the whole field group. Oversized groups prioritize a
+    control row and label, then error/help; clipped metadata shows an ellipsis and
+    returns after resizing. A one-row stress viewport prioritizes editing and cannot
+    show a separate heading. The compact form still reaches Submit through Tab and
+    preserves the typed values. Native geometry tests include zero area, 1/2/4/8/16
+    rows, narrow columns, password masking, Unicode, multiline and choice controls.
+  - All 64 form captures were inspected across default/empty/focused/disabled/invalid/
+    loading/Unicode/constrained/mouse states, including color and monochrome. Browser
+    review confirmed metadata clicks, retained drafts, checkbox focus versus toggle,
+    validation correction, compact submission and resize recovery. The normal-size
+    heading/help/value groups remain distinguishable without color; stress views
+    retain a bounded input and identify truncated metadata.
+  - References: [Charm Huh](https://github.com/charmbracelet/huh) and its
+    [title/description/input rendering](https://github.com/charmbracelet/huh/blob/main/field_input.go),
+    [GOV.UK label/hint/input guidance](https://design-system.service.gov.uk/components/text-input/),
+    and [proximity](https://lawsofux.com/law-of-proximity/). These inform the concrete
+    grouping and mouse-focus criteria; they do not establish usability by themselves.
 - [#5625](https://github.com/qoretechnologies/qore/issues/5625): user review exposed
   gaps in the earlier acceptance. The disconnected DOM borders, button's invisible
   activation result, submit-locked choice demo and enabled-only compact checks were
@@ -171,7 +204,7 @@ fixes; it is not a claim about every possible application composition.
 | RadioGroup | Arrow highlight and committed selection remain distinct. Clicking a row selects it; the `(o)` marker and bold emphasis work in monochrome. Long labels clip to the available row. | Accepted; [mouse selection](../review/baselines/radio-group.mouse.mono.registered.mouse.png). |
 | ComboBox | Typing filters options; the caret and dropdown marker remain visible. Mouse placement edits the intended position without corrupting Unicode or selection. | Accepted; [mouse caret](../review/baselines/combo-box.mouse.mono.registered.mouse.png). |
 | DescribedChoice | Bold titles, indented descriptions and separated groups distinguish choices. Recommendation, focus and committed selection have separate color and non-color cues. The default allows reselection; Submit is explicitly separate. | Accepted after #5625; [choice hierarchy](../review/baselines/described-choice.default.mono.registered.mounted.png). |
-| Form | Labels, required mark, defaults, help and field errors stay together. Tab scrolls compact fields and Submit into view, then completes the operation. Pending submission exposes progress and cancellation. | Accepted after #5625; [field error](../review/baselines/form.invalid.mono.registered.mounted.png). |
+| Form | Bold headings, help and explicit errors precede bounded values, with a blank row between fields and a focused-field marker. Clicking labels/help/errors focuses without editing. Compact layouts retain field identity and restore truncated metadata on resize; Tab reaches Submit. Password, readonly, multiline and choice adapters preserve their behavior. | Accepted after #5628; [grouping](../review/baselines/form.default.color.registered.mounted.png), [help focus](../review/baselines/form.mouse.mono.registered.help.png), [field error](../review/baselines/form.invalid.mono.registered.mounted.png). |
 | List | Arrows and mouse select the same row. Reverse selection remains clear in monochrome; long rows clip and scrolling preserves selection. | Accepted; [mouse selection](../review/baselines/list.mouse.mono.registered.mouse.png). |
 | Table | End reveals the last row; shrinking keeps it on screen, and Home returns to the start. Headers remain distinguishable from the selected row through weight and content. | Accepted; [last row after shrink](../review/baselines/table.scrolling.mono.registered.shrink.png). |
 | Tree | Directional expansion and row selection expose nested values; disclosure marks communicate hierarchy without color. A mouse row click updates the selected path. | Accepted; [mouse selection](../review/baselines/tree.mouse.mono.registered.mouse.png). |

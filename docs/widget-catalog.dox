@@ -300,10 +300,10 @@ Checkpoints: initial: Choose an option: the filled circle marks selection; the h
 @section catalog_form_default FormWidget
 API: @ref NcursesUi::FormWidget "FormWidget". [Source](https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/FormWidget.qc)
 
-Keep labels, defaults, help and validation next to editable fields.
+Each field groups a bold label, help and a bounded value. Click the label or help to focus its value.
 
 Keyboard: Tab moves between fields and actions; Enter submits; Escape cancels.
-Mouse: Click a field to edit or an action to submit.
+Mouse: Click a label or description to focus its value; click a value to edit or an action to submit.
 
 | State | Story or reason |
 | --- | --- |
@@ -318,7 +318,7 @@ Mouse: Click a field to edit or an action to submit.
 | constrained | form.constrained |
 
 Initial geometry: 16 rows × 64 columns.
-Checkpoints: initial: Keep labels, defaults, help and validation next to editable fields.
+Checkpoints: initial: Each field groups a bold label, help and a bounded value. Click the label or help to focus its value.
 
 @section catalog_list_default ListWidget
 API: @ref NcursesUi::ListWidget "ListWidget". [Source](https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/ListWidget.qc)
@@ -663,7 +663,7 @@ These cases use the same native events for headless assertions and real PTY/brow
 | radio-group.mouse | Exercise the visible mouse target for RadioGroupWidget. Click chooses; wheel moves highlight. |
 | combo-box.mouse | Exercise the visible mouse target for ComboBoxWidget. Click edits and selects a visible choice. |
 | described-choice.mouse | Exercise the visible mouse target for DescribedChoiceWidget. Click chooses a described row. |
-| form.mouse | Exercise the visible mouse target for FormWidget. Click a field to edit or an action to submit. |
+| form.mouse | Exercise the visible mouse target for FormWidget. Click a label or description to focus its value; click a value to edit or an action to submit. |
 | list.mouse | Exercise the visible mouse target for ListWidget. Click selects; double-click activates; wheel scrolls. |
 | tree.mouse | Exercise the visible mouse target for TreeWidget. Click selects; wheel scrolls. |
 | key-value.mouse | Exercise the visible mouse target for KeyValueWidget. Click selects; wheel scrolls. |

@@ -326,10 +326,24 @@ transcript.returnToLatest();
     Read-only fields cannot be edited. Invalid numeric drafts remain visible while
     the model retains its last valid typed value. Custom validation for that field and
     whole-form validation wait until parse errors are corrected. Numeric fields reject
-    nonfinite values. FormWidget composes wrapped labels,
-    help/errors and controls, scrolls focused fields into view, and focuses the first
+    nonfinite values. FormWidget groups each field as a bold cyan label, short help,
+    an optional red @c Error: message and the value control, with a blank row between
+    fields. Text inputs have visible brackets even when empty; multiline values use
+    side rails. A leading @c > identifies the focused field without relying on color.
+    Read-only fields are explicitly labeled and dimmed. Clicking a label, description
+    or error focuses its associated available control without editing or toggling it;
+    the dispatcher's active focus scope remains authoritative. FormWidget scrolls the
+    whole focused field into view when it fits, and focuses the first
     invalid field when bound to Application::getFocusManager(). Password controls
     mask whole Unicode graphemes; explicit value/callback APIs still expose the value.
+
+    Keep help concise and relevant to entering the value. At small heights, layout
+    reserves the input and label first, then validation and help. Truncated metadata
+    shows an ellipsis and returns in full after resize. A one-row stress viewport can
+    show only the control; at least two rows are needed for a separate label and input.
+    Tab/Shift-Tab still reach every available field and action. The grouping follows
+    <a href="https://github.com/charmbracelet/huh">Charm Huh's terminal form patterns</a>
+    and <a href="https://design-system.service.gov.uk/components/text-input/">label/hint/input guidance</a>.
 
     @code{.py}
 %modern

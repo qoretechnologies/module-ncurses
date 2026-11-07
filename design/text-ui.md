@@ -113,6 +113,22 @@ prompt cannot record a submitted secret; failed submissions restore the original
 Form layout uses the visible ancestor/target intersection and observes viewport changes
 independently of model revisions, keeping focused controls visible under clipping.
 
+Form fields use label → help → validation error → control order and a blank row
+between groups. Headings are bold cyan, errors retain an explicit `Error:` prefix,
+and `>` identifies the focused field in color and monochrome. Text-value brackets
+and multiline side rails are painted outside each control's frame, preserving its
+native caret, password masking and mouse-to-text coordinate mapping. Metadata labels
+delegate `mouseFocusTarget()` to the associated control through the existing scoped
+dispatcher; they never forward an activation or mutate a value. Pending model/schema
+changes are reconciled before delegation, and a detached or unavailable control is
+not returned. A failed synchronization propagates without changing focus.
+
+Focus reveals the entire field group. If a field exceeds the viewport height, layout
+allocates a control row, a label row, an error row and a help row in that priority,
+then expands metadata and multiline content within the remaining space. Clipped
+metadata shows an ellipsis; the full source text is retained for resize recovery.
+Zero-area layouts remain inert, and a one-row stress viewport prioritizes editing.
+
 Described choices separate stable values from labels and distinguish custom text in
 a typed result. Descriptions wrap through the shared content provider. Successful
 submission is one-shot; validation/callback failures retain selection and custom text.

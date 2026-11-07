@@ -13,14 +13,15 @@ on_exit session.close();
 NcursesUi::Application app(session); InspectorDemoRoot root();
 NcursesUi::FormModel model((
     <NcursesUi::FormField>{"name": "name", "label": "Request name", "required": True, "help": "A short name for this request"},
-    <NcursesUi::FormField>{"name": "count", "label": "Attempts", "type": NcursesUi::FieldType::Integer, "default_value": 3},
+    <NcursesUi::FormField>{"name": "count", "label": "Attempts", "help": "Maximum attempts before stopping", "type": NcursesUi::FieldType::Integer, "default_value": 3},
     <NcursesUi::FormField>{"name": "enabled", "label": "Enabled", "type": NcursesUi::FieldType::Boolean, "default_value": True},
     <NcursesUi::FormField>{"name": "mode", "label": "Execution mode", "type": NcursesUi::FieldType::Choice, "choices": (
         <NcursesUi::ChoiceItem>{"value": "preview", "label": "Preview", "description": "Show the planned operations", "recommendation": "Recommended before execution", "default_value": True},
         <NcursesUi::ChoiceItem>{"value": "execute", "label": "Execute", "description": "Apply the requested operations"})},
-    <NcursesUi::FormField>{"name": "notes", "label": "Notes", "type": NcursesUi::FieldType::Multiline}
+    <NcursesUi::FormField>{"name": "notes", "label": "Notes", "help": "Explain the requested change; Enter adds a line", "type": NcursesUi::FieldType::Multiline}
 ));
 NcursesUi::FormWidget form(model); NcursesUi::KeyValueWidget inspector({"status": "Enter a request on the left"});
+# Headings and descriptions focus their field on click; only the value control edits it.
 root.addChild(form); root.addChild(inspector); form.setFocusManager(app.getFocusManager());
 form.setOnSubmit(auto sub (hash<auto> values) { inspector.setData(values, "Submitted request"); return values; });
 form.setOnCancel(sub () { app.quit(); });

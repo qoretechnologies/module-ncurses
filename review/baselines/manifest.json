@@ -4580,8 +4580,8 @@
       "story": "form.default",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "cadd08451ead904135f5791d16560f9708d1d2b8a4a1412b09827ecd21eed82e",
-        "png": "f55da9686aa2f59b58703b3a8f6e108c56e8366c788cef931c57dc7e0e86ba07"
+        "json.gz": "b9ab36692ae3358c9405e8f700093f65e76b52e12bf60c13b27b27f941b92290",
+        "png": "30a5ec05ed4bb298040e1cc53f198dca765adb9cc7c5b596c26776485ec66a53"
       }
     },
     {
@@ -4589,8 +4589,8 @@
       "story": "form.default",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "a5cfbf6ef95c62284fd56d996b0360acb01179719915a98706b48983ab47fc6e",
-        "png": "f55da9686aa2f59b58703b3a8f6e108c56e8366c788cef931c57dc7e0e86ba07"
+        "json.gz": "37a04b0f5934af4ff7f9044d1c7fc08db63c63b5f573384477b9ee9eb3fc54a5",
+        "png": "30a5ec05ed4bb298040e1cc53f198dca765adb9cc7c5b596c26776485ec66a53"
       }
     },
     {
@@ -4598,8 +4598,8 @@
       "story": "form.default",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "bb0a21499590ae0978b9f2f764f8c86b7c8a87c8a005f43ec6912c9d36adbd53",
-        "png": "cfa11b3cfe428a8d0cf5b370bdd4efd8f48c60ed4002ef829650cde70fb1eff1"
+        "json.gz": "99d036dfaa319281b6dfb9f4419354ab039f37a1bd5c253afa20bbe1425e24d6",
+        "png": "85c85e3ecb13c90593f25115b28d84827016f309d4195b04cd3835dea41c8abd"
       }
     },
     {
@@ -4607,8 +4607,8 @@
       "story": "form.default",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "a52e5ccacc4d285326091de35261dfa752e63224b92c5c38de48c2a2f8287ccc",
-        "png": "4d5e8cf060a6d7b4a9bbd4e4900247cae9b08c1a6e0b4c9b5ce74a1224707db1"
+        "json.gz": "07c09e9d0887cf8145cb29eab82ba96e0a2c4f46f237b85f364ed7cef80ad1ec",
+        "png": "3632376b32a5897d04e05e9a37697a3886743e25879e2faf4eb958866c61cb7f"
       }
     },
     {
@@ -4616,8 +4616,8 @@
       "story": "form.default",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "2c3a4859ece165cd6747397e83f3b5666a5776c97ac0d3e66a8b34ed8627e596",
-        "png": "04ecd05753ebca82f88d8256c446297d7222999e96831337a6766ddc07a55a06"
+        "json.gz": "6294c85000a841a5790b2415c1f58ea7d4198613e4e09de5e4cecef6334ffc6c",
+        "png": "485505cbf0a02cf783390f849daee890c82d7301f1106154902145a0fe8a4b12"
       }
     },
     {
@@ -4625,8 +4625,8 @@
       "story": "form.default",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "3c304cab12fd831e039b3060a205ad41fcdab62209c54ae0941494568e3ba209",
-        "png": "569a879ca1aeba1720eb1518eb3827aba2d4f013ca87d6af616cfa5d23f29fbd"
+        "json.gz": "2b9834da681021020c0658df8f8d0c2d581dd124e1890098190eaff06b8ec377",
+        "png": "f4124665f96b0eef1a907e31838f95876af50a59522728f41bd113f9abcfbfed"
       }
     },
     {
@@ -4634,8 +4634,8 @@
       "story": "form.default",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "a452e77d30f8f0ea28d2dd78718a09596403be2a0e2856238b1f65e87cfdd8d5",
-        "png": "569a879ca1aeba1720eb1518eb3827aba2d4f013ca87d6af616cfa5d23f29fbd"
+        "json.gz": "0c15a194847cb12e4601e45ad374fffa9f85b2481b5962640c2dd7fe0a3a8530",
+        "png": "f4124665f96b0eef1a907e31838f95876af50a59522728f41bd113f9abcfbfed"
       }
     },
     {
@@ -4643,8 +4643,8 @@
       "story": "form.default",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "eca7ab5b6472038e97ac7ada3c6ff8e8b5d4699bcc82e06876870eaee4efa355",
-        "png": "cfa11b3cfe428a8d0cf5b370bdd4efd8f48c60ed4002ef829650cde70fb1eff1"
+        "json.gz": "6972d784f2991786d0c91ab6cb57fbdf37034d096be8609958e6521cfe094048",
+        "png": "26d3c3be96b3fbe593a4ca95870b4ba559fefe4b7d52ee43f9a52ed918d26de1"
       }
     },
     {
@@ -4652,8 +4652,8 @@
       "story": "form.default",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "5d00b9ee8bb60eb39627abb68f4c569542adbe24dfa32c55a79a2948ed1f8dda",
-        "png": "e1f21144e1942ff56df5fb5be4141ddd2182aa4fd39d285125c4facbc10a20d8"
+        "json.gz": "5c66bc464ff277fc2670d75d675dd8e436e2af446c106a8bf85db86ea929df19",
+        "png": "b07f106dd96fbc40b12288ed47df70aeaedf0f4e3d060b9e45d878f165575ffb"
       }
     },
     {
@@ -4661,8 +4661,8 @@
       "story": "form.default",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "ea39c4d52cb5c7d3e113790952862f3c465b27f20d6558c2ea860771fba9b88b",
-        "png": "22375422331e2c8461d7aaf722650625c3be07fcd7f247b1a777d9728afce760"
+        "json.gz": "d604e5587ecbc7cb22825233e8f67ad70d0e4ef51200bdb830ed133a3b80bb03",
+        "png": "34abc9c55b6a28ef10737ce8c24ad6db0837e89250cc8f240a5b1de973f510d5"
       }
     },
     {
@@ -4670,8 +4670,8 @@
       "story": "form.empty",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "9c95073aba29e0e928f63cf2cbed1e7d8adc10559196040693194fed2279fd3d",
-        "png": "5e84f207c70eec04fb3a153204eb0ba416239d76980b1bf92533fea6086b3850"
+        "json.gz": "9b7a5e707c6239b527a2f71390d14d1cc9c2a4738cc45a53e4b98a5d46796be7",
+        "png": "13cc2619bdf8a9ef99a53881d76732476d2195dcff5ad7e770f4300b65ee7bf3"
       }
     },
     {
@@ -4679,8 +4679,8 @@
       "story": "form.empty",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "c3bec0abad2dcf0dc924b62dafee9690154bfd5730fd731b410f35aa97c186e2",
-        "png": "5e84f207c70eec04fb3a153204eb0ba416239d76980b1bf92533fea6086b3850"
+        "json.gz": "87e50fd2a851733eff3175c8a3ca356bf9361ea947e480a9a9e5935a6bcb311f",
+        "png": "13cc2619bdf8a9ef99a53881d76732476d2195dcff5ad7e770f4300b65ee7bf3"
       }
     },
     {
@@ -4688,8 +4688,8 @@
       "story": "form.empty",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "62d9327898f412f237a5761ca39d256e8286b2a90fb849c29fbc3dbcfc955194",
-        "png": "705d1d201498bb8e1365e6155c004b3b27bbc4a3746d41f8fe5f1f574764fad5"
+        "json.gz": "abfe164b5365286642d7e1e3186bac6cf1d932b543a7ed66f43f3a3fc5a91e22",
+        "png": "1a634feff7dfc8b54e1106dec9386199539a67ee6365602470e91b2c00892f5a"
       }
     },
     {
@@ -4697,8 +4697,8 @@
       "story": "form.empty",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "e331936f26324a625ddec2ce3508ebd44b37d89bc4d6b33beb9a2685dadb045b",
-        "png": "705d1d201498bb8e1365e6155c004b3b27bbc4a3746d41f8fe5f1f574764fad5"
+        "json.gz": "37b8d08f04ecef53618830ff99122e8d9717850da505143b4059c5db9966452a",
+        "png": "1a634feff7dfc8b54e1106dec9386199539a67ee6365602470e91b2c00892f5a"
       }
     },
     {
@@ -4706,8 +4706,8 @@
       "story": "form.focused",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "c85836d4627d9b32306f7638c87e1462ae1e8ccf53bf334bf0e43d2da641e05b",
-        "png": "f55da9686aa2f59b58703b3a8f6e108c56e8366c788cef931c57dc7e0e86ba07"
+        "json.gz": "72f64d5110070249d6ea8120bd2c59e898157e069756dac28663fe3dd8ce1a23",
+        "png": "30a5ec05ed4bb298040e1cc53f198dca765adb9cc7c5b596c26776485ec66a53"
       }
     },
     {
@@ -4715,8 +4715,8 @@
       "story": "form.focused",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "fc67944ddbea60ccfd54853f33e6e63f5a7f645e9287808d8d8c8b54d0924d85",
-        "png": "f55da9686aa2f59b58703b3a8f6e108c56e8366c788cef931c57dc7e0e86ba07"
+        "json.gz": "55cedd52b5b0e021cbce8e95ceac3857edc93dc87e70525732b1561b01d7aa32",
+        "png": "30a5ec05ed4bb298040e1cc53f198dca765adb9cc7c5b596c26776485ec66a53"
       }
     },
     {
@@ -4724,8 +4724,8 @@
       "story": "form.focused",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "641771bcf3fa416118e5103934ac1de757f4308a770bb884de44137c1f7e7014",
-        "png": "569a879ca1aeba1720eb1518eb3827aba2d4f013ca87d6af616cfa5d23f29fbd"
+        "json.gz": "9d9fdc91603cd908083224a6ccaacad7c8d645c528072d2911013c6bd82facdf",
+        "png": "f4124665f96b0eef1a907e31838f95876af50a59522728f41bd113f9abcfbfed"
       }
     },
     {
@@ -4733,8 +4733,8 @@
       "story": "form.focused",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "a58826db6a211e9a5d1bb4b17c80563ae3c722160c0a15e6feece8cf95ee1026",
-        "png": "569a879ca1aeba1720eb1518eb3827aba2d4f013ca87d6af616cfa5d23f29fbd"
+        "json.gz": "486ccddae43cd2ed962f73d1f6c7ac688cc98bb48fcf424e88a6834d3f78a745",
+        "png": "f4124665f96b0eef1a907e31838f95876af50a59522728f41bd113f9abcfbfed"
       }
     },
     {
@@ -4742,8 +4742,8 @@
       "story": "form.disabled",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "da2421f012a56f853c2eb22390e45f37d36e269efa184384fba697454907ec76",
-        "png": "bffca6e4b67f77ce6b791ebaed1b4dfd30398b9ee580e17c969c46ca04af7f5e"
+        "json.gz": "889f02645b7c0a1172d450ecdc018fe144e7fc32a6f7f35c1d14d0d690abd6a5",
+        "png": "8162f2cb2d68b50680c38f86a5097cc0930aa1ae9313014dcf61d98cd3ced7ca"
       }
     },
     {
@@ -4751,8 +4751,8 @@
       "story": "form.disabled",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "d1f4e03bffd658d5ee4f2ababd48e8179d568bd54c1a873cee086753195633dc",
-        "png": "bffca6e4b67f77ce6b791ebaed1b4dfd30398b9ee580e17c969c46ca04af7f5e"
+        "json.gz": "4dc3599fe5d509cbd3de458765976b7c1fe691c14ea0feb3081735bbd1e13539",
+        "png": "8162f2cb2d68b50680c38f86a5097cc0930aa1ae9313014dcf61d98cd3ced7ca"
       }
     },
     {
@@ -4760,8 +4760,8 @@
       "story": "form.disabled",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "2248173378ef9a4b2c8d5cea95c44c5abd14e3b76cd69b5fe2bf8c38113e6d3c",
-        "png": "bffca6e4b67f77ce6b791ebaed1b4dfd30398b9ee580e17c969c46ca04af7f5e"
+        "json.gz": "3fdbeef478c12e83cd42ae0d458f99c9e39e78d269f2cdb949051f50f1103fee",
+        "png": "8162f2cb2d68b50680c38f86a5097cc0930aa1ae9313014dcf61d98cd3ced7ca"
       }
     },
     {
@@ -4769,8 +4769,8 @@
       "story": "form.disabled",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "c960f8e9e669a73ca91566e1f38c3c98c31b0cac8622392fe87e3deba34232ff",
-        "png": "bffca6e4b67f77ce6b791ebaed1b4dfd30398b9ee580e17c969c46ca04af7f5e"
+        "json.gz": "374b605bec9640b6be81139b3d546be51491a5da80c4f2b7c5de08c109016fda",
+        "png": "8162f2cb2d68b50680c38f86a5097cc0930aa1ae9313014dcf61d98cd3ced7ca"
       }
     },
     {
@@ -4778,8 +4778,8 @@
       "story": "form.invalid",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "f31d0fde0d159b88195308de44428328e14e3015eddbd868c071efaa83cf0ec4",
-        "png": "8cd4abe61d535b8fd53201f17cb47ec4e8d0c5fe1895ae9549d6297df9474782"
+        "json.gz": "664babb673c1cd0d0120e06c03ead62f476e455753da8384fb652cc2875563c0",
+        "png": "2a1929273bfc19c97f2ae1c80a19acfea44e1bac98fa0ea205c42b6815ef42d2"
       }
     },
     {
@@ -4787,8 +4787,8 @@
       "story": "form.invalid",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "a5a981e992cc238b9ccc46b1fc450aa3a307841a3f92c822d299ec3cbcd7542d",
-        "png": "8cd4abe61d535b8fd53201f17cb47ec4e8d0c5fe1895ae9549d6297df9474782"
+        "json.gz": "8eabdf6506398ebda7d4fd8763609ebb4436cc0110cbe45151374243fb2ec250",
+        "png": "2a1929273bfc19c97f2ae1c80a19acfea44e1bac98fa0ea205c42b6815ef42d2"
       }
     },
     {
@@ -4796,8 +4796,8 @@
       "story": "form.invalid",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "1e9e121ac1e409199834bdfbb42ce6371c3259ae22433518687a7cb43c1ebbec",
-        "png": "99bb42467f644f6a23baba78bfc06cff5ad9cf0e4f07e5661f4420fad8998f37"
+        "json.gz": "71846ddf1804f0652f2603c653bad636d5aad6043f8b26898241003611f58527",
+        "png": "660572020a6f0c3e6b76e7a09ad392b387eabcbf7db462678b4c430cca086c9a"
       }
     },
     {
@@ -4805,8 +4805,8 @@
       "story": "form.invalid",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "0d2a594c0173e9faa286bf5dc8b2b9bce99474034c97734eab5ccb5621dfbdd0",
-        "png": "99bb42467f644f6a23baba78bfc06cff5ad9cf0e4f07e5661f4420fad8998f37"
+        "json.gz": "a05185e48622115736db31f273cccc7613961bd380c378afda6a765f3ab6f60f",
+        "png": "660572020a6f0c3e6b76e7a09ad392b387eabcbf7db462678b4c430cca086c9a"
       }
     },
     {
@@ -4814,8 +4814,8 @@
       "story": "form.loading",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "4bad9f6be5a6691bde50b1cfcdc5f5437cbb5e13731b92b03c661790ab65379a",
-        "png": "fbcf2e4bbb701bea82c3e368909e9995a55bc789bd385c00f6eaffac7950b84d"
+        "json.gz": "73e23fb263835a14de771b77baae08e41519f86a94dd4da1272c5e5e6805fa38",
+        "png": "0c15ee02b400bae6639b875d108f2d67c349068c3c7365131adc1680dd296c99"
       }
     },
     {
@@ -4823,8 +4823,8 @@
       "story": "form.loading",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "1db689e7c78734aa715f90bcd034aad5226869b63133c36b66cb72fe75c012d8",
-        "png": "fbcf2e4bbb701bea82c3e368909e9995a55bc789bd385c00f6eaffac7950b84d"
+        "json.gz": "ea9669f72c3d39872d61d88e677c8baf2eacd7323ae7afbf76b2c0305c955750",
+        "png": "0c15ee02b400bae6639b875d108f2d67c349068c3c7365131adc1680dd296c99"
       }
     },
     {
@@ -4832,8 +4832,8 @@
       "story": "form.loading",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "e22ac64161fd9c30873ef4f56b3871ded4e23db289d0d44d2c7150cc0036a0a2",
-        "png": "7a14bd142878c52dc7399074a4030a2f35966537d8fcf68d3dba6bd06d6ea09a"
+        "json.gz": "025461812e6e9150ff9d668b4b46d7952885c87275966f262a0563f6953d88bb",
+        "png": "bbf2c263d2d42c4f9f8c5ce4d191a7eef4ef2f0ae9514808aeacdac04d9e0eb4"
       }
     },
     {
@@ -4841,8 +4841,8 @@
       "story": "form.loading",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "c0b2f988e1929673026c00693fbc64b30785dd831a99fdef17e6889f8d0b83b8",
-        "png": "7a14bd142878c52dc7399074a4030a2f35966537d8fcf68d3dba6bd06d6ea09a"
+        "json.gz": "8a5c4d5f52b5510db328c4802639c9544a6b07c734ddf1e64881d4aeed75f35c",
+        "png": "bbf2c263d2d42c4f9f8c5ce4d191a7eef4ef2f0ae9514808aeacdac04d9e0eb4"
       }
     },
     {
@@ -4850,8 +4850,8 @@
       "story": "form.unicode",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "28f9df64c56562faa17125ccea1ac46d90efd51acfeeae6dd33600d91b9dd879",
-        "png": "c7040429c76806d1d3665a0df82e58026ee9bf508278ccfe1926d876fae30ba0"
+        "json.gz": "50d712fd4cfc030a76834f9667cedeefaa7e4bec175130e0697281babd31e387",
+        "png": "46cb77165115b350a5fe851dcd8836268dffdd2213a69464219e33273aea2372"
       }
     },
     {
@@ -4859,8 +4859,8 @@
       "story": "form.unicode",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "5340ade8877ffafdc3a337eba76cf621f0401f9e696fee8657c134d991489557",
-        "png": "c7040429c76806d1d3665a0df82e58026ee9bf508278ccfe1926d876fae30ba0"
+        "json.gz": "07e3b0f22a6d91f7c02182445234c50628a0305c5864d6ed4d3928673da43932",
+        "png": "46cb77165115b350a5fe851dcd8836268dffdd2213a69464219e33273aea2372"
       }
     },
     {
@@ -4868,8 +4868,8 @@
       "story": "form.unicode",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "96da8a8eb41107697fb8b4e94dcc9d88618fb029dde08d7f5f7c443f7d1f3c2e",
-        "png": "9b056e5bda8318a53ca663bf2d8102976d02b2990f5ffff32eb41868d3e19c33"
+        "json.gz": "22478d76c1b1af0f6aeda9f0c2e310be043372a82c4f4c0e03cf079ec0d109f3",
+        "png": "d8a1947ed63710730f0d80389fcf002fbf1852890c5f19c5fe98ea5a13a5fdb3"
       }
     },
     {
@@ -4877,8 +4877,8 @@
       "story": "form.unicode",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "8970b11f72e6b6bbe007d9f4ffdbc9f14bcd0fc7906181876bbf277c910bd3e0",
-        "png": "9b056e5bda8318a53ca663bf2d8102976d02b2990f5ffff32eb41868d3e19c33"
+        "json.gz": "549b2ceb9a5e05f724633f6d1d71b59b3329e79df7ce79a0b8ceb106eb0f8236",
+        "png": "d8a1947ed63710730f0d80389fcf002fbf1852890c5f19c5fe98ea5a13a5fdb3"
       }
     },
     {
@@ -4886,8 +4886,8 @@
       "story": "form.constrained",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "73f0b281a20d65a60eb635e497130afcb56e8a8dce10d46f053ef8a3c20a2310",
-        "png": "e49edbecc85736a37bb7bfc4dd028fb04ce479262bdbee7294cf4873543e65f3"
+        "json.gz": "4cc7ebfc4622273ccfecea2b5b6f6d796df6ae69bc0fd126353749fd2ea299fd",
+        "png": "528241849c0ec4c1b46cb7badf4b34c4e6cd93ba1ba491a8b404bfc2f67b158d"
       }
     },
     {
@@ -4895,8 +4895,8 @@
       "story": "form.constrained",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "4f8bf30de57911a9212c903e4d52e6571bcffb13d1911ad2329d7a748a5fdc41",
-        "png": "e49edbecc85736a37bb7bfc4dd028fb04ce479262bdbee7294cf4873543e65f3"
+        "json.gz": "6e066b62cf46bd00e1e45e8386ca649a8b1c650e82f56bd49d8be330654fb57e",
+        "png": "528241849c0ec4c1b46cb7badf4b34c4e6cd93ba1ba491a8b404bfc2f67b158d"
       }
     },
     {
@@ -4904,8 +4904,8 @@
       "story": "form.constrained",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "1b5d7c693e7b57f53798734e69eebc0cfadd022c662123a62d30fafaab713625",
-        "png": "cfa11b3cfe428a8d0cf5b370bdd4efd8f48c60ed4002ef829650cde70fb1eff1"
+        "json.gz": "8599ebd210588e45cb67b163906926c2ea5a9078b9d2be64d5b9eabea46157f9",
+        "png": "85c85e3ecb13c90593f25115b28d84827016f309d4195b04cd3835dea41c8abd"
       }
     },
     {
@@ -4913,8 +4913,8 @@
       "story": "form.constrained",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "81806a2bdbbb446485c07b56ec980f93ee49d17791aa14b8d692b314cf1f39c1",
-        "png": "e49edbecc85736a37bb7bfc4dd028fb04ce479262bdbee7294cf4873543e65f3"
+        "json.gz": "d1cc4f4dfbbe052f3892bf0b02e7ed69d1fce1c9ac309ff251f614ac5cbc65e9",
+        "png": "528241849c0ec4c1b46cb7badf4b34c4e6cd93ba1ba491a8b404bfc2f67b158d"
       }
     },
     {
@@ -4922,8 +4922,8 @@
       "story": "form.constrained",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "c33fec5df4558124fd2bbe1b53fb016b3ffd52e686263574eb672562cedbe750",
-        "png": "6554a9dd8749f695bc8802126fe5b8f17a5a2e5eb81393f58d9b65867f855a3a"
+        "json.gz": "bc64ad3795ebf35042d287c8bf811d21b228c6bde40708dbccc1d50f0251b451",
+        "png": "abc5b45e38172283d47f91abdadfbbbd522f34d91643bd7cda0cd916c4744f05"
       }
     },
     {
@@ -4931,8 +4931,8 @@
       "story": "form.constrained",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "77d38510ac530edeec42a6411762b89182e002149b1be58e96d9bb5309cc7570",
-        "png": "d425440ac670cac7f315cf31d5f15a83cc467df00d35e7dbe28bb177f32679ca"
+        "json.gz": "6f1abd7e6699330ac378e70e82ed7e4b114463a698a2da9319dc4f63109640b7",
+        "png": "ca00c67828f8531fd9bca53d3390c7a3a0f1d659574e87e263ceda5506e12684"
       }
     },
     {
@@ -4940,8 +4940,8 @@
       "story": "form.constrained",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "21178dacb9a22f0215c42444b17383e25e1e9806f4540367dc0aa0f30bf4a555",
-        "png": "4c5c9a36db36abbd484da5cc7ad7e63720e455bdbd32eafb3edfbb5dd44226f6"
+        "json.gz": "0d0cbf3675a1d8615edee214c55d1a5d10d48f42ab13b8e9553a09548251cbcb",
+        "png": "81d3b1487dd6966956659e344f9cd7549773685e6938d043baeaade1e3c44bb4"
       }
     },
     {
@@ -4949,8 +4949,8 @@
       "story": "form.constrained",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "4d5f32bb22513718364ac09c9a25f18a8f74a3b3e270a67de434a3c1375d354b",
-        "png": "b3b6a1bb1b66ca60655696479e3518bbe257f431074e94f7caf5b33a9fbd9af6"
+        "json.gz": "a584b52ace4658325360c13336cce5e3c0bc55d3753677be95d5d911aab855a2",
+        "png": "adccae3739eccb48e8d39db219b83e8e41a3b1a2fb983dc29aa91cd2a852f3a5"
       }
     },
     {
@@ -4958,8 +4958,8 @@
       "story": "form.constrained",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "b1fc20b0c632fd268638e63bd27878ff18498ef7d609f0fd2593a2b713090b1a",
-        "png": "5ea6b85c188c7a0978482767f72377cfd43eb4e553b561aab55e2d42ff38e8e7"
+        "json.gz": "7098a96da1347dc75926a7116e49f656b00b916594c4a9fa05bf403b2d2359a2",
+        "png": "0035bdce812f1c1e0d724cca1b648b02914477783080060b976a95c9db0aea22"
       }
     },
     {
@@ -4967,8 +4967,8 @@
       "story": "form.constrained",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "9c67c0872b99ba0446ded217136f73a999f87020cb6e548cc83864bc4c9556a9",
-        "png": "e49edbecc85736a37bb7bfc4dd028fb04ce479262bdbee7294cf4873543e65f3"
+        "json.gz": "18ff5253c710f044c47fe543c162f196c86b3709c75f12d9d1492955e635c139",
+        "png": "340d8e1095f9d422939591aff8ce332713c74da4a5a76ea48085f211825814bc"
       }
     },
     {
@@ -4976,8 +4976,8 @@
       "story": "form.constrained",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "bc76130ce3ce1c891f32f362338205944e431e1b0bfa110b19730d74afc5b7f5",
-        "png": "e49edbecc85736a37bb7bfc4dd028fb04ce479262bdbee7294cf4873543e65f3"
+        "json.gz": "5e6bc31c7be1af9e02673ebceeaae47061055425040f87ea1046939fb17ce7e5",
+        "png": "340d8e1095f9d422939591aff8ce332713c74da4a5a76ea48085f211825814bc"
       }
     },
     {
@@ -4985,8 +4985,8 @@
       "story": "form.constrained",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "6efd55a3810362dcc5f88dd85c9150a81b8c8c9a18e12eeec6b4ba9a937107c0",
-        "png": "cfa11b3cfe428a8d0cf5b370bdd4efd8f48c60ed4002ef829650cde70fb1eff1"
+        "json.gz": "388e74632124bc36fe7c4a6e7b8c806c4436be94cac514242c007b3cba8f0e6f",
+        "png": "26d3c3be96b3fbe593a4ca95870b4ba559fefe4b7d52ee43f9a52ed918d26de1"
       }
     },
     {
@@ -4994,8 +4994,8 @@
       "story": "form.constrained",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "99b0c93e7a5cf71eec46555227b625bc07bf74a18e3108fc87ea29335141f2f1",
-        "png": "e49edbecc85736a37bb7bfc4dd028fb04ce479262bdbee7294cf4873543e65f3"
+        "json.gz": "b2df9f8e90c469c8078e14ee2cc9434d1deee5f4fa4e6acecd0f202b6c27123a",
+        "png": "340d8e1095f9d422939591aff8ce332713c74da4a5a76ea48085f211825814bc"
       }
     },
     {
@@ -5003,8 +5003,8 @@
       "story": "form.constrained",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "e542efa848db202fc6fe496049b6e2ce9fa4a2c773383176b5e47fd6898c9d3f",
-        "png": "6554a9dd8749f695bc8802126fe5b8f17a5a2e5eb81393f58d9b65867f855a3a"
+        "json.gz": "f4fd10fd896231ba171f77441bf3573c262484c53396b92ec07577ce27677b94",
+        "png": "485051a8f818a2d3a81b1fe1888e6ec620ca4f4a46a043a840f30765b02e9734"
       }
     },
     {
@@ -5012,8 +5012,8 @@
       "story": "form.constrained",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "f4634bf0761289f24d225b453d78fa84ff6d1a3c956a2ba0964598030177e4b5",
-        "png": "d425440ac670cac7f315cf31d5f15a83cc467df00d35e7dbe28bb177f32679ca"
+        "json.gz": "af2abda13d9e7496afd2927407b60128ed9ab23b8035eb85e613de8b84df9ae3",
+        "png": "f001b20f69e61c11df0affa91332ec65749403359e59423c9053f4c2a701c4a9"
       }
     },
     {
@@ -5021,8 +5021,8 @@
       "story": "form.constrained",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "78f6a3d0ccb85023e44badc544860d29c39ff9986750ad6cbeb6dda030ef0edc",
-        "png": "db3ef6221deb123f0e9b270503b5f9d19de1c626b77454c9b9bd23014050978e"
+        "json.gz": "14ee9166f7cbab38d4458352edbccc0c74909ef10e7c0f24c753c6085520895f",
+        "png": "4df6f32f996ef5cb3a1c2af9178d904c5e1ad2a01fab0c0aff40a04672c02596"
       }
     },
     {
@@ -5030,8 +5030,8 @@
       "story": "form.constrained",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "f7b80be25557307d62f20499d04daeb5d6d1ed062f369b6cc63836ffed952056",
-        "png": "b3b6a1bb1b66ca60655696479e3518bbe257f431074e94f7caf5b33a9fbd9af6"
+        "json.gz": "541b58ca5cdf8c8b2a5f4155f347d0ab4876f648d9e1237cffaa4ae63a2c07dd",
+        "png": "adccae3739eccb48e8d39db219b83e8e41a3b1a2fb983dc29aa91cd2a852f3a5"
       }
     },
     {
@@ -5039,8 +5039,8 @@
       "story": "form.constrained",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "b66a37325e09809b6c9385cfae2309febed93947e2abbfec6d66ecde28384b55",
-        "png": "5ea6b85c188c7a0978482767f72377cfd43eb4e553b561aab55e2d42ff38e8e7"
+        "json.gz": "b4001bbb1c8aba265c210299d00cdae48385f814fd3c32c0106eb5a99d0d9e35",
+        "png": "0035bdce812f1c1e0d724cca1b648b02914477783080060b976a95c9db0aea22"
       }
     },
     {
@@ -11240,8 +11240,8 @@
       "story": "form.mouse",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "5b71a6b547071869404c9274eba9539e827d49af0cd6c473f34afe08567f6278",
-        "png": "f55da9686aa2f59b58703b3a8f6e108c56e8366c788cef931c57dc7e0e86ba07"
+        "json.gz": "80aee8c175eec40fce4015f025d624981b75c4535ace1389891cf05eeb856a5e",
+        "png": "30a5ec05ed4bb298040e1cc53f198dca765adb9cc7c5b596c26776485ec66a53"
       }
     },
     {
@@ -11249,8 +11249,35 @@
       "story": "form.mouse",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "392d0ec898178a3e57601bced55f1dfb83a0a4fa190844a8691204684d1a79c0",
-        "png": "f55da9686aa2f59b58703b3a8f6e108c56e8366c788cef931c57dc7e0e86ba07"
+        "json.gz": "7485f664237c81b99dcd6de6787443a3d19a1eef06f99686c5aed934f59901cc",
+        "png": "30a5ec05ed4bb298040e1cc53f198dca765adb9cc7c5b596c26776485ec66a53"
+      }
+    },
+    {
+      "key": "form.mouse.color.registered.label",
+      "story": "form.mouse",
+      "widget": "FormWidget",
+      "hashes": {
+        "json.gz": "c5aee5ce188d36a843d46dadcf7a08ed3f242b72fc7b4f8f9307ba586b58d399",
+        "png": "5aee656c65e1a3a5b4ab74a85194fb0cca3532ded3f2ff2f29566e3ed5573c7b"
+      }
+    },
+    {
+      "key": "form.mouse.color.registered.help",
+      "story": "form.mouse",
+      "widget": "FormWidget",
+      "hashes": {
+        "json.gz": "91dce7a29abb4949bbb9f08a49d31e405b66d9a3c0fa637e2ed4a491d3aa76a3",
+        "png": "30a5ec05ed4bb298040e1cc53f198dca765adb9cc7c5b596c26776485ec66a53"
+      }
+    },
+    {
+      "key": "form.mouse.color.registered.checkbox-label",
+      "story": "form.mouse",
+      "widget": "FormWidget",
+      "hashes": {
+        "json.gz": "bc42ef9ab43d7a9e9cccf7346a6b3637875f0d04324770847d5808d243c6a56f",
+        "png": "1c8caeaf3f1b2f3e380a4097d1302291c35e971e990f4547eb200b11a800db2a"
       }
     },
     {
@@ -11258,8 +11285,8 @@
       "story": "form.mouse",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "196c69360d1bdb5d3dc2f87ea122035c96ef5a17fd76ce0b057fec3f993d781e",
-        "png": "f641a5db7127482e3d3c2a33e8ac2e5cb2dba6b8239c4c4da2159d1518868ff0"
+        "json.gz": "1582cea11c1e7ecdb5dd2d1ae5b49e91c38ad0f650125dcf21029590d7b44b83",
+        "png": "7a611150ca49ba5bc1e869978c7777c3e0a65c33d7bb4f55f15ce73940ddf3e0"
       }
     },
     {
@@ -11267,8 +11294,8 @@
       "story": "form.mouse",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "4e09e5c909f5da54a6b97286cdb499ff27516dac340dde297eca3657395bab8a",
-        "png": "569a879ca1aeba1720eb1518eb3827aba2d4f013ca87d6af616cfa5d23f29fbd"
+        "json.gz": "8e8eb89494040098af408d820fd6129deab79d1b2bc00aa154da46bcf75c8fdc",
+        "png": "f4124665f96b0eef1a907e31838f95876af50a59522728f41bd113f9abcfbfed"
       }
     },
     {
@@ -11276,8 +11303,35 @@
       "story": "form.mouse",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "dc03d5de88e17a73a084984323f5425d80664ff822cf828a8f54b227f6e06100",
-        "png": "569a879ca1aeba1720eb1518eb3827aba2d4f013ca87d6af616cfa5d23f29fbd"
+        "json.gz": "f8905f15cd003417bbe6cc0b944638012b5cd48230fecf459053fb2211812af5",
+        "png": "f4124665f96b0eef1a907e31838f95876af50a59522728f41bd113f9abcfbfed"
+      }
+    },
+    {
+      "key": "form.mouse.mono.registered.label",
+      "story": "form.mouse",
+      "widget": "FormWidget",
+      "hashes": {
+        "json.gz": "12e3399e26539917d4526dc2a0fbb42242195259e36b8442bbfcd230de17d163",
+        "png": "f86a81de17a11924ed66c34f45195b13376089719c8f3ff630edbba01715335a"
+      }
+    },
+    {
+      "key": "form.mouse.mono.registered.help",
+      "story": "form.mouse",
+      "widget": "FormWidget",
+      "hashes": {
+        "json.gz": "f7c1ee8df1ae07d20b51ce704ac26989d689651e15f99a423b60447602fcb722",
+        "png": "f4124665f96b0eef1a907e31838f95876af50a59522728f41bd113f9abcfbfed"
+      }
+    },
+    {
+      "key": "form.mouse.mono.registered.checkbox-label",
+      "story": "form.mouse",
+      "widget": "FormWidget",
+      "hashes": {
+        "json.gz": "36f4be388b8451bc1a05ad60cc10ce9f7daae97c4594447e7bb6125cee321cc7",
+        "png": "e65b97411cf4c6386839db2817333ee69397157e7347a9e4ec5c9a7ea3ef9481"
       }
     },
     {
@@ -11285,8 +11339,8 @@
       "story": "form.mouse",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "5c4bc3c0ba96e3e3b72ac95a4e9be021ff829a66f2002440c741aa412696f505",
-        "png": "39c0affa7bec6e1577be8032fbd0b4a277db7e773097e0cdd728f0e8470af3f1"
+        "json.gz": "a5dff41fab0dcee3aacab01bda64e3cd8128dd80f0efa4527864453dffd951e2",
+        "png": "3cd69e5278b080356b7b3393282c270980e489582893a051f9826c977ee1d039"
       }
     },
     {
@@ -12128,8 +12182,8 @@
     "styles": "0d2f1ecbb579829af7397da72c01e4945b312972390d825739e4bb9554ef6300"
   },
   "acceptance": {
-    "reviewer": "Codex",
+    "reviewer": "Codex: form hierarchy and metadata-focus review",
     "evidence": "../docs/ux-review-2026-11.md",
-    "evidence_sha256": "4c031ea286247361b4da9e5eafe98305b2b6c165dd6e4013b0d267af965e43bc"
+    "evidence_sha256": "a378ec58dc3b9e3d793cc5ef8a6b97507b2df87be56ba967c66b05bfd9453d75"
   }
 }

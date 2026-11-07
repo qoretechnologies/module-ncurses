@@ -1,6 +1,26 @@
 #! @file FormWidget.qc Typed forms with labels, validation and scroll-aware focus
 /* Copyright 2026 Qore Technologies, s.r.o. SPDX-License-Identifier: MIT */
 public namespace NcursesUi {
+/** @internal Field metadata delegates mouse focus to its associated value control. */
+class FormFieldLabel inherits NcursesUi::LabelWidget {
+    private { NcursesUi::Widget control; code<nothing()> prepare; }
+    constructor(string text, NcursesUi::Widget value, code<nothing()> before) : LabelWidget(text) {
+        control = value; prepare = before;
+    }
+    *NcursesUi::Widget mouseFocusTarget(int py, int px) {
+        if (!isAvailable() || !hitTest(py, px)) { return NOTHING; }
+        prepare();
+        # A pending schema replacement can detach both the label and its old control.
+        return getParent() && control.getParent() == getParent() && control.isFocusable() ? control : NOTHING;
+    }
+    nothing draw(Ncurses::Window window) {
+        LabelWidget::draw(window);
+        hash<NcursesUi::Rect> rect = drawContentRect(window);
+        if (rect.rows > 0 && rect.cols > 0 && getPreferredSizeForWidth(rect.cols).rows > rect.rows) {
+            window.drawTextClipped(rect.y + rect.rows - 1, rect.x + rect.cols - 1, "…");
+        }
+    }
+}
 /** @internal Multiline field adapter delivering changes through the form model. */
 class FormEditorControl inherits NcursesUi::TextEditorWidget {
     private { code<nothing(string)> changed; code<nothing()> prepare; }
@@ -44,7 +64,11 @@ class FormChoiceControl inherits NcursesUi::DescribedChoiceWidget {
         return DescribedChoiceWidget::processEvent(event);
     }
 }
-/** Composable form driven by FormModel, with wrapped labels/help/errors and typed controls.
+/** Composable form driven by FormModel, with grouped labels/help/errors and typed controls.
+    Each field shows a bold heading, help, validation feedback and then its control,
+    with a blank row between fields. Text values have visible side boundaries, including
+    when empty. A leading > marks the focused field independently of color. Clicking
+    a heading, help or error focuses the associated available control without editing it.
     Bind the application's focus manager with setFocusManager() to focus the first
     invalid field. Tab order follows schema order; focused controls scroll into view
     even when the whole form is taller than the terminal. Enter in single-line fields
@@ -78,6 +102,7 @@ public class FormWidget inherits NcursesUi::Widget {
         *hash<NcursesUi::Rect> layout_view;
         *hash<NcursesUi::Rect> draw_bounds;
         *hash<NcursesUi::Rect> drawn_visible;
+        hash<string, bool> framed_controls = {};
     }
     /** Creates controls for a model. @param value UI-thread-owned form model */
     constructor(NcursesUi::FormModel value) {
@@ -140,30 +165,98 @@ public class FormWidget inherits NcursesUi::Widget {
     /** Lays out wrapped field metadata and keeps the current control visible. */
     nothing layout() {
         if (arranging) { return; } arranging = True; on_exit arranging = False;
-        hash<NcursesUi::Rect> view = layoutViewport(); list<NcursesUi::Widget> ordered = (); list<int> heights = (); int total = 0;
+        hash<NcursesUi::Rect> view = layoutViewport(); list<NcursesUi::Widget> ordered = ();
+        list<int> heights = (); list<int> offsets = (); list<int> indents = (); list<int> widths = (); int total = 0;
+        int indent = view.cols >= 6 ? 2 : 0;
+        *NcursesUi::Widget current = findFocused(); int reveal_start = -1; int reveal_end = -1;
+        framed_controls = {};
         foreach hash<NcursesUi::FormField> field in (fields) {
-            foreach NcursesUi::Widget widget in ((labels{field.name}, controls{field.name}, help{field.name}, errors{field.name})) {
-                if (!widget.isVisible()) { continue; }
-                int rows = max(1, widget.getPreferredSizeForWidth(view.cols).rows);
-                ordered += widget; heights += rows; total += rows;
+            NcursesUi::Widget control = controls{field.name}; int start = total;
+            bool active = current && control.containsWidget(current);
+            string heading = (view.cols >= 3 ? (active ? "> " : "  ") : "")
+                + (field.label == "" ? field.name : field.label) + (field.required ? " *" : "")
+                + (field.read_only ? " (read-only)" : "");
+            labels{field.name}.setText(styled(heading, control.isAvailable() ? "\e[1;36m" : "\e[2m"));
+            bool framed = field.type != NcursesUi::FieldType::Boolean && field.type != NcursesUi::FieldType::Choice
+                && view.cols - indent >= 3;
+            framed_controls{field.name} = framed;
+            list<NcursesUi::Widget> group = (labels{field.name}, help{field.name}, errors{field.name}, control);
+            list<int> group_heights = (); list<int> group_indents = (); list<int> group_widths = (); int group_rows = 0;
+            foreach NcursesUi::Widget widget in (group) {
+                int left = widget == labels{field.name} ? 0 : indent;
+                int width = max(0, view.cols - left);
+                if (widget == control && framed) { ++left; width -= 2; }
+                int rows = widget.isVisible() ? max(1, widget.getPreferredSizeForWidth(width).rows) : 0;
+                group_heights += rows; group_indents += left; group_widths += width; group_rows += rows;
             }
+            if (view.rows > 0 && group_rows > view.rows) {
+                # A tiny viewport prioritizes an editable row and its identity, then
+                # validation and help. Clipped metadata shows an ellipsis; widening
+                # or increasing height restores the complete original text.
+                list<int> fitted = (0, 0, 0, 0); int remaining = view.rows;
+                foreach int index in ((3, 0, 2, 1)) {
+                    if (remaining && group_heights[index]) { fitted[index] = 1; --remaining; }
+                }
+                foreach int index in ((0, 2, 1, 3)) {
+                    int extra = min(remaining, group_heights[index] - fitted[index]);
+                    fitted[index] += extra; remaining -= extra;
+                }
+                group_heights = fitted;
+            }
+            for (int i = 0; i < group.size(); ++i) {
+                if (!group[i].isVisible()) { continue; }
+                ordered += group[i]; heights += group_heights[i]; offsets += total;
+                indents += group_indents[i]; widths += group_widths[i]; total += group_heights[i];
+            }
+            if (active) { reveal_start = start; reveal_end = total; }
+            ++total;
         }
-        if (message.isVisible()) { ordered += message; int rows = message.getPreferredSizeForWidth(view.cols).rows; heights += rows; total += rows; }
-        ordered += submit_button; heights += 1; ++total; ordered += cancel_button; heights += 1; ++total;
-        *NcursesUi::Widget current = findFocused();
-        *NcursesUi::Widget reveal = model.getState() == NcursesUi::ActionState::Completed ? message : current; int offset = 0;
+        foreach NcursesUi::Widget widget in ((message, submit_button, cancel_button)) {
+            if (!widget.isVisible()) { continue; }
+            int rows = max(1, widget.getPreferredSizeForWidth(max(0, view.cols - indent)).rows);
+            ordered += widget; heights += rows; offsets += total; indents += indent;
+            widths += max(0, view.cols - indent); total += rows;
+        }
+        *NcursesUi::Widget reveal = model.getState() == NcursesUi::ActionState::Completed ? message : current;
         for (int i = 0; i < ordered.size(); ++i) {
             if (ordered[i] == reveal) {
+                int offset = offsets[i];
                 if (offset < scroll_y) { scroll_y = offset; }
                 else if (offset + heights[i] > scroll_y + view.rows) { scroll_y = offset + min(heights[i], max(1, view.rows)) - max(1, view.rows); }
             }
-            offset += heights[i];
         }
-        scroll_y = max(0, min(scroll_y, max(0, total - view.rows))); offset = 0;
+        # Reveal a complete field, rather than an unexplained value, whenever it fits.
+        if (reveal == current && reveal_start >= 0 && reveal_end - reveal_start <= view.rows) {
+            scroll_y = min(scroll_y, reveal_start);
+            scroll_y = max(scroll_y, reveal_end - view.rows);
+        }
+        scroll_y = max(0, min(scroll_y, max(0, total - view.rows)));
         for (int i = 0; i < ordered.size(); ++i) {
-            ordered[i].setFrameValues(view.y + offset - scroll_y, view.x, heights[i], view.cols); offset += heights[i];
+            ordered[i].setFrameValues(view.y + offsets[i] - scroll_y, view.x + indents[i], heights[i], widths[i]);
         }
         last_focus = current; layout_view = view;
+    }
+    /** Paints text-value boundaries outside the actual editing and mouse-caret area.
+        @param window output surface
+    */
+    nothing draw(Ncurses::Window window) {
+        hash<NcursesUi::Rect> view = layoutViewport(); hash<Ncurses::Position> origin = window.position();
+        foreach hash<NcursesUi::FormField> field in (fields) {
+            NcursesUi::Widget control = controls{field.name};
+            if (!framed_controls{field.name} || !control.isVisible()) { continue; }
+            hash<NcursesUi::Rect> rect = control.getFrame();
+            hash<auto> style = !control.isAvailable() ? {"attrs": Ncurses::Attr::Dim}
+                : (control.hasFocus() ? {"attrs": Ncurses::Attr::Bold, "fg": Ncurses::Color::Cyan} : {});
+            for (int y = max(view.y, rect.y); y < min(view.y + view.rows, rect.y + rect.rows); ++y) {
+                window.drawTextClipped(y - origin.y, rect.x - 1 - origin.x,
+                    field.type == NcursesUi::FieldType::Multiline ? "│" : "[", style);
+                window.drawTextClipped(y - origin.y, rect.x + rect.cols - origin.x,
+                    field.type == NcursesUi::FieldType::Multiline ? "│" : "]", style);
+            }
+        }
+    }
+    private static string styled(string text, string style) {
+        return style + join("\e[0m\n" + style, split("\n", text, False, True)) + "\e[0m";
     }
     private hash<NcursesUi::Rect> layoutViewport() {
         hash<NcursesUi::Rect> visible = visibleRect(); hash<NcursesUi::Rect> view = NcursesUi::Geometry::intersect(contentRect(), visible);
@@ -183,16 +276,19 @@ public class FormWidget inherits NcursesUi::Widget {
         hash<string, NcursesUi::LabelWidget> next_labels = {}; hash<string, NcursesUi::LabelWidget> next_help = {};
         hash<string, NcursesUi::LabelWidget> next_errors = {}; hash<string, bool> next_invalid = {};
         foreach hash<NcursesUi::FormField> field in (next) {
-            next_labels{field.name} = new NcursesUi::LabelWidget(field.label + (field.required ? " *" : ""));
-            next_help{field.name} = new NcursesUi::LabelWidget(field.help); next_help{field.name}.setVisible(field.help != "");
-            next_errors{field.name} = new NcursesUi::LabelWidget(); next_errors{field.name}.setVisible(False);
             next_controls{field.name} = createControl(field);
+            NcursesUi::Widget control = next_controls{field.name};
+            next_labels{field.name} = new NcursesUi::FormFieldLabel(field.label, control, sub () { syncPresentation(); });
+            next_help{field.name} = new NcursesUi::FormFieldLabel(field.help, control, sub () { syncPresentation(); });
+            next_help{field.name}.setVisible(field.help != "");
+            next_errors{field.name} = new NcursesUi::FormFieldLabel("", control, sub () { syncPresentation(); });
+            next_errors{field.name}.setVisible(False);
             if (field.type == NcursesUi::FieldType::Choice && exists model.getValue(field.name) && !choiceAvailable(field, string(model.getValue(field.name)))) { next_invalid{field.name} = True; }
         }
         foreach NcursesUi::Widget child in (getChildren()) { removeChild(child); }
         fields = next; controls = next_controls; labels = next_labels; help = next_help; errors = next_errors;
         foreach hash<NcursesUi::FormField> field in (fields) {
-            addChild(labels{field.name}); addChild(controls{field.name}); addChild(help{field.name}); addChild(errors{field.name});
+            addChild(labels{field.name}); addChild(help{field.name}); addChild(errors{field.name}); addChild(controls{field.name});
         }
         addChild(message); addChild(submit_button); addChild(cancel_button);
         observed_value_revisions = {};
@@ -279,7 +375,7 @@ public class FormWidget inherits NcursesUi::Widget {
         foreach hash<NcursesUi::FormField> field in (fields) {
             NcursesUi::Widget control = controls{field.name};
             if (control.isEnabled() != (editable && !field.read_only)) { control.setEnabled(editable && !field.read_only); }
-            string text = messages{field.name} ?? (imported_invalid_choices{field.name} ? "Choose an available value" : ""); bool invalid = exists messages{field.name} || imported_invalid_choices{field.name}; errors{field.name}.setText(invalid ? "Error: " + text : ""); errors{field.name}.setVisible(invalid);
+            string text = messages{field.name} ?? (imported_invalid_choices{field.name} ? "Choose an available value" : ""); bool invalid = exists messages{field.name} || imported_invalid_choices{field.name}; errors{field.name}.setText(invalid ? styled("Error: " + text, "\e[1;31m") : ""); errors{field.name}.setVisible(invalid);
         }
         string status = messages{""} ?? model.getFailure() ?? "";
         if (state == NcursesUi::ActionState::Running) { status = "Submitting…"; }
