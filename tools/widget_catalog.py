@@ -55,6 +55,10 @@ def validate(stories, public=None):
             raise ValueError(f'{story["id"]}: duplicate or empty checkpoints')
         if any(story['geometry'][axis] < 1 for axis in ('rows', 'cols')):
             raise ValueError(f'{story["id"]}: invalid geometry')
+    mouse_widgets = {story['widget'] for story in stories if story['state'] == 'mouse'}
+    expected_mouse = registered - {'LabelWidget', 'StatusBarWidget'}
+    if mouse_widgets != expected_mouse:
+        raise ValueError(f'Missing mouse scenarios: {sorted(expected_mouse - mouse_widgets)}')
 
 
 def render(stories):
@@ -87,7 +91,12 @@ def render(stories):
         lines += [f'| {state} | {story["states"][state]} |' for state in STATES]
         lines += ['', f'Initial geometry: {story["geometry"]["rows"]} rows × {story["geometry"]["cols"]} columns.',
                   'Checkpoints: ' + '; '.join(f'{step["checkpoint"]}: {step["instruction"]}' for step in story['steps']), '']
-    return '\n'.join(lines + ['*/', ''])
+    lines += ['@section catalog_interactions Additional Interaction Scenarios',
+              'Every interactive widget has a mouse story. Label and StatusBar are read-only and have no mouse action.',
+              'These cases use the same native events for headless assertions and real PTY/browser input.', '',
+              '| Story | Review checkpoint |', '| --- | --- |']
+    lines += [f'| {story["id"]} | {story["purpose"]} |' for story in stories if story['state'] in ('mouse', 'scenario')]
+    return '\n'.join(lines + ['', '*/', ''])
 
 
 def main():

@@ -5,6 +5,24 @@
     @section ncurses_1_0 ncurses Module Version 1.0
     - initial release
 
+    Storybook now reviews the actual native gallery through a local PTY/xterm.js
+    adapter. Shared keyboard, mouse, background-output and cancellation scenarios
+    produce composed cell/cursor/focus/scroll evidence and exact PNG comparisons.
+    Baselines require explicit recorded review; the existing Ubuntu CI job publishes
+    baseline/current/diff artifacts and preserves successful-tree reuse.
+    The gallery reconciles nonmodal cursor visibility after state and focus changes,
+    hiding stale editing carets on disabled fields and non-editing controls.
+
+    Mouse review fixes restrict button and checkbox activation to their visible
+    complete painted label graphemes, including narrow Unicode clipping. They dim
+    disabled checkboxes, recognize terminal Enter variants, and map attachment actions through normalized,
+    wrapped and scrolled text. Completion popups support primary-click selection,
+    wheel navigation, double-click acceptance and consistent Enter handling.
+    Timeline selection and file-selection toggles accept real terminal press/release
+    input as well as synthesized clicks, without repeating an action on release.
+    FileBrowserWidget exposes F7 pane switching for keyboard-only preview access,
+    retaining Tab/Shift+Tab directory navigation and showing the binding in its help.
+
     Session::capture() adds typed, serializable physical-screen frames with panel
     composition, Unicode leading/continuation cells, attributes, palette colors and
     cursor state. It observes completed output without changing live drawing state.

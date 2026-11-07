@@ -116,7 +116,7 @@ public class TimelineWidget inherits NcursesUi::TranscriptWidget {
             if (index < order.size()) { selectEvent(order[index]); } return <NcursesUi::EventResult>{"handled": True};
         }
         bool toggle = (event.type == Ncurses::InputType::Key && event.name == "KEY_ENTER") || (event.type == Ncurses::InputType::Char && (event.ch == " " || event.ch == "\n" || event.ch == "\r"));
-        if (event.type == Ncurses::InputType::Mouse && event.mouse && (event.mouse.button_state & (Ncurses::BUTTON1_CLICKED | Ncurses::BUTTON1_DOUBLE_CLICKED))) {
+        if (event.type == Ncurses::InputType::Mouse && event.mouse && (event.mouse.button_state & (Ncurses::BUTTON1_PRESSED | Ncurses::BUTTON1_CLICKED | Ncurses::BUTTON1_DOUBLE_CLICKED))) {
             hash<NcursesUi::Rect> view = getViewportRect();
             if (NcursesUi::Geometry::rectContains(view, event.mouse.y, event.mouse.x)) {
                 hash<Ncurses::Position> source = getTranscriptContent().visualToSource(event.mouse.y - view.y + getScrollY(), event.mouse.x - view.x + getScrollX());

@@ -5,7 +5,7 @@ public namespace NcursesUi {
     A failed callback preserves an enabled retry action. Callback exceptions propagate.
 */
 public class ButtonWidget inherits NcursesUi::Widget {
-    private { string label; string id; *code<nothing(string)> callback; bool busy = False; bool completed = False; bool single_use = False; }
+    private { string label; string id; *code<nothing(string)> callback; bool busy = False; bool completed = False; bool single_use = False; *hash<NcursesUi::Rect> draw_bounds; }
     /** Creates a button. @param text label @param action stable identifier independent of label */
     constructor(string text, string action = "activate") { label = text; id = action; setFocusable(True); }
     /** Sets an action handler. @param handler receives the stable action identifier */
@@ -30,16 +30,23 @@ public class ButtonWidget inherits NcursesUi::Widget {
     hash<NcursesUi::Rect> getPreferredSize() { return NcursesUi::Geometry::makeRect(0, 0, 1, NcursesUi::TerminalText::displayWidth(label) + 4); }
     /** Draws an appropriately styled button. @param window output window */
     nothing draw(Ncurses::Window window) {
+        hash<Ncurses::Position> origin = window.position(); hash<Ncurses::Size> size = window.size();
+        draw_bounds = NcursesUi::Geometry::makeRect(origin.y, origin.x, size.rows, size.cols);
         hash<NcursesUi::Rect> rect = drawContentRect(window);
         string text = "[ " + (busy ? "Working…" : label) + " ]";
-        int attrs = !isEnabled() || completed ? Ncurses::Attr::Dim : (hasFocus() ? Ncurses::Attr::Reverse : Ncurses::Attr::Bold);
+        int attrs = !isAvailable() || completed ? Ncurses::Attr::Dim : (hasFocus() ? Ncurses::Attr::Reverse : Ncurses::Attr::Bold);
         window.drawTextClipped(rect.y, rect.x, NcursesUi::TerminalText::clipRight(text, rect.cols), {"attrs": attrs});
+    }
+    /** Clears the mouse target when the surface is fully clipped. */
+    nothing onDrawClipped() { draw_bounds = NcursesUi::Geometry::makeRect(0, 0, 0, 0); Widget::onDrawClipped(); }
+    private bool actionHit(int y, int x) {
+        return textActionHit("[ " + (busy ? "Working…" : label) + " ]", draw_bounds, y, x);
     }
     /** Handles Enter, Space and primary clicks. @param event input @return handled/action result */
     hash<NcursesUi::EventResult> processEvent(hash<Ncurses::InputEvent> event) {
         bool hit = event.type == Ncurses::InputType::Char && (event.ch == "\n" || event.ch == "\r" || event.ch == " ");
         hit = hit || (event.type == Ncurses::InputType::Key && event.name == "KEY_ENTER");
-        hit = hit || (event.type == Ncurses::InputType::Mouse && event.mouse && hitTest(event.mouse.y, event.mouse.x)
+        hit = hit || (event.type == Ncurses::InputType::Mouse && event.mouse && actionHit(event.mouse.y, event.mouse.x)
             && (event.mouse.button_state & (Ncurses::BUTTON1_CLICKED | Ncurses::BUTTON1_PRESSED)));
         if (!hit) { return <NcursesUi::EventResult>{}; }
         return <NcursesUi::EventResult>{"handled": True, "action": activate() ? id : NOTHING};

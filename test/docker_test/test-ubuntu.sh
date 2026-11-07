@@ -61,6 +61,11 @@ if ! gosu qore:qore python3 test/test_widget_catalog.py build; then
     FAILED=1
 fi
 
+# Keep browser coverage in this platform job so identical-tree reuse covers the full gate.
+if ! test/docker_test/review-browser.sh; then
+    FAILED=1
+fi
+
 # ... and they still do once the tests have run
 ${MODULE_SRC_DIR}/test/docker_test/check-loaded-modules.sh ${MODULE_SRC_DIR}/build gosu qore:qore
 exit $FAILED

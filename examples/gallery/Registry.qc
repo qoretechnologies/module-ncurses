@@ -6,6 +6,7 @@ hashdecl Step {
     string instruction;
     *hash<Ncurses::InputEvent> event;
     *hash<Ncurses::Size> size;
+    *string action;
     hash<auto> expected;
 }
 hashdecl Story {
@@ -102,6 +103,8 @@ class Registry {
             }
         );
         result = Variants::expand(result + Catalog::stories());
+        result += Catalog::scenarios(result);
+        result += Catalog::mouseScenarios(result);
         for (int i = 0; i < result.size(); ++i) {
             string file = result[i].widget == "KeyValueWidget" ? "TreeWidget" : result[i].widget == "TextChartWidget" ? "TextChart" : result[i].widget;
             result[i].api_url = "https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/" + file + ".qc";

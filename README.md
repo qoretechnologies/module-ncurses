@@ -15,11 +15,23 @@ Version 1.0 is the initial release, providing a high-level terminal API and reus
 ## Build
 
 ```bash
-mkdir -p build
-cd build
-cmake ..
-make
+which qore
+# This example matches /usr/bin/qore; use /usr/local for /usr/local/bin/qore.
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
+cmake --build build -j4
 ```
+
+Use `build-debug/` with `-DCMAKE_BUILD_TYPE=Debug` for debugging. The install prefix
+must match the existing Qore installation so binary module paths remain compatible.
+
+## Widget review
+
+The shared gallery covers all 27 concrete widgets, applicable states, viewport
+sizes, keyboard and mouse interactions. Run it natively or review its actual PTY
+output in Storybook. See [review/README.md](review/README.md) for local commands,
+deterministic captures, baseline/current/diff artifacts and explicit reviewed
+baseline acceptance. The initial interaction review is recorded in
+[docs/ux-review-2026-11.md](docs/ux-review-2026-11.md).
 
 ## Usage
 

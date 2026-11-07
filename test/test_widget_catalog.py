@@ -33,6 +33,12 @@ class CatalogTest(unittest.TestCase):
         self.assertEqual(27, len({s['widget'] for s in self.stories}))
         self.assertGreater(len(self.stories), 150)
         self.assertTrue(all(s['steps'][0]['expected'] for s in self.stories))
+        self.assertEqual(25, len([s for s in self.stories if s['state'] == 'mouse']))
+        self.assertEqual(3, len([s for s in self.stories if s['state'] == 'scenario']))
+
+    def test_missing_mouse_scenario_fails(self):
+        with self.assertRaisesRegex(ValueError, 'Missing mouse scenarios'):
+            catalog.validate([s for s in self.stories if s['id'] != 'attachment.mouse'])
 
     def test_new_widget_missing_registration_fails(self):
         public = {s['widget'] for s in self.stories} | {'FutureWidget'}

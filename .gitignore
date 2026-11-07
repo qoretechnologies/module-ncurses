@@ -1,5 +1,11 @@
 build/
 build-*/
+review/node_modules/
+review/generated/
+review/storybook-static/
+review/artifacts/
+review/test-results/
+review/__pycache__/
 *~
 src/*.dox.h
 src/qc_*.cpp

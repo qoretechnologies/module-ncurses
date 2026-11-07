@@ -96,7 +96,7 @@ public class FileSelectionWidget inherits NcursesUi::Widget {
             bool save = event.ch == "s" || event.ch == "S"; return <NcursesUi::EventResult>{"handled": True, "action": activate(save ? NcursesUi::FileOperation::Save : NcursesUi::FileOperation::Export) ? (save ? "save" : "export") : NOTHING};
         }
         hash<NcursesUi::EventResult> result = list_widget.processEvent(event);
-        if (editable && model.getState() != NcursesUi::ActionState::Running && model.getState() != NcursesUi::ActionState::Completed && event.type == Ncurses::InputType::Mouse && event.mouse && (event.mouse.button_state & Ncurses::BUTTON1_CLICKED)
+        if (editable && model.getState() != NcursesUi::ActionState::Running && model.getState() != NcursesUi::ActionState::Completed && event.type == Ncurses::InputType::Mouse && event.mouse && (event.mouse.button_state & (Ncurses::BUTTON1_CLICKED | Ncurses::BUTTON1_PRESSED))
                 && list_widget.hitTest(event.mouse.y, event.mouse.x) && event.mouse.x < list_widget.getFrame().x + 3) {
             *hash<NcursesUi::FileSelectionEntry> file = getHighlighted(); if (file) { model.toggle(file.id); sync(); }
         }

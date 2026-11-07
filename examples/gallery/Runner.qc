@@ -45,7 +45,7 @@ class Runner {
         app.getSession().resize(initial_size.rows, initial_size.cols);
         app.getSession().setCursor(1);
         if (definition.catalog) {
-            fixture = new NcursesGallery::Fixture(app, definition); widget = fixture.control(); return;
+            fixture = new NcursesGallery::Fixture(app, definition); widget = fixture.control(); syncCursor(); return;
         }
         switch (definition.widget) {
             case "TextEditorWidget":
@@ -80,6 +80,16 @@ class Runner {
             if (editor) { editor.setText("Unicode 界é " + strmul("long content ", 10)); editor.getBuffer().setCursor(0); }
         }
         app.drawAll();
+        syncCursor();
+    }
+    # Nonmodal cursor policy belongs to the application. Reconcile it after
+    # focus/state transitions; modal cursor saving/restoration remains Application's.
+    nothing syncCursor() {
+        checkOpen();
+        if (!app.getDispatcher().hasModal()) {
+            *NcursesUi::Widget focus = app.getFocusManager().getCurrentFocus();
+            app.getSession().setCursor(focus && focus.wantsCursor() ? 1 : 0);
+        }
     }
     private nothing dismiss() { app.popModal(); if (popup) { popup.destroyPanel(); } }
     hash<auto> inspect() {
@@ -93,7 +103,7 @@ class Runner {
         return state;
     }
     hash<auto> capture(string checkpoint = "interactive") {
-        checkOpen(); app.drawAll();
+        checkOpen(); app.drawAll(); syncCursor();
         return {"story": definition.id, "checkpoint": checkpoint, "state": inspect(), "frame": app.getSession().capture()};
     }
     hash<auto> step() {
@@ -105,6 +115,10 @@ class Runner {
             app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Resize});
         }
         if (step.event) { app.processEvent(step.event); }
+        if (step.action) {
+            if (!fixture) { throw "GALLERY-ACTION-ERROR", "This story has no model action"; }
+            fixture.perform(step.action);
+        }
         hash<auto> artifact = capture(step.checkpoint);
         verify(artifact, step.expected); ++checkpoint_index; return artifact;
     }
@@ -112,6 +126,7 @@ class Runner {
         foreach string key in (keys expected) {
             bool valid;
             if (key == "cursor") { valid = artifact.frame.cursor.visibility == expected{key}; }
+            else if (key == "cursor_x") { valid = artifact.frame.cursor.x == expected{key}; }
             else if (key == "focus_nonempty") { valid = artifact.state.focus != ""; }
             else if (key == "scroll_min") { valid = artifact.state.scroll >= expected{key}; }
             else if (key == "contains") {

@@ -131,4 +131,31 @@ app.drawAll();
     @ref ncursesuiintro "NcursesUi"; include that source explicitly when using the repository's
     test harness. See @ref ncurses_mouseguide "Mouse Support" for event fields and
     @ref ncurses_ui_widgetsguide "UI Widget Toolkit" for application lifecycle rules.
+    @section ncursestestingbrowser Browser Interaction and Visual Review
+
+    The checkout's \c review directory runs the same native stories through a PTY
+    and xterm.js inside Storybook. Node 24 and Python 3.9+ are tooling prerequisites;
+    the native gallery remains independently usable. From the repository root:
+    @verbatim
+cmake --build build-debug -j4
+cd review
+npm ci
+npx playwright install chromium
+npm run build
+npm test
+npm run review
+    @endverbatim
+    Use <tt>npm run dev</tt> for interactive review at http://127.0.0.1:6006.
+    The bridge accepts only registered IDs, binds locally, and uses native draw,
+    PTY sequence, xterm parse and render completion signals. It does not synchronize
+    captures with sleeps or polling. Tests replay default and mouse scenarios
+    through actual terminal bytes and compare native cells, cursor, focus and scroll.
+
+    The visual matrix includes all applicable states, color/monochrome and viewport
+    presets. \c review/artifacts/index.html links baseline/current/diff images and
+    semantic changes. Missing or changed evidence fails; CI never accepts baselines.
+    See [review/README.md](https://github.com/qoretechnologies/module-ncurses/blob/develop/review/README.md)
+    for explicit reviewed acceptance, adding cases, font/terminal capability limits,
+    browser-reserved shortcuts, prerequisites and CI artifacts. Interaction review
+    observations accompany automated results; they are not a human usability study.
 */

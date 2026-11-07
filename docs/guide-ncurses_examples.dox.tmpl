@@ -12,6 +12,9 @@
 QORE_MODULE_DIR=build-debug:qlib qore --enable-debug --warnings-are-errors examples/widget-gallery.qr
 QORE_MODULE_DIR=build-debug:qlib qore --enable-debug --warnings-are-errors examples/widget-gallery.qr --story completion-popup.overlap
 QORE_MODULE_DIR=build-debug:qlib qore --enable-debug --warnings-are-errors examples/widget-gallery.qr --headless --story table.scrolling
+QORE_MODULE_DIR=build-debug:qlib qore --enable-debug --warnings-are-errors examples/widget-gallery.qr --headless --story transcript.background-reading
+QORE_MODULE_DIR=build-debug:qlib qore --enable-debug --warnings-are-errors examples/widget-gallery.qr --headless --story progress.cancel-stale
+QORE_MODULE_DIR=build-debug:qlib qore --enable-debug --warnings-are-errors examples/widget-gallery.qr --headless --story attachment.mouse
 python3 tools/widget_catalog.py --check
     @endverbatim
     F2 searches by ID, widget or purpose. F1 gives contextual key help; F3 rebuilds
@@ -34,6 +37,10 @@ python3 tools/widget_catalog.py --check
     initially; file-operation callbacks demonstrate results without writing files.
     Progress timestamps are supplied by a fixture ActionModel subclass; timeline dates,
     data order and contents are fixed. No production widget is reimplemented by the gallery.
+    The same stories can be selected in the checkout's Storybook review application;
+    see @ref ncursestestingbrowser for commands, artifact comparison and reviewed
+    baseline acceptance. Additional mouse and cancellation/background scenarios
+    are listed in @ref catalog_interactions.
 
     \c examples/composed-capture.qr runs headlessly and prints the full composed
     cell/style/cursor frame as JSON. Run it with

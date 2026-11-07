@@ -25,7 +25,8 @@ public namespace NcursesUi {
 /** Split-pane file system browser widget.
 
     Displays a directory listing on the left with a file preview pane
-    on the right. Supports Tab focus switching between panes,
+    on the right. F7 switches focus between panes; Tab enters the selected
+    directory and Shift+Tab navigates back. Supports
     directory navigation, show/hide hidden files, and file type
     identification.
 
@@ -434,7 +435,13 @@ public class FileBrowserWidget inherits NcursesUi::PanelWidget {
             }
         } else if (ev.type == Ncurses::InputType::Key) {
             string name = ev.name ?? "";
-            if (name == "KEY_BTAB") {
+            if (name == "KEY_F(7)") {
+                int next = getFocusedPane() == 0 ? 1 : 0;
+                NcursesUi::Widget target = next == 0 ? file_list : preview_widget;
+                if (!target.isAvailable() || !target.isFocusable()) { return <NcursesUi::EventResult>{"handled": False}; }
+                setFocusedPane(next); markDirty();
+                return <NcursesUi::EventResult>{"handled": True, "action": "switch_pane"};
+            } else if (name == "KEY_BTAB") {
                 # Shift+Tab - navigate back to previous directory
                 navigateBack();
                 return <NcursesUi::EventResult>{"handled": True, "action": "navigate_back"};
@@ -670,6 +677,7 @@ public class FileBrowserWidget inherits NcursesUi::PanelWidget {
         if (!dir_history.empty()) {
             hints += "S-Tab:Back";
         }
+        hints += "F7:Pane";
         hints += ".:Hidden";
         hints += "Esc:Close";
         status_text = hints.join(" | ");

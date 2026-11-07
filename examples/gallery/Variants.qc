@@ -35,9 +35,9 @@ class Variants {
                     case "empty": expected.empty = True; break;
                     case "focused": expected.focus_nonempty = True; break;
                     case "selected": expected.has_selection = True; break;
-                    case "disabled": expected.enabled = False; expected.focus = ""; break;
+                    case "disabled": expected.enabled = False; expected.focus = ""; expected.cursor = 0; break;
                     case "invalid": expected.has_error = True; break;
-                    case "loading": expected.loading = True; break;
+                    case "loading": expected.loading = True; if (story.widget == "FormWidget") { expected.cursor = 0; } break;
                     case "unicode": expected.contains = "界"; break;
                     case "constrained": story.geometry = <Ncurses::Size>{"rows": 4, "cols": 12}; expected.enabled = True; break;
                 }
