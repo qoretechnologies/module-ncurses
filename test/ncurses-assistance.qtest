@@ -21,7 +21,35 @@ class AssistanceTest inherits Test {
         addTestCase("application mouse dispatch switches popup documentation and list navigation", \popupMouse());
         addTestCase("popup action failures retain modal focus and allow retry", \popupFailure());
         addTestCase("outside primary clicks dismiss owned panels and preserve click-through", \outsideDismiss());
+        addTestCase("lost popup anchors dismiss ownership once and reject late responses", \anchorDismiss());
         set_return_value(main());
+    }
+    anchorDismiss() {
+        foreach string reason in (("screen", "hidden", "draw", "failure")) {
+            NcursesUi::TestHarness th(18, 45); on_exit th.close(); NcursesUi::Application app(th.session()); on_exit app.close();
+            NcursesUi::TextEditorWidget editor(); editor.setText("draft"); app.setRoot(editor);
+            app.getFocusManager().setFocus(editor); app.drawAll();
+            NcursesUi::AssistanceModel model(editor.getBuffer());
+            hash<NcursesUi::AssistanceRequest> request = model.beginRequest();
+            NcursesUi::AssistancePopupWidget popup(th.session(), editor, model);
+            popup.positionAtCaret(18, 45); popup.createPanel(); on_exit popup.destroyPanel();
+            int dismissed = 0;
+            popup.setOnDismiss(sub () {
+                ++dismissed; on_exit popup.destroyPanel(); app.popModal();
+                if (reason == "failure") { throw "ANCHOR-DISMISS-ERROR", "Owner failed after removing its scope"; }
+            });
+            app.pushPopup(popup); app.drawAll();
+            if (reason == "hidden") { editor.setVisible(False); popup.fitToScreen(18, 45); }
+            else if (reason == "draw") { editor.setFrameValues(0, 0, 0, 45); popup.drawTree(th.screen()); }
+            else if (reason == "failure") { assertThrows("ANCHOR-DISMISS-ERROR", sub () { popup.fitToScreen(0, 45); }); }
+            else { popup.fitToScreen(0, 45); }
+            assertEq(1, dismissed); assertFalse(app.getDispatcher().hasModal()); assertNothing(popup.getWindow());
+            assertFalse(popup.isVisible()); assertFalse(model.isPending());
+            assertFalse(model.complete(request, <NcursesUi::AssistanceResponse>{}));
+            popup.fitToScreen(0, 45); popup.drawTree(th.screen()); assertEq(1, dismissed);
+            assertEq("draft", editor.getText());
+            if (reason == "screen" || reason == "failure") { assertEq(editor, app.getFocusManager().getCurrentFocus()); }
+        }
     }
     outsideDismiss() {
         foreach int state in ((Ncurses::BUTTON1_PRESSED, Ncurses::BUTTON1_CLICKED,

@@ -34,6 +34,7 @@ class GalleryTest inherits Test {
         addTestCase("compact file panes and dialog retain usable content and actions", \compact());
         addTestCase("real code highlighting completion hints undo and cancellation", \codeEditor());
         addTestCase("code popup cleanup survives failing focus restoration", \codeFailure());
+        addTestCase("resizing open code assistance dismisses and restores editing", \codeResize());
         addTestCase("compact content excludes panel chrome and unrelated editing cursors", \visibleContent());
         addTestCase("story selection search and errors", \registry());
         addTestCase("reset removes modal state and restores deterministic fixtures", \reset());
@@ -156,6 +157,23 @@ class GalleryTest inherits Test {
         app.processEvent(NcursesGallery::Registry::key("KEY_F(8)")); runner.reset(); assertFalse(runner.capture().state.modal);
         terminal.resize(1, 1); app.getSession().resize(1, 1); app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Resize});
         app.processEvent(NcursesGallery::Registry::key("KEY_F(8)")); runner.capture(); runner.close(); assertFalse(app.getDispatcher().hasModal());
+    }
+    codeResize() {
+        Ncurses::TestTerminal terminal(20, 100); NcursesUi::Application app({"test_terminal": terminal}); on_exit app.close();
+        NcursesGallery::Runner runner(app, "text-editor.code"); on_exit runner.close();
+        string original = runner.inspect().text;
+        app.processEvent(NcursesGallery::Registry::key("KEY_F(8)")); assertTrue(runner.capture().state.modal);
+        NcursesUi::PanelWidget popup = cast<NcursesUi::PanelWidget>(app.getDispatcher().topModal());
+        terminal.resize(1, 1); app.getSession().resize(1, 1); app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Resize});
+        assertFalse(runner.capture().state.modal); assertNothing(popup.getWindow()); assertFalse(popup.isVisible());
+        assertEq("TextEditorWidget", runner.inspect().focus); assertEq(original, runner.inspect().text);
+        app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "x"});
+        assertEq(original + "x", runner.capture().state.text);
+        terminal.resize(20, 100); app.getSession().resize(20, 100); app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Resize});
+        app.processEvent(NcursesGallery::Registry::key("KEY_F(8)")); assertTrue(runner.capture().state.modal);
+        app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "\e"});
+        assertFalse(runner.capture().state.modal); assertEq("TextEditorWidget", runner.inspect().focus);
+        assertEq(original + "x", runner.inspect().text);
     }
     visibleContent() {
         NcursesUi::TestHarness th(8, 30); on_exit th.close();

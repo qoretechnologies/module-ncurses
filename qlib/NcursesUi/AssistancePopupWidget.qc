@@ -7,7 +7,8 @@ public namespace NcursesUi {
     clicks dismiss; outside clicks can continue to the underlying control.
     Use the application's popup stack and setOnDismiss() to pop/destroy the panel.
     The editor's shared caret mapping supplies the anchor across wrapping/scrolling.
-    If the caret is outside the visible editor, positionAtCaret() hides/cancels help.
+    If the caret is outside the visible editor, positionAtCaret() dismisses help
+    through the same ownership callback as Escape.
     Models, widgets and callbacks belong to the UI thread.
 */
 public class AssistancePopupWidget inherits NcursesUi::PanelWidget {
@@ -58,10 +59,11 @@ public class AssistancePopupWidget inherits NcursesUi::PanelWidget {
     int getDocumentationScrollY() { return documentation.getScrollY(); }
     /** Positions and clamps the popup using the current editor caret.
         @param rows terminal rows @param columns terminal columns @return whether a visible anchor exists
+        @note Losing an anchor dismisses visible assistance and invokes setOnDismiss() once.
     */
     bool positionAtCaret(int rows, int columns) {
         *hash<Ncurses::Position> anchor = editor.getCaretScreenPosition();
-        if (!anchor || rows <= 0 || columns <= 0) { setVisible(False); return False; }
+        if (!anchor || rows <= 0 || columns <= 0) { if (isVisible()) { dismiss(); } return False; }
         setVisible(True); int height = min(maximum_rows, rows); int width = min(maximum_cols, columns);
         setHasBorder(height >= 3 && width >= 3);
         int y = anchor.y + 1; if (y + height > rows) { y = anchor.y - height; }

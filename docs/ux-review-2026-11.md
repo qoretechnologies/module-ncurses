@@ -76,6 +76,10 @@ the image inspections described below precede explicit baseline acceptance.
     cancel assistance, destroy its panel and continue to the underlying control.
     File previews identify emptiness from a bounded read, including readable
     zero-size-metadata virtual files, and reject unsupported special files.
+    Losing an assistance caret anchor during resize now invokes full dismissal,
+    removing the panel and modal scope. Native and browser tests open assistance
+    before shrinking to 1×1, verify continued editing, and reopen/dismiss after
+    recovery; unit tests cover clipped/hidden anchors, cancellation and owner errors.
   - Ubuntu's first follow-up capture matched every native state but exposed LCD
     color fringes in the opaque WebGL glyph atlas. Local grayscale/RGB fontconfig
     profiles reproduced the mismatch. An alpha glyph atlas selects grayscale

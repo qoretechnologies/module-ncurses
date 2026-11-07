@@ -161,6 +161,9 @@ stale responses. Completion/action edits form one undo step. `AssistancePopupWid
 uses the editor's screen caret, maintains a stable result identity through filtering,
 and separates list navigation from scrollable documentation. The application owns
 modal push/pop and panel destruction. Hiding the editor/popup cancels pending help.
+If resize, clipping or editor visibility removes a visible popup's caret anchor,
+positioning invokes its dismissal hook once so ownership can release the modal
+scope and panel; it does not leave an invisible scope trapping keyboard input.
 
 `ActionModel` similarly identifies each operation attempt and explicitly represents
 pending, running, cancelled, failed and completed states. Cancellation invalidates the

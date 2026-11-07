@@ -285,6 +285,16 @@ test('button presses, choice hierarchy, compact recovery and code assistance are
     const assistanceOutside = await cell(99, 0); await page.mouse.click(assistanceOutside.x, assistanceOutside.y);
     frame = await command(page, 'capture'); assert.equal(frame.state.modal, false); assert.equal(frame.state.focus, 'TextEditorWidget');
     assert.ok(!frame.frame.cells.map(cell => cell.text).join('').includes('Assistance ['));
+    await command(page, 'reset');
+    await page.keyboard.press('F8'); frame = await command(page, 'capture'); assert.equal(frame.state.modal, true);
+    const draftBeforeResize = frame.state.text;
+    frame = await command(page, 'resize', 1, 1); assert.equal(frame.state.modal, false);
+    assert.equal(frame.state.focus, 'TextEditorWidget');
+    await page.keyboard.type('x'); frame = await command(page, 'capture'); assert.equal(frame.state.text, draftBeforeResize + 'x');
+    await command(page, 'resize', 20, 100);
+    await page.keyboard.press('F8'); frame = await command(page, 'capture'); assert.equal(frame.state.modal, true);
+    await page.keyboard.press('Escape'); frame = await command(page, 'capture'); assert.equal(frame.state.modal, false);
+    assert.equal(frame.state.text, draftBeforeResize + 'x'); assert.equal(frame.state.focus, 'TextEditorWidget');
     assert.deepEqual(errors, []); await command(page, 'dispose');
   } finally { await browser.close(); await server.close(); }
 });

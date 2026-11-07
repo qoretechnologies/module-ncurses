@@ -430,7 +430,8 @@ request = help.beginRequest(); editor.insert("x");
     Editing, cancellation or replacement makes earlier results stale. complete()/fail()
     run on the UI thread; callback failures retain the draft. AssistancePopupWidget
     anchors to TextEditorWidget::getCaretScreenPosition(), clamps/flips after resize,
-    hides/cancels for an unavailable/offscreen editor, and presents filterable results
+    dismisses through setOnDismiss() when the caret anchor becomes unavailable,
+    including during resize, and presents filterable results
     with scrollable documentation. Up/Down navigate, Enter activates, Tab changes to
     documentation, and Escape dismisses. The application owns popup push/pop and panel
     destruction through setOnDismiss(). See @c examples/editor-assistance.qr.
