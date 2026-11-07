@@ -23,7 +23,8 @@ export async function createBridgeServer({ port = 6007, staticDir, allowedOrigin
       response.setHeader('Content-Type', mime[path.extname(file)] ?? 'application/octet-stream'); response.end(data);
     } catch { response.writeHead(404).end(); }
   });
-  const sockets = new WebSocketServer({ noServer: true, maxPayload: 32768, perMessageDeflate: false });
+  // A permitted 16 KiB input can expand sixfold as JSON control-character escapes.
+  const sockets = new WebSocketServer({ noServer: true, maxPayload: 128 * 1024, perMessageDeflate: false });
   server.on('upgrade', (request, socket, head) => {
     const origin = request.headers.origin;
     const own = `http://127.0.0.1:${server.address().port}`;

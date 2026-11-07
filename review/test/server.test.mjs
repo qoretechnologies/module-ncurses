@@ -74,10 +74,13 @@ test('session and message bounds reject excess work and release capacity', async
     const denied = connect(server); await assert.rejects(once(denied, 'open'), /403/);
     const closed = once(sockets[0], 'close'); sockets[0].close(); await closed;
     const replacement = connect(server); sockets.push(replacement); await once(replacement, 'open');
-    const oversized = once(replacement, 'close'); replacement.send('x'.repeat(32769)); await oversized;
+    const oversized = once(replacement, 'close'); replacement.send('x'.repeat(128 * 1024 + 1)); await oversized;
     const recovered = connect(server); sockets.push(recovered); await once(recovered, 'open');
     const result = response(recovered, 0); recovered.send(JSON.stringify({ request: 0, type: 'start', story: 'label.default' }));
     assert.equal((await result).artifact.story, 'label.default');
+    const escaped = response(recovered, 1);
+    recovered.send(JSON.stringify({ request: 1, type: 'input', data: '\x07'.repeat(16384) }));
+    assert.equal((await escaped).artifact.story, 'label.default', 'valid input survives worst-case JSON escaping');
   } finally { for (const socket of sockets) { socket.terminate(); } await server.close(); }
   assert.equal(server.sessionCount, 0);
 });

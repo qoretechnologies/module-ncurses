@@ -50,7 +50,8 @@ async def run(args):
         emit({'type': 'process', 'pid': process.pid})
         # Keep the slave open until the native child opens it; otherwise the master
         # can report EIO before startup. Both descriptors are always released below.
-        input_reader = asyncio.StreamReader(limit=65536)
+        # Match the transport envelope, including sixfold JSON escape expansion.
+        input_reader = asyncio.StreamReader(limit=128 * 1024)
         input_protocol = asyncio.StreamReaderProtocol(input_reader)
         input_transport, _ = await loop.connect_read_pipe(lambda: input_protocol, sys.stdin.buffer)
         terminal_done = loop.create_future()

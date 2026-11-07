@@ -9904,7 +9904,7 @@
     ],
     "term": "xterm-256color",
     "timezone": "UTC",
-    "dependencies": "bd446676e3864fc0e8b3f4d0c52e37fd9bf5fa3cc8788dff59ed364a6ca68fde",
+    "dependencies": "ebe071c137a2ee3cba7600f280925531b5b5c6dfa6c9abd978554d2e5f4c1634",
     "fonts": "03f7dd59be6bd76c193949b23f249a5c7de61cb007934282b61b1d6dbbff08be",
     "renderer": "aaad8323ece9b5d8e404518976d548060b6f81c1802039c44c7411f898fd3ed6"
   },
