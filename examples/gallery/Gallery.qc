@@ -40,10 +40,11 @@ class Gallery {
         *hash<Ncurses::Size> overlay_size;
         int preset = 0;
         bool closed = False;
+        bool capture_output;
         *int cursor_tick;
     }
-    constructor(NcursesUi::Application application, string id) {
-        app = application; available = app.getSession().terminalSize();
+    constructor(NcursesUi::Application application, string id, bool capture = False) {
+        app = application; capture_output = capture; available = app.getSession().terminalSize();
         app.setReadTimeout(-1, 25);
         try {
             select(id);
@@ -68,7 +69,7 @@ class Gallery {
         if (runner) { runner.close(); runner = NOTHING; }
         hash<Ncurses::Size> size = storySize(id);
         app.getSession().resize(size.rows, size.cols); preset = 0;
-        runner = new NcursesGallery::Runner(app, id);
+        runner = new NcursesGallery::Runner(app, id, capture_output);
     }
     nothing reset() { observeGeometry(); closeOverlay(); runner.reset(storySize(runner.story().id)); preset = 0; }
     nothing closeOverlay() {

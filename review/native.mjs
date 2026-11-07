@@ -74,7 +74,7 @@ export class NativeStory extends EventEmitter {
     this.child.stdin.on('error', error => { if (!this.closing) { this.fail(error); } });
     this.child.on('error', error => this.fail(error));
     this.child.on('close', (code, signal) => {
-      const expected = this.closing;
+      const expected = this.closing || (this.intentionalExit && code === 0 && !signal);
       this.closing = true;
       clearTimeout(this.startTimer); clearTimeout(this.closeTimer); this.lines.close();
       // Qore inherits the supervisor's isolated process group. This also covers
@@ -114,6 +114,7 @@ export class NativeStory extends EventEmitter {
         }
         break;
       }
+      case 'ended': this.intentionalExit = true; this.emit('ended'); break;
       case 'exit': this.nativePid = undefined; break;
       default: throw new Error('Unknown native response');
     }
@@ -126,7 +127,7 @@ export class NativeStory extends EventEmitter {
   command(action, values = {}) {
     const operation = this.chain.then(async () => {
       await this.ready;
-      if (this.closing) { throw new Error('Native story is closed'); }
+      if (this.closing || this.intentionalExit) { throw new Error('Native story is closed'); }
       if (!['capture', 'input', 'resize', 'reset', 'step', 'settle'].includes(action)) { throw new Error('Unknown native action'); }
       const command = { action, sequence: ++this.sequence };
       if (action === 'input') {

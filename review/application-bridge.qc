@@ -35,6 +35,10 @@ class NativeApplicationBridge {
         app.setReadTimeout(-1, 25); readers.inc();
         try { background readCommands(); } catch (hash<ExceptionInfo> ex) { readers.dec(); rethrow; }
         complete(0); app.run();
+        # Intentional application quit may occur before readEvent consumes the input
+        # fence. The final composed frame is the completion for that command.
+        if (input) { int sequence = input.sequence; input = NOTHING; complete(sequence); }
+        protocol.printf("%s\n", make_json({"type": "ended"}));
     }
     private nothing complete(int sequence, *hash<auto> captured) {
         hash<auto> artifact = captured ?? runner.capture(); artifact.index = runner.checkpointIndex();

@@ -387,3 +387,29 @@ test('glyph rasterization is identical with grayscale and RGB host font profiles
     assert.equal(imageDiff(images[0], images[1]).pixels, 0);
   } finally { await server.close(); await fs.rm(directory, { recursive: true, force: true }); }
 });
+
+
+test('qrepl quit renders its final frame, closes normally and Reset starts a new session', { timeout: 30000 }, async () => {
+  const server = await createBridgeServer({ port: 0, staticDir: fileURLToPath(new URL('../storybook-static/', import.meta.url)) });
+  const browser = await chromium.launch({ args: browserArgs });
+  try {
+    const page = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
+    const errors = []; page.on('pageerror', error => errors.push(error.message));
+    await page.goto(`http://127.0.0.1:${server.port}/iframe.html?id=native-qrepl--default&viewMode=story`);
+    const terminal = page.locator('ncurses-native-terminal');
+    await terminal.evaluate(element => element.ready);
+    const result = await terminal.evaluate(async element => {
+      const closed = new Promise(resolve => element.socket.addEventListener('close', event => resolve(event.code), { once: true }));
+      await element.input('\x11');
+      const frame = await element.input('\r');
+      return { code: await closed, modal: frame.state.modal, error: element.status.dataset.error, status: element.status.textContent };
+    });
+    assert.equal(result.code, 1000); assert.equal(result.modal, false); assert.equal(result.error, undefined);
+    assert.match(result.status, /Session ended/);
+    await page.getByRole('button', { name: 'Reset story', exact: true }).click();
+    const fresh = await terminal.evaluate(element => element.ready);
+    assert.equal(fresh.state.text, '6 * 7');
+    assert.equal((await terminal.evaluate(element => element.capture())).state.evaluating, false);
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); await server.close(); }
+});

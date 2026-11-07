@@ -93,6 +93,7 @@ export class NativeTerminal extends HTMLElement {
           const bytes = Uint8Array.from(atob(message.data), char => char.charCodeAt(0)); this.term.write(bytes);
         } else if (message.type === 'geometry') { this.term.resize(message.cols, message.rows); }
         else if (message.type === 'frame') { void this.completeFrame(message).catch(error => this.fail(error)); }
+        else if (message.type === 'ended') { void this.finishSession().catch(error => this.fail(error)); }
         else if (message.type === 'closed') { this.requests.get(message.request)?.resolve(message); this.requests.delete(message.request); }
         else if (message.type === 'error') {
           const error = new Error(message.error); const pending = this.requests.get(message.request);
@@ -167,11 +168,27 @@ export class NativeTerminal extends HTMLElement {
     this.nextStep.title = this.interacted ? 'Reset the story to replay its recorded steps.' : next?.instruction || 'All recorded steps are complete.';
   }
   async input(data, encoding = 'utf8') {
-    await this.ready; this.interacted = true; this.updateCheckpointControl();
+    await this.ready; if (this.ended) { return this.frame; } this.interacted = true; this.updateCheckpointControl();
     return await this.request('input', { data, encoding });
   }
   async capture() { await this.ready; return await this.request('capture'); }
-  async reset() { await this.ready; this.interacted = false; const frame = await this.request('reset'); this.term.focus(); return frame; }
+  async finishSession() {
+    this.ended = true;
+    await this.requestChain; // Retain final frame until its terminal fence has rendered.
+    this.nextStep.disabled = true;
+    this.status.textContent = 'Session ended. Reset story to restart.';
+    this.feedback.textContent = 'The application exited normally.';
+    await this.request('close');
+  }
+  async reset() {
+    await this.ready;
+    if (this.ended) {
+      const replacement = document.createElement('ncurses-native-terminal');
+      Object.assign(replacement, { definition: this.definition, geometry: this.geometry, monochrome: this.monochrome });
+      this.replaceWith(replacement); return await replacement.ready;
+    }
+    this.interacted = false; const frame = await this.request('reset'); this.term.focus(); return frame;
+  }
   async step() {
     await this.ready;
     if (this.interacted) { throw new Error('Reset the story before replaying recorded checkpoints after manual input.'); }

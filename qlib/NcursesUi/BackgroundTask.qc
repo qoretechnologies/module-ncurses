@@ -3,6 +3,7 @@
 public namespace NcursesUi {
 #! Worker outcome; exceptions are data until delivered on the UI thread.
 public hashdecl TaskResult { auto value; *hash<ExceptionInfo> error; }
+hashdecl TaskDeliveryFailure { hash<NcursesUi::ActionRequest> token; hash<ExceptionInfo> error; }
 /** Runs one worker at a time, delivering completion through Application's wake queue.
     Start and callbacks belong to the UI thread; work must never access widgets.
     A task remains busy until its completion is delivered, preventing overlapping
@@ -13,6 +14,9 @@ public hashdecl TaskResult { auto value; *hash<ExceptionInfo> error; }
 public class BackgroundTask {
     private {
         NcursesUi::ActionModel model;
+        NcursesUi::Application app;
+        Ncurses::Session session;
+        int recovery_tick;
         NcursesUi::UiEventScope delivery;
         Counter workers(0);
         int ui_thread = gettid();
@@ -20,20 +24,35 @@ public class BackgroundTask {
         bool busy = False;
         *code<nothing(hash<NcursesUi::TaskResult>)> on_finished;
         Mutex failure_mutex();
-        *hash<ExceptionInfo> delivery_failure;
+        *hash<NcursesUi::TaskDeliveryFailure> delivery_failure;
     }
     /** Creates a task. @param app UI owner @param id stable action ID @param label operation label */
     constructor(NcursesUi::Application app, string id, string label) {
+        self.app = app; session = app.getSession();
         model = new NcursesUi::ActionModel(id, label);
-        delivery = app.createEventScope(sub (auto payload) {
-            hash<NcursesUi::TaskResult> result = payload.result;
-            if (result.error) { model.fail(payload.token, result.error.desc); }
-            else { model.complete(payload.token, result.value); }
-            busy = False;
-            *code<nothing(hash<NcursesUi::TaskResult>)> callback = on_finished; on_finished = NOTHING;
-            if (callback) { callback(result); }
-        });
+        delivery = app.createEventScope(sub (auto payload) { finish(payload.token, payload.result); });
+        on_error delivery.close();
+        recovery_tick = app.addOwnedTickCallback(sub () { processPending(); });
     }
+    private nothing finish(hash<NcursesUi::ActionRequest> token, hash<NcursesUi::TaskResult> result) {
+        if (closed) { return; }
+        bool accepted = result.error ? model.fail(token, result.error.desc) : model.complete(token, result.value);
+        if (!accepted) { return; }
+        busy = False;
+        *code<nothing(hash<NcursesUi::TaskResult>)> callback = on_finished; on_finished = NOTHING;
+        if (callback) { callback(result); }
+    }
+    /** Recovers a failed queue delivery on the UI thread, invoking the outcome callback once.
+        Application's event loop calls this automatically each turn; embedders without
+        that loop can call it after Application::processPending(). No worker join is needed.
+        @return whether a delivery failure was consumed @throw callback errors propagate */
+    bool processPending() {
+        checkThread(); *hash<NcursesUi::TaskDeliveryFailure> failure;
+        { failure_mutex.lock(); on_exit failure_mutex.unlock(); failure = delivery_failure; delivery_failure = NOTHING; }
+        if (!failure) { return False; }
+        finish(failure.token, <NcursesUi::TaskResult>{"error": failure.error}); return True;
+    }
+
     /** Returns operation state for progress/status views. @return action model */
     NcursesUi::ActionModel getModel() { checkThread(); return model; }
     /** Reports work awaiting completion delivery. @return busy */
@@ -54,11 +73,11 @@ public class BackgroundTask {
         @throw worker delivery error if the application's queue could not accept/wake */
     nothing join() {
         checkThread(); workers.waitForZero(); failure_mutex.lock(); on_exit failure_mutex.unlock();
-        if (delivery_failure) { throw delivery_failure.err, delivery_failure.desc, delivery_failure.arg; }
+        if (delivery_failure) { throw delivery_failure.error.err, delivery_failure.error.desc, delivery_failure.error.arg; }
     }
     /** Disposes deliveries, joins work and releases callbacks. Idempotent; does not cancel work. */
     nothing close() {
-        checkThread(); closed = True; on_finished = NOTHING; delivery.close();
+        checkThread(); closed = True; on_finished = NOTHING; app.removeTickCallback(recovery_tick); delivery.close();
         on_exit { busy = False; if (model.getState() == NcursesUi::ActionState::Running) { model.cancel(); } }
         join();
     }
@@ -67,7 +86,13 @@ public class BackgroundTask {
         on_exit workers.dec(); hash<NcursesUi::TaskResult> result = <NcursesUi::TaskResult>{};
         try { result.value = work(); } catch (hash<ExceptionInfo> ex) { result.error = ex; }
         try { delivery.post({"token": token, "result": result}); }
-        catch (hash<ExceptionInfo> ex) { failure_mutex.lock(); on_exit failure_mutex.unlock(); delivery_failure = ex; }
+        catch (hash<ExceptionInfo> ex) {
+            { failure_mutex.lock(); on_exit failure_mutex.unlock();
+                delivery_failure = <NcursesUi::TaskDeliveryFailure>{"token": token, "error": ex}; }
+            # Recovery has its own bounded slot. Wake once after publishing it, even
+            # when the ordinary queue was full; a failed terminal wake is surfaced by join().
+            try { session.wakeup(); } catch (hash<ExceptionInfo> wake_error) {}
+        }
     }
 }
 }

@@ -272,3 +272,9 @@ or that control's editing caret. Panel chrome and an unrelated background cursor
 cannot satisfy them. Browser glyphs use a transparent WebGL atlas for consistent
 grayscale antialiasing; the terminal theme/background remains opaque. A regression
 compares grayscale and RGB host font profiles without tolerating pixel differences.
+
+Intentional qrepl exit acknowledges the final input frame and drains its terminal
+render barrier before closing the connection normally. **Reset story** starts a
+fresh session after exit. The standalone native gallery opens a dedicated terminal
+handle and enables output capture for application stories; headless runners keep
+capture disabled unless explicitly requested by an integration test.

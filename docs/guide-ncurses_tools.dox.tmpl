@@ -95,6 +95,11 @@ editor.setText("get_qore_library_in");
     access widgets. join() is a deterministic test/shutdown barrier; interactive event
     handlers must not call it. close() releases callbacks and joins without claiming
     to cancel the operation. Applications may retain the model for progress views.
+    If queue publication fails, a bounded recovery slot retains the failure and wakes
+    the event loop; the next UI turn reports a failed outcome and permits retry.
+    Embedders without Application::run() call BackgroundTask::processPending() after
+    Application::processPending(). join() surfaces an undelivered failure if the UI
+    cannot run, for example after the terminal has closed.
 
     @ref NcursesUi::Dialogs provides confirm(), message(), prompt() and openFile().
     Prompt fields reuse FormWidget labels, descriptions, validation, mouse focus and

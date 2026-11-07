@@ -9,10 +9,26 @@
 %requires QUnit
 %include "test/TestHarness.qc"
 %exec-class ControllersTest
+# Inject a bounded queue and wake failure while retaining the actual Application loop.
+class FaultQueueApplication inherits NcursesUi::Application {
+    private { NcursesUi::UiEventQueue queue; bool fail_wake = False; }
+    constructor(Ncurses::Session session) : Application(session) {
+        queue = new NcursesUi::UiEventQueue(sub () {
+            if (fail_wake) { throw "TEST-WAKE-ERROR", "Expected wake failure"; }
+            session.wakeup();
+        }, 1);
+    }
+    nothing failWakes(bool value) { fail_wake = value; }
+    NcursesUi::UiEventScope createEventScope(code<nothing(auto)> callback, *NcursesUi::Widget owner) {
+        return queue.createScope(callback);
+    }
+    int processPending() { return queue.drain(); }
+}
 class ControllersTest inherits Test {
     constructor() : Test("ControllersTest", "1.0", \ARGV) {
         addTestCase("workers serialize starts and deliver results only on the UI thread", \workers());
         addTestCase("worker and callback errors retain lifecycle invariants", \failures());
+        addTestCase("failed worker deliveries recover on the UI loop and allow retry", \deliveryRecovery());
         addTestCase("closing work drops callbacks and rejects later starts", \shutdown());
         addTestCase("priority status retains essential state and Unicode boundaries", \status());
         addTestCase("centered panels clamp and regrow without losing their requested size", \geometry());
@@ -49,6 +65,33 @@ class ControllersTest inherits Test {
         task.start(auto sub () { return 1; }, sub (hash<NcursesUi::TaskResult> result) { throw "CALLBACK-ERROR", "Expected callback error"; });
         task.join(); assertThrows("CALLBACK-ERROR", sub () { app.processPending(); }); assertFalse(task.isRunning());
         assertEq(0, app.processPending());
+    }
+    deliveryRecovery() {
+        foreach bool wake_failure in ((False, True)) {
+            NcursesUi::TestHarness th(8, 40); on_exit th.close(); FaultQueueApplication app(th.session());
+            app.setRoot(new NcursesUi::LabelWidget("Recovery")); app.setReadTimeout(-1, 25);
+            NcursesUi::BackgroundTask task(app, "recover", "Recover"); on_exit task.close();
+            NcursesUi::UiEventScope filler = app.createEventScope(sub (auto value) {}); on_exit filler.close();
+            if (wake_failure) { app.failWakes(True); } else { filler.post(1); }
+            string expected = wake_failure ? "TEST-WAKE-ERROR" : "UI-QUEUE-FULL";
+            int called = 0; int thread = gettid();
+            task.start(auto sub () { return 42; }, sub (hash<NcursesUi::TaskResult> result) {
+                ++called; assertEq(thread, gettid()); assertEq(expected, result.error.err);
+                assertFalse(task.isRunning()); assertEq(NcursesUi::ActionState::Failed, task.getModel().getState()); app.quit();
+            });
+            # The join is a test barrier only. Recovery itself runs on an actual UI turn.
+            assertThrows(expected, sub () { task.join(); }); assertTrue(task.isRunning()); assertEq(0, called);
+            app.run(); assertEq(1, called); assertFalse(task.processPending());
+            app.failWakes(False);
+            task.start(auto sub () { return 7; }, sub (hash<NcursesUi::TaskResult> result) { ++called; assertEq(7, result.value); });
+            task.join(); app.processPending(); assertEq(2, called); assertFalse(task.isRunning());
+            assertEq(NcursesUi::ActionState::Completed, task.getModel().getState());
+            app.failWakes(True);
+            task.start(auto sub () { return 9; }, sub (hash<NcursesUi::TaskResult> result) { ++called; });
+            assertThrows("TEST-WAKE-ERROR", sub () { task.join(); });
+            assertThrows("TEST-WAKE-ERROR", sub () { task.close(); });
+            assertTrue(task.processPending()); task.close(); assertEq(2, called); assertFalse(task.isRunning());
+        }
     }
     shutdown() {
         NcursesUi::TestHarness th(8, 20); on_exit th.close(); NcursesUi::Application app(th.session());

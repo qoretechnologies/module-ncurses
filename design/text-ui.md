@@ -340,7 +340,10 @@ The application serializes assistance and evaluation against that live backend.
 
 `BackgroundTask` owns one worker and a UI-event scope. It remains busy through
 completion delivery, catches worker exceptions as typed result data, and releases
-callbacks before joining during disposal. It exposes the existing `ActionModel`
+callbacks before joining during disposal. A single protected recovery slot retains
+queue/wake failures; a wake and owned UI tick deliver that failure once, allowing
+retry without an interactive join. Headless embedders can dispatch recovery explicitly
+through `processPending()`. It exposes the existing `ActionModel`
 for state/progress views. Joining is for tests and shutdown; worker execution is
 not cancellable unless the underlying operation supplies a separate mechanism.
 qrepl retains the submitted buffer revision and only clears an unchanged draft on
