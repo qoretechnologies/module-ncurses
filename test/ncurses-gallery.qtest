@@ -365,14 +365,15 @@ class GalleryTest inherits Test {
     galleryCapture() {
         Ncurses::TestTerminal terminal(16, 72); NcursesUi::Application app({"test_terminal": terminal}); on_exit app.close();
         NcursesGallery::Gallery gallery(app, "qrepl.default", True); on_exit gallery.close();
-        foreach string ch in (("\x15", "stdout.write(\"gallery-\" + \"capture\\n\");", "\n")) {
+        foreach string ch in (("\x15", "stdout.write(\"gallery-\" + \"capture\\n\"); stderr.write(\"captured-\" + \"stderr\\n\");", "\n")) {
             if (ch.length() > 1) {
                 for (int i = 0; i < ch.length(); ++i) { string character = ch.substr(i, 1); app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": character}); }
             } else { app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": ch}); }
         }
         gallery.current().settle(); hash<auto> artifact = gallery.current().capture();
         string text = join("", map $1.text, artifact.frame.cells);
-        assertTrue(text.find("gallery-capture") >= 0);
+        assertTrue(text.find("gallery-capture") >= 0, text);
+        assertTrue(text.find("captured-stderr") >= 0, text);
         assertFalse(artifact.state.evaluating); gallery.reset();
         assertFalse(join("", map $1.text, gallery.current().capture().frame.cells).find("gallery-capture") >= 0);
         gallery.select("label.default"); assertEq("LabelWidget", gallery.current().control().className());

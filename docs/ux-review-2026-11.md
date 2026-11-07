@@ -340,6 +340,15 @@ its final frame, close code 1000 and Reset starting a fresh session. The streami
 marker has a failure deadline, and a negative test proves a missing marker reaches
 FIFO/process cleanup. These fixes preserve the registered visual checkpoints.
 
+Alpine CI exposed a descriptor-ownership case: reopening inherited stdout/stderr
+through `/proc/self/fd` fails when a runner drops privileges and the pipe belongs
+to its parent. Capture and the browser protocol now duplicate inherited handles
+through `File::redirect()`, without reopening the protected inode. Regression
+coverage denies reopening stdout, stderr and both together, checks capture of
+both streams, and exercises reset/restoration. All three cases failed before the
+fix and pass afterward. Saved descriptors are closed after restoration, including
+error cleanup.
+
 ## qrepl follow-up implementation audit
 
 The audit follows the local `audit-changes` checklist. Evidence below applies to
@@ -369,8 +378,8 @@ this follow-up; earlier native implementation checks remain recorded above.
 | Security | Pass | No arbitrary bridge command endpoint, no credentials, local-only review service; fixture teardown and native-protocol bounds retained. |
 | Correctness | Pass | Exact completion ranges and suffix retention, Unicode, tiny/resize layouts, save/overwrite/cancel/load, draft revision preservation, focus restoration and actual streaming tested. |
 
-Final local gates: 45 QUnit suites, 957 cases / 22,069 assertions; 26 compiled-module
-suites, 629 cases / 7,974 assertions. Documentation/API checks, executable examples,
+Final local gates: 45 QUnit suites, 957 cases / 22,070 assertions; 26 compiled-module
+suites, 629 cases / 7,975 assertions. Documentation/API checks, executable examples,
 widget-catalog drift checks and CI tree-reuse tests pass. Browser/native tooling
 and platform CI results are linked in the delivery PR. No C++ changed, so this
 follow-up does not require a new Valgrind run.

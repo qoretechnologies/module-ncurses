@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -105,6 +106,23 @@ class CatalogTest(unittest.TestCase):
                         repeat = subprocess.run(args, cwd=ROOT, env=self.env, capture_output=True, text=True, timeout=30)
                         self.assertEqual(0, repeat.returncode, repeat.stderr)
                         self.assertEqual(frames, json.loads(repeat.stdout))
+
+    def test_gallery_captures_inherited_streams_without_reopen_permission(self):
+        # Inherited descriptors remain writable when their backing inode cannot
+        # be opened again, as with root-owned CI pipes after dropping privileges.
+        for restricted in ((1,), (2,), (1, 2)):
+            with self.subTest(restricted=restricted), tempfile.TemporaryFile() as output, tempfile.TemporaryFile() as errors:
+                for number, stream in ((1, output), (2, errors)):
+                    if number in restricted:
+                        os.fchmod(stream.fileno(), 0)
+                run = subprocess.run(['qore', '--enable-debug', '--warnings-are-errors',
+                                      'test/ncurses-gallery.qtest', '--include=interactive gallery captures*'],
+                                     cwd=ROOT, env=self.env, stdout=output, stderr=errors, timeout=30)
+                output.seek(0)
+                errors.seek(0)
+                log = (output.read() + errors.read()).decode()
+                self.assertEqual(0, run.returncode, log)
+                self.assertRegex(log, r'\([1-9][0-9]* assertions\)')
 
 
 if __name__ == '__main__':

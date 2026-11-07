@@ -13,6 +13,7 @@
     qrepl adopts these APIs for syntax highlighting, exact completion ranges, help,
     real file selection/save prompts, consistent quitting and responsive evaluation.
     Output streams during work and edits made during evaluation survive its result.
+    Capture preserves inherited output handles even after a runner drops privileges.
     The backend does not expose safe cancellation; quit can wait for completion.
     Five full-application stories exercise the actual qrepl code through its event loop.
 

@@ -4091,13 +4091,17 @@ class QRepl {
     private hash<auto> start_output_capture() {
         hash<PipeInfo> pipe = File::getPipe();
         File stdout_restore(); File stderr_restore();
-        stdout_restore.open2("/proc/self/fd/1", O_WRONLY);
-        stderr_restore.open2("/proc/self/fd/2", O_WRONLY);
+        # Reserve owned descriptors, then duplicate the inherited streams with
+        # dup2 via redirect(). Reopening /proc/self/fd can fail after a runner
+        # drops privileges, even though the inherited descriptors are writable.
+        stdout_restore.open2("/dev/null", O_WRONLY); stdout_restore.redirect(stdout);
+        stderr_restore.open2("/dev/null", O_WRONLY); stderr_restore.redirect(stderr);
         Ncurses::Session terminal = app.getSession();
         QReplOutputCapture reader(pipe.read, sub () { terminal.wakeup(); });
         on_error {
-            stdout.redirect(stdout_restore); stderr.redirect(stderr_restore);
-            reader.close(); pipe.write.close(); pipe.read.close();
+            on_exit pipe.read.close(); on_exit pipe.write.close(); on_exit reader.close();
+            on_exit stderr.redirect(stderr_restore);
+            stdout.redirect(stdout_restore);
         }
         stdout.redirect(pipe.write); stderr.redirect(pipe.write); capture_reader = reader;
         return {"pipe": pipe, "stdout_restore": stdout_restore, "stderr_restore": stderr_restore};
@@ -4454,6 +4458,8 @@ class QRepl {
 
     private nothing restore_output() {
         if (!capture_enabled) { return; } capture_enabled = False;
+        on_exit output_capture.stdout_restore.close();
+        on_exit output_capture.stderr_restore.close();
         on_exit output_capture.pipe.read.close();
         on_exit output_capture.pipe.write.close();
         on_exit { if (capture_reader) { capture_reader.close(); capture_reader = NOTHING; } }

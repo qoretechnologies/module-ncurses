@@ -19,7 +19,7 @@ string id = ARGV[1]; NcursesGallery::Registry::find(id);
 NcursesUi::Application app({"tty_path": ARGV[0], "use_tty": True, "raw": True,
     "mouse": True, "bracketed_paste": True, "cursor": 1, "use_colors": ARGV[2] != "mono"});
 on_exit app.close();
-File protocol(); protocol.open2("/proc/self/fd/1", O_WRONLY); on_exit protocol.close();
+File protocol(); protocol.open2("/dev/null", O_WRONLY); on_exit protocol.close(); protocol.redirect(stdout);
 NcursesGallery::Runner runner(app, id, NcursesGallery::Registry::find(id).application); on_exit runner.close();
 File terminal(); terminal.open(ARGV[0], O_WRONLY); on_exit terminal.close();
 if (runner.story().application) { NativeApplicationBridge bridge(app, runner, protocol, terminal); bridge.run(); exit(0); }
