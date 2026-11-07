@@ -21,6 +21,7 @@ class EditorTest inherits Test {
         addTestCase("limits and callbacks preserve draft selection and undo", \failures());
         addTestCase("searchable history restores unfinished draft", \history());
         addTestCase("history refresh preserves browsing snapshots and applies the latest update on exit", \historyRefresh());
+        addTestCase("unsuccessful initial history navigation does not defer refreshed entries", \failedHistoryRefresh());
         addTestCase("hard and soft rows use consistent cursor and mouse geometry", \geometry());
         addTestCase("vertical movement retains preferred display column", \vertical());
         addTestCase("paste and submit are distinct atomic operations", \pasteSubmit());
@@ -117,6 +118,22 @@ class EditorTest inherits Test {
         b.setHistory(("reset",)); assertFalse(b.historyMove(True));
         assertTrue(b.historyMove()); assertEq("reset", b.getText());
         assertThrows("EDITOR-BUSY-ERROR", sub () { b.submit(sub (string text) { b.setHistory((), True); }); });
+    }
+    failedHistoryRefresh() {
+        NcursesUi::EditorBuffer b(); b.setLimits(32); b.setText("unfinished 界 draft"); b.select(2, 12);
+        hash<NcursesUi::EditorSnapshot> draft = b.snapshot(); int revision = b.getRevision();
+        assertFalse(b.historyMove()); assertEq(draft, b.snapshot()); assertEq(revision, b.getRevision());
+        b.setHistory(("first command",), True); assertTrue(b.historyMove()); assertEq("first command", b.getText());
+        assertTrue(b.historyMove(True)); assertEq(draft, b.snapshot());
+        assertFalse(b.historyMove(False, "missing")); b.setHistory(("matching command",), True);
+        assertTrue(b.historyMove(False, "matching")); assertEq("matching command", b.getText());
+        assertFalse(b.historyMove(False, "missing")); b.setHistory(("latest command",), True);
+        assertTrue(b.historyMove(True)); assertEq(draft, b.snapshot());
+        assertTrue(b.historyMove()); assertEq("latest command", b.getText());
+        assertTrue(b.historyMove(True)); b.setHistory((sprintf("%40s", "too long"),));
+        assertThrows("EDITOR-LIMIT-ERROR", sub () { b.historyMove(); }); assertEq(draft, b.snapshot());
+        b.setHistory(("valid command",), True); assertTrue(b.historyMove()); assertEq("valid command", b.getText());
+        assertTrue(b.historyMove(True)); assertEq(draft, b.snapshot());
     }
     private hash<Ncurses::InputEvent> key(string name) { return <Ncurses::InputEvent>{"type": Ncurses::InputType::Key, "name": name}; }
     wordEdits() {

@@ -33,6 +33,11 @@ For review from another LAN machine, start with `STORYBOOK_HOST=0.0.0.0 npm run 
 and use the hostname URL printed at startup (for example, `http://supah:6006`).
 The native bridge stays on loopback and is reached through Storybook's proxy;
 the development host and WebSocket origin checks allow the machine's hostname.
+LAN mode is intended for a trusted development network: it has no authentication,
+and every reachable client can use native sessions, including qrepl code execution
+and file access with the server account's permissions. The loopback bridge and
+Origin checks do not authenticate clients connecting through the proxy. Keep the
+default loopback binding when that access is not intended.
 For example, open the editor directly:
 
 <http://127.0.0.1:6006/?path=/story/native-texteditorwidget--boundaries>

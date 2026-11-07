@@ -368,6 +368,9 @@ duplicates, replaced/empty histories, repeated refreshes, edits, undo, locked
 callbacks and completion while the user browses history. The intentional-quit
 test also handles its event deadline immediately so an earlier input failure
 cannot leave an unhandled rejection.
+An unsuccessful initial history search now leaves browsing inactive, including
+empty, unmatched and oversized entries. Unit coverage and a gated first-evaluation
+regression verify that the next history refresh is immediately available.
 
 The user approved the stories on 2026-11-07 after reviewing the live gallery.
 The complete Ubuntu CI capture from pipeline 63556 has identical semantic and PNG
@@ -380,6 +383,11 @@ accepts the machine hostname and proxies native sessions to a loopback-only
 bridge with the corresponding allowed origin. The development test connects by
 hostname through a non-loopback IPv4 interface and exercises native input and
 hot reload. The running review server was verified at `http://supah:6006`.
+The user explicitly chose unauthenticated access on their trusted LAN after
+reviewing the native session's code-execution and server-account file access.
+The proxy is therefore intentionally reachable; neither the loopback bridge nor
+Origin validation is represented as client authentication. This access model and
+the loopback default are documented in the startup instructions.
 
 ## qrepl follow-up implementation audit
 
@@ -407,11 +415,11 @@ this follow-up; earlier native implementation checks remain recorded above.
 | Error handling | Pass | Invalid dimensions/spacing, invalid completion cursor, duplicate/closed task start, field validation, worker failure and stale results are tested. |
 | Documentation | Pass | API contracts, runnable embedding example, tool guide, man page, gallery instructions and implemented architecture updated. |
 | QPP namespace/flags and native ownership | N/A | No QPP/C++ changes. |
-| Security | Pass | No arbitrary bridge command endpoint or credentials; loopback by default, explicitly configured LAN Storybook binding with hostname/origin checks; bridge remains loopback-only. Fixture teardown and protocol bounds retained. |
+| Security | Pass | No arbitrary bridge command endpoint or credentials; loopback by default; the user explicitly chose unauthenticated LAN native-session access. Hostname/origin checks are not authentication; the bridge remains loopback behind the proxy. Fixture teardown and protocol bounds retained. |
 | Correctness | Pass | Exact completion ranges and suffix retention, Unicode, tiny/resize layouts, save/overwrite/cancel/load, draft revision preservation, focus restoration and actual streaming tested. |
 
-Final local gates: 45 QUnit suites, 962 cases / 22,162 assertions; 26 compiled-module
-suites, 634 cases / 8,067 assertions. Documentation/API checks, executable examples,
+Final local gates: 45 QUnit suites, 964 cases / 22,188 assertions; 26 compiled-module
+suites, 636 cases / 8,093 assertions. Documentation/API checks, executable examples,
 widget-catalog drift checks and CI tree-reuse tests pass. Browser/native tooling
 and platform CI results are linked in the delivery PR. No C++ changed, so this
 follow-up does not require a new Valgrind run.

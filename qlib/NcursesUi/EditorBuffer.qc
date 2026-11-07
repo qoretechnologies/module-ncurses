@@ -196,17 +196,18 @@ editor.historyMove(True); # restores the unfinished draft; refreshed history is 
     /** Searches backward/forward through history, preserving the unfinished draft and selection.
         @param forward True to move toward the draft @param query literal substring filter
         @return True when a history entry or the draft is restored
+        @note An unsuccessful initial search does not enter browsing mode or defer history updates.
     */
     bool historyMove(bool forward = False, string query = "") {
         checkUnlocked();
-        if (history_index < 0) {
-            if (forward) { return False; }
-            draft = snapshot(); history_index = history.size();
-        }
-        int next = history_index + (forward ? 1 : -1);
+        bool starting = history_index < 0;
+        if (starting && forward) { return False; }
+        int next = (starting ? history.size() : history_index) + (forward ? 1 : -1);
         while (next >= 0 && next < history.size()) {
             if (history[next].find(query) >= 0) {
-                validate(history[next]); buffer.setText(history[next]); anchor = NOTHING; history_index = next; ++revision;
+                validate(history[next]);
+                if (starting) { draft = snapshot(); }
+                buffer.setText(history[next]); anchor = NOTHING; history_index = next; ++revision;
                 return True;
             }
             next += forward ? 1 : -1;
