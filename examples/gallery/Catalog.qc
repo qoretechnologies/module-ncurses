@@ -24,7 +24,7 @@ class Catalog {
                     story.fixture.text = "Execute"; story.steps[0].expected = {"text": "Execute"}; x = 1;
                     expected = {"cursor_x": 1, "text": "Execute"}; break;
                 case "DescribedChoiceWidget": y = 4; expected = {"choice": "execute"}; break;
-                case "FormWidget": y = 7; x = 1; expected = {"include_details": False}; break;
+                case "FormWidget": y = 9; x = 3; expected = {"include_details": False}; break;
                 case "ListWidget": y = 1; expected = {"selected": 1}; break;
                 case "TableWidget": y = 2; expected = {"selected": 1}; break;
                 case "TreeWidget":
@@ -47,6 +47,16 @@ class Catalog {
             story.steps = (story.steps[0], <NcursesGallery::Step>{"checkpoint": "mouse", "instruction": original.mouse,
                 "event": <Ncurses::InputEvent>{"type": Ncurses::InputType::Mouse,
                     "mouse": <Ncurses::MouseEvent>{"y": y, "x": x, "button_state": buttons}}, "expected": expected});
+            if (original.widget == "FormWidget") {
+                story.steps = (story.steps[0],
+                    <NcursesGallery::Step>{"checkpoint": "label", "instruction": "Click Attempts to focus its value without changing it.",
+                        "event": <Ncurses::InputEvent>{"type": Ncurses::InputType::Mouse, "mouse": <Ncurses::MouseEvent>{"y": 4, "x": 4, "button_state": Ncurses::BUTTON1_CLICKED}}, "expected": {"focus": "FormTextInputControl", "cursor_x": 4}},
+                    <NcursesGallery::Step>{"checkpoint": "help", "instruction": "Click the request description to return to its value.",
+                        "event": <Ncurses::InputEvent>{"type": Ncurses::InputType::Mouse, "mouse": <Ncurses::MouseEvent>{"y": 1, "x": 4, "button_state": Ncurses::BUTTON1_CLICKED}}, "expected": {"focus": "FormTextInputControl", "cursor_x": 10}},
+                    <NcursesGallery::Step>{"checkpoint": "checkbox-label", "instruction": "Click Include details to focus the checkbox without toggling it.",
+                        "event": <Ncurses::InputEvent>{"type": Ncurses::InputType::Mouse, "mouse": <Ncurses::MouseEvent>{"y": 8, "x": 4, "button_state": Ncurses::BUTTON1_CLICKED}}, "expected": {"focus": "FormCheckboxControl", "include_details": True}},
+                    story.steps[1]);
+            }
             result += story;
         }
         return result;
@@ -54,9 +64,22 @@ class Catalog {
     static list<hash<NcursesGallery::Story>> scenarios(list<hash<NcursesGallery::Story>> definitions) {
         list<hash<NcursesGallery::Story>> result = ();
         foreach hash<NcursesGallery::Story> original in (definitions) {
-            if (original.state != "default" || !Variants::includes(("TranscriptWidget", "ProgressWidget", "AssistancePopupWidget", "DescribedChoiceWidget"), original.widget)) { continue; }
+            if (original.state != "default" || !Variants::includes(("TranscriptWidget", "ProgressWidget", "AssistancePopupWidget", "DescribedChoiceWidget", "TextChartWidget"), original.widget)) { continue; }
             hash<NcursesGallery::Story> story = original; story.state = "scenario";
-            if (story.widget == "DescribedChoiceWidget") {
+            if (story.widget == "TextChartWidget") {
+                story.id = "text-chart.ascii"; hash<auto> ascii_fixture = {}; ascii_fixture += story.fixture;
+                ascii_fixture.ascii = True; story.fixture = ascii_fixture;
+                story.purpose = "ASCII fallback: the legend orders every symbol from low to high; ? marks missing samples.";
+                story.steps = (<NcursesGallery::Step>{"checkpoint": "ascii", "instruction": story.purpose,
+                    "expected": {"contains": ".:-=+*#@", "scroll": 0}},);
+                result += story;
+                story = original; story.state = "scenario"; story.id = "text-chart.expanded";
+                hash<auto> expanded_fixture = {}; expanded_fixture += original.fixture;
+                expanded_fixture.chart_height = 6; story.fixture = expanded_fixture;
+                story.purpose = "Expanded bars use six terminal rows and wider samples for greater visual resolution; ? remains a missing sample.";
+                story.steps = (<NcursesGallery::Step>{"checkpoint": "expanded", "instruction": story.purpose,
+                    "expected": {"contains": "Height: min to max", "scroll": 0}},);
+            } else if (story.widget == "DescribedChoiceWidget") {
                 story.id = "described-choice.submit"; hash<auto> submit_fixture = {}; submit_fixture += story.fixture;
                 submit_fixture.submit = True; story.fixture = submit_fixture;
                 story.purpose = "Submit one reviewed choice. Enter completes this one-shot form; Reset story opens a fresh form.";
@@ -143,15 +166,15 @@ class Catalog {
                 <Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "P"}, {"text": "P"}),
             entry("described-choice", "DescribedChoiceWidget", "Choose an option: the filled circle marks selection; the highlighted title follows keyboard focus.", {"choices": choices},
                 "Up/Down moves focus; Space, Enter or a click selects. Unavailable choices are skipped.", "Click chooses a described row.", {"choice": "preview", "contains": "Recommended first"}, down, {"choice": "preview"}),
-            entry("form", "FormWidget", "Keep labels, defaults, help and validation next to editable fields.", {"name": "Preview"},
-                "Tab moves between fields and actions; Enter submits; Escape cancels.", "Click a field to edit or an action to submit.", {"contains": "Request name"}),
+            entry("form", "FormWidget", "Each field groups a bold label, help and a bounded value. Click the label or help to focus its value.", {"name": "Preview"},
+                "Tab moves between fields and actions; Enter submits; Escape cancels.", "Click a label or description to focus its value; click a value to edit or an action to submit.", {"contains": "Request name"}),
             entry("list", "ListWidget", "Navigate labeled rows with an unambiguous current selection.", {"items": items},
                 "Arrows, Home/End and page keys move selection; Enter activates.", "Click selects; double-click activates; wheel scrolls.", {"selected": 0, "scroll": 0}, down, {"selected": 1}),
             entry("tree", "TreeWidget", "Expand structured values using familiar directional navigation.", {"data": {"name": "Preview", "nested": {"enabled": True, "count": 3}}},
                 "Right expands, Left collapses, Up/Down select, Enter activates.", "Click selects; wheel scrolls.", {"contains": "Root"}, Registry::key("KEY_RIGHT"), {"scroll": 0}),
             entry("key-value", "KeyValueWidget", "Inspect labeled scalar values and nested details.", {"data": {"name": "Preview", "count": 3}},
                 "Tree navigation: arrows expand, collapse and select.", "Click selects; wheel scrolls.", {"contains": "Values"}),
-            entry("text-chart", "TextChartWidget", "Read exact numeric summary alongside a bounded sparkline.", {"samples": (1.0, 4.0, NOTHING, 2.0, 8.0)},
+            entry("text-chart", "TextChartWidget", "Read samples from left to right: taller bars mean larger values; ? is a missing sample. The summary gives exact values.", {"samples": (1.0, 4.0, NOTHING, 2.0, 8.0)},
                 "Arrows and page keys scroll the summary.", "Wheel scrolls.", {"contains": "samples; min", "scroll": 0}),
             entry("menu-bar", "MenuBarWidget", "Discover menu commands and disabled choices.", {"menus": menus},
                 "Alt+F opens File; arrows navigate; Escape closes.", "Click a menu label, then a command.", {"active_menu": -1},
@@ -164,7 +187,7 @@ class Catalog {
                 "Type filters; Tab reaches documentation; Enter applies; Escape cancels.", "Click a result; wheel scrolls documentation.", {"modal": True, "contains": "name"}, escape, {"modal": False, "text": "greet(na)"}),
             entry("status-bar", "StatusBarWidget", "Read compact key help and state without requiring color.", {"segments": ({"text": "F1 Help"}, {"text": "Ready"}, {"text": "UTF-8"})},
                 "Read-only; the application handles displayed shortcuts.", "Read-only status segments.", {"focus": "", "contains": "F1 Help"}),
-            entry("progress", "ProgressWidget", "Start a controlled operation and display truthful progress with cancellation.", {"label": "Preview operation"},
+            entry("progress", "ProgressWidget", "Start a controlled operation: emphasized fill and exact counts show progress; state text and color identify the outcome.", {"label": "Preview operation"},
                 "Enter starts/retries; C or Escape cancels an active operation.", "Click the displayed start/cancel action.", {"operation_state": NcursesUi::ActionState::Pending}, enter, {"operation_state": NcursesUi::ActionState::Running, "contains": "25%"}),
             entry("timeline", "TimelineWidget", "Review timestamped operation history and expand event details.", {"timestamp": "2026-01-02T03:04:05Z"},
                 "Up/Down select events; Enter/Space toggles details.", "Wheel scrolls history; click selects.", {"event": "started", "contains": "2026-01-02"}, down, {"event": "completed"}),

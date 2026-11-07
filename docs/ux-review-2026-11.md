@@ -24,13 +24,91 @@ exact artifact set, geometry/configuration, browser/font versions, hashes and th
 review's acceptance digest. Each PNG has a neighboring `.json.gz` artifact with the
 full native cell/attribute/cursor/focus/scroll state. The
 [review instructions](../review/README.md) reproduce baseline/current/diff reports.
-The follow-up capture contains 1,344 checkpoints from 206 stories. It retains all
-1,098 previous keys and adds 246 interaction/recovery/code checkpoints. The renderer
-change intentionally replaces their PNG presentation; native state assertions and
-the image inspections described below precede explicit baseline acceptance.
+The current capture contains 1,358 checkpoints from 208 stories. It retains all
+1,344 keys from the previous follow-up and adds six form metadata-focus checkpoints
+and eight ASCII/expanded chart checkpoints. Relative to that follow-up, 209 existing
+checkpoints change in Forms, Progress, Tables and TextChart; the other 1,135 match
+exactly. All 2,716 current artifact hashes and unchanged capture configuration were
+verified before acceptance.
+The earlier renderer follow-up retained 1,098 keys and added 246 interaction/recovery/
+code checkpoints. Native state assertions and the image inspections described below
+precede explicit baseline acceptance.
 
 ## Findings and disposition
 
+- [#5629](https://github.com/qoretechnologies/qore/issues/5629): user review found
+  weak progress emphasis, table headers resembling selection, and an unexplained
+  ASCII chart ramp. The compact chart also needed an explicitly larger view.
+  - Progress now uses semantic state colors, bold filled bar segments and exact
+    counts, dim remaining segments/timestamps, and a distinct focused action.
+    Explicit state words and bar characters preserve meaning in monochrome.
+    Native tests cover all lifecycle states, focus/availability invalidation and
+    ANSI-free `getStatusLines()`; browser input starts, cancels and retries work.
+  - Tables use bold underlined cyan headers, separate from reverse-video selection.
+    Focus adds emphasis to selection and disabled rows are dim. Keyboard End,
+    mouse selection, shrink and recovery preserve the selected row.
+  - Charts default to Unicode bars with explicit min/max and missing-sample legends;
+    the ASCII story explains its complete intensity ramp. The Expanded story uses
+    `setChartHeight(6)` and wider bars. Height supports 1–64 rows, with eight vertical
+    sublevels per Unicode row and whole-row ASCII bars. Heights normalize the
+    snapshot minimum to maximum, with constant samples at mid-height; this is not
+    a zero-baseline chart. Missing values keep gaps, narrow views retain endpoints
+    when possible, and wider bars never interpolate additional samples.
+  - All 166 Progress/Table/TextChart captures (69 distinct images) were inspected,
+    including color/monochrome, disabled, empty, Unicode, mouse and constrained
+    states. Expanded bars and the gap marker are legible; narrow views scroll the
+    summary/legend and recover on resize. The complete capture changes 151 existing
+    checkpoints and adds eight chart checkpoints relative to the accepted form
+    set; all 64 form captures and the other 1,135 checkpoints still match exactly.
+    Native boundary tests cover zero/tiny widths, 64-row scrolling, invalid heights,
+    finite extremes, constant data and gaps. Browser input reviews compact, ASCII
+    and expanded charts in both color modes, including scroll and resize recovery.
+  - PR review found that chart restyling replaced stable line identities and reset
+    a scrolled viewport. Same-size updates now preserve those identities. A failing
+    regression was reproduced, then passed for compact/64-row charts, direct and
+    inherited availability changes, expanded glyph-mode switches and both color
+    modes. Explicit snapshot replacement still returns to the summary.
+- [#5628](https://github.com/qoretechnologies/qore/issues/5628): user review found
+  that the form's label/value/help sequence looked like unrelated plain lines, and
+  clicking a label or description did not focus its value. The earlier Form
+  acceptance checked adjacency and reachability without establishing clear grouping.
+  - Fields now show bold cyan headings, short help, any explicit red `Error:` text,
+    then the value, with a blank row between fields. Text values have brackets even
+    when empty; multiline values have side rails. A leading `>` identifies the
+    focused field, and read-only fields have an explicit label. Color is supported
+    by order, spacing, weight, boundaries and text cues in monochrome.
+  - Clicking a label, description or error focuses the associated control through
+    the existing scoped dispatcher without modifying the value, moving its retained
+    caret or toggling a checkbox. Tests cover wrapped/scrolled targets, invalid
+    drafts, unavailable controls, pending schema replacement and synchronization
+    failure. The mouse story includes heading/help focus and checkbox focus before
+    the actual toggle, replayed through browser mouse input.
+  - PR review found three synchronization boundaries missed by the initial tests.
+    Metadata refresh now lays out and invalidates the owning form even when focus
+    is unchanged or a schema replacement detaches the clicked label. Application
+    disabling is tracked independently of the form's read-only/submission gate,
+    including changes while submission is running. Regressions cover pending errors,
+    replacement without focus and all four control adapter classes across cancellation.
+    Disabling or re-enabling an unfocused control also invalidates its heading and
+    value boundaries; availability-cache regressions verify both transitions in
+    color and monochrome without moving focus.
+  - Compact scrolling reveals the whole field group. Oversized groups prioritize a
+    control row and label, then error/help; clipped metadata shows an ellipsis and
+    returns after resizing. A one-row stress viewport prioritizes editing and cannot
+    show a separate heading. The compact form still reaches Submit through Tab and
+    preserves the typed values. Native geometry tests include zero area, 1/2/4/8/16
+    rows, narrow columns, password masking, Unicode, multiline and choice controls.
+  - All 64 form captures were inspected across default/empty/focused/disabled/invalid/
+    loading/Unicode/constrained/mouse states, including color and monochrome. Browser
+    review confirmed metadata clicks, retained drafts, checkbox focus versus toggle,
+    validation correction, compact submission and resize recovery. The normal-size
+    heading/help/value groups remain distinguishable without color; stress views
+    retain a bounded input and identify truncated metadata.
+  - References: [Charm Huh](https://github.com/charmbracelet/huh) and its
+    [title/description/input rendering](https://github.com/charmbracelet/huh/blob/main/field_input.go),
+    [GOV.UK label/hint/input guidance](https://design-system.service.gov.uk/components/text-input/),
+    and [proximity](https://lawsofux.com/law-of-proximity/). These inform the concrete
+    grouping and mouse-focus criteria; they do not establish usability by themselves.
 - [#5625](https://github.com/qoretechnologies/qore/issues/5625): user review exposed
   gaps in the earlier acceptance. The disconnected DOM borders, button's invisible
   activation result, submit-locked choice demo and enabled-only compact checks were
@@ -171,19 +249,19 @@ fixes; it is not a claim about every possible application composition.
 | RadioGroup | Arrow highlight and committed selection remain distinct. Clicking a row selects it; the `(o)` marker and bold emphasis work in monochrome. Long labels clip to the available row. | Accepted; [mouse selection](../review/baselines/radio-group.mouse.mono.registered.mouse.png). |
 | ComboBox | Typing filters options; the caret and dropdown marker remain visible. Mouse placement edits the intended position without corrupting Unicode or selection. | Accepted; [mouse caret](../review/baselines/combo-box.mouse.mono.registered.mouse.png). |
 | DescribedChoice | Bold titles, indented descriptions and separated groups distinguish choices. Recommendation, focus and committed selection have separate color and non-color cues. The default allows reselection; Submit is explicitly separate. | Accepted after #5625; [choice hierarchy](../review/baselines/described-choice.default.mono.registered.mounted.png). |
-| Form | Labels, required mark, defaults, help and field errors stay together. Tab scrolls compact fields and Submit into view, then completes the operation. Pending submission exposes progress and cancellation. | Accepted after #5625; [field error](../review/baselines/form.invalid.mono.registered.mounted.png). |
+| Form | Bold headings, help and explicit errors precede bounded values, with a blank row between fields and a focused-field marker. Clicking labels/help/errors focuses without editing. Compact layouts retain field identity and restore truncated metadata on resize; Tab reaches Submit. Password, readonly, multiline and choice adapters preserve their behavior. | Accepted after #5628; [grouping](../review/baselines/form.default.color.registered.mounted.png), [help focus](../review/baselines/form.mouse.mono.registered.help.png), [field error](../review/baselines/form.invalid.mono.registered.mounted.png). |
 | List | Arrows and mouse select the same row. Reverse selection remains clear in monochrome; long rows clip and scrolling preserves selection. | Accepted; [mouse selection](../review/baselines/list.mouse.mono.registered.mouse.png). |
-| Table | End reveals the last row; shrinking keeps it on screen, and Home returns to the start. Headers remain distinguishable from the selected row through weight and content. | Accepted; [last row after shrink](../review/baselines/table.scrolling.mono.registered.shrink.png). |
+| Table | Bold underlined cyan headers differ from reverse-video selection in color and monochrome. Focus adds selection emphasis; disabled rows are dim. End reveals the last row, shrinking keeps it visible, and Home returns to the start. | Accepted after #5629; [last row after shrink](../review/baselines/table.scrolling.mono.registered.shrink.png). |
 | Tree | Directional expansion and row selection expose nested values; disclosure marks communicate hierarchy without color. A mouse row click updates the selected path. | Accepted; [mouse selection](../review/baselines/tree.mouse.mono.registered.mouse.png). |
 | KeyValue | Labels and scalar values align under a visible root; keyboard/tree behavior and row selection remain consistent with Tree. | Accepted; [mouse selection](../review/baselines/key-value.mouse.mono.registered.mouse.png). |
-| TextChart | The numeric summary states sample count, extrema, latest value and gaps; `?` is explained. Narrow views scroll the summary rather than inventing a graphical scale. | Accepted; [narrow scroll](../review/baselines/text-chart.mouse.mono.registered.mouse.png). |
+| TextChart | Unicode bars and an explicit min/max/gap legend explain the compact view. Expanded bars offer greater height and width without inventing samples; the ASCII fallback documents its ramp. Numeric summaries and scrolling remain available in narrow views. | Accepted after #5629; [expanded bars](../review/baselines/text-chart.expanded.color.registered.expanded.png), [monochrome](../review/baselines/text-chart.expanded.mono.registered.expanded.png). |
 | MenuBar | The underlined mnemonic and File label remain discoverable without color. Alt+F and clicking the title open the same menu; Escape restores the underlying focus. | Accepted; [mouse opening](../review/baselines/menu-bar.mouse.mono.registered.mouse.png). |
 | DropdownMenu | Disabled entries are dim and skipped by arrows. Clicking a visible enabled command invokes it and dismisses the overlay. Borders and background restoration match native composition. | Accepted; [command result](../review/baselines/dropdown-menu.mouse.mono.registered.mouse.png). |
 | Dialog | The question and distinct Apply/Cancel labels explain the decision. Compact layout prioritizes wrapped message and actions over padding. Scrolling reveals longer messages; Tab/Enter/Escape retain deliberate action semantics. | Accepted after #5625; [compact message](../review/baselines/dialog.constrained.mono.registered.mounted.png). |
 | CompletionPopup | Single click changes highlight; double-click/Enter accept. Wheel and keyboard navigation agree. Escape/outside dismissal restore the draft's focus/cursor and remove overlay pixels. | Accepted after #5622; [dismissal](../review/baselines/completion-popup.overlap.mono.registered.dismiss.png). |
 | AssistancePopup | Ranked results and nearby documentation explain the offered completion. Empty/error/loading text is explicit. Dismissing a pending request restores editing and rejects a late result. | Accepted; [stale result rejected](../review/baselines/assistance-popup.cancel-stale.mono.registered.stale.png). |
 | StatusBar | Short key help, state and encoding remain readable as text without color. It does not steal focus or imply an activation target. Tiny views clip the trailing segments. | Accepted; [monochrome](../review/baselines/status-bar.default.mono.standard.mounted.png). |
-| Progress | Pending, Running, Cancelled and Failed states use explicit words. The 25% display corresponds to one of four units; cancellation/retry rejects an old completion without replacing current progress. | Accepted; [stale completion](../review/baselines/progress.cancel-stale.mono.registered.stale.png). |
+| Progress | Semantic state colors, bold filled bars/counts, dim remaining segments/timestamps and focused actions establish emphasis. Explicit state words retain meaning in monochrome. The 25% display corresponds to one of four units; cancellation/retry rejects stale completion. | Accepted after #5629; [stale completion](../review/baselines/progress.cancel-stale.mono.registered.stale.png). |
 | Timeline | Fixed timestamps and state words distinguish events. Keyboard and actual press/release mouse selection agree; details remain attached to their event. | Accepted after #5622; [mouse selection](../review/baselines/timeline.mouse.mono.registered.mouse.png). |
 | FileBrowser | Selecting the fixture file shows its bounded preview. F7 switches files/preview in a single pane below 48 content columns and between panes when wider. Compact help exposes the action; widening preserves selection. | Accepted after #5623 and #5625; [compact files](../review/baselines/file-browser.constrained.mono.registered.mounted.png). |
 | FileSelection | Selection marks, count and unavailable-file explanation remain visible. Real mouse press/release toggles once; failed validation keeps selection and shows a specific error. | Accepted after #5622; [validation](../review/baselines/file-selection.invalid.mono.registered.mounted.png). |

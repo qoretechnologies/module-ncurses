@@ -300,10 +300,10 @@ Checkpoints: initial: Choose an option: the filled circle marks selection; the h
 @section catalog_form_default FormWidget
 API: @ref NcursesUi::FormWidget "FormWidget". [Source](https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/FormWidget.qc)
 
-Keep labels, defaults, help and validation next to editable fields.
+Each field groups a bold label, help and a bounded value. Click the label or help to focus its value.
 
 Keyboard: Tab moves between fields and actions; Enter submits; Escape cancels.
-Mouse: Click a field to edit or an action to submit.
+Mouse: Click a label or description to focus its value; click a value to edit or an action to submit.
 
 | State | Story or reason |
 | --- | --- |
@@ -318,7 +318,7 @@ Mouse: Click a field to edit or an action to submit.
 | constrained | form.constrained |
 
 Initial geometry: 16 rows × 64 columns.
-Checkpoints: initial: Keep labels, defaults, help and validation next to editable fields.
+Checkpoints: initial: Each field groups a bold label, help and a bounded value. Click the label or help to focus its value.
 
 @section catalog_list_default ListWidget
 API: @ref NcursesUi::ListWidget "ListWidget". [Source](https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/ListWidget.qc)
@@ -392,7 +392,7 @@ Checkpoints: initial: Inspect labeled scalar values and nested details.
 @section catalog_text_chart_default TextChartWidget
 API: @ref NcursesUi::TextChartWidget "TextChartWidget". [Source](https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/TextChart.qc)
 
-Read exact numeric summary alongside a bounded sparkline.
+Read samples from left to right: taller bars mean larger values; ? is a missing sample. The summary gives exact values.
 
 Keyboard: Arrows and page keys scroll the summary.
 Mouse: Wheel scrolls.
@@ -410,7 +410,7 @@ Mouse: Wheel scrolls.
 | constrained | text-chart.constrained |
 
 Initial geometry: 16 rows × 64 columns.
-Checkpoints: initial: Read exact numeric summary alongside a bounded sparkline.
+Checkpoints: initial: Read samples from left to right: taller bars mean larger values; ? is a missing sample. The summary gives exact values.
 
 @section catalog_menu_bar_default MenuBarWidget
 API: @ref NcursesUi::MenuBarWidget "MenuBarWidget". [Source](https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/MenuBarWidget.qc)
@@ -530,7 +530,7 @@ Checkpoints: initial: Read compact key help and state without requiring color.
 @section catalog_progress_default ProgressWidget
 API: @ref NcursesUi::ProgressWidget "ProgressWidget". [Source](https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/ProgressWidget.qc)
 
-Start a controlled operation and display truthful progress with cancellation.
+Start a controlled operation: emphasized fill and exact counts show progress; state text and color identify the outcome.
 
 Keyboard: Enter starts/retries; C or Escape cancels an active operation.
 Mouse: Click the displayed start/cancel action.
@@ -548,7 +548,7 @@ Mouse: Click the displayed start/cancel action.
 | constrained | progress.constrained |
 
 Initial geometry: 16 rows × 64 columns.
-Checkpoints: initial: Start a controlled operation and display truthful progress with cancellation.; interaction: Enter starts/retries; C or Escape cancels an active operation.
+Checkpoints: initial: Start a controlled operation: emphasized fill and exact counts show progress; state text and color identify the outcome.; interaction: Enter starts/retries; C or Escape cancels an active operation.
 
 @section catalog_timeline_default TimelineWidget
 API: @ref NcursesUi::TimelineWidget "TimelineWidget". [Source](https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/TimelineWidget.qc)
@@ -650,6 +650,8 @@ These cases use the same native events for headless assertions and real PTY/brow
 | --- | --- |
 | transcript.background-reading | Preserve the reading anchor while background output arrives; resume explicitly. |
 | described-choice.submit | Submit one reviewed choice. Enter completes this one-shot form; Reset story opens a fresh form. |
+| text-chart.ascii | ASCII fallback: the legend orders every symbol from low to high; ? marks missing samples. |
+| text-chart.expanded | Expanded bars use six terminal rows and wider samples for greater visual resolution; ? remains a missing sample. |
 | assistance-popup.cancel-stale | Dismiss pending assistance and reject a late provider result without changing the draft or focus. |
 | progress.cancel-stale | Cancel an operation, retry, and reject a late result from the old attempt. |
 | text-editor.mouse | Exercise the visible mouse target for TextEditorWidget. Primary click places the caret; wheel scrolls. |
@@ -663,7 +665,7 @@ These cases use the same native events for headless assertions and real PTY/brow
 | radio-group.mouse | Exercise the visible mouse target for RadioGroupWidget. Click chooses; wheel moves highlight. |
 | combo-box.mouse | Exercise the visible mouse target for ComboBoxWidget. Click edits and selects a visible choice. |
 | described-choice.mouse | Exercise the visible mouse target for DescribedChoiceWidget. Click chooses a described row. |
-| form.mouse | Exercise the visible mouse target for FormWidget. Click a field to edit or an action to submit. |
+| form.mouse | Exercise the visible mouse target for FormWidget. Click a label or description to focus its value; click a value to edit or an action to submit. |
 | list.mouse | Exercise the visible mouse target for ListWidget. Click selects; double-click activates; wheel scrolls. |
 | tree.mouse | Exercise the visible mouse target for TreeWidget. Click selects; wheel scrolls. |
 | key-value.mouse | Exercise the visible mouse target for KeyValueWidget. Click selects; wheel scrolls. |

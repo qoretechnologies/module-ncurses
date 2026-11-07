@@ -58,7 +58,7 @@ public class TableWidget inherits NcursesUi::Widget {
         *code<nothing(int)> on_select;
         *code<nothing(hash<auto>)> on_activate;
         *code<nothing(string, hash<auto>)> on_action;
-        hash<auto> header_style = {"attrs": Ncurses::Attr::Bold | Ncurses::Attr::Reverse};
+        hash<auto> header_style = {"attrs": Ncurses::Attr::Bold | Ncurses::Attr::Underline, "fg": Ncurses::Color::Cyan};
         hash<auto> selected_style = {"attrs": Ncurses::Attr::Reverse};
         list<int> col_widths = ();
     }
@@ -214,12 +214,15 @@ public class TableWidget inherits NcursesUi::Widget {
         hash<NcursesUi::Rect> cr = viewRect(); cr.y -= origin.y; cr.x -= origin.x;
         computeColumnWidths(); revealColumn(); ensureVisible();
         if (cr.rows <= 0 || cr.cols <= 0) { return; }
+        hash<auto> heading = header_style; hash<auto> selected = {}; selected += selected_style; hash<auto> normal = {};
+        if (hasFocus() && isAvailable()) { selected.attrs |= Ncurses::Attr::Bold; selected.fg = Ncurses::Color::Cyan; }
+        if (!isAvailable()) { heading.attrs |= Ncurses::Attr::Dim; selected.attrs |= Ncurses::Attr::Dim; normal.attrs = Ncurses::Attr::Dim; }
         int y = cr.y;
-        if (show_header && columns) { drawRow(w, y++, cr.x, cr.cols, NOTHING, header_style); }
+        if (show_header && columns) { drawRow(w, y++, cr.x, cr.cols, NOTHING, heading); }
         for (int i = 0; y < cr.y + cr.rows; ++y, ++i) {
             int index = scroll_offset + i;
             drawRow(w, y, cr.x, cr.cols, index < rows.size() ? rows[index] : NOTHING,
-                index == selected_row ? selected_style : {}, False);
+                index == selected_row ? selected : normal, False);
         }
     }
     /** Handles row/column navigation, primary selection, double activation, and wheel input.

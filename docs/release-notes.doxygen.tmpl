@@ -5,6 +5,28 @@
     @section ncurses_1_0 ncurses Module Version 1.0
     - initial release
 
+    ProgressWidget uses semantic state colors, emphasized fill/counts and focused
+    actions while retaining plain-text inspection. TableWidget headers use bold
+    underlining, distinct from reverse-video data selection in color and monochrome.
+    TextChartWidget now defaults to Unicode sparklines with explicit min/max and gap
+    legends. setUnicode(False) retains an ASCII fallback; setChartHeight(6) enables
+    larger bars with six rows of resolution. TextChart::bars() returns expanded
+    plain-text charts; the existing sparkline() string API remains ASCII by default.
+    Chart presentation updates retain the scrolled reading position; replacing the
+    data snapshot explicitly returns to its summary.
+
+    FormWidget now groups bold field labels, descriptions and validation messages
+    above visibly bounded values, with spacing between fields and a non-color focus
+    marker. Clicking a label, description or error focuses its value without changing
+    it; read-only, disabled and detached fields cannot acquire focus this way.
+    Application-disabled controls remain disabled across model synchronization and
+    submission transitions. Metadata clicks lay out pending errors or replacement
+    fields even when focus does not change.
+    Compact layout preserves the field label and input when at least two rows are
+    available, marks truncated metadata with an ellipsis, and restores it after resize.
+    Existing field/control APIs and typed drafts are preserved; applications with
+    fixed mouse coordinates or field-row assumptions must use the new control frames.
+
     Interactive UX follow-up adds continuous WebGL box drawing to Storybook, explicit
     compact/stress/recovery scenarios, live action/state feedback and a code editor
     story using astparser syntax highlighting and qrepl completion/signature hints.

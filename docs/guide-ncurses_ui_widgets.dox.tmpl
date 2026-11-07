@@ -125,6 +125,9 @@ app.run();
     dates, then text. Equal keys retain input order in either direction.
     Comparator/data validation failures leave the old view intact. Selection
     notifications run after committing coherent state and can propagate errors.
+    Headers use bold cyan underlining; the selected data row uses reverse video.
+    Keyboard focus adds bold cyan selection emphasis, and disabled tables are dim.
+    Header and selection remain distinct in monochrome.
 
     This example sorts service latency numerically, preserves the selected ID,
     and filters displayed values. Arrow keys navigate, Enter/double-click activates,
@@ -326,10 +329,27 @@ transcript.returnToLatest();
     Read-only fields cannot be edited. Invalid numeric drafts remain visible while
     the model retains its last valid typed value. Custom validation for that field and
     whole-form validation wait until parse errors are corrected. Numeric fields reject
-    nonfinite values. FormWidget composes wrapped labels,
-    help/errors and controls, scrolls focused fields into view, and focuses the first
+    nonfinite values. FormWidget groups each field as a bold cyan label, short help,
+    an optional red @c Error: message and the value control, with a blank row between
+    fields. Text inputs have visible brackets even when empty; multiline values use
+    side rails. A leading @c > identifies the focused field without relying on color.
+    Read-only fields are explicitly labeled and dimmed. Clicking a label, description
+    or error focuses its associated available control without editing or toggling it;
+    the dispatcher's active focus scope remains authoritative. Disabling a control
+    through getControl().setEnabled(False) survives model refresh and submission
+    transitions; enabling it cannot override a read-only or submitting form.
+    FormWidget scrolls the
+    whole focused field into view when it fits, and focuses the first
     invalid field when bound to Application::getFocusManager(). Password controls
     mask whole Unicode graphemes; explicit value/callback APIs still expose the value.
+
+    Keep help concise and relevant to entering the value. At small heights, layout
+    reserves the input and label first, then validation and help. Truncated metadata
+    shows an ellipsis and returns in full after resize. A one-row stress viewport can
+    show only the control; at least two rows are needed for a separate label and input.
+    Tab/Shift-Tab still reach every available field and action. The grouping follows
+    <a href="https://github.com/charmbracelet/huh">Charm Huh's terminal form patterns</a>
+    and <a href="https://design-system.service.gov.uk/components/text-input/">label/hint/input guidance</a>.
 
     @code{.py}
 %modern
@@ -482,7 +502,10 @@ finished.waitForZero();
     Finite progress requires a positive known total and completed units within it;
     NOTHING represents unknown totals. Completed actions require explicit reset().
     ProgressWidget supports Enter start/retry and C/Escape cancel, with application
-    callbacks. TimelineWidget appends timestamped immutable TimelineEvent snapshots,
+    callbacks. Titles and available actions are emphasized; running/completed/cancelled/
+    failed states use cyan/green/yellow/red plus explicit state words. Filled bars and
+    exact counts are bold, remaining segments and timestamps dim. getStatusLines()
+    remains ANSI-free. TimelineWidget appends timestamped immutable TimelineEvent snapshots,
     retains stable IDs while bounded history trims old lines, and exposes expandable
     details, search, selection and activation. Enter/Space toggles details; A invokes
     an application hook. Combine DescribedChoiceWidget stable values with ActionModel
@@ -511,11 +534,18 @@ finished.waitForZero();
     application-provided text/chart previews. Unsupported media retains a readable
     summary and explicit configured open/save/export actions. No decoder, file read,
     network request or external application starts implicitly. TextChart summarizes all
-    finite samples and renders ASCII sparklines by default; Unicode blocks are opt-in.
+    finite samples. Its sparkline() string API retains ASCII by default, while
+    TextChartWidget defaults to Unicode bars and offers setUnicode(False) as a fallback
+    with the complete ASCII scale in the legend.
     NOTHING samples are gaps, displayed as ?. Width reduction samples evenly including
     endpoints when possible; a one-cell chart shows the latest position. Summaries retain
     count/min/max/last available value regardless of width. TextChartWidget wraps the
-    summary and fits the sparkline to the effective viewport. See @c examples/file-attachments.qr.
+    summary and fits the sparkline to the effective viewport. setChartHeight(6) selects
+    a larger six-row chart with wider bars; heights from 1 to 64 are supported, with
+    1 retaining the compact sparkline. Expanded bars normalize the snapshot minimum to
+    maximum, as the legend states; they do not imply a zero baseline or interpolate new
+    samples. TextChart::bars() exposes the same larger rendering as plain text.
+    The gallery includes text-chart.expanded and text-chart.ascii. See @c examples/file-attachments.qr.
 
     @code{.py}
 %modern
@@ -533,6 +563,10 @@ files.setHandler(NcursesUi::FileOperation::Export, bool sub (list<hash<NcursesUi
 @assert(files.getSelected()[0].id == "report");
 NcursesUi::TextChart chart((1.0, 4.0, NOTHING, 2.0), "Requests", "count");
 @assert(chart.sparkline(4) == ".@?-");
+NcursesUi::TextChartWidget chart_widget(chart);
+chart_widget.setChartHeight(6);
+@assert(chart_widget.getChartHeight() == 6);
+@assert(chart.bars(24, 6).size() == 6);
     @endcode
     @section ncursesuipresentation Borders, emphasis and code editing
 

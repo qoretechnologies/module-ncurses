@@ -76,6 +76,11 @@ Ordinary default labels contain no unexplained Unicode stress glyphs; use `--uni
 
 ## Tests, artifacts and acceptance
 
+Chart review includes `native-textchartwidget--expanded` (six rows with wider bars)
+and `native-textchartwidget--ascii` (the complete fallback symbol ramp is explained).
+The default is a compact Unicode sparkline. Expanded heights are relative to the
+snapshot minimum and maximum, not an implied zero baseline.
+
 ```sh
 cd review
 npm run build
@@ -215,12 +220,24 @@ checks; neither is a human usability study. Apply observable criteria informed b
 - [Proximity](https://lawsofux.com/law-of-proximity/): labels, help and validation
   remain next to their fields; errors retain the user's input. Choice descriptions
   stay with their title, with more space between choices than within a choice.
+  Forms group label → short help → validation error → bounded input, with a blank
+  row before the next field. Help must not look like the following field's label.
+  Empty values still have a visible input boundary. Check actual association by
+  clicking both labels and descriptions: they focus the value without editing or
+  toggling it, including after wrapping/scrolling. Unavailable fields stay inert.
+  [Charm Huh](https://github.com/charmbracelet/huh) is the TUI reference for styled
+  title/description/input grouping; [GOV.UK's text-input guidance](https://design-system.service.gov.uk/components/text-input/)
+  supplies the supporting label/hint ordering. These are design references, not dependencies.
 - [Common region](https://lawsofux.com/law-of-common-region/): floating overlays
   have continuous frames; full-width docked regions use shared separators without
   spending columns on redundant outer side borders.
 - [Von Restorff effect](https://lawsofux.com/von-restorff-effect/): titles, the focused
   action and recommendations have distinct emphasis. Color is reinforced by weight,
   spacing and marks; highlighting every line equally does not create hierarchy.
+  Table headers use underlining and never share the selected row's reverse-video
+  treatment. Progress separates title, state, filled/remaining units and actions.
+  Charts identify their min/max scale, ordering and gaps; larger charts preserve
+  source samples and normalization rather than implying a zero baseline.
 - [Fitts's law](https://lawsofux.com/fittss-law/): visible labels and rows provide
   useful mouse targets; padding, clipped areas and unrelated blank space do not
   activate another action.
@@ -229,6 +246,10 @@ checks; neither is a human usability study. Apply observable criteria informed b
   are no intentional typing delays, and 400 ms is not treated as a typing budget.
 - Focus, selection, disabled states and progress remain understandable in
   monochrome through cursor, marks, reverse/bold/dim attributes and explicit text.
+  For forms, verify the focused field's identity and its value together at compact
+  sizes. An oversized group retains the input, label, error and help in that priority;
+  ellipses identify clipped metadata and resizing restores it. One-row stress views
+  prioritize editing and cannot display a separate heading.
 
 Compact checks count content inside the reviewed control's clipped content rectangle
 or that control's editing caret. Panel chrome and an unrelated background cursor

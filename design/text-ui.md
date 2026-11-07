@@ -113,6 +113,28 @@ prompt cannot record a submitted secret; failed submissions restore the original
 Form layout uses the visible ancestor/target intersection and observes viewport changes
 independently of model revisions, keeping focused controls visible under clipping.
 
+Form fields use label → help → validation error → control order and a blank row
+between groups. Headings are bold cyan, errors retain an explicit `Error:` prefix,
+and `>` identifies the focused field in color and monochrome. Text-value brackets
+and multiline side rails are painted outside each control's frame, preserving its
+native caret, password masking and mouse-to-text coordinate mapping. Metadata labels
+delegate `mouseFocusTarget()` to the associated control through the existing scoped
+dispatcher; they never forward an activation or mutate a value. Pending model/schema
+changes are reconciled before delegation, and a detached or unavailable control is
+not returned. Successful metadata refresh also lays out and invalidates the owning
+form, even when focus is unchanged or the clicked label was replaced. A failed
+synchronization propagates without changing focus. Bound controls combine the
+application's enabled flag with a separate form availability gate, preserving
+application disabling across refresh, submission, cancellation and retry.
+Effective control availability also participates in layout invalidation, so changing
+an unfocused control repaints its heading and boundaries without a model revision.
+
+Focus reveals the entire field group. If a field exceeds the viewport height, layout
+allocates a control row, a label row, an error row and a help row in that priority,
+then expands metadata and multiline content within the remaining space. Clipped
+metadata shows an ellipsis; the full source text is retained for resize recovery.
+Zero-area layouts remain inert, and a one-row stress viewport prioritizes editing.
+
 Described choices separate stable values from labels and distinguish custom text in
 a typed result. Descriptions wrap through the shared content provider. Successful
 submission is one-shot; validation/callback failures retain selection and custom text.
@@ -177,7 +199,12 @@ pending, running, cancelled, failed and completed states. Cancellation invalidat
 attempt; a successful receipt requires explicit reset before another start. Unknown
 totals are represented by NOTHING, and determinate progress rejects nonfinite or
 out-of-range values. `ProgressWidget` resolves content/scrollbar width before painting
-its bar. `TimelineWidget` appends immutable timestamped snapshots into transcript
+its bar. State words have semantic color, filled segments/counts and active actions
+have emphasis, and timestamps/remaining segments are dim. Plain status inspection
+strips styling; availability and focus participate in the presentation cache.
+Table headers use bold cyan underlining without reverse video; reverse data selection
+adds bold cyan emphasis only while focused. Disabled tables retain selection with dim cues.
+`TimelineWidget` appends immutable timestamped snapshots into transcript
 blocks; it indexes event/block/source identities, trims expired metadata with bounded
 history, and preserves only retained details. Described choices compose with actions
 for application-owned approval/review semantics.
@@ -219,6 +246,12 @@ ASCII/optional Unicode sparklines. It uses arbitrary-precision normalization to 
 float overflow across opposite-sign extreme values. Downsampling includes endpoints
 when at least two cells fit; one cell shows the latest source position. No decoder,
 network operation or external application is invoked implicitly.
+The widget defaults to Unicode bars with an explicit min/max scale and highlighted
+gaps; its ASCII fallback lists the full symbol ramp. Expanded charts use 1–64 rows,
+eight vertical sublevels per Unicode cell and up to eight columns per source sample.
+Heights are normalized from the snapshot minimum to maximum; constant samples use
+the midpoint. Wider rendering repeats each sampled bar horizontally rather than
+inventing intermediate data. A gap has a question mark at the baseline and no bar.
 
 The shared list uses the effective ancestor/target viewport for paging, selection
 reveal, scrollbars and mouse bounds, preserving manual scrolling until selection or

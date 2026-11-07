@@ -440,8 +440,8 @@
       "story": "table.scrolling",
       "widget": "TableWidget",
       "hashes": {
-        "json.gz": "5b4229cb5dec33416b4f6532e3e4ea5712d49c72d04453f3d0a6dedc43f96bf7",
-        "png": "86e5d646f07c7427121b1321fab01817b311d2ec14b89b3a3b5dca2e820225e0"
+        "json.gz": "7e42126eec0393c29366167aeae1eca4b3faba45ae81b4b4f9519b82f872ce42",
+        "png": "c5d642272c09bf7f96db323b47989126965f545cdf286a5ba526f7cd3d5ea666"
       }
     },
     {
@@ -449,8 +449,8 @@
       "story": "table.scrolling",
       "widget": "TableWidget",
       "hashes": {
-        "json.gz": "a97618c11dfec9fde79f5477ff4a94a4970d93c503742a9bbcf60f7086be97b6",
-        "png": "86e5d646f07c7427121b1321fab01817b311d2ec14b89b3a3b5dca2e820225e0"
+        "json.gz": "427cc0e76cd146fae81f1dc8d4098e04c649f622406566902272d75a6e171d88",
+        "png": "c5d642272c09bf7f96db323b47989126965f545cdf286a5ba526f7cd3d5ea666"
       }
     },
     {
@@ -458,8 +458,8 @@
       "story": "table.scrolling",
       "widget": "TableWidget",
       "hashes": {
-        "json.gz": "d13fe635f17f25acb09214687d94220750bc63e3fe05d133a6a3eadbbec057d6",
-        "png": "fdf08af596dc5a6883b7d081c8be75c6958bf3db645bb315217468fc1aa5ece8"
+        "json.gz": "c6e4dc6e91c261774220c9a6f6d2697ba52353f1249cdd566e6c1d96b5c06349",
+        "png": "46b84ab7a4260ff00d0032813bb95cac22740612f45c270c38c0e61925ac7c07"
       }
     },
     {
@@ -467,8 +467,8 @@
       "story": "table.scrolling",
       "widget": "TableWidget",
       "hashes": {
-        "json.gz": "a86a94c6040853ff83616cad508e703f9bcc5329052fb270b325690ede702cc9",
-        "png": "79c9ec962228973c32bad41689057319494c9b326487a3ddfaeadf55f0a089bd"
+        "json.gz": "065d0cb745e27b801f30b59c1ce17680e5d234457613668b78273844b95da907",
+        "png": "afc3665588681c1edd114a4393af4535e543d4a5ee880f3857aedb55cba92ae4"
       }
     },
     {
@@ -476,8 +476,8 @@
       "story": "table.scrolling",
       "widget": "TableWidget",
       "hashes": {
-        "json.gz": "808e946ad33b022397a0e990c10307a549887e400add97219c67d9b29642b178",
-        "png": "11f9a7c857c6ffe93831e513ca25d272dfa900830316a3cf88d9a94debc6c88c"
+        "json.gz": "ae53e881878e986320eccc98de865c996d447ea99ce71ed583b46221bd119357",
+        "png": "9bf54facee970fdda7d067b2e5391494de5307b28e5ac6039b36e2ff8a0d2c5d"
       }
     },
     {
@@ -485,8 +485,8 @@
       "story": "table.scrolling",
       "widget": "TableWidget",
       "hashes": {
-        "json.gz": "7150d3631abe5b101bca11303544b64f9660fff3d34e0cbbe8331ee202ed74ac",
-        "png": "2744469f01804e9b567aa978ec9c2fc005566fbc3f39e01ac3153ee20ebe1720"
+        "json.gz": "b11c91f7a7ddf92663ced4c2dcb17054d46c9456dddd3c3c93fe42bae417fb0a",
+        "png": "b3ad4718d68115111a08b056e8a8a85ac7ebe65bd14ff9167d6f791dcfd8115f"
       }
     },
     {
@@ -494,8 +494,8 @@
       "story": "table.scrolling",
       "widget": "TableWidget",
       "hashes": {
-        "json.gz": "9bc3ae479fb35592154e52069668fbf6fcafce2c419ce738a2d6d017b89f4af9",
-        "png": "85b9a0315b0bbdd76edb440d90915119d555bec870eb9b5dcc579a57d3856639"
+        "json.gz": "a54002a68c6eed987aecf7e52af10c689dd080a36146f688f81fc121d9fb36c2",
+        "png": "5fb71b87abd79e9c3221516cf933b049ebcd0d4b247edead0c8cfa2794caf634"
       }
     },
     {
@@ -503,8 +503,8 @@
       "story": "table.scrolling",
       "widget": "TableWidget",
       "hashes": {
-        "json.gz": "5a401c993d9ba5ef59bc9d2f36f1c74113aa3ab0f5b73d76d4bd744e392e1b99",
-        "png": "d1d27c8e99f27587e585d24bd2bc09fcc8ed6445a2fff2d953cc3a849f6ec943"
+        "json.gz": "8bdd5e58344a89513d8db9ade3fe0bdb8ab7d36f925a4adb8dee3fd288dbbb95",
+        "png": "376610f9d5575c68291bb1de71a8312214b6af22bc2231a9f0d552a3cb5ace02"
       }
     },
     {
@@ -512,8 +512,8 @@
       "story": "table.scrolling",
       "widget": "TableWidget",
       "hashes": {
-        "json.gz": "9178f47ed3ae60c956a53ffdefa29e1242eda0e6f8aa86c26698fddb77e76fd2",
-        "png": "86e5d646f07c7427121b1321fab01817b311d2ec14b89b3a3b5dca2e820225e0"
+        "json.gz": "e78030321b89a4bcb95eb5de07082a16ff05a0ea502f22c269e2c567e05c6218",
+        "png": "cfe534b5b234370a4fe7aa1d4084f0ef5a158ba0edc07ad9f8f1a89cf64e451d"
       }
     },
     {
@@ -521,8 +521,8 @@
       "story": "table.scrolling",
       "widget": "TableWidget",
       "hashes": {
-        "json.gz": "87a2ab7725dc99e5e309fb49af2f41f00b475465961e32706e803b8b4d8f014e",
-        "png": "86e5d646f07c7427121b1321fab01817b311d2ec14b89b3a3b5dca2e820225e0"
+        "json.gz": "33a7df42382c8043d686585ddbc76a2bb55aeb32b2dda60544628d0fa38687cf",
+        "png": "cfe534b5b234370a4fe7aa1d4084f0ef5a158ba0edc07ad9f8f1a89cf64e451d"
       }
     },
     {
@@ -530,8 +530,8 @@
       "story": "table.scrolling",
       "widget": "TableWidget",
       "hashes": {
-        "json.gz": "ba90641044d8411441c036f6910bf972401f407e0fc630c4bd2972c5e9d9b910",
-        "png": "fdf08af596dc5a6883b7d081c8be75c6958bf3db645bb315217468fc1aa5ece8"
+        "json.gz": "062c6d7cc686cf3ad8dd9630d8da2c927e02c791a543beee2496b3e57ea07873",
+        "png": "a5510e3fcb80b279891d93171f2951b005d2cddbb628bf34142cce21461d49e4"
       }
     },
     {
@@ -539,8 +539,8 @@
       "story": "table.scrolling",
       "widget": "TableWidget",
       "hashes": {
-        "json.gz": "ba5ecb9a1daf3f34af71d964af777f2565fc4a918001bf6bd9c8cb76d16c42f2",
-        "png": "79c9ec962228973c32bad41689057319494c9b326487a3ddfaeadf55f0a089bd"
+        "json.gz": "5db1df1c9d701aa1b01cd63297c95c5f136a6ff2756c24a187024a35b5003db1",
+        "png": "e8b1d5c27b02be0159531bf0437fbd8ffe2720f8dfd63975d787750b791056b5"
       }
     },
     {
@@ -548,8 +548,8 @@
       "story": "table.scrolling",
       "widget": "TableWidget",
       "hashes": {
-        "json.gz": "53e86e1a34abb1252d1de2fd372e31527097a4347b975c57fb4cc911cc63643d",
-        "png": "11f9a7c857c6ffe93831e513ca25d272dfa900830316a3cf88d9a94debc6c88c"
+        "json.gz": "7692f35b0cbb14e769d2e75cf96d137be473b15a65f3b15c03125106594d5d0d",
+        "png": "2fc555fa4b346b8dbc6467cfdcc68e7b30214df0ff5628a8a510ad51ac8ff3b3"
       }
     },
     {
@@ -557,8 +557,8 @@
       "story": "table.scrolling",
       "widget": "TableWidget",
       "hashes": {
-        "json.gz": "a5bbd539fc5a929dd0db54724d8fa3c70ca4dc2fe4ab468ecee5e35a635f310a",
-        "png": "2744469f01804e9b567aa978ec9c2fc005566fbc3f39e01ac3153ee20ebe1720"
+        "json.gz": "9608493d6c407a3fedc28102faaa0c89bcf6acc9229cf3675e9794cb86651587",
+        "png": "44dd496cf27723f136dc6990d5ab597f7794216aaf2e0276602615e11e149f35"
       }
     },
     {
@@ -566,8 +566,8 @@
       "story": "table.scrolling",
       "widget": "TableWidget",
       "hashes": {
-        "json.gz": "8a9c7ed7d6d97cac2455428c6d07ddab5eaae15fc30db0dfbd1f4ed45f00f38c",
-        "png": "85b9a0315b0bbdd76edb440d90915119d555bec870eb9b5dcc579a57d3856639"
+        "json.gz": "593fcf678e994be34909dbce0861e9bc3c8895abf5df7202fa5df5ec46d31250",
+        "png": "922c1f33cdbc227cf5db9c5450fb4161f4e3a950be50fdf426b86c84810f6622"
       }
     },
     {
@@ -575,8 +575,8 @@
       "story": "table.scrolling",
       "widget": "TableWidget",
       "hashes": {
-        "json.gz": "c088ddd585dfe33dfdcebbb2bfd5fdea8bed95dbb4b87f3af2893ce0cd4e05d5",
-        "png": "d1d27c8e99f27587e585d24bd2bc09fcc8ed6445a2fff2d953cc3a849f6ec943"
+        "json.gz": "d3efe009366512cc5486da81e5943ef5fa49c9d95d44f3e444a6927553ead799",
+        "png": "11c39cf0271f874f1d356f18bdb286e5a859c0ffbad354f3ff0221a5347b6489"
       }
     },
     {
@@ -584,8 +584,8 @@
       "story": "table.empty",
       "widget": "TableWidget",
       "hashes": {
-        "json.gz": "9cbc53e483d5849a007f583e357cb251cf13a742b94e1b10bd9b2e94bb572359",
-        "png": "0c3687f0fba275146f2ca04b58a3a33c2e5c6113d03da8f5dbb20a28e8534c11"
+        "json.gz": "f9db58a214afb8c57cb2c04a30540ccb04b61dc528383543fd56bda83e3a4a09",
+        "png": "174803536f3ae3786f066eec07162b62fa47a154c96e08ec7f05c53c3645198c"
       }
     },
     {
@@ -593,8 +593,8 @@
       "story": "table.empty",
       "widget": "TableWidget",
       "hashes": {
-        "json.gz": "bd8c6e364c71f18d16252023850066d4fbfbda32d8881851e6a745dce105dfcf",
-        "png": "0c3687f0fba275146f2ca04b58a3a33c2e5c6113d03da8f5dbb20a28e8534c11"
+        "json.gz": "168cef5c790b031a8ed964d0aedea393835006cba077bf4b6e0f9e8e9dccc543",
+        "png": "174803536f3ae3786f066eec07162b62fa47a154c96e08ec7f05c53c3645198c"
       }
     },
     {
@@ -602,8 +602,8 @@
       "story": "table.empty",
       "widget": "TableWidget",
       "hashes": {
-        "json.gz": "00e245e9b2d4db352ee5310f0a1bc8b9f9c9fe14583606b7554e7ec2dd6f7097",
-        "png": "0c3687f0fba275146f2ca04b58a3a33c2e5c6113d03da8f5dbb20a28e8534c11"
+        "json.gz": "4e1c494d2fb57f7f39cd0711bceaf2f83e91149fcbcf67a6fee1d06a99c43020",
+        "png": "57e57090315f13e8cf0b045a0bee966c44f6c099b29b7fdece4566b2b86625d4"
       }
     },
     {
@@ -611,8 +611,8 @@
       "story": "table.empty",
       "widget": "TableWidget",
       "hashes": {
-        "json.gz": "30af15b3366b2a88c4d22bf1ba3d3276ac5ee04cc04806bb65b12d3a4794360a",
-        "png": "0c3687f0fba275146f2ca04b58a3a33c2e5c6113d03da8f5dbb20a28e8534c11"
+        "json.gz": "3fec8bb1fdce0ff3c532ab59b30e4667677c89761956e606f6b8040aeb6999a9",
+        "png": "57e57090315f13e8cf0b045a0bee966c44f6c099b29b7fdece4566b2b86625d4"
       }
     },
     {
@@ -620,8 +620,8 @@
       "story": "table.focused",
       "widget": "TableWidget",
       "hashes": {
-        "json.gz": "ad4bee81911f96cecdcb11545d343de21fdf915d3ac068ee9181ad6e4016286b",
-        "png": "86e5d646f07c7427121b1321fab01817b311d2ec14b89b3a3b5dca2e820225e0"
+        "json.gz": "5e84b4fbc4b97ae9bfcc3451b1520247796b9e8e3c1476bcabdb7f4f4a60776b",
+        "png": "c5d642272c09bf7f96db323b47989126965f545cdf286a5ba526f7cd3d5ea666"
       }
     },
     {
@@ -629,8 +629,8 @@
       "story": "table.focused",
       "widget": "TableWidget",
       "hashes": {
-        "json.gz": "3b7326bf534d64a35cb747eda1359205ff24773c06c3b88a04dda24d28116b30",
-        "png": "86e5d646f07c7427121b1321fab01817b311d2ec14b89b3a3b5dca2e820225e0"
+        "json.gz": "9966771c4b809fe7c1c38ed1be1abc886e2c1f85f3b733423139575ffea8f9aa",
+        "png": "c5d642272c09bf7f96db323b47989126965f545cdf286a5ba526f7cd3d5ea666"
       }
     },
     {
@@ -638,8 +638,8 @@
       "story": "table.focused",
       "widget": "TableWidget",
       "hashes": {
-        "json.gz": "dce378baebd8b144f2fa8062288b93da85fc64625c551fbc248a8e0b25bddc03",
-        "png": "86e5d646f07c7427121b1321fab01817b311d2ec14b89b3a3b5dca2e820225e0"
+        "json.gz": "32c9aa239cf72bc2b7bb49502e3b13dc75fafd031e38bd36e801cd38f206f359",
+        "png": "cfe534b5b234370a4fe7aa1d4084f0ef5a158ba0edc07ad9f8f1a89cf64e451d"
       }
     },
     {
@@ -647,8 +647,8 @@
       "story": "table.focused",
       "widget": "TableWidget",
       "hashes": {
-        "json.gz": "4dd3599f379b520c54a7cb62844ba069c53161d423e311b19254ec58db1ac698",
-        "png": "86e5d646f07c7427121b1321fab01817b311d2ec14b89b3a3b5dca2e820225e0"
+        "json.gz": "5f2725783a9754884709a2fea658e87a079b94ecccc1bcdd5c842bcf5b30f08f",
+        "png": "cfe534b5b234370a4fe7aa1d4084f0ef5a158ba0edc07ad9f8f1a89cf64e451d"
       }
     },
     {
@@ -656,8 +656,8 @@
       "story": "table.selected",
       "widget": "TableWidget",
       "hashes": {
-        "json.gz": "499d681e7d3dff89c36f2ab7ce8464df77ccdfc11735ece5b36fc952fd05d25e",
-        "png": "deab057beea44c49477ff0f335d2aef3e9e393396ecfe8d76ded6e2f5efa7904"
+        "json.gz": "248f583a7761e056cfb40bc5266342dcc4fdf3320930911cb69058ab59f990fd",
+        "png": "90fbfd3cc0a0718c5105b6f3e541d19773bb16cfb0da3d9049e113b7eba072a6"
       }
     },
     {
@@ -665,8 +665,8 @@
       "story": "table.selected",
       "widget": "TableWidget",
       "hashes": {
-        "json.gz": "6457c2595b4e92b8867aae6a698f61771d276406eea8d7b469a6d47fa3357c79",
-        "png": "deab057beea44c49477ff0f335d2aef3e9e393396ecfe8d76ded6e2f5efa7904"
+        "json.gz": "48e79c4b3d6e95e1551078a536e01a4a2ccda23bae2fe36fe72396e784a05b26",
+        "png": "90fbfd3cc0a0718c5105b6f3e541d19773bb16cfb0da3d9049e113b7eba072a6"
       }
     },
     {
@@ -674,8 +674,8 @@
       "story": "table.selected",
       "widget": "TableWidget",
       "hashes": {
-        "json.gz": "034e7f859ed739581c9a1926f8635b151cb1d8c7bdcd26ef2148cd29b2627778",
-        "png": "deab057beea44c49477ff0f335d2aef3e9e393396ecfe8d76ded6e2f5efa7904"
+        "json.gz": "a20261611b8482c72530824f9b3ca9150909b1f0b702df01a52686d9365f6069",
+        "png": "cb6f1081015af1c0ec682545b69320bc2bc944f4f04ce64e4dcc4878dbcc8441"
       }
     },
     {
@@ -683,8 +683,8 @@
       "story": "table.selected",
       "widget": "TableWidget",
       "hashes": {
-        "json.gz": "f7cc5f381ddce53da97da846bc77ec8d42176465f7c77100cbea36764c8415dd",
-        "png": "deab057beea44c49477ff0f335d2aef3e9e393396ecfe8d76ded6e2f5efa7904"
+        "json.gz": "f552b1a58339a7428f2c0eb2a9185855d83434e5e3e38d690873fc7dd3f5ccdf",
+        "png": "cb6f1081015af1c0ec682545b69320bc2bc944f4f04ce64e4dcc4878dbcc8441"
       }
     },
     {
@@ -692,8 +692,8 @@
       "story": "table.disabled",
       "widget": "TableWidget",
       "hashes": {
-        "json.gz": "11f1b61a415a5745399c9dd51c3ffea20f7ec18db4cf7d0ed537555b40fc96dc",
-        "png": "86e5d646f07c7427121b1321fab01817b311d2ec14b89b3a3b5dca2e820225e0"
+        "json.gz": "0c719c5c87606297aae466eecd7fccc0bc01660d08170fe8f334fbb5af67d6dd",
+        "png": "cdff98829161c57d2b70a15ac082c23c4270a6bc2667bbabe64e40d0b9a69841"
       }
     },
     {
@@ -701,8 +701,8 @@
       "story": "table.disabled",
       "widget": "TableWidget",
       "hashes": {
-        "json.gz": "85e47e6dd3e5d40fa53df172a2f638b8e70ffca1f15f7bdbdff9c98d99d5610e",
-        "png": "86e5d646f07c7427121b1321fab01817b311d2ec14b89b3a3b5dca2e820225e0"
+        "json.gz": "e1393c084ad4a76cd02ab5a091d74fae1e9c838cef7f0146b9c2890c637927d1",
+        "png": "cdff98829161c57d2b70a15ac082c23c4270a6bc2667bbabe64e40d0b9a69841"
       }
     },
     {
@@ -710,8 +710,8 @@
       "story": "table.disabled",
       "widget": "TableWidget",
       "hashes": {
-        "json.gz": "778a0ab868d4562f30dafb0e66c28214785f003bd1ac212da3ed2ac38fa8a102",
-        "png": "86e5d646f07c7427121b1321fab01817b311d2ec14b89b3a3b5dca2e820225e0"
+        "json.gz": "b0f03875db5d32c67b1373fb91aebfe2fdd4ecb588cc7eb34206ce864adc6387",
+        "png": "6eb00a3a397e1c63f914c74b880af81277ee1e2b0ad50ca9ab079d8af5cb31e8"
       }
     },
     {
@@ -719,8 +719,8 @@
       "story": "table.disabled",
       "widget": "TableWidget",
       "hashes": {
-        "json.gz": "b321d12ddcd68cb501b9442f4af376fc739dade0cc94dd712960fdc2d32b2ad9",
-        "png": "86e5d646f07c7427121b1321fab01817b311d2ec14b89b3a3b5dca2e820225e0"
+        "json.gz": "67437adc544ab8b0a488228c1f70777aa9cdd878733f9db5f7cecfb0fcbaa4c5",
+        "png": "6eb00a3a397e1c63f914c74b880af81277ee1e2b0ad50ca9ab079d8af5cb31e8"
       }
     },
     {
@@ -728,8 +728,8 @@
       "story": "table.unicode",
       "widget": "TableWidget",
       "hashes": {
-        "json.gz": "e4af55861199fac5baace2c5c11e8db7a09988418c4e33d10083c9b0f9850b15",
-        "png": "86e5d646f07c7427121b1321fab01817b311d2ec14b89b3a3b5dca2e820225e0"
+        "json.gz": "dc66b37786263fd3ad094fc7f79d9ab2879f471ee5ae05fc66ab20c8219d052b",
+        "png": "c5d642272c09bf7f96db323b47989126965f545cdf286a5ba526f7cd3d5ea666"
       }
     },
     {
@@ -737,8 +737,8 @@
       "story": "table.unicode",
       "widget": "TableWidget",
       "hashes": {
-        "json.gz": "bcac5e2bc918a5a652e5524b629a2d09f5280c8bdae26c33d2a291e8355604e0",
-        "png": "86e5d646f07c7427121b1321fab01817b311d2ec14b89b3a3b5dca2e820225e0"
+        "json.gz": "d91bbb19cd31765e9e879d136d380ca6ee60144abbd521594ae1c4b89363c875",
+        "png": "c5d642272c09bf7f96db323b47989126965f545cdf286a5ba526f7cd3d5ea666"
       }
     },
     {
@@ -746,8 +746,8 @@
       "story": "table.unicode",
       "widget": "TableWidget",
       "hashes": {
-        "json.gz": "7f0be56d98226b494d09f4771539b3f108f000c477138a136fab0551664285de",
-        "png": "86e5d646f07c7427121b1321fab01817b311d2ec14b89b3a3b5dca2e820225e0"
+        "json.gz": "16b6eb803f779bc6a84f2e3269ad4f4ed3c253bfd848fbcd3d81b13a642cc7ae",
+        "png": "cfe534b5b234370a4fe7aa1d4084f0ef5a158ba0edc07ad9f8f1a89cf64e451d"
       }
     },
     {
@@ -755,8 +755,8 @@
       "story": "table.unicode",
       "widget": "TableWidget",
       "hashes": {
-        "json.gz": "2f3d741d4f70aa36134572bc991df257aa123330c6e8c238159191c0a76a5a3e",
-        "png": "86e5d646f07c7427121b1321fab01817b311d2ec14b89b3a3b5dca2e820225e0"
+        "json.gz": "9c762506259c7ee03d556fcd2279783e7504b92a8c178c61a9372fa25178cc79",
+        "png": "cfe534b5b234370a4fe7aa1d4084f0ef5a158ba0edc07ad9f8f1a89cf64e451d"
       }
     },
     {
@@ -764,8 +764,8 @@
       "story": "table.constrained",
       "widget": "TableWidget",
       "hashes": {
-        "json.gz": "b954f303b8ca10252ba9f68bb5ba5b35236fd9097d87ad73d9bcc796ae3b65c2",
-        "png": "2eab61e4ec8751dea2665866d39465d234594751ca89a7c2e819f6f71180756c"
+        "json.gz": "8b4e05d80356d776e420da22ac63a8542715d5503734e5a81acfd129370ec3f7",
+        "png": "5277cbb065f64e82c7e6573128747da2d268ba1c5b7d9364dce4dd4ca0ce6c75"
       }
     },
     {
@@ -773,8 +773,8 @@
       "story": "table.constrained",
       "widget": "TableWidget",
       "hashes": {
-        "json.gz": "0df5e3781c7acf48ac5752b6e6937d2514e4ae9794e5beeda5336ae3861c522b",
-        "png": "2eab61e4ec8751dea2665866d39465d234594751ca89a7c2e819f6f71180756c"
+        "json.gz": "446130dbf6748e568191710118a57ab7021d8fca654f3da355c1999202a1a0f3",
+        "png": "5277cbb065f64e82c7e6573128747da2d268ba1c5b7d9364dce4dd4ca0ce6c75"
       }
     },
     {
@@ -782,8 +782,8 @@
       "story": "table.constrained",
       "widget": "TableWidget",
       "hashes": {
-        "json.gz": "5e81774382839e3e9faefc927910eebfd975cb1ee4658e6406bec3ea2e673859",
-        "png": "2744469f01804e9b567aa978ec9c2fc005566fbc3f39e01ac3153ee20ebe1720"
+        "json.gz": "b76305ad659ebf6883e04322e50f49f51d2e5f0530b187826eca39f9b2f0eb25",
+        "png": "b3ad4718d68115111a08b056e8a8a85ac7ebe65bd14ff9167d6f791dcfd8115f"
       }
     },
     {
@@ -791,8 +791,8 @@
       "story": "table.constrained",
       "widget": "TableWidget",
       "hashes": {
-        "json.gz": "7455481c78fa67828504eb659f98fca2cca416484a1777c0d503a0c06d6c5ebb",
-        "png": "2eab61e4ec8751dea2665866d39465d234594751ca89a7c2e819f6f71180756c"
+        "json.gz": "150c5d126b4f4e324f7d9b4460b1714241d23655e1c4c1b67280d742938e7ce9",
+        "png": "5277cbb065f64e82c7e6573128747da2d268ba1c5b7d9364dce4dd4ca0ce6c75"
       }
     },
     {
@@ -800,8 +800,8 @@
       "story": "table.constrained",
       "widget": "TableWidget",
       "hashes": {
-        "json.gz": "56489b53c01f963886c0edd2d90ed92c04248a5d0f980f6540f0db025b52dd26",
-        "png": "a75ad0ce3dae7d108114541f34cf5176dfd358a32f8b4c1f2cce27e7746a03aa"
+        "json.gz": "59dbfc195c88cc27061f426c0eed9d2dad4d30ca98344b92186f848616311706",
+        "png": "78d2bb00f0da8956c70084ddc2597baeb87038205439fc7937320e6d86a8d6e1"
       }
     },
     {
@@ -809,8 +809,8 @@
       "story": "table.constrained",
       "widget": "TableWidget",
       "hashes": {
-        "json.gz": "1571525912b81c29602e8bbffe3b3c5ff84f2796ee0c58944789a98e6fb3ddea",
-        "png": "fdf08af596dc5a6883b7d081c8be75c6958bf3db645bb315217468fc1aa5ece8"
+        "json.gz": "c902e2b43aad12e013e90a35012d249248f5c4804a80bf442693c9b9510fc068",
+        "png": "46b84ab7a4260ff00d0032813bb95cac22740612f45c270c38c0e61925ac7c07"
       }
     },
     {
@@ -818,8 +818,8 @@
       "story": "table.constrained",
       "widget": "TableWidget",
       "hashes": {
-        "json.gz": "00028ae02c8ff2a78feffeed2b036d84b0c8cbfc7f566976a8d19527e00535e8",
-        "png": "2eab61e4ec8751dea2665866d39465d234594751ca89a7c2e819f6f71180756c"
+        "json.gz": "00a6f7ed72f09325a54b8f96eb3e2add7b3bdb9303db11830de63e4118c6e66f",
+        "png": "1b36fb15db0be58636479a3ffad464e5d99cc748f782680f60676481bc7ea6c2"
       }
     },
     {
@@ -827,8 +827,8 @@
       "story": "table.constrained",
       "widget": "TableWidget",
       "hashes": {
-        "json.gz": "53c9d4134db38c3e9527f683adf19aacdbd489826ff6498af0022b6ef3a94179",
-        "png": "2eab61e4ec8751dea2665866d39465d234594751ca89a7c2e819f6f71180756c"
+        "json.gz": "3fee0fd8c00d32c14db17027f4d4c457dc254392f27274d2a3bc1f4e13350b2a",
+        "png": "1b36fb15db0be58636479a3ffad464e5d99cc748f782680f60676481bc7ea6c2"
       }
     },
     {
@@ -836,8 +836,8 @@
       "story": "table.constrained",
       "widget": "TableWidget",
       "hashes": {
-        "json.gz": "b6220c0e05689eed390b032c7c43a892f0636476f453990c58e2f27a300a0f81",
-        "png": "2744469f01804e9b567aa978ec9c2fc005566fbc3f39e01ac3153ee20ebe1720"
+        "json.gz": "5becfd7ca4b7be91f7ce39294784a5fb2a4737b72755f0af51d097df3af3e895",
+        "png": "44dd496cf27723f136dc6990d5ab597f7794216aaf2e0276602615e11e149f35"
       }
     },
     {
@@ -845,8 +845,8 @@
       "story": "table.constrained",
       "widget": "TableWidget",
       "hashes": {
-        "json.gz": "2764788c1761736714d152c9ce42ff8da7f2a73c3c056cf9f5cff0830309f953",
-        "png": "2eab61e4ec8751dea2665866d39465d234594751ca89a7c2e819f6f71180756c"
+        "json.gz": "f09c41d2d54e5732d1ca35e96872fc4ff0008380fb0618e220b3ed3fb32566db",
+        "png": "1b36fb15db0be58636479a3ffad464e5d99cc748f782680f60676481bc7ea6c2"
       }
     },
     {
@@ -854,8 +854,8 @@
       "story": "table.constrained",
       "widget": "TableWidget",
       "hashes": {
-        "json.gz": "10a853ae4ec0f208ce377b84c8e0cb4c30a475fb11242e2d8b1d12c2aa44382f",
-        "png": "a75ad0ce3dae7d108114541f34cf5176dfd358a32f8b4c1f2cce27e7746a03aa"
+        "json.gz": "ccb99feeee2222523a179a12e93d204d76ccb4cae8f3e64112e2382ea5b72518",
+        "png": "9a6b15fabb36050a90dadf4eb81611f493791a4c064640a7cbc6e60d77f5dee5"
       }
     },
     {
@@ -863,8 +863,8 @@
       "story": "table.constrained",
       "widget": "TableWidget",
       "hashes": {
-        "json.gz": "94b592ffe0c9c20829e8dfc1ca6799d950e3f8f162555321f34efafd69afc94b",
-        "png": "fdf08af596dc5a6883b7d081c8be75c6958bf3db645bb315217468fc1aa5ece8"
+        "json.gz": "b08c368a9680154f8c989a5eb6a1c01c687dbeff85a4233468b04be007489c13",
+        "png": "a5510e3fcb80b279891d93171f2951b005d2cddbb628bf34142cce21461d49e4"
       }
     },
     {
@@ -4580,8 +4580,8 @@
       "story": "form.default",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "cadd08451ead904135f5791d16560f9708d1d2b8a4a1412b09827ecd21eed82e",
-        "png": "f55da9686aa2f59b58703b3a8f6e108c56e8366c788cef931c57dc7e0e86ba07"
+        "json.gz": "b9ab36692ae3358c9405e8f700093f65e76b52e12bf60c13b27b27f941b92290",
+        "png": "30a5ec05ed4bb298040e1cc53f198dca765adb9cc7c5b596c26776485ec66a53"
       }
     },
     {
@@ -4589,8 +4589,8 @@
       "story": "form.default",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "a5cfbf6ef95c62284fd56d996b0360acb01179719915a98706b48983ab47fc6e",
-        "png": "f55da9686aa2f59b58703b3a8f6e108c56e8366c788cef931c57dc7e0e86ba07"
+        "json.gz": "37a04b0f5934af4ff7f9044d1c7fc08db63c63b5f573384477b9ee9eb3fc54a5",
+        "png": "30a5ec05ed4bb298040e1cc53f198dca765adb9cc7c5b596c26776485ec66a53"
       }
     },
     {
@@ -4598,8 +4598,8 @@
       "story": "form.default",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "bb0a21499590ae0978b9f2f764f8c86b7c8a87c8a005f43ec6912c9d36adbd53",
-        "png": "cfa11b3cfe428a8d0cf5b370bdd4efd8f48c60ed4002ef829650cde70fb1eff1"
+        "json.gz": "99d036dfaa319281b6dfb9f4419354ab039f37a1bd5c253afa20bbe1425e24d6",
+        "png": "85c85e3ecb13c90593f25115b28d84827016f309d4195b04cd3835dea41c8abd"
       }
     },
     {
@@ -4607,8 +4607,8 @@
       "story": "form.default",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "a52e5ccacc4d285326091de35261dfa752e63224b92c5c38de48c2a2f8287ccc",
-        "png": "4d5e8cf060a6d7b4a9bbd4e4900247cae9b08c1a6e0b4c9b5ce74a1224707db1"
+        "json.gz": "07c09e9d0887cf8145cb29eab82ba96e0a2c4f46f237b85f364ed7cef80ad1ec",
+        "png": "3632376b32a5897d04e05e9a37697a3886743e25879e2faf4eb958866c61cb7f"
       }
     },
     {
@@ -4616,8 +4616,8 @@
       "story": "form.default",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "2c3a4859ece165cd6747397e83f3b5666a5776c97ac0d3e66a8b34ed8627e596",
-        "png": "04ecd05753ebca82f88d8256c446297d7222999e96831337a6766ddc07a55a06"
+        "json.gz": "6294c85000a841a5790b2415c1f58ea7d4198613e4e09de5e4cecef6334ffc6c",
+        "png": "485505cbf0a02cf783390f849daee890c82d7301f1106154902145a0fe8a4b12"
       }
     },
     {
@@ -4625,8 +4625,8 @@
       "story": "form.default",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "3c304cab12fd831e039b3060a205ad41fcdab62209c54ae0941494568e3ba209",
-        "png": "569a879ca1aeba1720eb1518eb3827aba2d4f013ca87d6af616cfa5d23f29fbd"
+        "json.gz": "2b9834da681021020c0658df8f8d0c2d581dd124e1890098190eaff06b8ec377",
+        "png": "f4124665f96b0eef1a907e31838f95876af50a59522728f41bd113f9abcfbfed"
       }
     },
     {
@@ -4634,8 +4634,8 @@
       "story": "form.default",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "a452e77d30f8f0ea28d2dd78718a09596403be2a0e2856238b1f65e87cfdd8d5",
-        "png": "569a879ca1aeba1720eb1518eb3827aba2d4f013ca87d6af616cfa5d23f29fbd"
+        "json.gz": "0c15a194847cb12e4601e45ad374fffa9f85b2481b5962640c2dd7fe0a3a8530",
+        "png": "f4124665f96b0eef1a907e31838f95876af50a59522728f41bd113f9abcfbfed"
       }
     },
     {
@@ -4643,8 +4643,8 @@
       "story": "form.default",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "eca7ab5b6472038e97ac7ada3c6ff8e8b5d4699bcc82e06876870eaee4efa355",
-        "png": "cfa11b3cfe428a8d0cf5b370bdd4efd8f48c60ed4002ef829650cde70fb1eff1"
+        "json.gz": "6972d784f2991786d0c91ab6cb57fbdf37034d096be8609958e6521cfe094048",
+        "png": "26d3c3be96b3fbe593a4ca95870b4ba559fefe4b7d52ee43f9a52ed918d26de1"
       }
     },
     {
@@ -4652,8 +4652,8 @@
       "story": "form.default",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "5d00b9ee8bb60eb39627abb68f4c569542adbe24dfa32c55a79a2948ed1f8dda",
-        "png": "e1f21144e1942ff56df5fb5be4141ddd2182aa4fd39d285125c4facbc10a20d8"
+        "json.gz": "5c66bc464ff277fc2670d75d675dd8e436e2af446c106a8bf85db86ea929df19",
+        "png": "b07f106dd96fbc40b12288ed47df70aeaedf0f4e3d060b9e45d878f165575ffb"
       }
     },
     {
@@ -4661,8 +4661,8 @@
       "story": "form.default",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "ea39c4d52cb5c7d3e113790952862f3c465b27f20d6558c2ea860771fba9b88b",
-        "png": "22375422331e2c8461d7aaf722650625c3be07fcd7f247b1a777d9728afce760"
+        "json.gz": "d604e5587ecbc7cb22825233e8f67ad70d0e4ef51200bdb830ed133a3b80bb03",
+        "png": "34abc9c55b6a28ef10737ce8c24ad6db0837e89250cc8f240a5b1de973f510d5"
       }
     },
     {
@@ -4670,8 +4670,8 @@
       "story": "form.empty",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "9c95073aba29e0e928f63cf2cbed1e7d8adc10559196040693194fed2279fd3d",
-        "png": "5e84f207c70eec04fb3a153204eb0ba416239d76980b1bf92533fea6086b3850"
+        "json.gz": "9b7a5e707c6239b527a2f71390d14d1cc9c2a4738cc45a53e4b98a5d46796be7",
+        "png": "13cc2619bdf8a9ef99a53881d76732476d2195dcff5ad7e770f4300b65ee7bf3"
       }
     },
     {
@@ -4679,8 +4679,8 @@
       "story": "form.empty",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "c3bec0abad2dcf0dc924b62dafee9690154bfd5730fd731b410f35aa97c186e2",
-        "png": "5e84f207c70eec04fb3a153204eb0ba416239d76980b1bf92533fea6086b3850"
+        "json.gz": "87e50fd2a851733eff3175c8a3ca356bf9361ea947e480a9a9e5935a6bcb311f",
+        "png": "13cc2619bdf8a9ef99a53881d76732476d2195dcff5ad7e770f4300b65ee7bf3"
       }
     },
     {
@@ -4688,8 +4688,8 @@
       "story": "form.empty",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "62d9327898f412f237a5761ca39d256e8286b2a90fb849c29fbc3dbcfc955194",
-        "png": "705d1d201498bb8e1365e6155c004b3b27bbc4a3746d41f8fe5f1f574764fad5"
+        "json.gz": "abfe164b5365286642d7e1e3186bac6cf1d932b543a7ed66f43f3a3fc5a91e22",
+        "png": "1a634feff7dfc8b54e1106dec9386199539a67ee6365602470e91b2c00892f5a"
       }
     },
     {
@@ -4697,8 +4697,8 @@
       "story": "form.empty",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "e331936f26324a625ddec2ce3508ebd44b37d89bc4d6b33beb9a2685dadb045b",
-        "png": "705d1d201498bb8e1365e6155c004b3b27bbc4a3746d41f8fe5f1f574764fad5"
+        "json.gz": "37b8d08f04ecef53618830ff99122e8d9717850da505143b4059c5db9966452a",
+        "png": "1a634feff7dfc8b54e1106dec9386199539a67ee6365602470e91b2c00892f5a"
       }
     },
     {
@@ -4706,8 +4706,8 @@
       "story": "form.focused",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "c85836d4627d9b32306f7638c87e1462ae1e8ccf53bf334bf0e43d2da641e05b",
-        "png": "f55da9686aa2f59b58703b3a8f6e108c56e8366c788cef931c57dc7e0e86ba07"
+        "json.gz": "72f64d5110070249d6ea8120bd2c59e898157e069756dac28663fe3dd8ce1a23",
+        "png": "30a5ec05ed4bb298040e1cc53f198dca765adb9cc7c5b596c26776485ec66a53"
       }
     },
     {
@@ -4715,8 +4715,8 @@
       "story": "form.focused",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "fc67944ddbea60ccfd54853f33e6e63f5a7f645e9287808d8d8c8b54d0924d85",
-        "png": "f55da9686aa2f59b58703b3a8f6e108c56e8366c788cef931c57dc7e0e86ba07"
+        "json.gz": "55cedd52b5b0e021cbce8e95ceac3857edc93dc87e70525732b1561b01d7aa32",
+        "png": "30a5ec05ed4bb298040e1cc53f198dca765adb9cc7c5b596c26776485ec66a53"
       }
     },
     {
@@ -4724,8 +4724,8 @@
       "story": "form.focused",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "641771bcf3fa416118e5103934ac1de757f4308a770bb884de44137c1f7e7014",
-        "png": "569a879ca1aeba1720eb1518eb3827aba2d4f013ca87d6af616cfa5d23f29fbd"
+        "json.gz": "9d9fdc91603cd908083224a6ccaacad7c8d645c528072d2911013c6bd82facdf",
+        "png": "f4124665f96b0eef1a907e31838f95876af50a59522728f41bd113f9abcfbfed"
       }
     },
     {
@@ -4733,8 +4733,8 @@
       "story": "form.focused",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "a58826db6a211e9a5d1bb4b17c80563ae3c722160c0a15e6feece8cf95ee1026",
-        "png": "569a879ca1aeba1720eb1518eb3827aba2d4f013ca87d6af616cfa5d23f29fbd"
+        "json.gz": "486ccddae43cd2ed962f73d1f6c7ac688cc98bb48fcf424e88a6834d3f78a745",
+        "png": "f4124665f96b0eef1a907e31838f95876af50a59522728f41bd113f9abcfbfed"
       }
     },
     {
@@ -4742,8 +4742,8 @@
       "story": "form.disabled",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "da2421f012a56f853c2eb22390e45f37d36e269efa184384fba697454907ec76",
-        "png": "bffca6e4b67f77ce6b791ebaed1b4dfd30398b9ee580e17c969c46ca04af7f5e"
+        "json.gz": "889f02645b7c0a1172d450ecdc018fe144e7fc32a6f7f35c1d14d0d690abd6a5",
+        "png": "8162f2cb2d68b50680c38f86a5097cc0930aa1ae9313014dcf61d98cd3ced7ca"
       }
     },
     {
@@ -4751,8 +4751,8 @@
       "story": "form.disabled",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "d1f4e03bffd658d5ee4f2ababd48e8179d568bd54c1a873cee086753195633dc",
-        "png": "bffca6e4b67f77ce6b791ebaed1b4dfd30398b9ee580e17c969c46ca04af7f5e"
+        "json.gz": "4dc3599fe5d509cbd3de458765976b7c1fe691c14ea0feb3081735bbd1e13539",
+        "png": "8162f2cb2d68b50680c38f86a5097cc0930aa1ae9313014dcf61d98cd3ced7ca"
       }
     },
     {
@@ -4760,8 +4760,8 @@
       "story": "form.disabled",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "2248173378ef9a4b2c8d5cea95c44c5abd14e3b76cd69b5fe2bf8c38113e6d3c",
-        "png": "bffca6e4b67f77ce6b791ebaed1b4dfd30398b9ee580e17c969c46ca04af7f5e"
+        "json.gz": "3fdbeef478c12e83cd42ae0d458f99c9e39e78d269f2cdb949051f50f1103fee",
+        "png": "8162f2cb2d68b50680c38f86a5097cc0930aa1ae9313014dcf61d98cd3ced7ca"
       }
     },
     {
@@ -4769,8 +4769,8 @@
       "story": "form.disabled",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "c960f8e9e669a73ca91566e1f38c3c98c31b0cac8622392fe87e3deba34232ff",
-        "png": "bffca6e4b67f77ce6b791ebaed1b4dfd30398b9ee580e17c969c46ca04af7f5e"
+        "json.gz": "374b605bec9640b6be81139b3d546be51491a5da80c4f2b7c5de08c109016fda",
+        "png": "8162f2cb2d68b50680c38f86a5097cc0930aa1ae9313014dcf61d98cd3ced7ca"
       }
     },
     {
@@ -4778,8 +4778,8 @@
       "story": "form.invalid",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "f31d0fde0d159b88195308de44428328e14e3015eddbd868c071efaa83cf0ec4",
-        "png": "8cd4abe61d535b8fd53201f17cb47ec4e8d0c5fe1895ae9549d6297df9474782"
+        "json.gz": "664babb673c1cd0d0120e06c03ead62f476e455753da8384fb652cc2875563c0",
+        "png": "2a1929273bfc19c97f2ae1c80a19acfea44e1bac98fa0ea205c42b6815ef42d2"
       }
     },
     {
@@ -4787,8 +4787,8 @@
       "story": "form.invalid",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "a5a981e992cc238b9ccc46b1fc450aa3a307841a3f92c822d299ec3cbcd7542d",
-        "png": "8cd4abe61d535b8fd53201f17cb47ec4e8d0c5fe1895ae9549d6297df9474782"
+        "json.gz": "8eabdf6506398ebda7d4fd8763609ebb4436cc0110cbe45151374243fb2ec250",
+        "png": "2a1929273bfc19c97f2ae1c80a19acfea44e1bac98fa0ea205c42b6815ef42d2"
       }
     },
     {
@@ -4796,8 +4796,8 @@
       "story": "form.invalid",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "1e9e121ac1e409199834bdfbb42ce6371c3259ae22433518687a7cb43c1ebbec",
-        "png": "99bb42467f644f6a23baba78bfc06cff5ad9cf0e4f07e5661f4420fad8998f37"
+        "json.gz": "71846ddf1804f0652f2603c653bad636d5aad6043f8b26898241003611f58527",
+        "png": "660572020a6f0c3e6b76e7a09ad392b387eabcbf7db462678b4c430cca086c9a"
       }
     },
     {
@@ -4805,8 +4805,8 @@
       "story": "form.invalid",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "0d2a594c0173e9faa286bf5dc8b2b9bce99474034c97734eab5ccb5621dfbdd0",
-        "png": "99bb42467f644f6a23baba78bfc06cff5ad9cf0e4f07e5661f4420fad8998f37"
+        "json.gz": "a05185e48622115736db31f273cccc7613961bd380c378afda6a765f3ab6f60f",
+        "png": "660572020a6f0c3e6b76e7a09ad392b387eabcbf7db462678b4c430cca086c9a"
       }
     },
     {
@@ -4814,8 +4814,8 @@
       "story": "form.loading",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "4bad9f6be5a6691bde50b1cfcdc5f5437cbb5e13731b92b03c661790ab65379a",
-        "png": "fbcf2e4bbb701bea82c3e368909e9995a55bc789bd385c00f6eaffac7950b84d"
+        "json.gz": "73e23fb263835a14de771b77baae08e41519f86a94dd4da1272c5e5e6805fa38",
+        "png": "0c15ee02b400bae6639b875d108f2d67c349068c3c7365131adc1680dd296c99"
       }
     },
     {
@@ -4823,8 +4823,8 @@
       "story": "form.loading",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "1db689e7c78734aa715f90bcd034aad5226869b63133c36b66cb72fe75c012d8",
-        "png": "fbcf2e4bbb701bea82c3e368909e9995a55bc789bd385c00f6eaffac7950b84d"
+        "json.gz": "ea9669f72c3d39872d61d88e677c8baf2eacd7323ae7afbf76b2c0305c955750",
+        "png": "0c15ee02b400bae6639b875d108f2d67c349068c3c7365131adc1680dd296c99"
       }
     },
     {
@@ -4832,8 +4832,8 @@
       "story": "form.loading",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "e22ac64161fd9c30873ef4f56b3871ded4e23db289d0d44d2c7150cc0036a0a2",
-        "png": "7a14bd142878c52dc7399074a4030a2f35966537d8fcf68d3dba6bd06d6ea09a"
+        "json.gz": "025461812e6e9150ff9d668b4b46d7952885c87275966f262a0563f6953d88bb",
+        "png": "bbf2c263d2d42c4f9f8c5ce4d191a7eef4ef2f0ae9514808aeacdac04d9e0eb4"
       }
     },
     {
@@ -4841,8 +4841,8 @@
       "story": "form.loading",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "c0b2f988e1929673026c00693fbc64b30785dd831a99fdef17e6889f8d0b83b8",
-        "png": "7a14bd142878c52dc7399074a4030a2f35966537d8fcf68d3dba6bd06d6ea09a"
+        "json.gz": "8a5c4d5f52b5510db328c4802639c9544a6b07c734ddf1e64881d4aeed75f35c",
+        "png": "bbf2c263d2d42c4f9f8c5ce4d191a7eef4ef2f0ae9514808aeacdac04d9e0eb4"
       }
     },
     {
@@ -4850,8 +4850,8 @@
       "story": "form.unicode",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "28f9df64c56562faa17125ccea1ac46d90efd51acfeeae6dd33600d91b9dd879",
-        "png": "c7040429c76806d1d3665a0df82e58026ee9bf508278ccfe1926d876fae30ba0"
+        "json.gz": "50d712fd4cfc030a76834f9667cedeefaa7e4bec175130e0697281babd31e387",
+        "png": "46cb77165115b350a5fe851dcd8836268dffdd2213a69464219e33273aea2372"
       }
     },
     {
@@ -4859,8 +4859,8 @@
       "story": "form.unicode",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "5340ade8877ffafdc3a337eba76cf621f0401f9e696fee8657c134d991489557",
-        "png": "c7040429c76806d1d3665a0df82e58026ee9bf508278ccfe1926d876fae30ba0"
+        "json.gz": "07e3b0f22a6d91f7c02182445234c50628a0305c5864d6ed4d3928673da43932",
+        "png": "46cb77165115b350a5fe851dcd8836268dffdd2213a69464219e33273aea2372"
       }
     },
     {
@@ -4868,8 +4868,8 @@
       "story": "form.unicode",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "96da8a8eb41107697fb8b4e94dcc9d88618fb029dde08d7f5f7c443f7d1f3c2e",
-        "png": "9b056e5bda8318a53ca663bf2d8102976d02b2990f5ffff32eb41868d3e19c33"
+        "json.gz": "22478d76c1b1af0f6aeda9f0c2e310be043372a82c4f4c0e03cf079ec0d109f3",
+        "png": "d8a1947ed63710730f0d80389fcf002fbf1852890c5f19c5fe98ea5a13a5fdb3"
       }
     },
     {
@@ -4877,8 +4877,8 @@
       "story": "form.unicode",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "8970b11f72e6b6bbe007d9f4ffdbc9f14bcd0fc7906181876bbf277c910bd3e0",
-        "png": "9b056e5bda8318a53ca663bf2d8102976d02b2990f5ffff32eb41868d3e19c33"
+        "json.gz": "549b2ceb9a5e05f724633f6d1d71b59b3329e79df7ce79a0b8ceb106eb0f8236",
+        "png": "d8a1947ed63710730f0d80389fcf002fbf1852890c5f19c5fe98ea5a13a5fdb3"
       }
     },
     {
@@ -4886,8 +4886,8 @@
       "story": "form.constrained",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "73f0b281a20d65a60eb635e497130afcb56e8a8dce10d46f053ef8a3c20a2310",
-        "png": "e49edbecc85736a37bb7bfc4dd028fb04ce479262bdbee7294cf4873543e65f3"
+        "json.gz": "4cc7ebfc4622273ccfecea2b5b6f6d796df6ae69bc0fd126353749fd2ea299fd",
+        "png": "528241849c0ec4c1b46cb7badf4b34c4e6cd93ba1ba491a8b404bfc2f67b158d"
       }
     },
     {
@@ -4895,8 +4895,8 @@
       "story": "form.constrained",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "4f8bf30de57911a9212c903e4d52e6571bcffb13d1911ad2329d7a748a5fdc41",
-        "png": "e49edbecc85736a37bb7bfc4dd028fb04ce479262bdbee7294cf4873543e65f3"
+        "json.gz": "6e066b62cf46bd00e1e45e8386ca649a8b1c650e82f56bd49d8be330654fb57e",
+        "png": "528241849c0ec4c1b46cb7badf4b34c4e6cd93ba1ba491a8b404bfc2f67b158d"
       }
     },
     {
@@ -4904,8 +4904,8 @@
       "story": "form.constrained",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "1b5d7c693e7b57f53798734e69eebc0cfadd022c662123a62d30fafaab713625",
-        "png": "cfa11b3cfe428a8d0cf5b370bdd4efd8f48c60ed4002ef829650cde70fb1eff1"
+        "json.gz": "8599ebd210588e45cb67b163906926c2ea5a9078b9d2be64d5b9eabea46157f9",
+        "png": "85c85e3ecb13c90593f25115b28d84827016f309d4195b04cd3835dea41c8abd"
       }
     },
     {
@@ -4913,8 +4913,8 @@
       "story": "form.constrained",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "81806a2bdbbb446485c07b56ec980f93ee49d17791aa14b8d692b314cf1f39c1",
-        "png": "e49edbecc85736a37bb7bfc4dd028fb04ce479262bdbee7294cf4873543e65f3"
+        "json.gz": "d1cc4f4dfbbe052f3892bf0b02e7ed69d1fce1c9ac309ff251f614ac5cbc65e9",
+        "png": "528241849c0ec4c1b46cb7badf4b34c4e6cd93ba1ba491a8b404bfc2f67b158d"
       }
     },
     {
@@ -4922,8 +4922,8 @@
       "story": "form.constrained",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "c33fec5df4558124fd2bbe1b53fb016b3ffd52e686263574eb672562cedbe750",
-        "png": "6554a9dd8749f695bc8802126fe5b8f17a5a2e5eb81393f58d9b65867f855a3a"
+        "json.gz": "bc64ad3795ebf35042d287c8bf811d21b228c6bde40708dbccc1d50f0251b451",
+        "png": "abc5b45e38172283d47f91abdadfbbbd522f34d91643bd7cda0cd916c4744f05"
       }
     },
     {
@@ -4931,8 +4931,8 @@
       "story": "form.constrained",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "77d38510ac530edeec42a6411762b89182e002149b1be58e96d9bb5309cc7570",
-        "png": "d425440ac670cac7f315cf31d5f15a83cc467df00d35e7dbe28bb177f32679ca"
+        "json.gz": "6f1abd7e6699330ac378e70e82ed7e4b114463a698a2da9319dc4f63109640b7",
+        "png": "ca00c67828f8531fd9bca53d3390c7a3a0f1d659574e87e263ceda5506e12684"
       }
     },
     {
@@ -4940,8 +4940,8 @@
       "story": "form.constrained",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "21178dacb9a22f0215c42444b17383e25e1e9806f4540367dc0aa0f30bf4a555",
-        "png": "4c5c9a36db36abbd484da5cc7ad7e63720e455bdbd32eafb3edfbb5dd44226f6"
+        "json.gz": "0d0cbf3675a1d8615edee214c55d1a5d10d48f42ab13b8e9553a09548251cbcb",
+        "png": "81d3b1487dd6966956659e344f9cd7549773685e6938d043baeaade1e3c44bb4"
       }
     },
     {
@@ -4949,8 +4949,8 @@
       "story": "form.constrained",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "4d5f32bb22513718364ac09c9a25f18a8f74a3b3e270a67de434a3c1375d354b",
-        "png": "b3b6a1bb1b66ca60655696479e3518bbe257f431074e94f7caf5b33a9fbd9af6"
+        "json.gz": "a584b52ace4658325360c13336cce5e3c0bc55d3753677be95d5d911aab855a2",
+        "png": "adccae3739eccb48e8d39db219b83e8e41a3b1a2fb983dc29aa91cd2a852f3a5"
       }
     },
     {
@@ -4958,8 +4958,8 @@
       "story": "form.constrained",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "b1fc20b0c632fd268638e63bd27878ff18498ef7d609f0fd2593a2b713090b1a",
-        "png": "5ea6b85c188c7a0978482767f72377cfd43eb4e553b561aab55e2d42ff38e8e7"
+        "json.gz": "7098a96da1347dc75926a7116e49f656b00b916594c4a9fa05bf403b2d2359a2",
+        "png": "0035bdce812f1c1e0d724cca1b648b02914477783080060b976a95c9db0aea22"
       }
     },
     {
@@ -4967,8 +4967,8 @@
       "story": "form.constrained",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "9c67c0872b99ba0446ded217136f73a999f87020cb6e548cc83864bc4c9556a9",
-        "png": "e49edbecc85736a37bb7bfc4dd028fb04ce479262bdbee7294cf4873543e65f3"
+        "json.gz": "18ff5253c710f044c47fe543c162f196c86b3709c75f12d9d1492955e635c139",
+        "png": "340d8e1095f9d422939591aff8ce332713c74da4a5a76ea48085f211825814bc"
       }
     },
     {
@@ -4976,8 +4976,8 @@
       "story": "form.constrained",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "bc76130ce3ce1c891f32f362338205944e431e1b0bfa110b19730d74afc5b7f5",
-        "png": "e49edbecc85736a37bb7bfc4dd028fb04ce479262bdbee7294cf4873543e65f3"
+        "json.gz": "5e6bc31c7be1af9e02673ebceeaae47061055425040f87ea1046939fb17ce7e5",
+        "png": "340d8e1095f9d422939591aff8ce332713c74da4a5a76ea48085f211825814bc"
       }
     },
     {
@@ -4985,8 +4985,8 @@
       "story": "form.constrained",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "6efd55a3810362dcc5f88dd85c9150a81b8c8c9a18e12eeec6b4ba9a937107c0",
-        "png": "cfa11b3cfe428a8d0cf5b370bdd4efd8f48c60ed4002ef829650cde70fb1eff1"
+        "json.gz": "388e74632124bc36fe7c4a6e7b8c806c4436be94cac514242c007b3cba8f0e6f",
+        "png": "26d3c3be96b3fbe593a4ca95870b4ba559fefe4b7d52ee43f9a52ed918d26de1"
       }
     },
     {
@@ -4994,8 +4994,8 @@
       "story": "form.constrained",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "99b0c93e7a5cf71eec46555227b625bc07bf74a18e3108fc87ea29335141f2f1",
-        "png": "e49edbecc85736a37bb7bfc4dd028fb04ce479262bdbee7294cf4873543e65f3"
+        "json.gz": "b2df9f8e90c469c8078e14ee2cc9434d1deee5f4fa4e6acecd0f202b6c27123a",
+        "png": "340d8e1095f9d422939591aff8ce332713c74da4a5a76ea48085f211825814bc"
       }
     },
     {
@@ -5003,8 +5003,8 @@
       "story": "form.constrained",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "e542efa848db202fc6fe496049b6e2ce9fa4a2c773383176b5e47fd6898c9d3f",
-        "png": "6554a9dd8749f695bc8802126fe5b8f17a5a2e5eb81393f58d9b65867f855a3a"
+        "json.gz": "f4fd10fd896231ba171f77441bf3573c262484c53396b92ec07577ce27677b94",
+        "png": "485051a8f818a2d3a81b1fe1888e6ec620ca4f4a46a043a840f30765b02e9734"
       }
     },
     {
@@ -5012,8 +5012,8 @@
       "story": "form.constrained",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "f4634bf0761289f24d225b453d78fa84ff6d1a3c956a2ba0964598030177e4b5",
-        "png": "d425440ac670cac7f315cf31d5f15a83cc467df00d35e7dbe28bb177f32679ca"
+        "json.gz": "af2abda13d9e7496afd2927407b60128ed9ab23b8035eb85e613de8b84df9ae3",
+        "png": "f001b20f69e61c11df0affa91332ec65749403359e59423c9053f4c2a701c4a9"
       }
     },
     {
@@ -5021,8 +5021,8 @@
       "story": "form.constrained",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "78f6a3d0ccb85023e44badc544860d29c39ff9986750ad6cbeb6dda030ef0edc",
-        "png": "db3ef6221deb123f0e9b270503b5f9d19de1c626b77454c9b9bd23014050978e"
+        "json.gz": "14ee9166f7cbab38d4458352edbccc0c74909ef10e7c0f24c753c6085520895f",
+        "png": "4df6f32f996ef5cb3a1c2af9178d904c5e1ad2a01fab0c0aff40a04672c02596"
       }
     },
     {
@@ -5030,8 +5030,8 @@
       "story": "form.constrained",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "f7b80be25557307d62f20499d04daeb5d6d1ed062f369b6cc63836ffed952056",
-        "png": "b3b6a1bb1b66ca60655696479e3518bbe257f431074e94f7caf5b33a9fbd9af6"
+        "json.gz": "541b58ca5cdf8c8b2a5f4155f347d0ab4876f648d9e1237cffaa4ae63a2c07dd",
+        "png": "adccae3739eccb48e8d39db219b83e8e41a3b1a2fb983dc29aa91cd2a852f3a5"
       }
     },
     {
@@ -5039,8 +5039,8 @@
       "story": "form.constrained",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "b66a37325e09809b6c9385cfae2309febed93947e2abbfec6d66ecde28384b55",
-        "png": "5ea6b85c188c7a0978482767f72377cfd43eb4e553b561aab55e2d42ff38e8e7"
+        "json.gz": "b4001bbb1c8aba265c210299d00cdae48385f814fd3c32c0106eb5a99d0d9e35",
+        "png": "0035bdce812f1c1e0d724cca1b648b02914477783080060b976a95c9db0aea22"
       }
     },
     {
@@ -6218,8 +6218,8 @@
       "story": "text-chart.default",
       "widget": "TextChartWidget",
       "hashes": {
-        "json.gz": "9e0326ddd9831a9d835f396ff6806ab0085d2f5d1614f419835295ef2bf4d630",
-        "png": "b7218cb920b06237fa12e7e264cb051903572312647c82cc0e0603b0b4b943d9"
+        "json.gz": "90e571c6b1bde94eba55ef67da17c30db3123d72c6560df28c2f5fa570bd9d25",
+        "png": "ab34354a3db759d115ae15687c453fef16a4d316e35b9b24e2776f5fc5304a9f"
       }
     },
     {
@@ -6227,8 +6227,8 @@
       "story": "text-chart.default",
       "widget": "TextChartWidget",
       "hashes": {
-        "json.gz": "10930d476ed4ad4f937453a1f747affcb0025938893080a30886844cd17c7cd8",
-        "png": "b7218cb920b06237fa12e7e264cb051903572312647c82cc0e0603b0b4b943d9"
+        "json.gz": "f193134b54b5cff707bc43ac884ef53d0b2a685a1e967406533c078757022bbd",
+        "png": "ab34354a3db759d115ae15687c453fef16a4d316e35b9b24e2776f5fc5304a9f"
       }
     },
     {
@@ -6245,8 +6245,8 @@
       "story": "text-chart.default",
       "widget": "TextChartWidget",
       "hashes": {
-        "json.gz": "c51ef134e8c80242b2ed758565e6d947ff250a70e3d6382adc48bf042ba9e958",
-        "png": "96bb7bad44d188c0c8ec1d913a5e920b8a4bfc34abdf1c1e7219410c2653f9b5"
+        "json.gz": "b872a65ab5bd58870ac51ee42dce70168def3aaac072f27fec872030f073e269",
+        "png": "474a868546a573367535420df8063f7622a1fcd189f78f376634b4fc7d05297c"
       }
     },
     {
@@ -6254,8 +6254,8 @@
       "story": "text-chart.default",
       "widget": "TextChartWidget",
       "hashes": {
-        "json.gz": "24f6d72ea69237f9291516b81d7ba9f5906827f72d6ba38bf812dc09529da534",
-        "png": "e1a0154bfc6bf30d65d3184e48c552cf9941b9daf7fb6925d20d75c1dd11453f"
+        "json.gz": "7f69f7e5216f0a6b16d917445b59d429bf9087c571712a50ed81eaf0e401f521",
+        "png": "432da7e064fca29a119f9638bfbfbe45bf293b3e3aceaf28b1a2cba6e1d4b2f4"
       }
     },
     {
@@ -6263,8 +6263,8 @@
       "story": "text-chart.default",
       "widget": "TextChartWidget",
       "hashes": {
-        "json.gz": "5099df5aa3b798265a38b432ab0fb056604b042dc91f0722a3868c35f97c61eb",
-        "png": "b7218cb920b06237fa12e7e264cb051903572312647c82cc0e0603b0b4b943d9"
+        "json.gz": "aff98a62442020e9105df7696911eccb36537b61d2d13ab4297bedd9658f9662",
+        "png": "d110ffae80991bf27d217ad3c0237b3611f0a5e7dec7e58a5a45587c4a2d6177"
       }
     },
     {
@@ -6272,8 +6272,8 @@
       "story": "text-chart.default",
       "widget": "TextChartWidget",
       "hashes": {
-        "json.gz": "8ca199233273cde9f7f80ef26b4c59a0395da86483c64318f9ceec577394e955",
-        "png": "b7218cb920b06237fa12e7e264cb051903572312647c82cc0e0603b0b4b943d9"
+        "json.gz": "7f9e8a5514b4905a1f1ba01a9fc1a7f398b733675ef9480af216586b90d1fa88",
+        "png": "d110ffae80991bf27d217ad3c0237b3611f0a5e7dec7e58a5a45587c4a2d6177"
       }
     },
     {
@@ -6290,8 +6290,8 @@
       "story": "text-chart.default",
       "widget": "TextChartWidget",
       "hashes": {
-        "json.gz": "09c929d74a2e892461334f484f5436acd754ecd80523161ce089ff9d2b96b04f",
-        "png": "96bb7bad44d188c0c8ec1d913a5e920b8a4bfc34abdf1c1e7219410c2653f9b5"
+        "json.gz": "0a45e4773d6d2181ad2ceece7e400db92a22028bd78cb3bee29e688186a366d3",
+        "png": "f31d6dc11cd1043570faad212978de5cecff6952947c99803710ef7e0bbdb14e"
       }
     },
     {
@@ -6299,8 +6299,8 @@
       "story": "text-chart.default",
       "widget": "TextChartWidget",
       "hashes": {
-        "json.gz": "7ebb6ca1a31cb6e24a10d4ecec54174591daf5f527ca52478ee333e0c883cde1",
-        "png": "e1a0154bfc6bf30d65d3184e48c552cf9941b9daf7fb6925d20d75c1dd11453f"
+        "json.gz": "64822da60491ec0550f82f2ea48a7a1df92bc13dfd89dff604614dddd208919c",
+        "png": "225e17429e815090db690c708ba7639b10b2deea6a9cc12f38297a178683cf36"
       }
     },
     {
@@ -6308,8 +6308,8 @@
       "story": "text-chart.empty",
       "widget": "TextChartWidget",
       "hashes": {
-        "json.gz": "110b26e54068f0daac47ee7921bb81edcf6b84940d8f5dc9eebaee96e1c05ab1",
-        "png": "f2588fffa593664dd19c98cd38483774b82be150eba9764d1128e6e4b7039566"
+        "json.gz": "631ab330e54884e62b3a20ea5898dd4ea2bd1c56caa01a1eb8996f63a563005b",
+        "png": "374095248bfc89f1f2fe6a6a88ff5cd3a41561c8d521fb827393f4fe1551a5ea"
       }
     },
     {
@@ -6317,8 +6317,8 @@
       "story": "text-chart.empty",
       "widget": "TextChartWidget",
       "hashes": {
-        "json.gz": "0c914a3ad63b8fcfb5e73612a43d71c606c63270102aac8344ff873e05d6b656",
-        "png": "f2588fffa593664dd19c98cd38483774b82be150eba9764d1128e6e4b7039566"
+        "json.gz": "ab055646b632506d6eff0be928ea746e87e335d55690a34d6f137f8a9714036a",
+        "png": "374095248bfc89f1f2fe6a6a88ff5cd3a41561c8d521fb827393f4fe1551a5ea"
       }
     },
     {
@@ -6326,8 +6326,8 @@
       "story": "text-chart.empty",
       "widget": "TextChartWidget",
       "hashes": {
-        "json.gz": "8cec81d606829c3a9ef5d651ab909c6765313003ac4d0cb0cbb8564705ac4645",
-        "png": "f2588fffa593664dd19c98cd38483774b82be150eba9764d1128e6e4b7039566"
+        "json.gz": "83f9f44c6064445e39316d3413aa26ee63aefed2ecf3f1335951885936513d25",
+        "png": "374095248bfc89f1f2fe6a6a88ff5cd3a41561c8d521fb827393f4fe1551a5ea"
       }
     },
     {
@@ -6335,8 +6335,8 @@
       "story": "text-chart.empty",
       "widget": "TextChartWidget",
       "hashes": {
-        "json.gz": "ebbb8d1db102f6bde056d7adb4ba868ea45c1d5daf2e97d8f6ad357d276a84c0",
-        "png": "f2588fffa593664dd19c98cd38483774b82be150eba9764d1128e6e4b7039566"
+        "json.gz": "7727694bcb2de3423e69757e085946513bba47106fb3a2b046a46557cfc86526",
+        "png": "374095248bfc89f1f2fe6a6a88ff5cd3a41561c8d521fb827393f4fe1551a5ea"
       }
     },
     {
@@ -6344,8 +6344,8 @@
       "story": "text-chart.focused",
       "widget": "TextChartWidget",
       "hashes": {
-        "json.gz": "22be9fcf45925d7e637e294eb3f11bf106ad0ac6d142aecf26312e4fcb474c65",
-        "png": "b7218cb920b06237fa12e7e264cb051903572312647c82cc0e0603b0b4b943d9"
+        "json.gz": "4ce19ffff2999afa40b8dc5221976ed811f65afd06b046a7e8d27e5c5329d0ec",
+        "png": "ab34354a3db759d115ae15687c453fef16a4d316e35b9b24e2776f5fc5304a9f"
       }
     },
     {
@@ -6353,8 +6353,8 @@
       "story": "text-chart.focused",
       "widget": "TextChartWidget",
       "hashes": {
-        "json.gz": "32188c522cacffc8747b03140f817e1f70eeeb1cfeffbbee9ec3b0c5cf363cd2",
-        "png": "b7218cb920b06237fa12e7e264cb051903572312647c82cc0e0603b0b4b943d9"
+        "json.gz": "6ecb707eec53242d4f379554f5ad9c231c28e31bd5adcb673672766ddc938bf5",
+        "png": "ab34354a3db759d115ae15687c453fef16a4d316e35b9b24e2776f5fc5304a9f"
       }
     },
     {
@@ -6362,8 +6362,8 @@
       "story": "text-chart.focused",
       "widget": "TextChartWidget",
       "hashes": {
-        "json.gz": "c12d3460daadb3bddaedf95738a35ec27ad3508949e483d06a52068d3a5d304f",
-        "png": "b7218cb920b06237fa12e7e264cb051903572312647c82cc0e0603b0b4b943d9"
+        "json.gz": "817aa516bc9d49ad472a70f85d4869942f7dab65f61dd370d0d851bed5d2cf59",
+        "png": "d110ffae80991bf27d217ad3c0237b3611f0a5e7dec7e58a5a45587c4a2d6177"
       }
     },
     {
@@ -6371,8 +6371,8 @@
       "story": "text-chart.focused",
       "widget": "TextChartWidget",
       "hashes": {
-        "json.gz": "5a8e31c3a74200a35ac444eabb4543409e2209dd52ca907a797b9e9c76ca5fab",
-        "png": "b7218cb920b06237fa12e7e264cb051903572312647c82cc0e0603b0b4b943d9"
+        "json.gz": "38eff1ae097f74ab2db435acaa07fbb7db42a716599c7f973c1550bf51dbf2b3",
+        "png": "d110ffae80991bf27d217ad3c0237b3611f0a5e7dec7e58a5a45587c4a2d6177"
       }
     },
     {
@@ -6380,8 +6380,8 @@
       "story": "text-chart.disabled",
       "widget": "TextChartWidget",
       "hashes": {
-        "json.gz": "de158e808e1a1c5c057023534bcd86f1ca4d09b7a75ad83e6a39cc0b230c8ae7",
-        "png": "b7218cb920b06237fa12e7e264cb051903572312647c82cc0e0603b0b4b943d9"
+        "json.gz": "70b8b503bf3ec4866932202a0093ec1a5a526f707bcc27abb628d24008a47c03",
+        "png": "c0d0e12e9eb9dec728ecf16cac73c553f3850598579b7144fd064c45a6722ecb"
       }
     },
     {
@@ -6389,8 +6389,8 @@
       "story": "text-chart.disabled",
       "widget": "TextChartWidget",
       "hashes": {
-        "json.gz": "8ccc17706a0226ed279e82c8a670b29ef9cbd56dd1de9ccf4e03249a9c99076b",
-        "png": "b7218cb920b06237fa12e7e264cb051903572312647c82cc0e0603b0b4b943d9"
+        "json.gz": "1ce68ec832aafe428439c5041540c9f5c73b21bf680ced22b5fe45f0db954639",
+        "png": "c0d0e12e9eb9dec728ecf16cac73c553f3850598579b7144fd064c45a6722ecb"
       }
     },
     {
@@ -6398,8 +6398,8 @@
       "story": "text-chart.disabled",
       "widget": "TextChartWidget",
       "hashes": {
-        "json.gz": "cb20cf4db2fde2d0a2100f1630a72f96477b3bb6990bb6c86398e4a952310c3c",
-        "png": "b7218cb920b06237fa12e7e264cb051903572312647c82cc0e0603b0b4b943d9"
+        "json.gz": "1b868539795fdd0e298a08b62b14fe31b24e18eb33bb143783110369fe314761",
+        "png": "c0d0e12e9eb9dec728ecf16cac73c553f3850598579b7144fd064c45a6722ecb"
       }
     },
     {
@@ -6407,8 +6407,8 @@
       "story": "text-chart.disabled",
       "widget": "TextChartWidget",
       "hashes": {
-        "json.gz": "ec9ee02bd457cd166ec9c05544c6a18f491d7d5bb5d3402bb285e062a126f702",
-        "png": "b7218cb920b06237fa12e7e264cb051903572312647c82cc0e0603b0b4b943d9"
+        "json.gz": "46c465fee1fde0bcffbb2e62ae4f49806f2ce825d811f531a07351bcaa791f7a",
+        "png": "c0d0e12e9eb9dec728ecf16cac73c553f3850598579b7144fd064c45a6722ecb"
       }
     },
     {
@@ -6416,8 +6416,8 @@
       "story": "text-chart.unicode",
       "widget": "TextChartWidget",
       "hashes": {
-        "json.gz": "fdb619bd93ea2e8eb9ef4198cec46e2a051e11eeb059e2427a38016e22517e05",
-        "png": "8508fcd83ee17bc0b2ff737e0415379482c62c3be58b6c5445369829beff1ef9"
+        "json.gz": "051be4ff6d3a70e506efa1b1f52bda9c9b00c185288acf11466cc1a0675c9da2",
+        "png": "f073e6422b83fe9bc22dda2275fd1e605320f3ce60c80162419a4c05248837da"
       }
     },
     {
@@ -6425,8 +6425,8 @@
       "story": "text-chart.unicode",
       "widget": "TextChartWidget",
       "hashes": {
-        "json.gz": "2f918d7f2631a73bb7c0a4cf25a6ab835e553288c0b36cbcc3031079c9ac6999",
-        "png": "8508fcd83ee17bc0b2ff737e0415379482c62c3be58b6c5445369829beff1ef9"
+        "json.gz": "7027953e5aecbab6cae623d4ae5f5c5594608c45713a37f763318dc2a790fa3f",
+        "png": "f073e6422b83fe9bc22dda2275fd1e605320f3ce60c80162419a4c05248837da"
       }
     },
     {
@@ -6434,8 +6434,8 @@
       "story": "text-chart.unicode",
       "widget": "TextChartWidget",
       "hashes": {
-        "json.gz": "96098869c27b7691052b69722fec0b930694b71f1d1b3b4d77a447a213174466",
-        "png": "8508fcd83ee17bc0b2ff737e0415379482c62c3be58b6c5445369829beff1ef9"
+        "json.gz": "842dc8a3a191bd9f1860f72b75fbbbe69d995fc0a24eaa9cfac8b42a018db38c",
+        "png": "ab73738e49a39667793a84a36d102fabf0e90fed752fac132590e05bd7fe374b"
       }
     },
     {
@@ -6443,8 +6443,8 @@
       "story": "text-chart.unicode",
       "widget": "TextChartWidget",
       "hashes": {
-        "json.gz": "c0ef696587b62fe89347b8f11106e6bf6d4e00ec09d9093260b2aae6c07ad6c7",
-        "png": "8508fcd83ee17bc0b2ff737e0415379482c62c3be58b6c5445369829beff1ef9"
+        "json.gz": "a47a247afeeda44f5abcf607469830bb7acf7ed9e398509d0ac3d1b840fff2c5",
+        "png": "ab73738e49a39667793a84a36d102fabf0e90fed752fac132590e05bd7fe374b"
       }
     },
     {
@@ -6452,8 +6452,8 @@
       "story": "text-chart.constrained",
       "widget": "TextChartWidget",
       "hashes": {
-        "json.gz": "1e3c5f043f4f4017cb8a854e23617a1f0ca70107a6c6c1e50dc08f15c40c810b",
-        "png": "76c5cf3d47bae1410a009fff997c75f9bfc1128e6b6819c3df5350123785ddfc"
+        "json.gz": "17c460214f51a18bad76e3e8dbe262e8d2a2520321157901271cea8fe50fdd1f",
+        "png": "f25ed5b3ed00b35764d0c3c844fe8217fb6f2b66d83b8cc147190dff743cf43d"
       }
     },
     {
@@ -6461,8 +6461,8 @@
       "story": "text-chart.constrained",
       "widget": "TextChartWidget",
       "hashes": {
-        "json.gz": "c844962f3bee05c7faf25e934413c185ba9291ed5a9b260d23cd3c74e438af0d",
-        "png": "76c5cf3d47bae1410a009fff997c75f9bfc1128e6b6819c3df5350123785ddfc"
+        "json.gz": "5a3b6e93cf0a4e645bcd46399479cd232990c78cd4a6574a6099de8338b9b9b0",
+        "png": "f25ed5b3ed00b35764d0c3c844fe8217fb6f2b66d83b8cc147190dff743cf43d"
       }
     },
     {
@@ -6470,7 +6470,7 @@
       "story": "text-chart.constrained",
       "widget": "TextChartWidget",
       "hashes": {
-        "json.gz": "c8d5e01644f99afbd9caf1d300dd740bcaa0436dad56d1fca42f18726e685b91",
+        "json.gz": "18e3ca277ef777f3e078a0a9afe022c0d1c135f9bba0f6b8b6524e329330e9d0",
         "png": "d7788312f7e9d57c5581b40016136df17bb1eaa95bca5b4f212a25bb89a3c958"
       }
     },
@@ -6479,8 +6479,8 @@
       "story": "text-chart.constrained",
       "widget": "TextChartWidget",
       "hashes": {
-        "json.gz": "5619dff0270b42d20ccfabdfd51a10b48d49ea604815d9a23d4451e0fefc8bda",
-        "png": "76c5cf3d47bae1410a009fff997c75f9bfc1128e6b6819c3df5350123785ddfc"
+        "json.gz": "c5f423c25dbf6dc3e3cd174538d112af7bcc1a41ba9c027c2d2301b88cb24d90",
+        "png": "f25ed5b3ed00b35764d0c3c844fe8217fb6f2b66d83b8cc147190dff743cf43d"
       }
     },
     {
@@ -6488,8 +6488,8 @@
       "story": "text-chart.constrained",
       "widget": "TextChartWidget",
       "hashes": {
-        "json.gz": "ef5e6d8e830e2a5429704e75140fd628f7f8de0368a1ca6be67e75e72d3abac3",
-        "png": "b7218cb920b06237fa12e7e264cb051903572312647c82cc0e0603b0b4b943d9"
+        "json.gz": "47c101f5c08d63d9ad3a3299be7d80194f64658eac6218c0a2bf579d89fb9942",
+        "png": "ab34354a3db759d115ae15687c453fef16a4d316e35b9b24e2776f5fc5304a9f"
       }
     },
     {
@@ -6497,8 +6497,8 @@
       "story": "text-chart.constrained",
       "widget": "TextChartWidget",
       "hashes": {
-        "json.gz": "fa5a7981f60855adfc58a4050bab80990340c3a60172539509dcea1f172351ec",
-        "png": "76c5cf3d47bae1410a009fff997c75f9bfc1128e6b6819c3df5350123785ddfc"
+        "json.gz": "ea14a15267beff108e66ee70293b685617ada37638c2b6b5aba2efb30a0b8db4",
+        "png": "e069aea5961955e091e72635db7bb515b405dfec673fcf75e12ee8022e5e224e"
       }
     },
     {
@@ -6506,8 +6506,8 @@
       "story": "text-chart.constrained",
       "widget": "TextChartWidget",
       "hashes": {
-        "json.gz": "87882e8a6cf52e0c766f4db250b84755a45822cb3712e8e9df9609263f22050f",
-        "png": "76c5cf3d47bae1410a009fff997c75f9bfc1128e6b6819c3df5350123785ddfc"
+        "json.gz": "7a74b22ed43d310ed09ebee67d591a123d6300ac7dd069f31f865b39f7ff86fc",
+        "png": "e069aea5961955e091e72635db7bb515b405dfec673fcf75e12ee8022e5e224e"
       }
     },
     {
@@ -6524,8 +6524,8 @@
       "story": "text-chart.constrained",
       "widget": "TextChartWidget",
       "hashes": {
-        "json.gz": "d27ca1fa64d2011f60b5638454d7dac7e090000abf4ec366d87055ea287aaadc",
-        "png": "76c5cf3d47bae1410a009fff997c75f9bfc1128e6b6819c3df5350123785ddfc"
+        "json.gz": "72d369d50dbca193896492e53c73c7b068b7fe563a8696960627bb6e337ab7f7",
+        "png": "e069aea5961955e091e72635db7bb515b405dfec673fcf75e12ee8022e5e224e"
       }
     },
     {
@@ -6533,8 +6533,8 @@
       "story": "text-chart.constrained",
       "widget": "TextChartWidget",
       "hashes": {
-        "json.gz": "47d5d7f0fe3e4bfbfd1473853f9fcc255fac97fd7aac9ecc9262a834f3ec6378",
-        "png": "b7218cb920b06237fa12e7e264cb051903572312647c82cc0e0603b0b4b943d9"
+        "json.gz": "5804a96a63020b286713591d3dbaf2d5f6ee1478522abc30cad5a4c034cea65f",
+        "png": "d110ffae80991bf27d217ad3c0237b3611f0a5e7dec7e58a5a45587c4a2d6177"
       }
     },
     {
@@ -8342,8 +8342,8 @@
       "story": "progress.default",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "74160f5286317a9641e49ca21723c7fee6b5df55b96fe4874fc440bb0eaae6bd",
-        "png": "3b1bac779b6982026b2e1d6037037e5d68416bcff0b74ea55875cc7035248dcc"
+        "json.gz": "0b7ff4cd4f400c72b89546f86c61704693c8f68932f2b930179afe93a6747604",
+        "png": "792181d875b0bb17a891ddac81a681611146fb256bcb3e333d9bb562045755a1"
       }
     },
     {
@@ -8351,8 +8351,8 @@
       "story": "progress.default",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "4be49f1e7aec28ee21c540c61dacaa7c627234775b2055168ab53864ee104db5",
-        "png": "3b1bac779b6982026b2e1d6037037e5d68416bcff0b74ea55875cc7035248dcc"
+        "json.gz": "605073919ef9bc139b97e07cb93e9941d81eba0e01d53c2b854df0b9dc210974",
+        "png": "792181d875b0bb17a891ddac81a681611146fb256bcb3e333d9bb562045755a1"
       }
     },
     {
@@ -8360,8 +8360,8 @@
       "story": "progress.default",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "e3f6b78478e566f41201048273c607c9e68f699126457a042bd845c80b8f17e2",
-        "png": "c122c21b99d485d1e977950b6b408b5044cc74fff64355431f10bace6cffb8dd"
+        "json.gz": "746a0b6dca3f4d2a9c286e2a548cfe1b50fe0b6b2cded86b14877dc9903b4076",
+        "png": "08618cb8addd08af760d1d336baf0c4da717ffd7fcf5cdf6be3b5273a6b023d5"
       }
     },
     {
@@ -8369,8 +8369,8 @@
       "story": "progress.default",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "e2fdd5e1e3d7684aa29f78a57d3a3cf7ac3a5046a908bb54f00b0c4a5805e282",
-        "png": "a07b4ec9da517082734bea31fb73ea5004049cbf65f96325a07947a00add3e73"
+        "json.gz": "fae8f4509a0fd04e00a6d6af056716dc13d636265e2684f05d3e6aceb1f5d2a2",
+        "png": "abe57548cc8f3450d5af2916ea40cef99c12c03be4a901efdfefadfda6ac5230"
       }
     },
     {
@@ -8378,8 +8378,8 @@
       "story": "progress.default",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "e3665052fdf6e3ac743ee17b435794c7db25b1065dc1d2dae8343528d513a79b",
-        "png": "b164065700e051fa0d4e19fdbf598f7540d4ff3f9e5acdc44a2297e35d3d0329"
+        "json.gz": "1c02ea1c8ca4cbe2885b5776d5da5e9110acbe8d0a2af1c840d5294db9729b71",
+        "png": "1818a2c72ed086b31fed1704d4e302762acedffe5981392417827918d478bd2a"
       }
     },
     {
@@ -8387,8 +8387,8 @@
       "story": "progress.default",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "dbbac57a43e9e1a250c0f45ca1882f34590bf9ffc102a0eec2699e100902ae1a",
-        "png": "c3b1aa4b74a5edb86228493106144aa6fc7f0606ab32ae158a97b9d4c1509cee"
+        "json.gz": "d026b9c2d47448340fcddd995b7bad4d1d3b9baf3d014d28bbaecefdcbebd800",
+        "png": "0b56721200bbaaeb536c75567c21e687c40a6fa932808be7b1829b9309576c58"
       }
     },
     {
@@ -8396,8 +8396,8 @@
       "story": "progress.default",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "1fbd908d033b39663326672cb8e0640c16d803d8ef2b6172892a7e719ac82758",
-        "png": "3b1bac779b6982026b2e1d6037037e5d68416bcff0b74ea55875cc7035248dcc"
+        "json.gz": "e73cbdd91d25a49ae1bdd74483479c7b6ad2045057953a7ecd9eeebdb7f98475",
+        "png": "c07ee3d50bb788b90bdac3890d7f147fe4c1c6ba69695779d06f572a733875c0"
       }
     },
     {
@@ -8405,8 +8405,8 @@
       "story": "progress.default",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "609a3d1d9ac1607b8b007bed0b92ae7a1a537644a2eedcd9693004a9c6cc40c4",
-        "png": "3b1bac779b6982026b2e1d6037037e5d68416bcff0b74ea55875cc7035248dcc"
+        "json.gz": "74a01ddcb9224c3a61e9c442329cdadfc1684db0e24a981fd481dad909d3ce03",
+        "png": "c07ee3d50bb788b90bdac3890d7f147fe4c1c6ba69695779d06f572a733875c0"
       }
     },
     {
@@ -8414,8 +8414,8 @@
       "story": "progress.default",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "e5ceff08404ba1f4683253c28209927ee1ca1a05262078e9651afd595fbb8384",
-        "png": "c122c21b99d485d1e977950b6b408b5044cc74fff64355431f10bace6cffb8dd"
+        "json.gz": "b0a8b46f138998c46bd6b1a1d139042bd5e72882223e8273662703f7b2144289",
+        "png": "609379f1e107c4abe5c46a09748aeb0f3f800a9eccb072103139288e2a64254b"
       }
     },
     {
@@ -8423,8 +8423,8 @@
       "story": "progress.default",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "5f5dfab62d7edf8dcbe8b083325cfaa6a986dd572d6eb2ed3766f0b49a32a1eb",
-        "png": "cdcc994e71c55669ee4716eff39edf0e29b0032d892ad7ad25a2029efc125c2d"
+        "json.gz": "048276b8db7be8552a66f0a519279fc07c0f9f2e0c0bbd9c08fa84fae086d61f",
+        "png": "de9b1de61c1ceec0874d2ad0a1e747ca532b931674b369ee63e2708b8131b4d1"
       }
     },
     {
@@ -8432,8 +8432,8 @@
       "story": "progress.default",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "3bf932764dcc08dd35e2aa1051bb28603fd2ac8c38627fdc3ef12f20fb8b71a4",
-        "png": "b164065700e051fa0d4e19fdbf598f7540d4ff3f9e5acdc44a2297e35d3d0329"
+        "json.gz": "1a88f1fc06e97877dc3dbc8d58a5a72980c714dfee6923e3b29ecb522158c32b",
+        "png": "a1e3e3a2535a678f63ceb79b2124943a78d893393661702045d08ddf4903c134"
       }
     },
     {
@@ -8441,8 +8441,8 @@
       "story": "progress.default",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "dc7e6f5647ea5c61e461e00325c98f03330e60dbafd3b753072540710748fcf9",
-        "png": "c3b1aa4b74a5edb86228493106144aa6fc7f0606ab32ae158a97b9d4c1509cee"
+        "json.gz": "8a21786dbd5eb05f8929eb8d021210ecb3399074f9c644c30917d8bfcf879f87",
+        "png": "23c60301d4509a32d0142eac2e95d67ab598a7c9a9f3675df69c100f894f6ba4"
       }
     },
     {
@@ -8450,8 +8450,8 @@
       "story": "progress.focused",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "96b512ee01e1339b9d37eaa3b19e6fa4161a8b16de0bec614d7b5ce040fa4bd9",
-        "png": "3b1bac779b6982026b2e1d6037037e5d68416bcff0b74ea55875cc7035248dcc"
+        "json.gz": "d3fe24a66e66c13a75aaf920c0dd9e3138632d74141f117cd3d58acf9c8e25c2",
+        "png": "792181d875b0bb17a891ddac81a681611146fb256bcb3e333d9bb562045755a1"
       }
     },
     {
@@ -8459,8 +8459,8 @@
       "story": "progress.focused",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "148cdbfd85a53243038a1157294c65551fa14c918e06a0822da8197fcbbd939c",
-        "png": "3b1bac779b6982026b2e1d6037037e5d68416bcff0b74ea55875cc7035248dcc"
+        "json.gz": "4778518b9b18faeae99aba396dca34edc5e56bd947421c0f5070a8f20d3c5f24",
+        "png": "792181d875b0bb17a891ddac81a681611146fb256bcb3e333d9bb562045755a1"
       }
     },
     {
@@ -8468,8 +8468,8 @@
       "story": "progress.focused",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "0aa700b140ab03a5194b431afe7938203b7b1bcf77733fe2cb430729646a7fb6",
-        "png": "3b1bac779b6982026b2e1d6037037e5d68416bcff0b74ea55875cc7035248dcc"
+        "json.gz": "185d2b4182075e3448a49a049974965109f793af400a5918d7c4096701ea907e",
+        "png": "c07ee3d50bb788b90bdac3890d7f147fe4c1c6ba69695779d06f572a733875c0"
       }
     },
     {
@@ -8477,8 +8477,8 @@
       "story": "progress.focused",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "9ec9bbb7c087053066e1d331ecede78adc73a16f9ddb3e074d075b53be9a1d5d",
-        "png": "3b1bac779b6982026b2e1d6037037e5d68416bcff0b74ea55875cc7035248dcc"
+        "json.gz": "fae949f426eed4760e5bb4960bb001864961ce198eb6cd1244ff1790f38fe93c",
+        "png": "c07ee3d50bb788b90bdac3890d7f147fe4c1c6ba69695779d06f572a733875c0"
       }
     },
     {
@@ -8486,8 +8486,8 @@
       "story": "progress.disabled",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "12bc09af52e78d746149acdce74a4cbc5bf1c2af59308a6a88c056978c69f16f",
-        "png": "3b1bac779b6982026b2e1d6037037e5d68416bcff0b74ea55875cc7035248dcc"
+        "json.gz": "1d3d206f1052b01cfea589c40efbd98d1544d367b31e92138871fa9d8a6671ce",
+        "png": "01c57ab6b9689550206b0f5411e51ab1ec8fa7c6bcc445e46d4c9a2f27793626"
       }
     },
     {
@@ -8495,8 +8495,8 @@
       "story": "progress.disabled",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "9d2f89af1e44f3e0702ed0245fb62a64ccf346786d09e59f6b75a26b56b64460",
-        "png": "3b1bac779b6982026b2e1d6037037e5d68416bcff0b74ea55875cc7035248dcc"
+        "json.gz": "fe822d84767fc73830d533b37d8e4e9a71e5ad67164f1010ba6fb20ba6f3490d",
+        "png": "01c57ab6b9689550206b0f5411e51ab1ec8fa7c6bcc445e46d4c9a2f27793626"
       }
     },
     {
@@ -8504,8 +8504,8 @@
       "story": "progress.disabled",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "1aa8912228d761fc1695a2e17bf39976083cc843010329cd9c1654b9fa9a49ca",
-        "png": "3b1bac779b6982026b2e1d6037037e5d68416bcff0b74ea55875cc7035248dcc"
+        "json.gz": "6ef6cd7269d820c6b75a9f1dba5b476fe9cb9f4c22bb72fa58bb33dd109aa9c1",
+        "png": "01c57ab6b9689550206b0f5411e51ab1ec8fa7c6bcc445e46d4c9a2f27793626"
       }
     },
     {
@@ -8513,8 +8513,8 @@
       "story": "progress.disabled",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "404c05c415822331d5d7d7f81e2c60ac1f9ee73f5a48650308e713ceae96456c",
-        "png": "3b1bac779b6982026b2e1d6037037e5d68416bcff0b74ea55875cc7035248dcc"
+        "json.gz": "591722735de098d8b9c254c8d16005787e6800747b037aa8b03c74a9c42cbf14",
+        "png": "01c57ab6b9689550206b0f5411e51ab1ec8fa7c6bcc445e46d4c9a2f27793626"
       }
     },
     {
@@ -8522,8 +8522,8 @@
       "story": "progress.invalid",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "45c6ab16df1e7dff2147656928debe3a2e31bbe8b8ed70830f148f2a3f80c9ea",
-        "png": "31959c821053f9fbd34fb120389e2a9a861272b05d6d9d360f2be8230482931c"
+        "json.gz": "70b65e2671899ce6157095793eefed706299e5a9dab77e68f4bce8be6476b9d2",
+        "png": "a906411f5b75ba15b5e5f3ac828d8c937f8d673e1d81a545fa18c757fd3b979e"
       }
     },
     {
@@ -8531,8 +8531,8 @@
       "story": "progress.invalid",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "09a1787ca0b3e7407c3c89f1a1d4ff1c0ee095b823ca9d211b4d9f605c78b832",
-        "png": "31959c821053f9fbd34fb120389e2a9a861272b05d6d9d360f2be8230482931c"
+        "json.gz": "3b99b19a3c8c845d910a98c54c9c96bed1d268ac08adea72a4dd8743aa24d7bb",
+        "png": "a906411f5b75ba15b5e5f3ac828d8c937f8d673e1d81a545fa18c757fd3b979e"
       }
     },
     {
@@ -8540,8 +8540,8 @@
       "story": "progress.invalid",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "6ab2c9ab343de008724dd71a4e69936afa7b5f37454f5939a782f4da36a9bfc5",
-        "png": "31959c821053f9fbd34fb120389e2a9a861272b05d6d9d360f2be8230482931c"
+        "json.gz": "6c659533477cb938b011799875f0fb32ade6ecbec0b51d602b4b647c5295add8",
+        "png": "d07e82a4543a2d98e7bf4a745cb0dfb02e3f126e97b0348a7f44c3e1274ce9f9"
       }
     },
     {
@@ -8549,8 +8549,8 @@
       "story": "progress.invalid",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "809d576065bb80fa07c1d39cb0b026c84bda6044d02ed5e26ce1fc13c7795426",
-        "png": "31959c821053f9fbd34fb120389e2a9a861272b05d6d9d360f2be8230482931c"
+        "json.gz": "2e9666018eb767fcda11b267c1ba2fc3a8cbfa1aa654250e08c2a9f4a73f1b86",
+        "png": "d07e82a4543a2d98e7bf4a745cb0dfb02e3f126e97b0348a7f44c3e1274ce9f9"
       }
     },
     {
@@ -8558,8 +8558,8 @@
       "story": "progress.loading",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "8312f3612fc25989680e02e61f6017c1dbc8515862d42515ae889623c170137f",
-        "png": "f9e9d5d5335ae7c4af5eadffbfeaa81d42739086be9d7a28b34c8e9a7fb783e7"
+        "json.gz": "134ec9a0bea7a58f11d783d58690929589345306a997a5bf2f0e2a50b04fecab",
+        "png": "2712e30e972e6808f8ad00587eed8c47ee0c5d4bd0c64edeea87d767640bb798"
       }
     },
     {
@@ -8567,8 +8567,8 @@
       "story": "progress.loading",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "5c3b6187160f3915f99785374142441d4a9a8a66fc97808bdfa73cdc9e2423c5",
-        "png": "f9e9d5d5335ae7c4af5eadffbfeaa81d42739086be9d7a28b34c8e9a7fb783e7"
+        "json.gz": "76832714641e09b92325496e6dd4b0765eae5de2d900583f98d190569d1547e3",
+        "png": "2712e30e972e6808f8ad00587eed8c47ee0c5d4bd0c64edeea87d767640bb798"
       }
     },
     {
@@ -8576,8 +8576,8 @@
       "story": "progress.loading",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "7f4048d0a4081ed26ea65f27a0c59c2fe341988713bcf50d22952167fa0c86c0",
-        "png": "f9e9d5d5335ae7c4af5eadffbfeaa81d42739086be9d7a28b34c8e9a7fb783e7"
+        "json.gz": "acae4943ce930e6da32d0d09c7e4a5428b3addfea57dfda5031cb271cfad3e3a",
+        "png": "86dabf41df516ae14f680a03c0df3f833ef862cf99e75d46b2e23ec4ef25cade"
       }
     },
     {
@@ -8585,8 +8585,8 @@
       "story": "progress.loading",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "adb5d6bed7b73623e38a46a1e46f5046743f1c3c65badf7d70a2adcf222e9ff6",
-        "png": "f9e9d5d5335ae7c4af5eadffbfeaa81d42739086be9d7a28b34c8e9a7fb783e7"
+        "json.gz": "f4c1049d5e3233b4d1b1e52fc6cb7ac314be9ebeb85b6190fbc275c74b12641a",
+        "png": "86dabf41df516ae14f680a03c0df3f833ef862cf99e75d46b2e23ec4ef25cade"
       }
     },
     {
@@ -8594,8 +8594,8 @@
       "story": "progress.unicode",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "514afc4391660fd8193f40c8e9e1e9e05517b435dadcb2969fcb99f6938c8cb8",
-        "png": "4fd09bd9b11b10d6aaf81a60b211ffc7fd3eca284610d9f4861a45ab7c536a4e"
+        "json.gz": "af5ab00ea822cb52490e3a3b372e75e8a539919d9e5c1ce9655defe6938d6afc",
+        "png": "137c189f1abb40c077d17898956d53bb0070b7a8fbdd530df74bce9fbfd4e6d6"
       }
     },
     {
@@ -8603,8 +8603,8 @@
       "story": "progress.unicode",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "2f582ebb0d5535fd247edc5e45ad49f4b80e7f83a779a17fea45c2be6b607321",
-        "png": "4fd09bd9b11b10d6aaf81a60b211ffc7fd3eca284610d9f4861a45ab7c536a4e"
+        "json.gz": "77105473dd57335a7aa53a87fac8a479e33e4b2284c67ce4f1883d603a548789",
+        "png": "137c189f1abb40c077d17898956d53bb0070b7a8fbdd530df74bce9fbfd4e6d6"
       }
     },
     {
@@ -8612,8 +8612,8 @@
       "story": "progress.unicode",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "07fab74094e1c9a053abb3fcf41b2d1fe7133f3833ebad6245e64c8d0e00fbcc",
-        "png": "4fd09bd9b11b10d6aaf81a60b211ffc7fd3eca284610d9f4861a45ab7c536a4e"
+        "json.gz": "f41b675566fd5f534619bc53585288d890b5453b217bc37f49a1aaed68d088a5",
+        "png": "d3d97154eb00eb8304cff4cddd6cbe62a236762b3fd7579e2b1bf8f808ea6994"
       }
     },
     {
@@ -8621,8 +8621,8 @@
       "story": "progress.unicode",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "d4c60c6df03931c6e11262253e34132f46e5617f7387d17f262c082418a93fa5",
-        "png": "4fd09bd9b11b10d6aaf81a60b211ffc7fd3eca284610d9f4861a45ab7c536a4e"
+        "json.gz": "d0955023e6b7f54440a91ecb67004d3c732e6190fa952b760d039d2ac26b2aa1",
+        "png": "d3d97154eb00eb8304cff4cddd6cbe62a236762b3fd7579e2b1bf8f808ea6994"
       }
     },
     {
@@ -8630,8 +8630,8 @@
       "story": "progress.constrained",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "968ea27f16048fa4fa07c0f4a28427c4248e761689cf9645cfeab7c3016243cb",
-        "png": "f964337ae607ac6cd133e662c042ba1f557c770c17ac6462039f978079e12a57"
+        "json.gz": "f7487f4fd8887ce49aed0844d318fe2be3014a90c912ec02a839d9b86259f715",
+        "png": "37feb5f5d782bc7d94a54eeb4226a4b310fb259e5640d7bf391c5d8798fada3a"
       }
     },
     {
@@ -8639,8 +8639,8 @@
       "story": "progress.constrained",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "08b2ffdc43f70902da8c1d9ccd001f6096a719954af68ac1c12e818149e7577d",
-        "png": "f964337ae607ac6cd133e662c042ba1f557c770c17ac6462039f978079e12a57"
+        "json.gz": "a2652b9c62a1795f315f254b9a4e07858eb4b062f5f348dd166c4f49fa341c14",
+        "png": "37feb5f5d782bc7d94a54eeb4226a4b310fb259e5640d7bf391c5d8798fada3a"
       }
     },
     {
@@ -8648,8 +8648,8 @@
       "story": "progress.constrained",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "aed074a37f399787d7a9a34421b04cb552f5a7d60be526c6c4d8749596642a07",
-        "png": "a07b4ec9da517082734bea31fb73ea5004049cbf65f96325a07947a00add3e73"
+        "json.gz": "7aaac67a098898955a13ab2e30a813c626ef9211edd041c14c59392d78bda7b2",
+        "png": "abe57548cc8f3450d5af2916ea40cef99c12c03be4a901efdfefadfda6ac5230"
       }
     },
     {
@@ -8657,8 +8657,8 @@
       "story": "progress.constrained",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "1ed8ba6155e4595dd911920f7c7a2698bdd00325c67c474b6797e343a70d5465",
-        "png": "f964337ae607ac6cd133e662c042ba1f557c770c17ac6462039f978079e12a57"
+        "json.gz": "106f3d97a9a2a58d19b0d8880f302d22a7894f08504cd054495b0bcc4c093a77",
+        "png": "37feb5f5d782bc7d94a54eeb4226a4b310fb259e5640d7bf391c5d8798fada3a"
       }
     },
     {
@@ -8666,8 +8666,8 @@
       "story": "progress.constrained",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "3571d155b6f225fb4b20d25ef4c7dc9b0c8b69022e21d0708531ff6b06ae615b",
-        "png": "aecc0b99b0a00c4d69f536f1aa43991a511d578c32534e87111f444887b1d666"
+        "json.gz": "c7203f3caf5a68738ee9444d4d87c4ffdd8345592b5fa1b32ef845a2f6aef30f",
+        "png": "197c4d75a372e2046f133600f719fa96ca08e1c2079c704123a4afd0fd6db716"
       }
     },
     {
@@ -8675,8 +8675,8 @@
       "story": "progress.constrained",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "26dd4719a7428ac9e34daba75d2456562f2dadbfa65260ef18d789ec137608d7",
-        "png": "c122c21b99d485d1e977950b6b408b5044cc74fff64355431f10bace6cffb8dd"
+        "json.gz": "9bda0ea293f8f2b3eda98227a33e5d519006f14ed47fa8c77a123323a71e2ef7",
+        "png": "08618cb8addd08af760d1d336baf0c4da717ffd7fcf5cdf6be3b5273a6b023d5"
       }
     },
     {
@@ -8684,8 +8684,8 @@
       "story": "progress.constrained",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "aca6b14d75cb2177123b02efb3ad4776109de5e5ba411c0a4557345d41aa04bf",
-        "png": "f964337ae607ac6cd133e662c042ba1f557c770c17ac6462039f978079e12a57"
+        "json.gz": "da7ef17e5db96198596776b0221a6c1acd659760722e1a1427acff3fb0bc3d29",
+        "png": "07745e99e1db8c38d8d1640bb7dda97b6671df7a92464da7ebb1bd9ae74bca70"
       }
     },
     {
@@ -8693,8 +8693,8 @@
       "story": "progress.constrained",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "ad519f4c44ea71060a731f8e171c525603efcc634484ce915546bded843ce4fb",
-        "png": "f964337ae607ac6cd133e662c042ba1f557c770c17ac6462039f978079e12a57"
+        "json.gz": "df81c81f79099f38d63fd8eba288ad2f8f95222b5ccdc5a45e8cf7747203d511",
+        "png": "07745e99e1db8c38d8d1640bb7dda97b6671df7a92464da7ebb1bd9ae74bca70"
       }
     },
     {
@@ -8702,8 +8702,8 @@
       "story": "progress.constrained",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "9b002c521fa9725862393360b60f55fad61433d8de4ee6e353877dea5fa0677b",
-        "png": "cdcc994e71c55669ee4716eff39edf0e29b0032d892ad7ad25a2029efc125c2d"
+        "json.gz": "ee1fd881a23358ab9e992df1b47d9a1c6cc913752335e7352a619fb0c601b085",
+        "png": "de9b1de61c1ceec0874d2ad0a1e747ca532b931674b369ee63e2708b8131b4d1"
       }
     },
     {
@@ -8711,8 +8711,8 @@
       "story": "progress.constrained",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "76268ec2489d615afa5ba0fe3814b40ac58e9a3ecf9f45b14fad2f83e6c5d2bc",
-        "png": "f964337ae607ac6cd133e662c042ba1f557c770c17ac6462039f978079e12a57"
+        "json.gz": "4c3ce5550896b0aafcb0bb637832562f6a8b0566af7708bc47ff25d33639338e",
+        "png": "07745e99e1db8c38d8d1640bb7dda97b6671df7a92464da7ebb1bd9ae74bca70"
       }
     },
     {
@@ -8720,8 +8720,8 @@
       "story": "progress.constrained",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "011d57fda9fbbcd50ff654d1082a0eff1b46946d4a44be93de94d8e4581063a1",
-        "png": "aecc0b99b0a00c4d69f536f1aa43991a511d578c32534e87111f444887b1d666"
+        "json.gz": "98369fbfe4b0fa90d2652c2a159089b1425e31959a40a7bdc4778d09a6fff353",
+        "png": "be7a5675d81804725375c752852fa7594ca54e625dc878f41d9a727d06115c19"
       }
     },
     {
@@ -8729,8 +8729,8 @@
       "story": "progress.constrained",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "536c06ba5441323f1292ee62bc0a221ee314b9ce992b4467971e995f1dd1b6c7",
-        "png": "c122c21b99d485d1e977950b6b408b5044cc74fff64355431f10bace6cffb8dd"
+        "json.gz": "d24d638ae96f0a0d1942042eddbc0e172b24042d32baf7d31e2bc90633aad6c8",
+        "png": "609379f1e107c4abe5c46a09748aeb0f3f800a9eccb072103139288e2a64254b"
       }
     },
     {
@@ -10462,6 +10462,78 @@
       }
     },
     {
+      "key": "text-chart.ascii.color.registered.mounted",
+      "story": "text-chart.ascii",
+      "widget": "TextChartWidget",
+      "hashes": {
+        "json.gz": "1398eae71b3a9b7074760655660e5029fddd98e228d7f42c3e16937e1a1eb1a4",
+        "png": "826d2f6bce461330256ff5e75e673560f60c63895b06e9f524a83b972a543c5a"
+      }
+    },
+    {
+      "key": "text-chart.ascii.color.registered.ascii",
+      "story": "text-chart.ascii",
+      "widget": "TextChartWidget",
+      "hashes": {
+        "json.gz": "4ee908f784c5cce95a93d2290fb5dd8bbf19cb417f1d9261c42886e30baa56e6",
+        "png": "826d2f6bce461330256ff5e75e673560f60c63895b06e9f524a83b972a543c5a"
+      }
+    },
+    {
+      "key": "text-chart.ascii.mono.registered.mounted",
+      "story": "text-chart.ascii",
+      "widget": "TextChartWidget",
+      "hashes": {
+        "json.gz": "60b8586fc5434d059a3b8b0d035dc51da2bc32c3bfb6e3e4288a073b61490a3f",
+        "png": "2e25329dce4c575f8b90b89f222c8ec551f7dc2b952c7a55fe110258e9d79815"
+      }
+    },
+    {
+      "key": "text-chart.ascii.mono.registered.ascii",
+      "story": "text-chart.ascii",
+      "widget": "TextChartWidget",
+      "hashes": {
+        "json.gz": "4fc50864e78899a78ff6e0ae0b5a4f989b1b029a5af5f8eb67000b08f09ea39a",
+        "png": "2e25329dce4c575f8b90b89f222c8ec551f7dc2b952c7a55fe110258e9d79815"
+      }
+    },
+    {
+      "key": "text-chart.expanded.color.registered.mounted",
+      "story": "text-chart.expanded",
+      "widget": "TextChartWidget",
+      "hashes": {
+        "json.gz": "233bd108e0551a58650fc9acf3b2741cb737fa7d13d35ecc7725f16d5dad35ec",
+        "png": "17d3da1f9609b45eea684bcac28dbec7966853fdda0a8245712ff6f7531e61ff"
+      }
+    },
+    {
+      "key": "text-chart.expanded.color.registered.expanded",
+      "story": "text-chart.expanded",
+      "widget": "TextChartWidget",
+      "hashes": {
+        "json.gz": "c235b0a5d1dcda76c9a9ccb10090ed2758f6fa4b2d9d5352a844b17395f38051",
+        "png": "17d3da1f9609b45eea684bcac28dbec7966853fdda0a8245712ff6f7531e61ff"
+      }
+    },
+    {
+      "key": "text-chart.expanded.mono.registered.mounted",
+      "story": "text-chart.expanded",
+      "widget": "TextChartWidget",
+      "hashes": {
+        "json.gz": "226878050c6049c0c7670b6159ea640b70ac5cba0290f1d607096d1a438ef756",
+        "png": "9bd02236865d84771c6296e75c05e74e162c4496935dcb7ebc1e23ee84c350a9"
+      }
+    },
+    {
+      "key": "text-chart.expanded.mono.registered.expanded",
+      "story": "text-chart.expanded",
+      "widget": "TextChartWidget",
+      "hashes": {
+        "json.gz": "e60fa62d23db631f2e0c987072da3a3efa163714ca632ed9c344b982775e8f31",
+        "png": "9bd02236865d84771c6296e75c05e74e162c4496935dcb7ebc1e23ee84c350a9"
+      }
+    },
+    {
       "key": "assistance-popup.cancel-stale.color.registered.mounted",
       "story": "assistance-popup.cancel-stale",
       "widget": "AssistancePopupWidget",
@@ -10538,8 +10610,8 @@
       "story": "progress.cancel-stale",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "0084b479618e3bbb74da4a660c285ca92a6197109aba15f12e8525b238caa21a",
-        "png": "3b1bac779b6982026b2e1d6037037e5d68416bcff0b74ea55875cc7035248dcc"
+        "json.gz": "a33de6c505d3317ed1dc6039e7967263fc454eabfd81252d0ffa9e01fa5337c2",
+        "png": "792181d875b0bb17a891ddac81a681611146fb256bcb3e333d9bb562045755a1"
       }
     },
     {
@@ -10547,8 +10619,8 @@
       "story": "progress.cancel-stale",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "72811ecbb02026321d60493d45d69ea67963c95962146631ffa76328b04893f5",
-        "png": "3b1bac779b6982026b2e1d6037037e5d68416bcff0b74ea55875cc7035248dcc"
+        "json.gz": "3282f39c047b00b8921ff53bb465e2026139eb09755733765f6023ab5bfc7802",
+        "png": "792181d875b0bb17a891ddac81a681611146fb256bcb3e333d9bb562045755a1"
       }
     },
     {
@@ -10556,8 +10628,8 @@
       "story": "progress.cancel-stale",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "a1ba52b9a51cca0ff171b9a260571551aab7db82ad09a9d870c52bf4dc0aa43d",
-        "png": "c122c21b99d485d1e977950b6b408b5044cc74fff64355431f10bace6cffb8dd"
+        "json.gz": "df160ffa72028360c7220cac70b0479850e136c3bb68921d00238a0c63733661",
+        "png": "08618cb8addd08af760d1d336baf0c4da717ffd7fcf5cdf6be3b5273a6b023d5"
       }
     },
     {
@@ -10565,8 +10637,8 @@
       "story": "progress.cancel-stale",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "b90736c5ecfa0e35e911af6af4c554f2e26472784d4878bc4752e84c3fd5a89f",
-        "png": "ba99d8432e03065b87f9155af5ad75a1dda27a8ac241c2d5c6d3d8e9c70b0e54"
+        "json.gz": "b1127993b19a8810d330e34a7a0c3fa01de8438a58761ee4cc1d159ab73179fd",
+        "png": "e994e3aa3e0c2dc83a7ee5fdf18455dcf4fe321e6cda9249c57d8d48e6aac1bd"
       }
     },
     {
@@ -10574,8 +10646,8 @@
       "story": "progress.cancel-stale",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "b9209da549385d7a0373267d7faab237eaa288e40b943ccbb89465dfef612d99",
-        "png": "c122c21b99d485d1e977950b6b408b5044cc74fff64355431f10bace6cffb8dd"
+        "json.gz": "029d2578e1497d8d2d118f010f6348542a53c1ad295a818b3f97824cc120c297",
+        "png": "08618cb8addd08af760d1d336baf0c4da717ffd7fcf5cdf6be3b5273a6b023d5"
       }
     },
     {
@@ -10583,8 +10655,8 @@
       "story": "progress.cancel-stale",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "e62413ec556d47dc4401a6b28d8f4fc91125d39ab648100b113dbdcb6b34e011",
-        "png": "c122c21b99d485d1e977950b6b408b5044cc74fff64355431f10bace6cffb8dd"
+        "json.gz": "f16638b8ee0f761595545918ac310c597dc0afdaa3520844eb6fb94a7ff1d9a6",
+        "png": "08618cb8addd08af760d1d336baf0c4da717ffd7fcf5cdf6be3b5273a6b023d5"
       }
     },
     {
@@ -10592,8 +10664,8 @@
       "story": "progress.cancel-stale",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "63bcd68b19895944d871953ca6088225390e5f0f11c9668cadfc7eb0c4f808c6",
-        "png": "3b1bac779b6982026b2e1d6037037e5d68416bcff0b74ea55875cc7035248dcc"
+        "json.gz": "61e2006f9980cb6f477602a8a9ab060f6e8575a984a2bc28981f5ea814421b3f",
+        "png": "c07ee3d50bb788b90bdac3890d7f147fe4c1c6ba69695779d06f572a733875c0"
       }
     },
     {
@@ -10601,8 +10673,8 @@
       "story": "progress.cancel-stale",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "13bc38b6802e90747cfbb770bd8506821e13197d892d05180d733d1c2dd4a412",
-        "png": "3b1bac779b6982026b2e1d6037037e5d68416bcff0b74ea55875cc7035248dcc"
+        "json.gz": "93a4e74f0329c83130b5ecfc228e69020bee4c5a8df7e795ad631f1b5b39f189",
+        "png": "c07ee3d50bb788b90bdac3890d7f147fe4c1c6ba69695779d06f572a733875c0"
       }
     },
     {
@@ -10610,8 +10682,8 @@
       "story": "progress.cancel-stale",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "0639befe000b68d479c682bcb7196b977bf8d8fcd7f42be661e4532fed02f8d7",
-        "png": "c122c21b99d485d1e977950b6b408b5044cc74fff64355431f10bace6cffb8dd"
+        "json.gz": "9cf73e47ff4211ca85fbd23cf092892272ad534e994d51453b87daef1770e33d",
+        "png": "609379f1e107c4abe5c46a09748aeb0f3f800a9eccb072103139288e2a64254b"
       }
     },
     {
@@ -10619,8 +10691,8 @@
       "story": "progress.cancel-stale",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "3837d06e995ea164b1df890173e09aabd0e3fae06f3fcc56684bd90a70dd37fa",
-        "png": "ba99d8432e03065b87f9155af5ad75a1dda27a8ac241c2d5c6d3d8e9c70b0e54"
+        "json.gz": "9962fc1ea36f26b9c16892a556a6809b21208ac92151b3eef91c093821a4d351",
+        "png": "5d68be7e0ce00b97d3ba2b96447fd9c3ac96032e90d74134f8dda8ce8516dd7c"
       }
     },
     {
@@ -10628,8 +10700,8 @@
       "story": "progress.cancel-stale",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "56a230bde55aa8b902b1c9662650126987ce20fa850ae44358f648f81d040726",
-        "png": "c122c21b99d485d1e977950b6b408b5044cc74fff64355431f10bace6cffb8dd"
+        "json.gz": "53fe9eed0d6e46f627c7eb49c8292d9374e69fe3347c7af95bfbba9d41d83710",
+        "png": "609379f1e107c4abe5c46a09748aeb0f3f800a9eccb072103139288e2a64254b"
       }
     },
     {
@@ -10637,8 +10709,8 @@
       "story": "progress.cancel-stale",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "d6436aba69b418e02e9cda0b4c738c9bfc1165a3e69de1781446644b99f543c8",
-        "png": "c122c21b99d485d1e977950b6b408b5044cc74fff64355431f10bace6cffb8dd"
+        "json.gz": "0b4500bac7b05be9643bf54758706242232e97922f05acfa1bf62e9de97a799f",
+        "png": "609379f1e107c4abe5c46a09748aeb0f3f800a9eccb072103139288e2a64254b"
       }
     },
     {
@@ -10700,8 +10772,8 @@
       "story": "table.mouse",
       "widget": "TableWidget",
       "hashes": {
-        "json.gz": "cd77fa8b94e76a4ef24a385ca71ec26b3213b4744c3491b67a1d5946a5efcc14",
-        "png": "86e5d646f07c7427121b1321fab01817b311d2ec14b89b3a3b5dca2e820225e0"
+        "json.gz": "6f7d623be653e1c29c518822256c5c91c1d0f98b6eb781bca5229cf017c845ae",
+        "png": "c5d642272c09bf7f96db323b47989126965f545cdf286a5ba526f7cd3d5ea666"
       }
     },
     {
@@ -10709,8 +10781,8 @@
       "story": "table.mouse",
       "widget": "TableWidget",
       "hashes": {
-        "json.gz": "6198d88db7864113b388cd1456eb0cbe1b3c1ad992b7e3fe284d40fb976b3fe4",
-        "png": "86e5d646f07c7427121b1321fab01817b311d2ec14b89b3a3b5dca2e820225e0"
+        "json.gz": "7c4330602bc579eba195c1f956340c551d6ac04a5f081b090d2b4941b5ad8e06",
+        "png": "c5d642272c09bf7f96db323b47989126965f545cdf286a5ba526f7cd3d5ea666"
       }
     },
     {
@@ -10718,8 +10790,8 @@
       "story": "table.mouse",
       "widget": "TableWidget",
       "hashes": {
-        "json.gz": "a6ca178444f4a12739112029a74a9850a5410adcc323f67554ece5606ed4abe6",
-        "png": "deab057beea44c49477ff0f335d2aef3e9e393396ecfe8d76ded6e2f5efa7904"
+        "json.gz": "0df53ac859ec99c8e001cfe12cf2198ebb727d814bf5fd5c3ab3b0cf3c4e9992",
+        "png": "90fbfd3cc0a0718c5105b6f3e541d19773bb16cfb0da3d9049e113b7eba072a6"
       }
     },
     {
@@ -10727,8 +10799,8 @@
       "story": "table.mouse",
       "widget": "TableWidget",
       "hashes": {
-        "json.gz": "c74480f362a27dbff853ff1145017d5555b4a800c5a9e787398c0d38d2c4a90a",
-        "png": "86e5d646f07c7427121b1321fab01817b311d2ec14b89b3a3b5dca2e820225e0"
+        "json.gz": "e4e8d8626421ed8a0e1486071d0e3d757e4e6689b4d28318f742b1e2dce82fae",
+        "png": "cfe534b5b234370a4fe7aa1d4084f0ef5a158ba0edc07ad9f8f1a89cf64e451d"
       }
     },
     {
@@ -10736,8 +10808,8 @@
       "story": "table.mouse",
       "widget": "TableWidget",
       "hashes": {
-        "json.gz": "4bb9100eb78c8acf3fc08b9b4eac4f31b3a9a179f48d1c034eb2a998360273eb",
-        "png": "86e5d646f07c7427121b1321fab01817b311d2ec14b89b3a3b5dca2e820225e0"
+        "json.gz": "5a76c50a0b51fb7dcf5c574ad9cdeba91695ec5a37c9d89cc4d2101f128a539a",
+        "png": "cfe534b5b234370a4fe7aa1d4084f0ef5a158ba0edc07ad9f8f1a89cf64e451d"
       }
     },
     {
@@ -10745,8 +10817,8 @@
       "story": "table.mouse",
       "widget": "TableWidget",
       "hashes": {
-        "json.gz": "efb31c79932eaf160ae16bf68d6190455f87f4eca6b9ed18582c780104a94a7d",
-        "png": "deab057beea44c49477ff0f335d2aef3e9e393396ecfe8d76ded6e2f5efa7904"
+        "json.gz": "d99d7809fb922a48dee76d4ab3da018612833434a100cfb1ce48a3398eed4435",
+        "png": "cb6f1081015af1c0ec682545b69320bc2bc944f4f04ce64e4dcc4878dbcc8441"
       }
     },
     {
@@ -11240,8 +11312,8 @@
       "story": "form.mouse",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "5b71a6b547071869404c9274eba9539e827d49af0cd6c473f34afe08567f6278",
-        "png": "f55da9686aa2f59b58703b3a8f6e108c56e8366c788cef931c57dc7e0e86ba07"
+        "json.gz": "80aee8c175eec40fce4015f025d624981b75c4535ace1389891cf05eeb856a5e",
+        "png": "30a5ec05ed4bb298040e1cc53f198dca765adb9cc7c5b596c26776485ec66a53"
       }
     },
     {
@@ -11249,8 +11321,35 @@
       "story": "form.mouse",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "392d0ec898178a3e57601bced55f1dfb83a0a4fa190844a8691204684d1a79c0",
-        "png": "f55da9686aa2f59b58703b3a8f6e108c56e8366c788cef931c57dc7e0e86ba07"
+        "json.gz": "7485f664237c81b99dcd6de6787443a3d19a1eef06f99686c5aed934f59901cc",
+        "png": "30a5ec05ed4bb298040e1cc53f198dca765adb9cc7c5b596c26776485ec66a53"
+      }
+    },
+    {
+      "key": "form.mouse.color.registered.label",
+      "story": "form.mouse",
+      "widget": "FormWidget",
+      "hashes": {
+        "json.gz": "c5aee5ce188d36a843d46dadcf7a08ed3f242b72fc7b4f8f9307ba586b58d399",
+        "png": "5aee656c65e1a3a5b4ab74a85194fb0cca3532ded3f2ff2f29566e3ed5573c7b"
+      }
+    },
+    {
+      "key": "form.mouse.color.registered.help",
+      "story": "form.mouse",
+      "widget": "FormWidget",
+      "hashes": {
+        "json.gz": "91dce7a29abb4949bbb9f08a49d31e405b66d9a3c0fa637e2ed4a491d3aa76a3",
+        "png": "30a5ec05ed4bb298040e1cc53f198dca765adb9cc7c5b596c26776485ec66a53"
+      }
+    },
+    {
+      "key": "form.mouse.color.registered.checkbox-label",
+      "story": "form.mouse",
+      "widget": "FormWidget",
+      "hashes": {
+        "json.gz": "bc42ef9ab43d7a9e9cccf7346a6b3637875f0d04324770847d5808d243c6a56f",
+        "png": "1c8caeaf3f1b2f3e380a4097d1302291c35e971e990f4547eb200b11a800db2a"
       }
     },
     {
@@ -11258,8 +11357,8 @@
       "story": "form.mouse",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "196c69360d1bdb5d3dc2f87ea122035c96ef5a17fd76ce0b057fec3f993d781e",
-        "png": "f641a5db7127482e3d3c2a33e8ac2e5cb2dba6b8239c4c4da2159d1518868ff0"
+        "json.gz": "1582cea11c1e7ecdb5dd2d1ae5b49e91c38ad0f650125dcf21029590d7b44b83",
+        "png": "7a611150ca49ba5bc1e869978c7777c3e0a65c33d7bb4f55f15ce73940ddf3e0"
       }
     },
     {
@@ -11267,8 +11366,8 @@
       "story": "form.mouse",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "4e09e5c909f5da54a6b97286cdb499ff27516dac340dde297eca3657395bab8a",
-        "png": "569a879ca1aeba1720eb1518eb3827aba2d4f013ca87d6af616cfa5d23f29fbd"
+        "json.gz": "8e8eb89494040098af408d820fd6129deab79d1b2bc00aa154da46bcf75c8fdc",
+        "png": "f4124665f96b0eef1a907e31838f95876af50a59522728f41bd113f9abcfbfed"
       }
     },
     {
@@ -11276,8 +11375,35 @@
       "story": "form.mouse",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "dc03d5de88e17a73a084984323f5425d80664ff822cf828a8f54b227f6e06100",
-        "png": "569a879ca1aeba1720eb1518eb3827aba2d4f013ca87d6af616cfa5d23f29fbd"
+        "json.gz": "f8905f15cd003417bbe6cc0b944638012b5cd48230fecf459053fb2211812af5",
+        "png": "f4124665f96b0eef1a907e31838f95876af50a59522728f41bd113f9abcfbfed"
+      }
+    },
+    {
+      "key": "form.mouse.mono.registered.label",
+      "story": "form.mouse",
+      "widget": "FormWidget",
+      "hashes": {
+        "json.gz": "12e3399e26539917d4526dc2a0fbb42242195259e36b8442bbfcd230de17d163",
+        "png": "f86a81de17a11924ed66c34f45195b13376089719c8f3ff630edbba01715335a"
+      }
+    },
+    {
+      "key": "form.mouse.mono.registered.help",
+      "story": "form.mouse",
+      "widget": "FormWidget",
+      "hashes": {
+        "json.gz": "f7c1ee8df1ae07d20b51ce704ac26989d689651e15f99a423b60447602fcb722",
+        "png": "f4124665f96b0eef1a907e31838f95876af50a59522728f41bd113f9abcfbfed"
+      }
+    },
+    {
+      "key": "form.mouse.mono.registered.checkbox-label",
+      "story": "form.mouse",
+      "widget": "FormWidget",
+      "hashes": {
+        "json.gz": "36f4be388b8451bc1a05ad60cc10ce9f7daae97c4594447e7bb6125cee321cc7",
+        "png": "e65b97411cf4c6386839db2817333ee69397157e7347a9e4ec5c9a7ea3ef9481"
       }
     },
     {
@@ -11285,8 +11411,8 @@
       "story": "form.mouse",
       "widget": "FormWidget",
       "hashes": {
-        "json.gz": "5c4bc3c0ba96e3e3b72ac95a4e9be021ff829a66f2002440c741aa412696f505",
-        "png": "39c0affa7bec6e1577be8032fbd0b4a277db7e773097e0cdd728f0e8470af3f1"
+        "json.gz": "a5dff41fab0dcee3aacab01bda64e3cd8128dd80f0efa4527864453dffd951e2",
+        "png": "3cd69e5278b080356b7b3393282c270980e489582893a051f9826c977ee1d039"
       }
     },
     {
@@ -11474,8 +11600,8 @@
       "story": "text-chart.mouse",
       "widget": "TextChartWidget",
       "hashes": {
-        "json.gz": "f8a4f97b9ee530b2b4d17cc21ab887f523a88da66286d866da3e7ccca83acf28",
-        "png": "3e690948386112d1414023314b5c43518c6bea2f9f1f09cc1dffd893f3615c9d"
+        "json.gz": "11522a097982f497b87f370f354b5a380450f72578fc82c2bbcdcb01a9691b26",
+        "png": "08ac1165cc5ea19e92d79a58ee247deb828c6e15a30d60f0b333b0067beb3e27"
       }
     },
     {
@@ -11501,8 +11627,8 @@
       "story": "text-chart.mouse",
       "widget": "TextChartWidget",
       "hashes": {
-        "json.gz": "8d8cf5bda9d97534e0dac6a0c4bc7c34dfc838d05662e5f37d3991494eef520d",
-        "png": "f63aacdf3c5fe745b304fdc54782cfd1264e97b138d90078c88126105dab227e"
+        "json.gz": "0cbe9e2ca52a0e6db9eefa8b562f6ef7835493dda612a389784b3147d2e0a13b",
+        "png": "837de1123970b8ccaf0d7634b2dbb39c8c314f5b2699cf59209263df2b4f61f4"
       }
     },
     {
@@ -11726,8 +11852,8 @@
       "story": "progress.mouse",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "e917377bda0a2a51160fd626d2ea4386f502efb0ec9f91f423be2748c57d0605",
-        "png": "3b1bac779b6982026b2e1d6037037e5d68416bcff0b74ea55875cc7035248dcc"
+        "json.gz": "70fa3c40f2698a0f1367c5d4f8d54b324e4edfa779c70fdea88be5eb075c1506",
+        "png": "792181d875b0bb17a891ddac81a681611146fb256bcb3e333d9bb562045755a1"
       }
     },
     {
@@ -11735,8 +11861,8 @@
       "story": "progress.mouse",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "265a28cd9f4f2a1e5cf6ccf90aa0ee515e92d34b8f94db154aa4d2a220a717d4",
-        "png": "3b1bac779b6982026b2e1d6037037e5d68416bcff0b74ea55875cc7035248dcc"
+        "json.gz": "a610529ec87420ce059cdb6cb611b5a41ccce051313865e5d2528ce41020cf31",
+        "png": "792181d875b0bb17a891ddac81a681611146fb256bcb3e333d9bb562045755a1"
       }
     },
     {
@@ -11744,8 +11870,8 @@
       "story": "progress.mouse",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "460fff4cca5297b085a347ba52bda000382412e1d69aa80c0112e6d30e0bd503",
-        "png": "c122c21b99d485d1e977950b6b408b5044cc74fff64355431f10bace6cffb8dd"
+        "json.gz": "db2a86a39a5dc0b70356697f7465064138d5720a97b7cbd63ec900c1c2505498",
+        "png": "08618cb8addd08af760d1d336baf0c4da717ffd7fcf5cdf6be3b5273a6b023d5"
       }
     },
     {
@@ -11753,8 +11879,8 @@
       "story": "progress.mouse",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "5c2f2c91742918757b796b1ce1c0e1564e883a5383d520ce7bc8a27f13bf2d24",
-        "png": "3b1bac779b6982026b2e1d6037037e5d68416bcff0b74ea55875cc7035248dcc"
+        "json.gz": "9581d5e273d10d730e204cce385058a369fba5434a709c222e0011473ddf1f01",
+        "png": "c07ee3d50bb788b90bdac3890d7f147fe4c1c6ba69695779d06f572a733875c0"
       }
     },
     {
@@ -11762,8 +11888,8 @@
       "story": "progress.mouse",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "61e41ef481545d5159ac24e041d52ae9c5dc39ad2ce959a865c1ae4fd546dbe8",
-        "png": "3b1bac779b6982026b2e1d6037037e5d68416bcff0b74ea55875cc7035248dcc"
+        "json.gz": "ed0476bf7e2eca2d8cf2cba887a1d12b749f8748baf2e7f7883f939e2a426c65",
+        "png": "c07ee3d50bb788b90bdac3890d7f147fe4c1c6ba69695779d06f572a733875c0"
       }
     },
     {
@@ -11771,8 +11897,8 @@
       "story": "progress.mouse",
       "widget": "ProgressWidget",
       "hashes": {
-        "json.gz": "d381c525f1d1abcde00a2e5789f646290d0ac0dfc23ce5f659ea0e6b3010d439",
-        "png": "c122c21b99d485d1e977950b6b408b5044cc74fff64355431f10bace6cffb8dd"
+        "json.gz": "8537d1d3872e77a3b3aaf0f222bdc3281bf744fd58e03fcec9c0b747b0609467",
+        "png": "609379f1e107c4abe5c46a09748aeb0f3f800a9eccb072103139288e2a64254b"
       }
     },
     {
@@ -12128,8 +12254,8 @@
     "styles": "0d2f1ecbb579829af7397da72c01e4945b312972390d825739e4bb9554ef6300"
   },
   "acceptance": {
-    "reviewer": "Codex",
+    "reviewer": "Codex: form and widget emphasis review",
     "evidence": "../docs/ux-review-2026-11.md",
-    "evidence_sha256": "4c031ea286247361b4da9e5eafe98305b2b6c165dd6e4013b0d267af965e43bc"
+    "evidence_sha256": "1d7779d41cded04bd0feb9873df50e18b6cd813a31b6e7e9a573f360f7c43e20"
   }
 }

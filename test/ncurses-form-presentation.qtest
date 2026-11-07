@@ -1,0 +1,330 @@
+#!/usr/bin/env qore
+# Copyright 2026 Qore Technologies, s.r.o. SPDX-License-Identifier: MIT
+%modern
+%prepend-module-path "${SCRIPT_DIR}/../qlib"
+%requires ncurses
+%requires NcursesUi
+%requires QUnit
+%include "test/TestHarness.qc"
+%exec-class FormPresentationTest
+class FailingPresentationModel inherits NcursesUi::FormModel {
+    public { bool fail_read = False; }
+    constructor(list<hash<NcursesUi::FormField>> fields) : FormModel(fields) {}
+    list<hash<NcursesUi::FormField>> getFields() {
+        if (fail_read) { throw "FORM-READ-FAILED", "Cannot refresh field metadata"; }
+        return FormModel::getFields();
+    }
+}
+class FormPresentationTest inherits Test {
+    constructor() : Test("FormPresentationTest", "1.0", \ARGV) {
+        addTestCase("field headings help and input boundaries form distinct groups", \hierarchy());
+        addTestCase("clicking field labels and help focuses without editing or toggling", \metadataFocus());
+        addTestCase("compact focus reveals the associated field context and actions", \compact());
+        addTestCase("wrapped metadata targets follow scrolling and retain the caret", \wrapped());
+        addTestCase("read-only hidden disabled and completed fields reject metadata focus", \unavailable());
+        addTestCase("validation stays associated with its field and preserves invalid drafts", \validation());
+        addTestCase("tiny geometry preserves field identity editing and recovery", \geometry());
+        addTestCase("metadata synchronization handles schema replacement and exceptions", \replacement());
+        addTestCase("metadata refresh lays out pending errors and unfocused schema replacements", \pendingMetadata());
+        addTestCase("application disabling survives synchronization and form state transitions", \applicationDisabled());
+        addTestCase("unfocused field availability repaints its heading and boundaries", \availabilityStyle());
+        addTestCase("password multiline and choice values retain their native behavior", \typed());
+        set_return_value(main());
+    }
+    private list<hash<NcursesUi::FormField>> fields() {
+        return (<NcursesUi::FormField>{"name": "name", "label": "Request name", "help": "Name this request", "required": True, "default_value": "Preview"},
+            <NcursesUi::FormField>{"name": "count", "label": "Attempts", "help": "Maximum attempts", "type": NcursesUi::FieldType::Integer, "default_value": 3},
+            <NcursesUi::FormField>{"name": "enabled", "label": "Include details", "help": "Include diagnostic output", "type": NcursesUi::FieldType::Boolean, "default_value": True});
+    }
+    private hash<Ncurses::InputEvent> click(int y, int x, int buttons = Ncurses::BUTTON1_CLICKED) {
+        return <Ncurses::InputEvent>{"type": Ncurses::InputType::Mouse,
+            "mouse": <Ncurses::MouseEvent>{"y": y, "x": x, "button_state": buttons}};
+    }
+    private int row(Ncurses::Window screen, string text, int rows = 20, int cols = 50) {
+        list<string> lines = screen.readLines(0, rows, cols);
+        for (int i = 0; i < lines.size(); ++i) { if (lines[i].find(text) >= 0) { return i; } }
+        return -1;
+    }
+    hierarchy() {
+        foreach bool color in ((True, False)) {
+            NcursesUi::TestHarness th(20, 50, {"use_colors": color}); on_exit th.close();
+            NcursesUi::Application app(th.session()); on_exit app.close();
+            NcursesUi::FormModel model(fields()); NcursesUi::FormWidget form(model);
+            form.setFocusManager(app.getFocusManager()); app.setRoot(form);
+            app.getFocusManager().setFocus(form.getControl("name")); app.drawAll();
+            hash<NcursesUi::Rect> input = form.getControl("name").getFrame();
+            assertEq(0, row(th.screen(), "Request name"));
+            assertEq(1, row(th.screen(), "Name this request"));
+            assertEq(2, input.y);
+            assertEq("[", th.screen().readText(input.y, input.x - 1, 1));
+            assertEq("]", th.screen().readText(input.y, input.x + input.cols, 1));
+            assertEq(strmul(" ", 50), th.screen().readText(input.y + 1, 0, 50));
+            assertEq(4, row(th.screen(), "Attempts"));
+            hash<Ncurses::ScreenCapture> frame = th.session().capture();
+            assertTrue(!!(frame.cells[2].attrs & Ncurses::Attr::Bold));
+            assertFalse(!!(frame.cells[50 + 2].attrs & Ncurses::Attr::Bold));
+            assertEq(">", frame.cells[0].text);
+            if (color) { assertEq(Ncurses::Color::Cyan, frame.cells[2].fg); }
+            cast<NcursesUi::TextInputWidget>(form.getControl("name")).setText(""); app.drawAll();
+            assertEq("[", th.screen().readText(input.y, input.x - 1, 1));
+            assertEq("]", th.screen().readText(input.y, input.x + input.cols, 1));
+        }
+    }
+    metadataFocus() {
+        NcursesUi::TestHarness th(20, 50); on_exit th.close();
+        NcursesUi::Application app(th.session()); on_exit app.close();
+        NcursesUi::FormModel model(fields()); NcursesUi::FormWidget form(model); app.setRoot(form);
+        # Label associations use the dispatcher's active manager, even without setFocusManager().
+        app.getFocusManager().setFocus(form.getControl("name")); app.drawAll();
+        app.processEvent(click(row(th.screen(), "Attempts"), 3));
+        assertEq(form.getControl("count"), app.getFocusManager().getCurrentFocus()); app.drawAll();
+        app.processEvent(click(row(th.screen(), "Name this request"), 4));
+        assertEq(form.getControl("name"), app.getFocusManager().getCurrentFocus()); app.drawAll();
+        app.processEvent(click(row(th.screen(), "Include diagnostic output"), 5));
+        assertEq(form.getControl("enabled"), app.getFocusManager().getCurrentFocus());
+        assertEq(True, model.getValue("enabled")); app.drawAll();
+        app.processEvent(click(row(th.screen(), "Request name"), 3, Ncurses::BUTTON1_RELEASED));
+        assertEq(form.getControl("enabled"), app.getFocusManager().getCurrentFocus());
+        app.processEvent(click(row(th.screen(), "Request name"), 3, Ncurses::BUTTON3_CLICKED));
+        assertEq(form.getControl("enabled"), app.getFocusManager().getCurrentFocus());
+        int gap = form.getControl("name").getFrame().y + 1; app.processEvent(click(gap, 3));
+        assertEq(form.getControl("enabled"), app.getFocusManager().getCurrentFocus());
+        assertEq("Preview", model.getValue("name")); assertEq(3, model.getValue("count"));
+    }
+    compact() {
+        NcursesUi::TestHarness th(8, 40); on_exit th.close();
+        NcursesUi::Application app(th.session()); on_exit app.close();
+        NcursesUi::FormModel model(fields()); NcursesUi::FormWidget form(model);
+        form.setFocusManager(app.getFocusManager()); form.setOnSubmit(auto sub (hash<auto> values) { return values; });
+        app.setRoot(form); app.getFocusManager().setFocus(form.getControl("enabled")); app.drawAll();
+        assertTrue(form.getScrollY() > 0);
+        assertTrue(row(th.screen(), "Include details", 8, 40) >= 0);
+        assertTrue(row(th.screen(), "Include diagnostic output", 8, 40) >= 0);
+        assertTrue(form.getControl("enabled").visibleRect().rows > 0);
+        app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "\t"}); app.drawAll();
+        assertTrue(row(th.screen(), "Submit", 8, 40) >= 0);
+        app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "\n"}); app.drawAll();
+        assertEq(NcursesUi::ActionState::Completed, model.getState());
+        assertTrue(row(th.screen(), "Submitted", 8, 40) >= 0);
+    }
+    private NcursesUi::LabelWidget metadata(NcursesUi::FormWidget form, string text) {
+        foreach NcursesUi::Widget child in (form.getChildren()) {
+            if (child instanceof NcursesUi::LabelWidget
+                    && NcursesUi::TerminalText::plainAnsi(cast<NcursesUi::LabelWidget>(child).getText()).find(text) >= 0) {
+                return cast<NcursesUi::LabelWidget>(child);
+            }
+        }
+        throw "MISSING-FIELD-METADATA", text;
+    }
+    wrapped() {
+        NcursesUi::TestHarness th(10, 24); on_exit th.close();
+        NcursesUi::Application app(th.session()); on_exit app.close();
+        list<hash<NcursesUi::FormField>> definitions = fields();
+        definitions[0].label = "Request name with a wrapped heading";
+        definitions[0].help = "Explain this request\nSecond line: 界 é";
+        NcursesUi::FormModel model(definitions); NcursesUi::FormWidget form(model); app.setRoot(form);
+        NcursesUi::TextInputWidget input = cast<NcursesUi::TextInputWidget>(form.getControl("name"));
+        input.getBuffer().setCursor(2); app.getFocusManager().setFocus(form.getControl("count")); app.drawAll();
+        app.getFocusManager().setFocus(input); app.drawAll();
+        NcursesUi::LabelWidget hint = metadata(form, "Second line");
+        hash<NcursesUi::Rect> rect = hint.visibleRect(); assertTrue(rect.rows > 1);
+        app.getFocusManager().setFocus(form.getControl("count"));
+        # Click the last painted hint row before a redraw has scrolled the next field.
+        app.processEvent(click(rect.y + rect.rows - 1, rect.x + 1));
+        assertEq(input, app.getFocusManager().getCurrentFocus()); assertEq(2, input.getCursorPos());
+        app.drawAll(); assertTrue(row(th.screen(), "Request name", 10, 24) >= 0);
+        assertTrue(row(th.screen(), "Second line", 10, 24) >= 0);
+        assertEq("Preview", input.getText());
+        app.getFocusManager().setFocus(form.getControl("enabled")); app.drawAll();
+        assertTrue(form.getScrollY() > 0);
+        NcursesUi::LabelWidget label = metadata(form, "Include details"); rect = label.visibleRect();
+        app.processEvent(click(rect.y, rect.x + 2)); assertEq(form.getControl("enabled"), app.getFocusManager().getCurrentFocus());
+        assertEq(True, model.getValue("enabled"));
+    }
+    unavailable() {
+        NcursesUi::TestHarness th(20, 50); on_exit th.close();
+        NcursesUi::Application app(th.session()); on_exit app.close();
+        list<hash<NcursesUi::FormField>> definitions = fields(); definitions[1].read_only = True;
+        NcursesUi::FormModel model(definitions); NcursesUi::FormWidget form(model); app.setRoot(form);
+        app.getFocusManager().setFocus(form.getControl("name")); app.drawAll();
+        assertTrue(row(th.screen(), "Attempts (read-only)") >= 0);
+        foreach string text in (("Attempts", "Maximum attempts")) {
+            app.processEvent(click(row(th.screen(), text), 4));
+            assertEq(form.getControl("name"), app.getFocusManager().getCurrentFocus());
+        }
+        form.getControl("enabled").setVisible(False); app.drawAll();
+        app.processEvent(click(row(th.screen(), "Include details"), 4));
+        assertEq(form.getControl("name"), app.getFocusManager().getCurrentFocus());
+        form.setEnabled(False); app.drawAll(); app.processEvent(click(row(th.screen(), "Request name"), 4));
+        assertNothing(app.getFocusManager().getCurrentFocus()); assertEq("Preview", model.getValue("name"));
+        form.setEnabled(True); form.setOnSubmit(auto sub (hash<auto> values) { return values; });
+        assertTrue(form.submit()); app.drawAll();
+        app.processEvent(click(row(th.screen(), "Request name"), 4));
+        assertNothing(app.getFocusManager().getCurrentFocus()); assertEq(3, model.getValue("count"));
+    }
+    validation() {
+        NcursesUi::TestHarness th(20, 50); on_exit th.close();
+        NcursesUi::Application app(th.session()); on_exit app.close();
+        NcursesUi::FormModel model(fields()); NcursesUi::FormWidget form(model);
+        form.setFocusManager(app.getFocusManager()); form.setOnSubmit(auto sub (hash<auto> values) { return values; }); app.setRoot(form);
+        NcursesUi::TextInputWidget input = cast<NcursesUi::TextInputWidget>(form.getControl("count"));
+        input.setText("not a number"); assertFalse(form.submit()); app.drawAll();
+        assertEq(input, app.getFocusManager().getCurrentFocus());
+        int heading = row(th.screen(), "Attempts"); int hint = row(th.screen(), "Maximum attempts");
+        int error = row(th.screen(), "Error: Enter an integer");
+        assertTrue(heading < hint && hint < error && error < input.getFrame().y);
+        hash<Ncurses::ScreenCapture> frame = th.session().capture();
+        assertEq(Ncurses::Color::Red, frame.cells[error * 50 + 2].fg);
+        assertTrue(!!(frame.cells[error * 50 + 2].attrs & Ncurses::Attr::Bold));
+        app.getFocusManager().setFocus(form.getControl("name"));
+        app.processEvent(click(error, 4)); assertEq(input, app.getFocusManager().getCurrentFocus());
+        assertEq("not a number", input.getText()); assertEq(3, model.getValue("count"));
+        input.setText("5"); assertTrue(form.submit()); app.drawAll(); assertEq(5, model.getResult().count);
+        assertEq(-1, row(th.screen(), "Error:"));
+    }
+    geometry() {
+        NcursesUi::TestHarness th(20, 50); on_exit th.close();
+        NcursesUi::Application app(th.session()); on_exit app.close(); NcursesUi::Widget root();
+        list<hash<NcursesUi::FormField>> definitions = fields();
+        definitions[0].help = "A much longer description with several wrapped lines and Unicode 界 é text.";
+        NcursesUi::FormModel model(definitions); NcursesUi::FormWidget form(model); root.addChild(form); app.setRoot(root);
+        app.getFocusManager().setFocus(form.getControl("name"));
+        foreach int rows in ((0, 1, 2, 4, 8, 16)) {
+            foreach int cols in ((0, 1, 2, 3, 6, 12, 40)) {
+                form.setFrameValues(2, 3, rows, cols); app.drawAll();
+                NcursesUi::Widget control = form.getControl("name");
+                assertEq("Preview", cast<NcursesUi::TextInputWidget>(control).getText());
+                if (rows && cols) {
+                    assertTrue(control.visibleRect().rows > 0); assertTrue(control.visibleRect().cols > 0);
+                    hash<Ncurses::ScreenCapture> frame = th.session().capture();
+                    assertTrue(NcursesUi::Geometry::rectContains(control.visibleRect(), frame.cursor.y, frame.cursor.x));
+                    if (rows >= 2) { assertTrue(metadata(form, "Request name").visibleRect().rows > 0); }
+                }
+            }
+        }
+        form.setFrameValues(0, 0, 4, 12); app.drawAll();
+        bool ellipsis = False;
+        foreach hash<Ncurses::ScreenCell> cell in (th.session().capture().cells) { if (cell.text == "…") { ellipsis = True; } }
+        assertTrue(ellipsis);
+        app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "x"});
+        form.setFrameValues(0, 0, 16, 40); app.drawAll();
+        assertEq("Previewx", model.getValue("name"));
+        assertTrue(row(th.screen(), "Unicode", 16, 40) >= 0);
+        assertFalse(form.isDirty());
+    }
+    replacement() {
+        NcursesUi::TestHarness th(20, 50); on_exit th.close();
+        NcursesUi::Application app(th.session()); on_exit app.close();
+        FailingPresentationModel model(fields()); NcursesUi::FormWidget form(model); app.setRoot(form);
+        app.getFocusManager().setFocus(form.getControl("name")); app.drawAll();
+        int target = row(th.screen(), "Attempts"); model.fail_read = True;
+        assertThrows("FORM-READ-FAILED", sub () { app.processEvent(click(target, 4)); });
+        model.fail_read = False;
+        assertEq(form.getControl("name"), app.getFocusManager().getCurrentFocus());
+        app.processEvent(click(target, 4)); assertEq(form.getControl("count"), app.getFocusManager().getCurrentFocus());
+        app.drawAll(); NcursesUi::LabelWidget old = metadata(form, "Attempts");
+        model.setFields((<NcursesUi::FormField>{"name": "new", "label": "New field", "default_value": "new value"},));
+        app.processEvent(click(target, 4)); assertNothing(old.getParent());
+        assertNothing(app.getFocusManager().getCurrentFocus()); app.drawAll();
+        app.processEvent(click(row(th.screen(), "New field"), 4));
+        assertEq(form.getControl("new"), app.getFocusManager().getCurrentFocus());
+        assertEq("new value", model.getValue("new"));
+    }
+    pendingMetadata() {
+        NcursesUi::TestHarness th(20, 50); on_exit th.close();
+        NcursesUi::Application app(th.session()); on_exit app.close();
+        NcursesUi::FormModel model(fields()); NcursesUi::FormWidget form(model); app.setRoot(form);
+        app.getFocusManager().setFocus(form.getControl("name")); app.drawAll();
+        int heading = row(th.screen(), "Request name");
+        model.setFieldError("name", "Pending field error");
+        app.processEvent(click(heading, 4)); app.drawAll();
+        assertEq(form.getControl("name"), app.getFocusManager().getCurrentFocus());
+        assertTrue(row(th.screen(), "Error: Pending field error") > heading);
+        assertTrue(row(th.screen(), "Error: Pending field error") < form.getControl("name").getFrame().y);
+        app.getFocusManager().setFocus(NOTHING); app.drawAll();
+        heading = row(th.screen(), "Request name");
+        NcursesUi::LabelWidget old = metadata(form, "Request name");
+        model.setFields((<NcursesUi::FormField>{"name": "new", "label": "Replacement", "default_value": "fresh"},));
+        app.processEvent(click(heading, 4)); app.drawAll();
+        assertNothing(old.getParent()); assertNothing(app.getFocusManager().getCurrentFocus());
+        assertTrue(form.getControl("new").getFrame().rows > 0);
+        assertTrue(row(th.screen(), "Replacement") >= 0); assertTrue(row(th.screen(), "fresh") >= 0);
+        assertFalse(form.isDirty());
+    }
+    applicationDisabled() {
+        foreach NcursesUi::FieldType type in ((NcursesUi::FieldType::Text, NcursesUi::FieldType::Boolean,
+                NcursesUi::FieldType::Multiline, NcursesUi::FieldType::Choice)) {
+            NcursesUi::TestHarness th(20, 50); on_exit th.close();
+            NcursesUi::Application app(th.session()); on_exit app.close();
+            list<hash<NcursesUi::FormField>> definitions = fields();
+            definitions[1].type = type; remove definitions[1].default_value;
+            if (type == NcursesUi::FieldType::Choice) {
+                definitions[1].choices = (<NcursesUi::ChoiceItem>{"value": "one", "label": "One"},);
+            }
+            NcursesUi::FormModel model(definitions); NcursesUi::FormWidget form(model); app.setRoot(form);
+            NcursesUi::Widget control = form.getControl("count");
+            app.getFocusManager().setFocus(form.getControl("name")); app.drawAll(); control.setEnabled(False);
+            foreach string text in (("Attempts", "Maximum attempts")) {
+                app.processEvent(click(row(th.screen(), text), 4));
+                assertFalse(control.isEnabled()); assertEq(form.getControl("name"), app.getFocusManager().getCurrentFocus());
+                app.drawAll(); assertFalse(control.isEnabled());
+            }
+            model.setFieldError("count", "Keep disabled"); app.drawAll();
+            app.processEvent(click(row(th.screen(), "Error: Keep disabled"), 4));
+            assertFalse(control.isEnabled()); assertEq(form.getControl("name"), app.getFocusManager().getCurrentFocus());
+            model.setFieldError("count", NOTHING); hash<NcursesUi::FormSubmission> request = model.beginSubmit(); app.drawAll();
+            assertFalse(control.isEnabled()); model.cancel(); app.drawAll(); assertFalse(control.isEnabled());
+            control.setEnabled(True); assertTrue(control.isEnabled());
+            request = model.beginSubmit(); app.drawAll(); control.setEnabled(False);
+            model.cancel(); app.drawAll(); assertFalse(control.isEnabled());
+            request = model.beginSubmit(); app.drawAll(); control.setEnabled(True);
+            assertFalse(control.isEnabled()); model.cancel(); app.drawAll(); assertTrue(control.isEnabled());
+            assertFalse(form.isDirty());
+            definitions[1].read_only = True; model.setFields(definitions); app.drawAll();
+            control = form.getControl("count"); control.setEnabled(True);
+            assertFalse(control.isEnabled()); assertFalse(control.isAvailable());
+        }
+    }
+    availabilityStyle() {
+        foreach bool color in ((True, False)) {
+            NcursesUi::TestHarness th(20, 50, {"use_colors": color}); on_exit th.close();
+            NcursesUi::Application app(th.session()); on_exit app.close();
+            NcursesUi::FormModel model(fields()); NcursesUi::FormWidget form(model); app.setRoot(form);
+            app.getFocusManager().setFocus(form.getControl("name")); app.drawAll();
+            NcursesUi::Widget control = form.getControl("count");
+            foreach bool enabled in ((False, True)) {
+                control.setEnabled(enabled); app.drawAll();
+                hash<Ncurses::ScreenCapture> frame = th.session().capture();
+                int label = row(th.screen(), "Attempts"); hash<NcursesUi::Rect> value = control.getFrame();
+                assertEq(!enabled, !!(frame.cells[label * 50 + 2].attrs & Ncurses::Attr::Dim));
+                assertEq(enabled, !!(frame.cells[label * 50 + 2].attrs & Ncurses::Attr::Bold));
+                assertEq(!enabled, !!(frame.cells[value.y * 50 + value.x - 1].attrs & Ncurses::Attr::Dim));
+                assertEq(form.getControl("name"), app.getFocusManager().getCurrentFocus()); assertFalse(form.isDirty());
+            }
+        }
+    }
+    typed() {
+        NcursesUi::TestHarness th(24, 60); on_exit th.close();
+        NcursesUi::Application app(th.session()); on_exit app.close();
+        NcursesUi::FormModel model((
+            <NcursesUi::FormField>{"name": "password", "label": "Password", "help": "Keep this private", "type": NcursesUi::FieldType::Password, "default_value": "secret"},
+            <NcursesUi::FormField>{"name": "body", "label": "Notes", "help": "Explain the change", "type": NcursesUi::FieldType::Multiline, "default_value": "one\n界 é"},
+            <NcursesUi::FormField>{"name": "mode", "label": "Mode", "help": "Choose an operation", "type": NcursesUi::FieldType::Choice, "choices": (
+                <NcursesUi::ChoiceItem>{"value": "preview", "label": "Preview", "default_value": True},
+                <NcursesUi::ChoiceItem>{"value": "execute", "label": "Execute"})}));
+        NcursesUi::FormWidget form(model); app.setRoot(form); app.getFocusManager().setFocus(form.getControl("mode")); app.drawAll();
+        app.processEvent(click(row(th.screen(), "Keep this private", 24, 60), 4)); app.drawAll();
+        assertEq(form.getControl("password"), app.getFocusManager().getCurrentFocus());
+        string screen = join("", th.screen().readLines(0, 24, 60)); assertTrue(screen.find("******") >= 0); assertEq(-1, screen.find("secret"));
+        app.processEvent(click(row(th.screen(), "Explain the change", 24, 60), 4)); app.drawAll();
+        assertEq(form.getControl("body"), app.getFocusManager().getCurrentFocus());
+        hash<NcursesUi::Rect> body = form.getControl("body").getFrame();
+        assertEq("│", th.session().capture().cells[body.y * 60 + body.x - 1].text);
+        app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "\n"});
+        assertEq(NcursesUi::ActionState::Pending, model.getState()); assertEq("one\n界 é\n", model.getValue("body")); app.drawAll();
+        app.processEvent(click(row(th.screen(), "Choose an operation", 24, 60), 4));
+        assertEq(form.getControl("mode"), app.getFocusManager().getCurrentFocus()); assertEq("preview", model.getValue("mode"));
+        app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Key, "name": "KEY_DOWN"});
+        app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": " "}); assertEq("execute", model.getValue("mode"));
+    }
+}
