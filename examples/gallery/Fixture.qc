@@ -85,7 +85,7 @@ class Fixture {
                 assistance.complete(request, <NcursesUi::AssistanceResponse>{"completions": story.state == "empty" ? () : (
                     <NcursesUi::CompletionItem>{"id": "name", "label": data.completion, "text": data.completion,
                         "range": <NcursesUi::SourceRange>{"start": 6, "end": 8}, "documentation": "The name to greet.\nEnter applies; Escape cancels.", "rank": 10},),
-                    "signature": <NcursesUi::SignatureHelp>{"label": "greet(name)", "parameters": ("name",), "active_parameter": 0}});
+                    "signature": story.state == "empty" ? NOTHING : <NcursesUi::SignatureHelp>{"label": "greet(name)", "parameters": ("name",), "active_parameter": 0}});
                 NcursesUi::AssistancePopupWidget assist(app.getSession(), owner, assistance); assist.setOnDismiss(sub () { dismiss(); });
                 widget = assist; panel = assist; break;
             case "StatusBarWidget":
@@ -227,7 +227,8 @@ class Fixture {
         if (form) { state.empty = form.getValue("name") == ""; state.has_error = !!(form.getErrors()); state.loading = form.getState() == NcursesUi::ActionState::Running; }
         if (action) { state.has_error = !!(action.getError()); state.loading = action.getState() == NcursesUi::ActionState::Running; }
         if (assistance) {
-            state.empty = !assistance.getCompletions(); state.has_error = !!(assistance.getError()); state.loading = assistance.isPending();
+            state.empty = !cast<NcursesUi::AssistancePopupWidget>(widget).getResults();
+            state.has_error = !!(assistance.getError()); state.loading = assistance.isPending();
             *hash<auto> selected = cast<NcursesUi::AssistancePopupWidget>(widget).getSelectedResult();
             state.selected_kind = selected ? selected.kind : "";
             state.has_selection = state.selected_kind == "signature";

@@ -372,15 +372,11 @@ public class Application {
         if (!dirty) { return; }
         bool exposed = root.isDirty();
         root.drawTree(session.screen());
-        # update_panels() does not queue stdscr until libpanel has initialized its
-        # screen hook. Stage the base before overlays, which queue their own windows.
-        session.screen().noutrefresh();
         # draw modal widgets (they have their own panel windows)
         list<NcursesUi::Widget> modals = dispatcher.getModalStack();
         foreach NcursesUi::Widget modal in (modals) {
             bool changed = exposed || modal.isDirty();
             modal.drawTree(session.screen(), exposed);
-            if (!(modal instanceof NcursesUi::PanelWidget)) { session.screen().noutrefresh(); }
             exposed = changed;
         }
         session.updatePanels();

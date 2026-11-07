@@ -37,12 +37,12 @@ class Gallery {
         *NcursesGallery::Picker picker;
         *NcursesUi::DialogWidget info;
         hash<Ncurses::Size> available;
-        hash<Ncurses::Size> displayed;
+        *hash<Ncurses::Size> overlay_size;
         int preset = 0;
         bool closed = False;
     }
     constructor(NcursesUi::Application application, string id) {
-        app = application; available = app.getSession().screen().size(); displayed = available;
+        app = application; available = app.getSession().terminalSize();
         app.setReadTimeout(-1, 25);
         try {
             select(id);
@@ -52,19 +52,33 @@ class Gallery {
     NcursesGallery::Runner current() { return runner; }
     *NcursesGallery::Picker navigation() { return picker; }
     private nothing observeGeometry() {
-        hash<Ncurses::Size> size = app.getSession().screen().size();
-        if (size != displayed) { available = size; displayed = size; preset = 0; }
+        hash<Ncurses::Size> size = app.getSession().terminalSize();
+        if (size != available) { available = size; preset = 0; }
+    }
+    private hash<Ncurses::Size> storySize(string id) {
+        hash<Ncurses::Size> size = Registry::find(id).geometry;
+        return <Ncurses::Size>{"rows": min(size.rows, available.rows), "cols": min(size.cols, available.cols)};
     }
     nothing select(string id) {
         Registry::find(id); # Validate before replacing the current story.
         observeGeometry();
         closeOverlay();
         if (runner) { runner.close(); runner = NOTHING; }
-        app.getSession().resize(available.rows, available.cols); displayed = available; preset = 0;
+        hash<Ncurses::Size> size = storySize(id);
+        app.getSession().resize(size.rows, size.cols); preset = 0;
         runner = new NcursesGallery::Runner(app, id);
     }
-    nothing reset() { observeGeometry(); closeOverlay(); runner.reset(available); displayed = available; preset = 0; }
+    nothing reset() { observeGeometry(); closeOverlay(); runner.reset(storySize(runner.story().id)); preset = 0; }
     nothing closeOverlay() {
+        on_exit {
+            if (overlay_size) {
+                hash<Ncurses::Size> size = overlay_size; overlay_size = NOTHING;
+                if (app.getSession().isOpen()) {
+                    app.getSession().resize(min(size.rows, available.rows), min(size.cols, available.cols));
+                    app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Resize});
+                }
+            }
+        }
         on_exit {
             if (picker) { on_exit picker = NOTHING; picker.disconnect(); }
         }
@@ -73,8 +87,13 @@ class Gallery {
         }
         if (picker || info) { app.popModal(); }
     }
+    private nothing expandOverlay() {
+        observeGeometry(); overlay_size = app.getSession().screen().size();
+        app.getSession().resize(available.rows, available.cols);
+        app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Resize});
+    }
     nothing showNavigation() {
-        closeOverlay();
+        closeOverlay(); expandOverlay(); on_error closeOverlay();
         picker = new NcursesGallery::Picker(app.getSession(), sub (string id) { select(id); });
         hash<Ncurses::Size> size = app.getSession().screen().size();
         picker.setHasBorder(size.rows >= 5 && size.cols >= 12);
@@ -82,7 +101,8 @@ class Gallery {
         app.getFocusManager().setFocus(picker.query); app.drawAll();
     }
     nothing showHelp(bool inspect = False, *string notice) {
-        hash<auto> state = runner.capture(); closeOverlay();
+        closeOverlay(); hash<auto> state = runner.capture();
+        expandOverlay(); on_error closeOverlay();
         string message = runner.story().purpose + "\n\n" + runner.story().keyboard + "\n" + runner.story().mouse
             + "\n\nF1 Help | F2 Search | F3 Reset | F4 Size | F5 Next step | F6 Inspect | Ctrl+Q Quit";
         if (inspect) {
@@ -103,7 +123,6 @@ class Gallery {
         int rows = preset == 1 ? min(available.rows, 10) : preset == 2 ? min(available.rows, 4) : available.rows;
         int cols = preset == 1 ? min(available.cols, 40) : preset == 2 ? min(available.cols, 12) : available.cols;
         app.getSession().resize(rows, cols); app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Resize}); app.drawAll();
-        displayed = app.getSession().screen().size();
     }
     private hash<NcursesUi::EventResult> handle(hash<Ncurses::InputEvent> event) {
         observeGeometry();
@@ -122,7 +141,6 @@ class Gallery {
                             if (ex.err != "GALLERY-EXPECTATION-ERROR") { rethrow; }
                             showHelp(False, "The current state differs from the scripted scenario. Press F3 to reset, then F5 to replay.");
                         }
-                        displayed = app.getSession().screen().size();
                     }
                     else { showHelp(True); }
                     break;

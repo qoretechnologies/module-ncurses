@@ -233,11 +233,14 @@ resize the PTY, apply this method, deliver a Resize event and complete drawing.
 Native gallery presets deliberately change the logical viewport only. Capture
 comparison must use the same locale, terminal capabilities and geometry.
 
-`Application::drawAll()` stages base output before overlays, including when no
-native panel has initialized the panel hook and no editor requests a cursor.
-Non-panel modals stage their shared base output in draw order; native panel widgets
-stage their own windows. This prevents backing-window tests from hiding missing
-physical output and preserves overlay composition.
+`Session::updatePanels()` stages base output directly when no native panel is
+visible, including before libpanel initializes its screen hook. When panels exist,
+it leaves the base window touched lines intact for libpanel overlap propagation.
+Staging the base prematurely would consume those flags and erase already staged
+panels. Composed tests cover root, descendant, modal and nested panel surfaces.
+`Session::terminalSize()` observes device geometry independently of ncurses logical
+presets. Gallery selection/reset use registered geometry bounded by that device;
+navigation/help overlays temporarily use the available device and restore the story.
 
 The development-only `examples/gallery/` registry supplies stable story IDs, public
 API links, fixture data, geometry, input/resize steps, semantic expectations and

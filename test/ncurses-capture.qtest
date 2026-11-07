@@ -28,6 +28,7 @@ class CaptureTest inherits Test {
         addTestCase("multiple sessions and unsupported visibility remain isolated", \sessions());
         addTestCase("application flushes a base-only root and non-panel modal", \application());
         addTestCase("nested panels clip disappear and restore in composed captures", \nested());
+        addTestCase("application composes root and descendant panels after base changes", \applicationPanels());
         set_return_value(main());
     }
 
@@ -171,12 +172,16 @@ class CaptureTest inherits Test {
     resize() {
         Ncurses::TestTerminal terminal(6, 16);
         Ncurses::Session session({"test_terminal": terminal, "cursor": 1}); on_exit session.close();
+        assertEq(<Ncurses::Size>{"rows": 6, "cols": 16}, session.terminalSize());
+        session.resize(3, 8); assertEq(<Ncurses::Size>{"rows": 6, "cols": 16}, session.terminalSize());
+        session.resize(6, 16);
         NcursesUi::Application app(session); on_exit app.close();
         NcursesUi::TextEditorWidget editor(); editor.setShowScrollbar(False); app.setRoot(editor);
         app.getFocusManager().setFocus(editor); editor.setText("abcdef界éghijklmnop"); app.drawAll();
         hash<NcursesUi::EditorSnapshot> saved = editor.getBuffer().snapshot();
         foreach hash<Ncurses::Size> size in ((<Ncurses::Size>{"rows": 2, "cols": 4}, <Ncurses::Size>{"rows": 8, "cols": 20})) {
             terminal.resize(size.rows, size.cols); session.resize(size.rows, size.cols);
+            assertEq(size, session.terminalSize());
             app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Resize}); app.drawAll();
             hash<Ncurses::ScreenCapture> frame = session.capture();
             assertEq(size.rows, frame.rows); assertEq(size.cols, frame.cols);
@@ -193,6 +198,7 @@ class CaptureTest inherits Test {
             assertEq(before, session.capture());
         }
         session.close(); assertThrows("NCURSES-ERROR", sub () { session.resize(2, 2); });
+        assertThrows("NCURSES-ERROR", sub () { session.terminalSize(); });
     }
 
     sessions() {
@@ -218,6 +224,21 @@ class CaptureTest inherits Test {
         assertEq("overlay root    ", row(th.session().capture(), 0));
         app.popModal(); app.drawAll(); assertEq("changed root    ", row(th.session().capture(), 0));
         hash<Ncurses::ScreenCapture> before = th.session().capture(); app.drawAll(); assertEq(before, th.session().capture());
+    }
+    applicationPanels() {
+        Ncurses::TestTerminal terminal(12, 32); NcursesUi::Application app({"test_terminal": terminal}); on_exit app.close();
+        NcursesUi::PanelWidget panel(app.getSession(), "Root panel"); panel.createPanel(); app.setRoot(panel);
+        app.drawAll(); assertTrue(row(app.getSession().capture(), 0).find("Root panel") >= 0);
+        NcursesUi::Widget base(); app.setRoot(base); base.addChild(panel);
+        panel.setFrameValues(1, 2, 6, 24); panel.setTitle("Child panel"); app.drawAll();
+        assertTrue(row(app.getSession().capture(), 1).find("Child panel") >= 0);
+        base.markDirty(); app.drawAll(); assertTrue(row(app.getSession().capture(), 1).find("Child panel") >= 0);
+        NcursesUi::Widget modal(); modal.setFrameValues(0, 0, 12, 32);
+        NcursesUi::PanelWidget child(app.getSession(), "Modal child"); child.setFrameValues(2, 3, 5, 22);
+        modal.addChild(child); child.createPanel(); app.pushModal(modal); app.drawAll();
+        assertTrue(row(app.getSession().capture(), 2).find("Modal child") >= 0);
+        app.popModal(); child.destroyPanel(); app.drawAll();
+        assertTrue(row(app.getSession().capture(), 1).find("Child panel") >= 0);
     }
     nested() {
         NcursesUi::TestHarness th(12, 30); on_exit th.close();

@@ -853,6 +853,44 @@ hash<ScreenCapture> Session::capture() [flags=RET_VALUE_ONLY] {
     return session->capture(xsink);
 }
 
+//! Reads the terminal device geometry independently of ncurses' logical viewport
+/** Queries the input terminal's current window size without resizing, consuming input
+    or delivering a resize event. Logical viewport presets can differ from this size.
+    @return current positive terminal rows and columns
+    @throw NCURSES-ERROR closed session, unavailable device size, or ioctl failure
+    @since %ncurses 1.0
+*/
+hash<Size> Session::terminalSize() [flags=RET_VALUE_ONLY] {
+    NcursesCallGuard guard(session);
+    session->checkOpen(xsink);
+    if (*xsink) {
+        return QoreValue();
+    }
+    struct winsize size = {};
+    while (true) {
+        if (qore_check_cancel(xsink, "reading terminal device dimensions")) {
+            return QoreValue();
+        }
+        if (!ioctl(fileno(session->in_file ? session->in_file : stdin), TIOCGWINSZ, &size)) {
+            break;
+        }
+        if (errno != EINTR) {
+            xsink->raiseErrnoException("NCURSES-ERROR", errno, "ioctl(TIOCGWINSZ) failed");
+            return QoreValue();
+        }
+    }
+    if (!size.ws_row || !size.ws_col) {
+        xsink->raiseException("NCURSES-ERROR", "terminal device dimensions are unavailable");
+        return QoreValue();
+    }
+    ReferenceHolder<QoreHashNode> result(new QoreHashNode(hashdeclSize, xsink), xsink);
+    if (*xsink || result->setKeyValue("rows", size.ws_row, xsink)
+            || result->setKeyValue("cols", size.ws_col, xsink)) {
+        return QoreValue();
+    }
+    return result.release();
+}
+
 //! Applies a known terminal geometry synchronously
 /** Updates ncurses' screen buffers after the PTY or terminal has changed size.
     Unlike Window::resize(), this resizes the complete physical and virtual screen.
@@ -1027,15 +1065,25 @@ nothing Session::flushInput() {
 }
 
 //! Queues panel updates
-/**
+/** Composes visible panels with the base window. When no visible panel exists,
+    stages the base directly, including before libpanel has initialized its screen hook.
+    Do not stage the base separately before this call when composing panels: its touched
+    lines must remain available to libpanel's overlap propagation.
+    @throw NCURSES-ERROR the session is closed or base staging fails
     @since %ncurses 1.0
 */
 nothing Session::updatePanels() {
+    NcursesCallGuard guard(session);
     session->checkOpen(xsink);
     if (*xsink) {
         return nothing();
     }
-    NcursesCallGuard guard(session);
+    // update_panels() has no stdscr hook until the first native panel is created.
+    // With panels, preserve stdscr's touched lines for libpanel's overlap propagation.
+    if (!panel_above(nullptr) && wnoutrefresh(session->stdwin) == ERR) {
+        xsink->raiseException("NCURSES-ERROR", "cannot stage the base screen");
+        return nothing();
+    }
     update_panels();
     return nothing();
 }

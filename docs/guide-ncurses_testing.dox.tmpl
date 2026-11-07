@@ -15,8 +15,8 @@
     the session-local color pair, and foreground/background palette indices (-1
     for terminal defaults; NOTHING when colors are disabled).
 
-    Finish drawing first: call Application::drawAll(), or queue the base window
-    with Window::noutrefresh(), call Session::updatePanels(), then Session::doupdate().
+    Finish drawing first: call Application::drawAll(), or call Session::updatePanels()
+    then Session::doupdate(). Leave base touched lines intact for panel composition.
     Capture does not flush pending work. Window::refresh() and Panel::update() also
     complete output. Inspect focus and scrolling on the UI thread at that same
     checkpoint. Repeated captures do not move live cursors, consume input, change
@@ -46,7 +46,8 @@ QORE_MODULE_DIR=build-debug:qlib qore --enable-debug --warnings-are-errors examp
     For deterministic resize, change TestTerminal::resize(rows, cols), then call
     Session::resize(rows, cols), deliver an InputType::Resize event to the application,
     and draw before capture. Session::resize() changes ncurses buffers; it does not
-    resize the device or run application layout. No signal, delay or polling is required.
+    resize the device or run application layout. Session::terminalSize() reports the
+    device dimensions independently of this logical viewport. No signal, delay or polling is required.
 
     @section ncursestestingterminal Headless Drawing and Input Tests
 

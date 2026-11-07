@@ -20,7 +20,9 @@ python3 tools/widget_catalog.py --check
     \c --monochrome disables session colors; \c --catalog exports registry metadata as
     JSON without opening a terminal. Headless execution returns completed captures
     only after the registry expectations pass. Invalid IDs/options fail before opening
-    a terminal. Size presets change ncurses buffers, not the device's dimensions.
+    a terminal. Selection/reset apply the registered geometry bounded by the device.
+    Search/help temporarily use the available device area and restore the story on close.
+    Size presets change ncurses buffers, not the device's dimensions.
 
     To add a story, edit \c examples/gallery/Registry.qc (cross-widget scenarios) or
     \c Catalog.qc and \c Fixture.qc (widget fixtures). Specify a stable ID, API, purpose,
