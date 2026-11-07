@@ -77,8 +77,11 @@ monochrome. Each widget's default also runs at tiny, standard and wide sizes.
 `artifacts/current/` contains PNGs and compressed JSON with the complete native
 frame, palette/attributes, cursor and widget state. `artifacts/diff/` contains
 exact pixel diffs and JSON paths for semantic changes. `artifacts/index.html`
-shows baseline/current/diff together and `report.json` is the machine-readable
-failure report. Missing, changed, removed or invalid evidence fails the command.
+shows baseline/current/diff together and links only comparisons produced by the
+current run; old generated diffs are cleared even when a baseline is missing or
+capture fails. Generated output must not overlap the accepted baseline directory.
+`report.json` is the machine-readable failure report. Missing, changed, removed
+or invalid evidence fails the command.
 A failed run invalidates its completion manifest; it cannot reuse a previous
 successful run for acceptance.
 

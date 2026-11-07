@@ -70,6 +70,9 @@ Browser locale and native process locale are recorded separately. Integer line
 heights and block layout place the terminal on a device-pixel boundary, so host
 UI-font wrapping cannot change terminal screenshot rounding or glyph alignment.
 Both renderer source and styles are fingerprinted.
+Generated diffs are cleared at the start of each valid run; failed or unavailable
+comparisons do not link earlier evidence. Output/baseline overlap is rejected,
+including existing symlink aliases, before generated directories are cleared.
 
 ## Bridge choice
 
@@ -96,5 +99,7 @@ drawing-target clipping; blank cells replacing partial wide glyphs are excluded.
 Attachment actions retain typed source spans after text normalization; wrapped/scrolled mouse
 coordinates round-trip through `LineListContent` before dispatch. Completion popup
 mouse selection and keyboard acceptance share the same highlight/callback path.
+The popup's mouse origin and page size use its actual panel content rectangle,
+so ancestor/window clipping cannot change which painted item a click accepts.
 Timeline selection and file toggles accept native primary presses as well as
 synthesized clicks; release events do not repeat an action.

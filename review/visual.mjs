@@ -24,13 +24,29 @@ if (values.accept) {
 
 async function run() {
   const current = path.join(values.output, 'current'), differences = path.join(values.output, 'diff');
-  await fs.mkdir(current, { recursive: true }); await fs.mkdir(differences, { recursive: true });
+  const location = async value => {
+    try { return await fs.realpath(value); }
+    catch (error) { if (error.code !== 'ENOENT') { throw error; } return path.resolve(value); }
+  };
+  const baselineLocation = await location(values.baseline);
+  for (const directory of [current, differences]) {
+    const generated = await location(directory);
+    if (generated === baselineLocation || generated.startsWith(baselineLocation + path.sep)
+        || baselineLocation.startsWith(generated + path.sep)) {
+      throw new Error('Generated artifact directories must not overlap accepted baselines');
+    }
+  }
+  await fs.mkdir(current, { recursive: true });
   let previous, server, browser;
   const manifest = { schema: 1, complete: false, filtered: !!values.filter, entries: [] };
-  const report = [];
+  const report = [], comparisons = new Set();
   // A failed new run cannot leave an older complete manifest available for acceptance.
   await fs.writeFile(path.join(current, 'manifest.json'), JSON.stringify(manifest) + '\n');
   try {
+    // Generated comparisons belong only to this run, including missing baselines
+    // and capture failures. The overlap guard above protects accepted evidence.
+    await fs.rm(differences, { recursive: true, force: true });
+    await fs.mkdir(differences, { recursive: true });
     try { previous = JSON.parse(await fs.readFile(path.join(values.baseline, 'manifest.json'))); }
     catch (error) { if (error.code !== 'ENOENT') { throw error; } }
     if (previous && (previous.schema !== 1 || !previous.complete || !Array.isArray(previous.entries) || !previous.environment)) {
@@ -71,6 +87,7 @@ async function run() {
         const changes = semanticDiff(baselineFrame, artifact), diff = imageDiff(baselinePng, png);
         await fs.writeFile(path.join(differences, `${key}.json`), JSON.stringify(changes, null, 2) + '\n');
         await fs.writeFile(path.join(differences, `${key}.png`), diff.png);
+        comparisons.add(key);
         if (changes.length || diff.pixels || diff.resized) { report.push({ key, status: 'changed', semantic: changes.length, pixels: diff.pixels, resized: diff.resized }); }
       } catch (error) {
         if (error.code !== 'ENOENT') { throw error; }
@@ -106,9 +123,14 @@ async function run() {
     }
   }
   const escape = value => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('"', '&quot;');
-  const cards = manifest.entries.map(entry => `<details><summary>${escape(entry.key)}</summary><p>Baseline / current / exact pixel diff</p>${[
-    path.relative(values.output, path.join(values.baseline, `${entry.key}.png`)), `current/${entry.key}.png`, `diff/${entry.key}.png`,
-  ].map(src => `<img alt="${escape(src)}" src="${escape(src)}">`).join('')}<p><a href="diff/${escape(entry.key)}.json">Cell, attribute, cursor, focus and scroll changes</a></p></details>`).join('\n');
+  const cards = manifest.entries.map(entry => {
+    const compared = comparisons.has(entry.key);
+    const sources = compared ? [path.relative(values.output, path.join(values.baseline, `${entry.key}.png`)),
+      `current/${entry.key}.png`, `diff/${entry.key}.png`] : [`current/${entry.key}.png`];
+    return `<details><summary>${escape(entry.key)}</summary><p>${compared ? 'Baseline / current / exact pixel diff' : 'Current capture; comparison unavailable'}</p>${
+      sources.map(src => `<img alt="${escape(src)}" src="${escape(src)}">`).join('')}${compared
+      ? `<p><a href="diff/${escape(entry.key)}.json">Cell, attribute, cursor, focus and scroll changes</a></p>` : ''}</details>`;
+  }).join('\n');
   await fs.writeFile(path.join(values.output, 'index.html'), `<!doctype html><meta charset="utf-8"><title>Native widget review</title><style>body{font:16px sans-serif;background:#ddd;color:#111}img{vertical-align:top;max-width:100%;margin:4px}details{padding:8px;border-bottom:1px solid #888}</style><h1>Native widget review</h1><p>${manifest.entries.length} artifacts; ${report.length} differences. Complete: ${manifest.complete}. Open report.json for the machine-readable result.</p><pre>${escape(JSON.stringify(report, null, 2))}</pre>${cards}`);
   console.log(`${manifest.entries.length} artifacts; ${report.length} differences. ${path.join(values.output, 'index.html')}`);
   if (report.length) { process.exitCode = 1; }

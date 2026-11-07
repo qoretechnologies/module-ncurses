@@ -309,10 +309,10 @@ public class CompletionPopupWidget inherits NcursesUi::PanelWidget {
                 moveHighlight(1);
                 return <NcursesUi::EventResult>{"handled": True};
             } else if (name == "KEY_PPAGE") {
-                moveHighlight(-max(1, min(max_visible, contentRect().rows)));
+                moveHighlight(-itemPageSize());
                 return <NcursesUi::EventResult>{"handled": True};
             } else if (name == "KEY_NPAGE") {
-                moveHighlight(max(1, min(max_visible, contentRect().rows)));
+                moveHighlight(itemPageSize());
                 return <NcursesUi::EventResult>{"handled": True};
             }
         } else if (ev.type == Ncurses::InputType::Char) {
@@ -335,8 +335,13 @@ public class CompletionPopupWidget inherits NcursesUi::PanelWidget {
                 return <NcursesUi::EventResult>{"handled": False, "action": "dismiss"};
             }
         } else if (ev.type == Ncurses::InputType::Mouse && ev.mouse) {
+            *Ncurses::Window surface = getWindow();
+            if (!surface) { return <NcursesUi::EventResult>{"handled": False}; }
+            hash<Ncurses::Position> origin = surface.position(); hash<Ncurses::Size> size = surface.size();
+            hash<NcursesUi::Rect> visible = NcursesUi::Geometry::intersect(visibleRect(),
+                NcursesUi::Geometry::makeRect(origin.y, origin.x, size.rows, size.cols));
             int buttons = ev.mouse.button_state;
-            if (!hitTest(ev.mouse.y, ev.mouse.x)) {
+            if (!NcursesUi::Geometry::rectContains(visible, ev.mouse.y, ev.mouse.x)) {
                 if (buttons & (Ncurses::BUTTON1_PRESSED | Ncurses::BUTTON1_CLICKED | Ncurses::BUTTON1_DOUBLE_CLICKED)) {
                     dismiss(); return <NcursesUi::EventResult>{"handled": False, "action": "dismiss"};
                 }
@@ -346,10 +351,10 @@ public class CompletionPopupWidget inherits NcursesUi::PanelWidget {
                 moveHighlight(buttons & Ncurses::BUTTON4_PRESSED ? -1 : 1);
                 return <NcursesUi::EventResult>{"handled": True};
             }
-            hash<NcursesUi::Rect> rect = NcursesUi::Geometry::intersect(contentRect(), visibleRect());
+            hash<NcursesUi::Rect> rect = localContentRect(); rect.y += origin.y; rect.x += origin.x;
             if (NcursesUi::Geometry::rectContains(rect, ev.mouse.y, ev.mouse.x)
                     && (buttons & (Ncurses::BUTTON1_PRESSED | Ncurses::BUTTON1_CLICKED | Ncurses::BUTTON1_DOUBLE_CLICKED))) {
-                int index = scroll_offset + ev.mouse.y - contentRect().y;
+                int index = scroll_offset + ev.mouse.y - rect.y;
                 if (index >= 0 && index < completion_items.size()) {
                     moveHighlight(index - highlight_index);
                     if (buttons & Ncurses::BUTTON1_DOUBLE_CLICKED) {
@@ -360,6 +365,10 @@ public class CompletionPopupWidget inherits NcursesUi::PanelWidget {
             }
         }
         return <NcursesUi::EventResult>{"handled": False};
+    }
+
+    private int itemPageSize() {
+        return max(1, min(visibleCount(), (getWindow() ? localContentRect() : contentRect()).rows));
     }
 
     private nothing moveHighlight(int dir) {
@@ -373,7 +382,7 @@ public class CompletionPopupWidget inherits NcursesUi::PanelWidget {
             highlight_index = completion_items.size() - 1;
         }
         # adjust scroll to keep highlighted item visible
-        int vis = max(1, min(visibleCount(), contentRect().rows));
+        int vis = itemPageSize();
         scroll_offset = max(0, min(scroll_offset, completion_items.size() - vis));
         if (highlight_index < scroll_offset) {
             scroll_offset = highlight_index;

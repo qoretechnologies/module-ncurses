@@ -15,6 +15,7 @@ class MouseActionsTest inherits Test {
         addTestCase("attachment mouse operations share cancellation exception and completion guards", \attachments());
         addTestCase("attachment targets follow normalized wrapped and scrolled source spans", \wrapping());
         addTestCase("completion popup mouse keyboard acceptance failure and dismissal", \completion());
+        addTestCase("top-clipped popup mouse rows match painting and keyboard scrolling", \clippedCompletion());
         addTestCase("terminal press and release select timeline events and toggle files once", \pressRelease());
         addTestCase("file preview is keyboard reachable without changing directory navigation", \filePane());
         set_return_value(main());
@@ -82,6 +83,31 @@ class MouseActionsTest inherits Test {
         popup.setOnDismiss(sub () { app.popModal(); popup.destroyPanel(); });
         app.processEvent(click(11, 39)); app.drawAll(); assertFalse(app.getDispatcher().hasModal()); assertEq(editor, app.getFocusManager().getCurrentFocus());
         assertEq(1, th.session().capture().cursor.visibility);
+    }
+    clippedCompletion() {
+        NcursesUi::TestHarness th(12, 40); on_exit th.close();
+        foreach bool ancestor in ((True, False)) {
+            NcursesUi::Widget parent(); parent.setFrameValues(ancestor ? 3 : 0, 0, ancestor ? 4 : 12, 40);
+            NcursesUi::CompletionPopupWidget popup(th.session(), ({"label": "Alpha"}, {"label": "Beta"}, {"label": "Gamma"}, {"label": "Delta"}));
+            on_exit { popup.setOnSelect(NOTHING); popup.destroyPanel(); }
+            popup.setFrameValues(1, 1, 6, 20); parent.addChild(popup); popup.createPanel();
+            Ncurses::Window target = ancestor ? th.screen() : th.screen().subWindow(4, 20, 3, 2);
+            parent.drawTree(target); Ncurses::Window surface = popup.getWindow();
+            assertEq(3, surface.position().y); assertTrue(surface.readText(0, 0, 20).find("Alpha") >= 0);
+            int x = max(2, surface.position().x);
+            assertTrue(popup.processEvent(click(3, x)).handled); assertEq(0, popup.getHighlightIndex());
+            string selected; popup.setOnSelect(sub (hash<auto> item) { selected = item.label; });
+            hash<Ncurses::InputEvent> accept = click(3, x); accept.mouse.button_state = Ncurses::BUTTON1_DOUBLE_CLICKED;
+            assertEq("select", popup.processEvent(accept).action); assertEq("Alpha", selected);
+            popup.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Key, "name": "KEY_NPAGE"});
+            parent.drawTree(target); assertEq(3, popup.getHighlightIndex());
+            assertTrue(surface.readText(0, 0, 20).find("Beta") >= 0);
+            assertTrue(surface.readText(2, 0, 20).find("Delta") >= 0);
+            popup.processEvent(accept); assertEq("Beta", selected); assertEq(1, popup.getHighlightIndex());
+            assertEq("dismiss", popup.processEvent(click(2, x)).action);
+            parent.setFrameValues(10, 0, 1, 40); parent.drawTree(th.screen());
+            assertFalse(popup.processEvent(accept).handled); assertEq("Beta", selected);
+        }
     }
     labels() {
         NcursesUi::TestHarness th(10, 40); on_exit th.close();

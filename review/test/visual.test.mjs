@@ -45,6 +45,14 @@ test('visual command reports missing, unchanged, changed and invalid evidence wi
   report = JSON.parse(await fs.readFile(path.join(output, 'report.json')));
   const changed = report.find(item => item.key === key); assert.equal(changed.semantic, 1); assert.equal(changed.pixels, 1);
   assert.ok((await fs.stat(path.join(output, 'diff', `${key}.png`))).size > 0);
+  await fs.rename(imagePath, imagePath + '.saved');
+  result = await run(args); assert.equal(result.code, 1, result.output);
+  assert.ok(JSON.parse(await fs.readFile(path.join(output, 'report.json'))).some(item => item.key === key && item.status === 'missing baseline'));
+  for (const extension of ['png', 'json']) {
+    await assert.rejects(fs.access(path.join(output, 'diff', `${key}.${extension}`)), { code: 'ENOENT' });
+  }
+  assert.ok(!(await fs.readFile(path.join(output, 'index.html'), 'utf8')).includes(`diff/${key}.`));
+  await fs.rename(imagePath + '.saved', imagePath);
   await fs.writeFile(framePath, 'corrupt');
   result = await run(args); assert.equal(result.code, 1); assert.match(await fs.readFile(path.join(output, 'report.json'), 'utf8'), /Invalid baseline integrity/);
   await fs.writeFile(path.join(baseline, 'manifest.json'), '{invalid');
@@ -55,4 +63,12 @@ test('visual command reports missing, unchanged, changed and invalid evidence wi
   result = await run(args, { NCURSES_BUILD_DIR: path.join(root, 'missing-build') });
   assert.equal(result.code, 1); assert.equal(JSON.parse(await fs.readFile(path.join(output, 'current/manifest.json'))).complete, false);
   result = await run(['--accept'], { CI: 'true' }); assert.equal(result.code, 1); assert.match(result.output, /disabled in CI/);
+  const preserved = path.join(output, 'diff', 'preserve.txt'); await fs.writeFile(preserved, 'accepted evidence');
+  result = await run(['--filter', 'label.default.color.registered', '--output', output, '--baseline', path.join(output, 'diff')]);
+  assert.equal(result.code, 1); assert.match(result.output, /must not overlap/);
+  assert.equal(await fs.readFile(preserved, 'utf8'), 'accepted evidence');
+  const alias = path.join(root, 'baseline-alias'); await fs.symlink(path.join(output, 'diff'), alias);
+  result = await run(['--filter', 'label.default.color.registered', '--output', output, '--baseline', alias]);
+  assert.equal(result.code, 1); assert.match(result.output, /must not overlap/);
+  assert.equal(await fs.readFile(preserved, 'utf8'), 'accepted evidence');
 });
