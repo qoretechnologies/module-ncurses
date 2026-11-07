@@ -64,7 +64,9 @@ export class NativeTerminal extends HTMLElement {
     const size = this.geometry ?? story.geometry;
     this.term = new Terminal({ ...size, rows: size.rows, cols: size.cols, scrollback: 0, fontSize: 14,
       fontFamily: '"Noto Sans Mono", "Noto Sans SC", "Noto Emoji", monospace', fontWeight: '400', fontWeightBold: '700',
-      lineHeight: 1, letterSpacing: 0, cursorBlink: false, cursorStyle: 'block', allowTransparency: false,
+      // An alpha glyph atlas uses grayscale coverage instead of host-dependent LCD
+      // subpixel colors. The terminal theme/host background remains fully opaque.
+      lineHeight: 1, letterSpacing: 0, cursorBlink: false, cursorStyle: 'block', allowTransparency: true,
       customGlyphs: true, theme, allowProposedApi: true });
     this.term.open(this.host);
     // Cell-edge geometry is drawn by xterm, independent of font ascenders/descenders.

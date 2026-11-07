@@ -67,6 +67,18 @@ the image inspections described below precede explicit baseline acceptance.
     before the next key fixes the root cause. Raw PTY tests cover following ASCII,
     Unicode, function and Escape keys, outside release, flush and session isolation.
     Capture/provider/popup failure paths also have exception-cleanup regressions.
+  - PR review tightened the compact assertion to the reviewed control's clipped
+    content rectangle and its own editing caret. Borders/titles and a background
+    editor's caret cannot satisfy it. Mid-token completion replaces the complete
+    identifier and preserves an existing call parenthesis. Outside primary clicks
+    cancel assistance, destroy its panel and continue to the underlying control.
+    File previews identify emptiness from a bounded read, including readable
+    zero-size-metadata virtual files, and reject unsupported special files.
+  - Ubuntu's first follow-up capture matched every native state but exposed LCD
+    color fringes in the opaque WebGL glyph atlas. Local grayscale/RGB fontconfig
+    profiles reproduced the mismatch. An alpha glyph atlas selects grayscale
+    coverage while the terminal background remains opaque; a regression compares
+    both profiles exactly. Pixel thresholds and semantic assertions are unchanged.
 - [#5622](https://github.com/qoretechnologies/qore/issues/5622): visible mouse action
   targets were inconsistent. Button/checkbox hit tests now exclude unrelated blank
   rows, padding and clipped areas; disabled/ancestor-disabled actions render dim.
@@ -93,7 +105,10 @@ the image inspections described below precede explicit baseline acceptance.
 - Development integration found missing WebSocket upgrades in Storybook's Vite
   middleware mode. Supplying the owning HTTP server fixes the proxy. Generated
   artifact directories are excluded from HMR so review output cannot reload an
-  active story. The documented development command is tested end to end.
+  active story. Adapter-code edits require a document reload because browsers cannot
+  replace a registered custom-element constructor. The development regression now
+  exercises that reload and input in the new story without
+  duplicate-registration errors. The documented development command is tested end to end.
 - Cross-platform CI found fractional terminal placement from surrounding system-font
   line boxes. Integer line heights and block placement now keep captures on device
   pixels; varying surrounding fonts and wrapping leaves terminal images identical.

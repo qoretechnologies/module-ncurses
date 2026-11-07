@@ -3,7 +3,8 @@
 public namespace NcursesUi {
 /** Caret-anchored assistance with ranked completions, diagnostics, actions and signature help.
     Type to filter completion labels; Up/Down select, Enter activates, Tab switches
-    between the result list and scrollable documentation, and Escape dismisses.
+    between the result list and scrollable documentation. Escape and outside primary
+    clicks dismiss; outside clicks can continue to the underlying control.
     Use the application's popup stack and setOnDismiss() to pop/destroy the panel.
     The editor's shared caret mapping supplies the anchor across wrapping/scrolling.
     If the caret is outside the visible editor, positionAtCaret() hides/cancels help.
@@ -113,6 +114,12 @@ public class AssistancePopupWidget inherits NcursesUi::PanelWidget {
             return <NcursesUi::EventResult>{"handled": True, "action": activateSelected() ? "accept" : NOTHING};
         }
         if (event.type == Ncurses::InputType::Mouse && event.mouse) {
+            if (!hitTest(event.mouse.y, event.mouse.x)
+                    && (event.mouse.button_state & (Ncurses::BUTTON1_PRESSED | Ncurses::BUTTON1_CLICKED
+                        | Ncurses::BUTTON1_DOUBLE_CLICKED | Ncurses::BUTTON1_TRIPLE_CLICKED))) {
+                # Release owned panels/providers before the dispatcher forwards the click.
+                dismiss(); return <NcursesUi::EventResult>{"action": "dismiss"};
+            }
             if (documentation.hitTest(event.mouse.y, event.mouse.x)) { docs_active = True; updateTitle(); markDirty(); return documentation.processEvent(event); }
             if (results.hitTest(event.mouse.y, event.mouse.x)) { docs_active = False; updateTitle(); markDirty(); return results.processEvent(event); }
             return <NcursesUi::EventResult>{};

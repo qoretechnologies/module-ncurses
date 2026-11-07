@@ -231,6 +231,16 @@ test('button presses, choice hierarchy, compact recovery and code assistance are
     await page.locator('.native-terminal').screenshot({ path: '/tmp/ncurses-code-editor.png' });
     await page.keyboard.press('Control+z'); frame = await command(page, 'capture'); assert.match(frame.state.text, /pri$/);
     await page.keyboard.press('F8'); await page.keyboard.press('Escape'); frame = await command(page, 'capture'); assert.equal(frame.state.modal, false);
+    await page.keyboard.type('ntf');
+    for (let i = 0; i < 3; i++) { await page.keyboard.press('ArrowLeft'); }
+    await page.keyboard.press('F8'); await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter');
+    frame = await command(page, 'capture'); assert.match(frame.state.text, /printf\($/); assert.ok(!frame.state.text.includes('printf(ntf'));
+    await page.keyboard.press('Control+z'); frame = await command(page, 'capture'); assert.match(frame.state.text, /printf$/);
+    await command(page, 'resize', 20, 100);
+    await page.keyboard.press('F8'); frame = await command(page, 'capture'); assert.equal(frame.state.modal, true);
+    const assistanceOutside = await cell(99, 0); await page.mouse.click(assistanceOutside.x, assistanceOutside.y);
+    frame = await command(page, 'capture'); assert.equal(frame.state.modal, false); assert.equal(frame.state.focus, 'TextEditorWidget');
+    assert.ok(!frame.frame.cells.map(cell => cell.text).join('').includes('Assistance ['));
     assert.deepEqual(errors, []); await command(page, 'dispose');
   } finally { await browser.close(); await server.close(); }
 });
@@ -269,4 +279,24 @@ test('WebGL draws contiguous frame edges and reports lost graphics contexts', { 
     assert.equal(lost.closing, true); assert.match(lost.message, /Reload the story/);
     await command(page, 'dispose');
   } finally { await browser.close(); await server.close(); }
+});
+
+test('glyph rasterization is identical with grayscale and RGB host font profiles', { timeout: 30000 }, async () => {
+  const fs = await import('node:fs/promises'); const os = await import('node:os'); const path = await import('node:path');
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'ncurses-font-profiles-'));
+  const server = await createBridgeServer({ port: 0, staticDir: fileURLToPath(new URL('../storybook-static/', import.meta.url)) });
+  const images = [];
+  try {
+    for (const profile of ['none', 'rgb']) {
+      const config = path.join(directory, `${profile}.conf`);
+      await fs.writeFile(config, `<?xml version="1.0"?><!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd"><fontconfig><include>/etc/fonts/fonts.conf</include><match target="font"><edit name="rgba" mode="assign"><const>${profile}</const></edit></match></fontconfig>`);
+      const browser = await chromium.launch({ args: browserArgs, env: { ...process.env, FONTCONFIG_FILE: config } });
+      try {
+        const page = await browser.newPage({ viewport: { width: 1400, height: 1000 }, deviceScaleFactor: 1 });
+        await openStory(page, `http://127.0.0.1:${server.port}`, server.stories.find(story => story.id === 'label.default'));
+        images.push(await page.locator('.native-terminal').screenshot()); await command(page, 'dispose');
+      } finally { await browser.close(); }
+    }
+    assert.equal(imageDiff(images[0], images[1]).pixels, 0);
+  } finally { await server.close(); await fs.rm(directory, { recursive: true, force: true }); }
 });

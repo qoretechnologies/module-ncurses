@@ -560,10 +560,9 @@ public class FileBrowserWidget inherits NcursesUi::PanelWidget {
 
         string path = item.path;
         try {
-            hash<auto> st = hstat(path);
-            # File identification may classify an empty file as non-text.
-            if (!st.size) {
-                preview_content.appendLine("(Empty file)");
+            hash<StatInfo> st = hstat(path);
+            if (st.type != "REGULAR") {
+                preview_content.appendLine("(Special file; preview unavailable)");
                 preview_widget.markDirty();
                 return;
             }
@@ -573,10 +572,24 @@ public class FileBrowserWidget inherits NcursesUi::PanelWidget {
                 preview_widget.markDirty();
                 return;
             }
+            # Metadata can report zero for readable virtual files, or change while
+            # the file is read. Determine EOF and enforce the limit on actual bytes.
+            binary data = ReadOnlyFile::readBinaryFile(path, max_preview_size + 1);
+            if (!data.size()) {
+                preview_content.appendLine("(Empty file)");
+                preview_widget.markDirty();
+                return;
+            }
+            if (data.size() > max_preview_size) {
+                preview_content.appendLine("(File too large to preview)");
+                preview_widget.markDirty();
+                return;
+            }
 
             # check for binary files by extension, magic info, or content
             string ftype = item.type ?? "file";
-            if (ftype == "binary" || isBinaryContent(path, item)) {
+            # An empty-file classification based on zero stat size is unreliable.
+            if ((st.size && ftype == "binary") || isBinaryContent(data, st.size ? item : NOTHING)) {
                 preview_content.appendLine("(Binary file)");
                 preview_content.appendLine(sprintf("Size: %s", formatSize(st.size)));
                 # show MIME type and description from magic info if available
@@ -590,13 +603,7 @@ public class FileBrowserWidget inherits NcursesUi::PanelWidget {
                 return;
             }
 
-            string data = ReadOnlyFile::readTextFile(path);
-            if (data == "") {
-                preview_content.appendLine("(Empty file)");
-                preview_widget.markDirty();
-                return;
-            }
-            list<string> lines = data.split("\n");
+            list<string> lines = data.toString().split("\n");
             foreach string line in (lines) {
                 preview_content.appendLine(line);
             }
@@ -866,32 +873,21 @@ public class FileBrowserWidget inherits NcursesUi::PanelWidget {
         Uses the file info provider's \c is_text field when available in the
         item's \c file_info hash; otherwise falls back to null-byte scanning.
 
-        @param path the file path
+        @param data the bounded file contents
         @param item the file item hash (may contain \c file_info from provider)
         @return True if the file appears to be binary
         @since ncurses 1.0
     */
-    private bool isBinaryContent(string path, *hash<auto> item) {
+    private bool isBinaryContent(binary data, *hash<auto> item) {
         # use magic info if available
         if (item.file_info.is_text != NOTHING) {
             return !item.file_info.is_text;
         }
         # fallback: scan for null bytes
-        try {
-            ReadOnlyFile f(path);
-            *binary chunk = f.readBinary(8192);
-            if (!chunk || !chunk.size()) {
-                return False;
-            }
-            for (int i = 0; i < chunk.size(); ++i) {
-                if (chunk[i] == 0) {
-                    return True;
-                }
-            }
-            return False;
-        } catch (hash<ExceptionInfo> ex) {
-            return False;
+        for (int i = 0; i < min(8192, data.size()); ++i) {
+            if (data[i] == 0) { return True; }
         }
+        return False;
     }
 
     private string renderFileItem(hash<auto> item) {

@@ -10,6 +10,7 @@
 %ifndef NoAstparser
 %requires QoreRepl
 %requires QUnit
+%include "test/TestHarness.qc"
 %include "examples/gallery/Registry.qc"
 %include "examples/gallery/Catalog.qc"
 %include "examples/gallery/Variants.qc"
@@ -33,6 +34,7 @@ class GalleryTest inherits Test {
         addTestCase("compact file panes and dialog retain usable content and actions", \compact());
         addTestCase("real code highlighting completion hints undo and cancellation", \codeEditor());
         addTestCase("code popup cleanup survives failing focus restoration", \codeFailure());
+        addTestCase("compact content excludes panel chrome and unrelated editing cursors", \visibleContent());
         addTestCase("story selection search and errors", \registry());
         addTestCase("reset removes modal state and restores deterministic fixtures", \reset());
         addTestCase("failed callbacks propagate and cleanup permits the next story", \failure());
@@ -128,16 +130,54 @@ class GalleryTest inherits Test {
         assertEq(<NcursesUi::SourceRange>{"start": 0, "end": 3}, response.completions[1].range);
         assertTrue(model.complete(request, response)); assertTrue(model.applyCompletion("printf"));
         assertEq("printf(", buffer.getText()); buffer.undo(); assertEq("pri", buffer.getText());
+        foreach hash<auto> example in (({"text": "printf", "expected": "printf("},
+                {"text": "printf(\"value\")", "expected": "printf(\"value\")"},
+                {"text": "printf \t (\"value\")", "expected": "printf \t (\"value\")"},
+                {"text": "pri_suffix + tail", "expected": "printf( + tail"},
+                {"text": "# 界é\npri_suffix", "expected": "# 界é\nprintf("})) {
+            buffer.setText(example.text); int start = example.text.find("pri"); buffer.setCursor(start + 3);
+            request = model.beginRequest(); response = support.complete(request);
+            assertTrue(model.complete(request, response)); assertTrue(model.applyCompletion("printf"));
+            assertEq(example.expected, buffer.getText()); buffer.undo(); assertEq(example.text, buffer.getText());
+        }
         buffer.setText("nonexistent_unique_symbol_abc"); request = model.beginRequest(); assertEq((), support.complete(request).completions);
-        Ncurses::TestTerminal terminal(12, 64); NcursesUi::Application app({"test_terminal": terminal}); on_exit app.close();
+        Ncurses::TestTerminal terminal(20, 100); NcursesUi::Application app({"test_terminal": terminal}); on_exit app.close();
         NcursesGallery::Runner runner(app, "text-editor.code"); on_exit runner.close();
         string original = runner.inspect().text;
         app.processEvent(NcursesGallery::Registry::key("KEY_F(8)")); assertTrue(runner.capture().state.modal);
         app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "\e"});
         assertFalse(runner.capture().state.modal); assertEq(original, runner.inspect().text); assertEq("TextEditorWidget", runner.inspect().focus);
+        app.processEvent(NcursesGallery::Registry::key("KEY_F(8)")); runner.capture();
+        NcursesUi::PanelWidget old_popup = cast<NcursesUi::PanelWidget>(app.getDispatcher().topModal());
+        app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Mouse,
+            "mouse": <Ncurses::MouseEvent>{"y": 0, "x": 99, "button_state": Ncurses::BUTTON1_PRESSED}});
+        assertFalse(runner.capture().state.modal); assertNothing(old_popup.getWindow());
+        assertFalse(old_popup.isVisible()); assertEq("TextEditorWidget", runner.inspect().focus); assertEq(original, runner.inspect().text);
         app.processEvent(NcursesGallery::Registry::key("KEY_F(8)")); runner.reset(); assertFalse(runner.capture().state.modal);
         terminal.resize(1, 1); app.getSession().resize(1, 1); app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Resize});
         app.processEvent(NcursesGallery::Registry::key("KEY_F(8)")); runner.capture(); runner.close(); assertFalse(app.getDispatcher().hasModal());
+    }
+    visibleContent() {
+        NcursesUi::TestHarness th(8, 30); on_exit th.close();
+        NcursesUi::PanelWidget panel(th.session(), "Only chrome"); panel.setFrameValues(0, 0, 6, 20);
+        panel.createPanel(); on_exit panel.destroyPanel(); panel.drawTree(th.screen()); th.refresh();
+        hash<Ncurses::ScreenCapture> frame = th.session().capture();
+        assertFalse(NcursesGallery::Runner::hasVisibleContent(panel, NOTHING, frame));
+        NcursesUi::TextEditorWidget background_editor(); background_editor.setFrameValues(0, 0, 8, 30);
+        frame.cursor.visibility = 1; frame.cursor.y = 2; frame.cursor.x = 2;
+        assertFalse(NcursesGallery::Runner::hasVisibleContent(panel, background_editor, frame));
+        assertThrows("GALLERY-EXPECTATION-ERROR", sub () {
+            NcursesGallery::Runner::verify({"story": "negative", "checkpoint": "border-only",
+                "state": {"visible_content": NcursesGallery::Runner::hasVisibleContent(panel, background_editor, frame)}, "frame": frame}, {"visible_content": True});
+        });
+        NcursesUi::LabelWidget label("Actual content"); label.setFrameValues(1, 1, 1, 16); panel.addChild(label);
+        panel.drawTree(th.screen(), True); th.refresh(); assertTrue(NcursesGallery::Runner::hasVisibleContent(panel, NOTHING, th.session().capture()));
+        label.setFrameValues(7, 1, 1, 16); panel.drawTree(th.screen(), True); th.refresh();
+        assertFalse(NcursesGallery::Runner::hasVisibleContent(panel, NOTHING, th.session().capture()));
+        panel.destroyPanel(); th.screen().erase(); background_editor.setFocused(True); background_editor.drawTree(th.screen(), True); th.refresh();
+        frame = th.session().capture(); frame.cursor.visibility = 1; frame.cursor.y = 0; frame.cursor.x = 0;
+        assertTrue(NcursesGallery::Runner::hasVisibleContent(background_editor, background_editor, frame));
+        assertFalse(NcursesGallery::Runner::hasVisibleContent(label, background_editor, frame));
     }
     codeFailure() {
         Ncurses::TestTerminal terminal(12, 64); NcursesUi::Application app({"test_terminal": terminal}); on_exit app.close();

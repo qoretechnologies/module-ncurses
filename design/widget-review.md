@@ -108,13 +108,20 @@ synthesized clicks; release events do not repeat an action.
 
 The WebGL addon draws box glyphs to cell boundaries. Its version, xterm version,
 software rendering flags, fonts, theme and geometry participate in baseline identity.
+A transparent glyph atlas uses grayscale coverage instead of host-dependent LCD
+subpixel colors; the terminal theme and host still paint an opaque background.
 A pixel test checks consecutive real popup border cells for vertical gaps. Graphics
 context loss rejects outstanding work and closes the PTY, with reload guidance.
+Editing the terminal adapter in development triggers a full document reload: custom
+element registries cannot replace constructors. Generated artifacts remain excluded
+from HMR; the reload regression verifies a fresh story and renewed interactivity.
 
 Each constrained story starts at 8×40, explicitly shrinks to 4×12, recovers, performs
 its registered interaction and restores the original size. The independent default
-4×12 capture matrix remains intact. Nonblank output/caret and action-specific state
-assertions replace enabled-only checks. Live review distinguishes empty, disabled,
+4×12 capture matrix remains intact. Nonblank content in the reviewed control's
+clipped content rectangle, or its own editing caret, and action-specific assertions
+replace enabled-only checks. Borders/titles and unrelated cursors do not count.
+Live review distinguishes empty, disabled,
 closed and submitted states; it labels below-example-size viewports and offers Standard
 recovery. Manual input disables recorded-step replay until reset, avoiding assertions
 against an already changed draft. Toolbar actions restore terminal keyboard focus.

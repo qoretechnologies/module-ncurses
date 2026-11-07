@@ -226,3 +226,9 @@ checks; neither is a human usability study. Apply observable criteria informed b
   are no intentional typing delays, and 400 ms is not treated as a typing budget.
 - Focus, selection, disabled states and progress remain understandable in
   monochrome through cursor, marks, reverse/bold/dim attributes and explicit text.
+
+Compact checks count content inside the reviewed control's clipped content rectangle
+or that control's editing caret. Panel chrome and an unrelated background cursor
+cannot satisfy them. Browser glyphs use a transparent WebGL atlas for consistent
+grayscale antialiasing; the terminal theme/background remains opaque. A regression
+compares grayscale and RGB host font profiles without tolerating pixel differences.

@@ -29,13 +29,17 @@ class CodeSupport {
     hash<NcursesUi::AssistanceResponse> complete(hash<NcursesUi::AssistanceRequest> request) {
         string prefix = request.text.substr(0, request.cursor); int start = request.cursor;
         while (start > 0 && prefix.substr(start - 1, 1) =~ /[A-Za-z_0-9]/) { --start; }
+        int end = request.cursor;
+        while (end < request.text.length() && request.text.substr(end, 1) =~ /[A-Za-z_0-9]/) { ++end; }
+        int call_start = end;
+        while (call_start < request.text.length() && request.text.substr(call_start, 1) =~ /[ \t]/) { ++call_start; }
         list<hash<NcursesUi::CompletionItem>> items = ();
         foreach hash<QoreCodeCompletion::CompletionItem> item in (repl.getCompletionDetails(prefix)) {
             string insertion = item.label;
-            if (item.isCallable) { insertion += item.noArgsOnly ? "()" : "("; }
-            else if (item.kind == "namespace") { insertion += "::"; }
+            if (item.isCallable && request.text.substr(call_start, 1) != "(") { insertion += item.noArgsOnly ? "()" : "("; }
+            else if (item.kind == "namespace" && request.text.substr(end, 2) != "::") { insertion += "::"; }
             items += <NcursesUi::CompletionItem>{"id": item.label, "label": item.label, "text": insertion,
-                "range": <NcursesUi::SourceRange>{"start": start, "end": request.cursor},
+                "range": <NcursesUi::SourceRange>{"start": start, "end": end},
                 "detail": item.detail ?? "", "documentation": item.detail ?? ""};
         }
         string signature = hint(prefix);

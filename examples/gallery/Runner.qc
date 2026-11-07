@@ -97,7 +97,7 @@ class Runner {
         }
     }
     private nothing dismiss() { app.popModal(); if (popup) { popup.destroyPanel(); } }
-    hash<auto> inspect() {
+    hash<auto> inspect(*hash<Ncurses::ScreenCapture> frame) {
         checkOpen();
         *NcursesUi::Widget focus = app.getFocusManager().getCurrentFocus();
         hash<auto> state = {"focus": focus ? focus.className() : "", "modal": app.getDispatcher().hasModal(), "enabled": widget.isEnabled()};
@@ -105,11 +105,30 @@ class Runner {
         if (editor) { state.text = editor.getText(); state.scroll = editor.getScrollY(); state.empty = editor.getText() == ""; state.has_selection = editor.getBuffer().selectedText() != ""; }
         if (table) { state.selected = table.getSelectedRow(); state.scroll = table.getScrollOffset(); state.empty = !table.getRows(); state.has_selection = table.getSelectedRow() == 1; }
         if (popup && app.getDispatcher().hasModal()) { state.selected = popup.getHighlightIndex(); state.empty = !popup.getItems(); state.has_selection = popup.getHighlightIndex() == 1; }
+        if (definition.state == "constrained") {
+            state.visible_content = hasVisibleContent(popup && app.getDispatcher().hasModal() ? popup : widget,
+                focus, frame ?? app.getSession().capture());
+        }
         return state;
     }
     hash<auto> capture(string checkpoint = "interactive") {
         checkOpen(); app.drawAll(); syncCursor();
-        return {"story": definition.id, "checkpoint": checkpoint, "state": inspect(), "frame": app.getSession().capture()};
+        hash<Ncurses::ScreenCapture> frame = app.getSession().capture();
+        return {"story": definition.id, "checkpoint": checkpoint, "state": inspect(frame), "frame": frame};
+    }
+    static bool hasVisibleContent(NcursesUi::Widget control, *NcursesUi::Widget focus, hash<Ncurses::ScreenCapture> frame) {
+        if (!control.isVisible() || (control instanceof NcursesUi::PanelWidget
+                && !cast<NcursesUi::PanelWidget>(control).getWindow())) { return False; }
+        hash<NcursesUi::Rect> rect = NcursesUi::Geometry::intersect(control.contentRect(), control.visibleRect());
+        rect = NcursesUi::Geometry::intersect(rect, NcursesUi::Geometry::makeRect(0, 0, frame.rows, frame.cols));
+        for (int y = rect.y; y < rect.y + rect.rows; ++y) {
+            for (int x = rect.x; x < rect.x + rect.cols; ++x) {
+                if (trim(frame.cells[y * frame.cols + x].text) != "") { return True; }
+            }
+        }
+        return focus && control.containsWidget(focus) && focus.wantsCursor() && frame.cursor.visibility > 0
+            && NcursesUi::Geometry::rectContains(rect, frame.cursor.y, frame.cursor.x)
+            && NcursesUi::Geometry::rectContains(focus.contentRect(), frame.cursor.y, frame.cursor.x);
     }
     hash<auto> step() {
         checkOpen();
@@ -134,10 +153,7 @@ class Runner {
             else if (key == "cursor_x") { valid = artifact.frame.cursor.x == expected{key}; }
             else if (key == "focus_nonempty") { valid = artifact.state.focus != ""; }
             else if (key == "scroll_min") { valid = artifact.state.scroll >= expected{key}; }
-            else if (key == "visible_content") {
-                string text; foreach hash<Ncurses::ScreenCell> cell in (artifact.frame.cells) { text += cell.text; }
-                valid = trim(text) != "" || artifact.frame.cursor.visibility > 0;
-            } else if (key == "contains") {
+            else if (key == "contains") {
                 string text; foreach hash<Ncurses::ScreenCell> cell in (artifact.frame.cells) { text += cell.text; }
                 valid = text.find(expected{key}) >= 0;
             } else { valid = artifact.state{key} == expected{key}; }
