@@ -49,6 +49,7 @@ class GalleryTest inherits Test {
         addTestCase("nonmodal cursor follows final focus during capture and native event loops", \cursorPolicy());
         addTestCase("full application stories retain their bindings and release the embedded layout", \appRouting());
         addTestCase("interactive gallery captures evaluated output and restores streams", \galleryCapture());
+        addTestCase("application gallery protects running work and keeps search shortcuts", \appBusy());
         set_return_value(main());
     }
     private code<nothing()> storyTest(hash<NcursesGallery::Story> story) { return sub () { runStory(story); }; }
@@ -385,10 +386,66 @@ class GalleryTest inherits Test {
         app.processEvent(NcursesGallery::Registry::key("KEY_F(6)")); assertEq("TextEditorWidget", gallery.current().inspect().focus);
         app.processEvent(NcursesGallery::Registry::key("KEY_F(1)")); assertTrue(app.getDispatcher().hasModal());
         app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "\e"});
-        app.processEvent(NcursesGallery::Registry::key("KEY_F(14)")); assertTrue(!!gallery.navigation()); gallery.closeOverlay();
+        app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Alt, "ch": "2"}); assertTrue(!!gallery.navigation()); gallery.closeOverlay();
         gallery.select("table.scrolling"); app.processEvent(NcursesGallery::Registry::key("KEY_END")); assertEq(23, gallery.current().inspect().selected);
         gallery.select("qrepl.completion"); app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "\t"}); assertTrue(app.getDispatcher().hasModal());
         gallery.reset(); assertFalse(app.getDispatcher().hasModal()); assertEq("pri", gallery.current().inspect().text);
+        foreach string story in (("qrepl.completion", "qrepl.files", "qrepl.default")) {
+            gallery.select(story);
+            foreach hash<NcursesGallery::Step> step in (gallery.current().story().steps) {
+                assertEq(step.checkpoint, gallery.current().step().checkpoint);
+            }
+        }
+    }
+    appBusy() {
+        NcursesUi::TestHarness th(16, 72); on_exit th.close(); NcursesUi::Application app(th.session());
+        NcursesGallery::Gallery gallery(app, "qrepl.default");
+        hash<PipeInfo> gate = File::getPipe(); bool released = False;
+        on_exit { if (!released) { gate.write.write("release\n"); } gallery.close(); gate.write.close(); gate.read.close(); }
+        NcursesUi::TextEditorWidget editor = cast<NcursesUi::TextEditorWidget>(app.getFocusManager().getCurrentFocus());
+        editor.setText("keep this draft");
+        NcursesUi::TranscriptWidget output = cast<NcursesUi::TranscriptWidget>(app.getRoot().getChildren()[1]);
+        output.appendLine("match one");
+        for (int i = 0; i < 20; ++i) { output.appendLine("between"); }
+        output.appendLine("match two"); output.setSearch("match"); output.findNext(); output.findNext();
+        int last_match_scroll = output.getScrollY();
+        app.processEvent(NcursesGallery::Registry::key("KEY_F(15)"));
+        assertEq(editor, app.getFocusManager().getCurrentFocus()); assertEq("keep this draft", editor.getText());
+        assertTrue(output.getScrollY() < last_match_scroll);
+        app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Alt, "ch": "1"});
+        app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "\x11"});
+        NcursesUi::DialogWidget quit = cast<NcursesUi::DialogWidget>(app.getDispatcher().topModal());
+        assertTrue(join(" ", quit.getMessageLines()).find("discard") >= 0);
+        app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "\e"});
+        assertThrows("GALLERY-EXPECTATION-ERROR", sub () { gallery.current().step(); });
+        gallery.reset(); editor = cast<NcursesUi::TextEditorWidget>(app.getFocusManager().getCurrentFocus());
+        editor.setText(sprintf("ReadOnlyFile gate(\"/proc/self/fd/%d\"); gate.readLine();", gate.read.getPollableDescriptor()));
+        app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "\n"});
+        assertTrue(gallery.current().isEvaluating());
+        assertThrows("GALLERY-BUSY", sub () { gallery.reset(); });
+        assertThrows("GALLERY-BUSY", sub () { gallery.current().reset(); });
+        assertThrows("GALLERY-BUSY", sub () { gallery.current().step(); });
+        assertThrows("GALLERY-BUSY", sub () { gallery.select("label.default"); });
+        assertEq("qrepl.default", gallery.current().story().id);
+        foreach string shortcut in (("3", "5")) {
+            app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Alt, "ch": shortcut});
+            assertTrue(app.getDispatcher().hasModal());
+            assertTrue(join("", map $1.text, gallery.current().capture().frame.cells).find("Evaluation is still running") >= 0);
+            gallery.closeOverlay(); assertTrue(gallery.current().isEvaluating());
+        }
+        app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Alt, "ch": "2"});
+        assertTrue(!!gallery.navigation()); gallery.navigation().query.setText("label.default");
+        app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "\n"});
+        assertFalse(!!gallery.navigation()); assertEq("qrepl.default", gallery.current().story().id);
+        gallery.closeOverlay(); editor.setText("new draft");
+        app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "!"});
+        assertEq("new draft!", editor.getText());
+        app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Alt, "ch": "4"});
+        assertEq(40, gallery.current().capture().frame.cols); assertTrue(gallery.current().isEvaluating());
+        gate.write.write("release\n"); released = True; gallery.current().settle();
+        assertFalse(gallery.current().isEvaluating()); assertEq("new draft!", editor.getText());
+        gallery.reset(); assertEq("6 * 7", gallery.current().inspect().text);
+        gallery.select("label.default"); assertEq("LabelWidget", gallery.current().control().className());
     }
 
 }

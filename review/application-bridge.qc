@@ -38,6 +38,9 @@ class NativeApplicationBridge {
         # Intentional application quit may occur before readEvent consumes the input
         # fence. The final composed frame is the completion for that command.
         if (input) { int sequence = input.sequence; input = NOTHING; complete(sequence); }
+        hash<auto> final_frame = runner.capture(); final_frame.index = runner.checkpointIndex();
+        terminal.write("\e]777;ncurses-gallery;final\a");
+        protocol.printf("%s\n", make_json({"type": "final", "sequence": "final", "artifact": final_frame}));
         protocol.printf("%s\n", make_json({"type": "ended"}));
     }
     private nothing complete(int sequence, *hash<auto> captured) {
@@ -51,6 +54,9 @@ class NativeApplicationBridge {
         try {
             *hash<auto> captured;
             switch (command.action) {
+                case "idle":
+                    runner.requireIdle();
+                    protocol.printf("%s\n", make_json({"type": "idle", "sequence": command.sequence})); return;
                 case "input": input = command; drainInput(); return;
                 case "capture": break;
                 case "settle": runner.settle(); break;

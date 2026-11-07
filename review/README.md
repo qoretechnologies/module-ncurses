@@ -64,14 +64,19 @@ Open <http://127.0.0.1:6006/?path=/story/native-qrepl--default> for the actual a
 The completion, error, files and constrained stories cover application wiring as well
 as individual widgets. Enter evaluates, Tab opens completions, F1 shows keys and F6
 switches output/editor. Persistent history is disabled in these embedded sessions.
-In the native gallery, Shift-F1 through Shift-F6 access gallery controls so qrepl's
+In the native gallery, Alt-1 through Alt-6 access gallery controls so qrepl's
 own function keys retain their meaning. Browser toolbar controls work as usual.
+Reset, replay and native story selection report that evaluation is busy instead of
+blocking the UI. Editing and resizing remain available. Replay after manual input
+requires Reset so the recorded scenario cannot execute an altered draft.
 
 Evaluation and output capture run while the real UI event loop continues handling
 input. The PTY tests use an explicit FIFO gate to verify streaming output and editing
 during work. Recorded evaluation steps join their worker before capture; the tooling
 `settle` command provides the same explicit barrier without timed polling. Arbitrary
 Qore evaluation is not advertised as cancellable; finish-and-quit waits for it.
+The final result or error renders before the normal session-end message, including
+when the quit confirmation was acknowledged while the worker was still running.
 
 ## Code and choice examples
 

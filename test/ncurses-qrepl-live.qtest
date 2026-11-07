@@ -23,13 +23,17 @@ class RefilledCaptureFile inherits ReadOnlyFile {
         return bytes;
     }
 }
+class FailingCaptureFile inherits ReadOnlyFile {
+    constructor(ReadOnlyFile source) : ReadOnlyFile("/proc/self/fd/" + source.getPollableDescriptor()) {}
+    *binary readShortBinary(softint size, timeout timeout_ms = -1) { throw "CAPTURE-READ-ERROR", "cannot read producer output"; }
+}
 class QReplLiveTest inherits Test {
     private { Program program(PO_DEFAULT); }
     constructor() : Test("QReplLiveTest", "1.0", \ARGV) {
         string code = ReadOnlyFile::readTextFile(get_script_dir() + "/../bin/qrepl");
         code =~ s/%exec-class QRepl//;
         code += "\nobject sub createRepl(Ncurses::Session session, *QoreRepl::QoreRepl backend) { return new QRepl(session, False, NOTHING, backend); }\n";
-        code += "\nobject sub createCapture(ReadOnlyFile input) { return new QReplOutputCapture(input); }\n";
+        code += "\nobject sub createCapture(ReadOnlyFile input, *code<nothing()> notify) { return new QReplOutputCapture(input, notify); }\n";
         *hash<ExceptionInfo> warnings = program.parse(code, "qrepl-live", WARN_ALL);
         if (warnings) { throw "QREPL-PARSE-WARNING", warnings; }
         addTestCase("actual application keeps multiline paste atomic and evaluates on Enter", \paste());
@@ -43,6 +47,8 @@ class QReplLiveTest inherits Test {
         addTestCase("capture barriers retain blank lines, split UTF-8 and large output", \capture());
         addTestCase("capture idle shutdown and EOF terminate without timeouts", \captureShutdown());
         addTestCase("capture services flush and close while a pipe stays continuously readable", \captureFairness());
+        addTestCase("capture wake failures remain visible without abandoning the producer pipe", \captureWakeFailure());
+        addTestCase("fatal capture read failures close the reader and fail producers promptly", \captureReadFailure());
         addTestCase("live syntax colors and precise completion use evaluated symbols", \codeSupport());
         addTestCase("evaluation leaves UI responsive and preserves edits made during work", \responsive());
         addTestCase("quit shortcuts and menus share confirmation, File mnemonic is reachable", \navigation());
@@ -85,6 +91,29 @@ class QReplLiveTest inherits Test {
         pipe.write.write("tail"); pipe.write.close(); reader.close();
         assertEq(("tail\x1b[7m%\x1b[0m",), reader.drain());
         assertThrows("QREPL-CAPTURE-CLOSED", sub () { reader.flush(); });
+    }
+    captureWakeFailure() {
+        hash<PipeInfo> pipe = File::getPipe(); Counter notified(1); int calls = 0;
+        auto reader = program.callFunction("createCapture", pipe.read, sub () {
+            ++calls; notified.dec(); throw "CAPTURE-WAKE-ERROR", "cannot wake the terminal";
+        });
+        on_exit { reader.close(); pipe.read.close(); pipe.write.close(); }
+        pipe.write.write("first\n"); notified.waitForZero();
+        assertThrows("CAPTURE-WAKE-ERROR", sub () { reader.flush(); });
+        pipe.write.write(strmul("next\n", 500)); reader.close();
+        assertEq(0, Ncurses::Session::pendingOutputBytes(pipe.read));
+        assertEq(1, calls);
+        assertThrows("CAPTURE-WAKE-ERROR", sub () { reader.drain(); });
+        assertThrows("CAPTURE-WAKE-ERROR", sub () { reader.flush(); });
+    }
+    captureReadFailure() {
+        hash<PipeInfo> pipe = File::getPipe(); FailingCaptureFile input(pipe.read); pipe.read.close();
+        auto reader = program.callFunction("createCapture", input);
+        on_exit { reader.close(); input.close(); pipe.write.close(); }
+        pipe.write.write("unreadable\n");
+        assertThrows("CAPTURE-READ-ERROR", sub () { reader.flush(); }); reader.close();
+        assertFalse(input.isOpen());
+        assertThrows("FILE-WRITE-ERROR", sub () { pipe.write.write("must not block\n"); });
     }
     private hash<Ncurses::InputEvent> key(string name) { return <Ncurses::InputEvent>{"type": Ncurses::InputType::Key, "name": name}; }
     private hash<Ncurses::InputEvent> chr(string text) { return <Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": text}; }

@@ -1,6 +1,12 @@
 // Copyright 2026 Qore Technologies, s.r.o. SPDX-License-Identifier: MIT
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import { constants } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { chromium } from '@playwright/test';
 import { createBridgeServer } from '../server.mjs';
 import { fileURLToPath } from 'node:url';
@@ -412,4 +418,56 @@ test('qrepl quit renders its final frame, closes normally and Reset starts a new
     assert.equal((await terminal.evaluate(element => element.capture())).state.evaluating, false);
     assert.deepEqual(errors, []);
   } finally { await browser.close(); await server.close(); }
+});
+
+test('finish-and-quit renders the final result and error before closing the browser transport', { timeout: 30000 }, async () => {
+  const server = await createBridgeServer({ port: 0, staticDir: fileURLToPath(new URL('../storybook-static/', import.meta.url)) });
+  const browser = await chromium.launch({ args: browserArgs });
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'ncurses-browser-final-'));
+  try {
+    for (const failure of [false, true]) {
+      const gate = path.join(dir, failure ? 'error' : 'result'); await promisify(execFile)('mkfifo', [gate]);
+      const page = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
+      let active = false; let released = false;
+      try {
+        await page.goto(`http://127.0.0.1:${server.port}/iframe.html?id=native-qrepl--default&viewMode=story`);
+        const terminal = page.locator('ncurses-native-terminal'); await terminal.evaluate(element => element.ready);
+        const action = failure ? 'throw "BROWSER-" + "FINAL-ERROR", "completed with an error";'
+          : 'stdout.write("browser-final-" + "result\\n");';
+        const source = `ReadOnlyFile gate("${gate}"); gate.readLine(); ${action}`;
+        const started = await terminal.evaluate((element, source) => element.input('\x15' + source + '\r'), source);
+        active = true; assert.equal(started.state.evaluating, true);
+        const accepted = await terminal.evaluate(async element => {
+          element.finalEvidence = new Promise(resolve => element.socket.addEventListener('close', event => resolve({
+            code: event.code, frame: element.frame, error: element.status.dataset.error, status: element.status.textContent,
+            rendered: Array.from({ length: element.term.rows }, (_, y) => element.term.buffer.active.getLine(y).translateToString()).join(''),
+          }), { once: true }));
+          const rejected = await element.reset().then(() => '', error => error.message);
+          await element.resize(12, 60);
+          await element.input('\x11'); const accepted = await element.input('\r');
+          return { rejected, interacted: element.interacted, evaluating: accepted.state.evaluating, modal: accepted.state.modal };
+        });
+        assert.match(accepted.rejected, /GALLERY-BUSY/); assert.equal(accepted.interacted, true);
+        assert.equal(accepted.evaluating, true); assert.equal(accepted.modal, false);
+        await fs.writeFile(gate, 'release\n'); released = true;
+        const result = await terminal.evaluate(element => element.finalEvidence);
+        const expected = failure ? 'BROWSER-FINAL-ERROR' : 'browser-final-result';
+        assert.equal(result.code, 1000); assert.equal(result.frame.state.evaluating, false);
+        assert.ok(result.frame.frame.cells.map(cell => cell.text).join('').includes(expected));
+        assert.ok(result.rendered.includes(expected)); assert.equal(result.error, undefined); assert.match(result.status, /Session ended/);
+      } finally {
+        try {
+          if (active && !released) {
+            try {
+              const writer = await fs.open(gate, constants.O_WRONLY | constants.O_NONBLOCK);
+              try { await writer.write('release\n'); } finally { await writer.close(); }
+            } catch (error) { if (error.code !== 'ENXIO') { throw error; } }
+          }
+        } finally { await page.close(); }
+      }
+    }
+  } finally {
+    try { await browser.close(); await server.close(); }
+    finally { await fs.rm(dir, { recursive: true, force: true }); }
+  }
 });

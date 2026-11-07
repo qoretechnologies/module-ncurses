@@ -349,6 +349,16 @@ both streams, and exercises reset/restoration. All three cases failed before the
 fix and pass afterward. Saved descriptors are closed after restoration, including
 error cleanup.
 
+Further review covered running-work and final-result paths. Application gallery
+controls use Alt-1 through Alt-6, retaining Shift-F3 search navigation and the
+draft. Reset/replay/story selection reject active work before any teardown or
+geometry mutation; FIFO-gated tests then exercise editing, resizing, cancellation
+and recovery. A dedicated final frame and terminal/render barrier preserve both
+successful and failed results when Finish and quit was accepted before the worker
+completed. Browser tests verify the actual terminal content before normal close.
+Capture notification failures are retained for the caller while the reader keeps
+draining; fatal read failures close the read end so producers fail promptly.
+
 ## qrepl follow-up implementation audit
 
 The audit follows the local `audit-changes` checklist. Evidence below applies to
@@ -378,8 +388,8 @@ this follow-up; earlier native implementation checks remain recorded above.
 | Security | Pass | No arbitrary bridge command endpoint, no credentials, local-only review service; fixture teardown and native-protocol bounds retained. |
 | Correctness | Pass | Exact completion ranges and suffix retention, Unicode, tiny/resize layouts, save/overwrite/cancel/load, draft revision preservation, focus restoration and actual streaming tested. |
 
-Final local gates: 45 QUnit suites, 957 cases / 22,070 assertions; 26 compiled-module
-suites, 629 cases / 7,975 assertions. Documentation/API checks, executable examples,
+Final local gates: 45 QUnit suites, 960 cases / 22,113 assertions; 26 compiled-module
+suites, 632 cases / 8,018 assertions. Documentation/API checks, executable examples,
 widget-catalog drift checks and CI tree-reuse tests pass. Browser/native tooling
 and platform CI results are linked in the delivery PR. No C++ changed, so this
 follow-up does not require a new Valgrind run.

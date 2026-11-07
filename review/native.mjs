@@ -114,6 +114,12 @@ export class NativeStory extends EventEmitter {
         }
         break;
       }
+      case 'final': this.emit('final', message); break;
+      case 'idle': {
+        const request = this.pending.get(message.sequence);
+        if (!request) { throw new Error(`Unexpected native sequence ${message.sequence}`); }
+        this.pending.delete(message.sequence); clearTimeout(request.timer); request.resolve(message); break;
+      }
       case 'ended': this.intentionalExit = true; this.emit('ended'); break;
       case 'exit': this.nativePid = undefined; break;
       default: throw new Error('Unknown native response');
@@ -129,6 +135,11 @@ export class NativeStory extends EventEmitter {
       await this.ready;
       if (this.closing || this.intentionalExit) { throw new Error('Native story is closed'); }
       if (!['capture', 'input', 'resize', 'reset', 'step', 'settle'].includes(action)) { throw new Error('Unknown native action'); }
+      // Check on the UI thread before changing PTY geometry for reset/replay.
+      // A stale browser frame cannot tell whether evaluation has finished.
+      if (this.story.application && (action === 'reset' || action === 'step')) {
+        await this.exchange({ action: 'idle', sequence: ++this.sequence });
+      }
       const command = { action, sequence: ++this.sequence };
       if (action === 'input') {
         const encoding = values.encoding ?? 'utf8';
@@ -143,14 +154,17 @@ export class NativeStory extends EventEmitter {
       if (action === 'resize') { size = dimensions(values); Object.assign(command, size); }
       if (action === 'step') { size = this.story.steps[this.index + 1]?.size; }
       if (size) { command.geometry = dimensions(size); this.geometry = size; this.emit('geometry', size); }
-      const request = deferred();
-      request.timer = setTimeout(() => this.fail(new Error(`Native ${action} deadline exceeded`)), this.timeout);
-      this.pending.set(command.sequence, request);
-      this.child.stdin.write(JSON.stringify(command) + '\n');
-      return await request.promise;
+      return await this.exchange(command);
     });
     this.chain = operation.catch(() => {});
     return operation;
+  }
+  exchange(command) {
+    const request = deferred();
+    request.timer = setTimeout(() => this.fail(new Error(`Native ${command.action} deadline exceeded`)), this.timeout);
+    this.pending.set(command.sequence, request);
+    this.child.stdin.write(JSON.stringify(command) + '\n');
+    return request.promise;
   }
   async close() {
     if (!this.closing) {

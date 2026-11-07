@@ -15,6 +15,8 @@ class Runner {
         *object repl;
         bool capture_output;
         bool closed = False;
+        bool interacted = False;
+        bool replaying = False;
         int checkpoint_index = -1;
         hash<Ncurses::Size> initial_size;
     }
@@ -27,6 +29,10 @@ class Runner {
     NcursesUi::Application application() { return app; }
     *NcursesUi::Widget control() { return widget; }
     int checkpointIndex() { return checkpoint_index; }
+    bool isEvaluating() { return repl && repl.isEvaluating(); }
+    nothing requireIdle() {
+        if (isEvaluating()) { throw "GALLERY-BUSY", "Evaluation is still running. Reset, replay and story selection are available after it finishes."; }
+    }
     private nothing checkOpen() { if (closed) { throw "GALLERY-CLOSED-ERROR", "The story has been closed"; } }
     private nothing release() {
         on_exit { repl = NOTHING; repl_program = NOTHING; popup = NOTHING; fixture = NOTHING; code_preview = NOTHING; table = NOTHING; editor = NOTHING; widget = NOTHING; }
@@ -46,7 +52,7 @@ class Runner {
     }
     nothing close() { if (closed) { return; } closed = True; release(); }
     nothing reset(*hash<Ncurses::Size> reset_size) {
-        checkOpen(); on_error close(); release(); checkpoint_index = -1;
+        checkOpen(); requireIdle(); on_error close(); release(); checkpoint_index = -1; interacted = False;
         if (reset_size) { initial_size = reset_size; }
         app.getSession().resize(initial_size.rows, initial_size.cols);
         app.getSession().setCursor(1);
@@ -112,6 +118,7 @@ class Runner {
     private nothing dismiss() { if (popup) { on_exit popup.destroyPanel(); app.removeModal(popup); } }
     nothing settle() { if (repl) { repl.joinEvaluation(); } }
     hash<NcursesUi::EventResult> handleEvent(hash<Ncurses::InputEvent> event) {
+        if (repl && !replaying) { interacted = True; }
         return repl ? repl.processEvent(event) : <NcursesUi::EventResult>{};
     }
     hash<auto> inspect(*hash<Ncurses::ScreenCapture> frame) {
@@ -149,14 +156,16 @@ class Runner {
             && NcursesUi::Geometry::rectContains(focus.contentRect(), frame.cursor.y, frame.cursor.x);
     }
     hash<auto> step() {
-        checkOpen();
+        checkOpen(); requireIdle();
+        if (definition.application && interacted) { throw "GALLERY-EXPECTATION-ERROR", "Reset the story before replaying recorded checkpoints after manual input."; }
+        replaying = True; on_exit replaying = False;
         if (checkpoint_index + 1 >= definition.steps.size()) { throw "GALLERY-STEP-ERROR", "All story steps are complete"; }
         hash<NcursesGallery::Step> step = definition.steps[checkpoint_index + 1];
         if (step.size) {
             app.getSession().resize(step.size.rows, step.size.cols);
             app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Resize});
         }
-        if (step.event && !handleEvent(step.event).handled) { app.processEvent(step.event); }
+        if (step.event && !(repl && repl.processEvent(step.event).handled)) { app.processEvent(step.event); }
         if (step.action) {
             if (repl) {
                 if (step.action == "evaluate") { repl.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "\n"}); repl.joinEvaluation(); }

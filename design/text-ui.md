@@ -92,6 +92,10 @@ publication of complete lines and the unterminated tail. Producer stdio is flush
 requesting the barrier. Byte accumulation preserves UTF-8 split across reads and
 blank lines; malformed complete text is represented with its hexadecimal bytes.
 Shutdown notifies and joins the worker before releasing pipe resources.
+Notification failures are reported without stopping pipe drainage; fatal reads
+close the reader so a producer cannot block on an abandoned pipe. Inherited output
+descriptors are duplicated with `File::redirect()` rather than reopened, preserving
+access after privilege changes and the original open-file description on restore.
 
 Ordinary Enter CR is normalized to LF by native event decoding. Paste payloads and
 Alt input preserve literal CR, so enabling nonl() for paste does not change widget
@@ -360,3 +364,8 @@ and disabled persistent history. The browser bridge uses the actual event loop a
 posts control commands from a reader worker; explicit input fences and worker joins
 are completion barriers. Program output has a separate capture pipe from bridge
 protocol output. Regular widget stories keep their existing deterministic bridge.
+Application reset, replay and story replacement reject busy work before changing
+state or geometry. Native gallery controls use Alt-1 through Alt-6 to preserve
+application function keys. Session exit publishes a separate final capture with a
+terminal fence; the browser renders it before closing, even when no input command
+is pending when evaluation completes.

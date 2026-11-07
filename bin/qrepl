@@ -4782,10 +4782,21 @@ class QReplOutputCapture {
                     mutex.lock(); on_exit mutex.unlock(); pending += complete;
                     acknowledged = request; changed.broadcast();
                 }
-                if (complete && notify) { notify(); }
+                if (complete && notify) {
+                    try { notify(); }
+                    catch (hash<ExceptionInfo> ex) {
+                        # A UI wake failure must not abandon the producer's pipe.
+                        # Retain the error for the caller while continuing to drain
+                        # until evaluation finishes and cleanup closes the reader.
+                        mutex.lock(); on_exit mutex.unlock(); failure = ex; notify = NOTHING;
+                    }
+                }
                 if (stop || eof) { break; }
             }
         } catch (hash<ExceptionInfo> ex) {
+            # An unreadable pipe cannot service producers; close its read end so
+            # writers fail instead of blocking forever on a pipe nobody drains.
+            on_exit input.close();
             mutex.lock(); on_exit mutex.unlock(); failure = ex;
         }
     }

@@ -20,6 +20,7 @@ export class NativeTerminal extends HTMLElement {
     super(); this.sequence = -1; this.requests = new Map(); this.fences = new Map(); this.seenFences = new Set();
     this.start = deferred(); this.ready = this.start.promise; this.resources = []; this.closing = false;
     this.renders = new Set(); this.requestChain = Promise.resolve();
+    this.interactionRevision = 0;
   }
   connectedCallback() {
     if (!this.mounted) {
@@ -79,9 +80,10 @@ export class NativeTerminal extends HTMLElement {
     this.resources.push(renderer.onContextLoss(() => this.fail(new Error('Terminal graphics context lost. Reload the story to reconnect.'))));
     this.dataset.renderer = 'webgl';
     this.resources.push(this.term.parser.registerOscHandler(777, data => {
-      const match = /^ncurses-gallery;(\d+)$/.exec(data);
+      const match = /^ncurses-gallery;(\d+|final)$/.exec(data);
       if (!match) { return false; }
-      const sequence = Number(match[1]); this.seenFences.add(sequence); this.fences.get(sequence)?.resolve(); return true;
+      const sequence = match[1] === 'final' ? 'final' : Number(match[1]);
+      this.seenFences.add(sequence); this.fences.get(sequence)?.resolve(); return true;
     }));
     this.resources.push(this.term.onData(data => { void this.input(data).catch(error => this.showError(error)); }));
     this.resources.push(this.term.onBinary(data => { void this.input(data, 'latin1').catch(error => this.showError(error)); }));
@@ -93,6 +95,9 @@ export class NativeTerminal extends HTMLElement {
           const bytes = Uint8Array.from(atob(message.data), char => char.charCodeAt(0)); this.term.write(bytes);
         } else if (message.type === 'geometry') { this.term.resize(message.cols, message.rows); }
         else if (message.type === 'frame') { void this.completeFrame(message).catch(error => this.fail(error)); }
+        else if (message.type === 'final') {
+          this.finalFrame = this.completeFrame(message); void this.finalFrame.catch(error => this.fail(error));
+        }
         else if (message.type === 'ended') { void this.finishSession().catch(error => this.fail(error)); }
         else if (message.type === 'closed') { this.requests.get(message.request)?.resolve(message); this.requests.delete(message.request); }
         else if (message.type === 'error') {
@@ -124,7 +129,7 @@ export class NativeTerminal extends HTMLElement {
       const barrier = this.fences.get(message.sequence) ?? deferred(); this.fences.set(message.sequence, barrier); await barrier.promise;
     }
     this.fences.delete(message.sequence); this.seenFences.delete(message.sequence);
-    if (!this.requests.has(message.request)) { return; }
+    if (message.type !== 'final' && !this.requests.has(message.request)) { return; }
     const painting = deferred(); this.renders.add(painting);
     const rendered = this.term.onRender(() => { rendered.dispose(); painting.resolve(); });
     try {
@@ -168,13 +173,15 @@ export class NativeTerminal extends HTMLElement {
     this.nextStep.title = this.interacted ? 'Reset the story to replay its recorded steps.' : next?.instruction || 'All recorded steps are complete.';
   }
   async input(data, encoding = 'utf8') {
-    await this.ready; if (this.ended) { return this.frame; } this.interacted = true; this.updateCheckpointControl();
+    await this.ready; if (this.ended) { return this.frame; }
+    ++this.interactionRevision; this.interacted = true; this.updateCheckpointControl();
     return await this.request('input', { data, encoding });
   }
   async capture() { await this.ready; return await this.request('capture'); }
   async finishSession() {
     this.ended = true;
     await this.requestChain; // Retain final frame until its terminal fence has rendered.
+    await this.finalFrame;
     this.nextStep.disabled = true;
     this.status.textContent = 'Session ended. Reset story to restart.';
     this.feedback.textContent = 'The application exited normally.';
@@ -187,10 +194,19 @@ export class NativeTerminal extends HTMLElement {
       Object.assign(replacement, { definition: this.definition, geometry: this.geometry, monochrome: this.monochrome });
       this.replaceWith(replacement); return await replacement.ready;
     }
-    this.interacted = false; const frame = await this.request('reset'); this.term.focus(); return frame;
+    const revision = this.interactionRevision;
+    const operation = this.request('reset').then(frame => {
+      if (revision === this.interactionRevision) { this.interacted = false; }
+      this.updateCheckpointControl(); this.term.focus(); return frame;
+    });
+    const pending = { revision, operation }; this.pendingReset = pending;
+    try { return await operation; }
+    finally { if (this.pendingReset === pending) { this.pendingReset = undefined; } }
   }
   async step() {
     await this.ready;
+    const reset = this.pendingReset;
+    if (reset && reset.revision === this.interactionRevision) { await reset.operation; }
     if (this.interacted) { throw new Error('Reset the story before replaying recorded checkpoints after manual input.'); }
     const frame = await this.request('step'); this.term.focus(); return frame;
   }
