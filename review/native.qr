@@ -50,6 +50,11 @@ while (True) {
         if (closing) { break; }
         complete(int(command.sequence), captured);
     } catch (hash<ExceptionInfo> ex) {
-        printf("%s\n", make_json({"type": "error", "sequence": command.sequence, "error": ex.err, "description": ex.desc}));
+        # Input may fail before its PTY fence is consumed. Never reuse that stream:
+        # otherwise the following command could complete at the previous fence.
+        bool fatal = command.action == "input";
+        printf("%s\n", make_json({"type": "error", "sequence": command.sequence, "error": ex.err,
+            "description": ex.desc, "fatal": fatal}));
+        if (fatal) { break; }
     }
 }

@@ -22,6 +22,10 @@ by the fence is decoded as Escape rather than relying on a timer. The bridge
 rejects fence characters in input. UTF-8 and xterm's byte-oriented Latin-1 transport
 are distinguished explicitly. Mouse integration replays SGR reports, including
 terminals that deliver press/release pairs instead of aggregated click events.
+An input-dispatch exception is fatal to that session: its fence may still be
+unread, so the native process exits and queued commands are rejected. A new story
+session starts with a fresh PTY. Non-input command errors retain synchronized
+control pipes and can be retried or reset.
 
 After processing a command, the runner completes `drawAll()` and observational
 `Session::capture()`. It writes an OSC 777 sequence marker to the same PTY stream,
@@ -71,8 +75,10 @@ implementations.
 
 Button and checkbox action regions intersect their one painted row/label with
 ancestor visibility and the last drawing target. Unused layout rows/columns and
-padding do not activate them. A fully clipped draw clears its target. Attachment
-actions retain typed source spans after text normalization; wrapped/scrolled mouse
+padding do not activate them. A fully clipped draw clears its target. Their hit
+regions include only complete graphemes after logical-width, ancestor and
+drawing-target clipping; blank cells replacing partial wide glyphs are excluded.
+Attachment actions retain typed source spans after text normalization; wrapped/scrolled mouse
 coordinates round-trip through `LineListContent` before dispatch. Completion popup
 mouse selection and keyboard acceptance share the same highlight/callback path.
 Timeline selection and file toggles accept native primary presses as well as

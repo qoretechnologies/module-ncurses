@@ -156,6 +156,8 @@ completion fence and rejects it in pasted/typed payloads; other applications usi
 the native widgets do not have this tooling restriction. A command accepts at most
 16 KiB of input; geometry is 1..100 rows and 1..240 columns, with four simultaneous
 local sessions. These are review-tool resource bounds, not widget API limits.
+An exception while dispatching terminal input closes that session because its
+completion fence may be unread. Select the story again to start a fresh session.
 
 Only known story IDs and fixed gallery commands are accepted. WebSocket origins
 must match the loopback review server (or the explicit development origin).

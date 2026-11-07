@@ -11,6 +11,7 @@ class MouseActionsTest inherits Test {
     constructor() : Test("MouseActionsTest", "1.0", \ARGV) {
         addTestCase("button and checkbox hit only their visible row and label", \labels());
         addTestCase("mouse labels respect padding ancestors target windows and disabled state", \clipping());
+        addTestCase("partial wide label glyphs never create blank mouse targets", \wideClipping());
         addTestCase("attachment mouse operations share cancellation exception and completion guards", \attachments());
         addTestCase("attachment targets follow normalized wrapped and scrolled source spans", \wrapping());
         addTestCase("completion popup mouse keyboard acceptance failure and dismissal", \completion());
@@ -98,6 +99,45 @@ class MouseActionsTest inherits Test {
         assertTrue(box.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "\r"}).handled);
         assertTrue(box.isChecked());
         assertFalse(box.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Mouse}).handled);
+    }
+    wideClipping() {
+        NcursesUi::TestHarness th(8, 40); on_exit th.close();
+        foreach bool checkbox in ((False, True)) {
+            NcursesUi::Widget parent(); parent.setFrameValues(0, 0, 8, 40);
+            NcursesUi::Widget widget = checkbox ? new NcursesUi::CheckboxWidget("界é") : new NcursesUi::ButtonWidget("界é");
+            int calls = 0;
+            if (checkbox) { cast<NcursesUi::CheckboxWidget>(widget).setOnToggle(sub (bool checked) { ++calls; }); }
+            else { cast<NcursesUi::ButtonWidget>(widget).setOnActivate(sub (string id) { ++calls; }); }
+            parent.addChild(widget);
+            int prefix = checkbox ? 4 : 2;
+            # Logical right clipping omits the entire wide glyph.
+            widget.setFrameValues(1, 2, 1, prefix + 1); parent.drawTree(th.screen());
+            assertEq(" ", th.screen().readText(1, 2 + prefix, 1));
+            assertFalse(widget.processEvent(click(1, 2 + prefix)).handled); assertEq(0, calls);
+            assertTrue(widget.processEvent(click(1, 1 + prefix)).handled); assertEq(1, calls);
+            # Both cells of a complete wide glyph and its following combining cluster are targets.
+            widget.setFrameValues(1, 2, 1, prefix + 3); parent.drawTree(th.screen());
+            assertTrue(widget.processEvent(click(1, 2 + prefix)).handled);
+            assertTrue(widget.processEvent(click(1, 3 + prefix)).handled);
+            assertTrue(widget.processEvent(click(1, 4 + prefix)).handled); assertEq(4, calls);
+            # Ancestor and drawing-target clipping both replace partial glyphs with spaces.
+            foreach bool ancestor in ((True, False)) {
+                int before = calls;
+                parent.setFrameValues(0, 0, 8, 40); widget.setFrameValues(1, 2, 1, prefix + 3);
+                Ncurses::Window target = th.screen();
+                if (ancestor) { parent.setFrameValues(1, 0, 1, 3 + prefix); }
+                else { target = th.screen().subWindow(1, 3 + prefix, 1, 0); }
+                parent.drawTree(target, True);
+                assertEq(" ", target.readText(ancestor ? 1 : 0, 2 + prefix, 1));
+                assertFalse(widget.processEvent(click(1, 2 + prefix)).handled); assertEq(before, calls);
+                if (ancestor) { parent.setFrameValues(1, 3 + prefix, 1, 2); }
+                else { target = th.screen().subWindow(1, 2, 1, 3 + prefix); }
+                parent.drawTree(target, True);
+                assertEq(" ", target.readText(ancestor ? 1 : 0, ancestor ? 3 + prefix : 0, 1));
+                assertFalse(widget.processEvent(click(1, 3 + prefix)).handled); assertEq(before, calls);
+                assertTrue(widget.processEvent(click(1, 4 + prefix)).handled); assertEq(before + 1, calls);
+            }
+        }
     }
     clipping() {
         NcursesUi::TestHarness th(12, 40); on_exit th.close();

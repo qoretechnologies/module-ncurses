@@ -263,6 +263,23 @@ public class Widget {
         return rect;
     }
 
+    # Match drawTextClipped after logical-width clipping. Partial wide glyphs
+    # become spaces at the target edges and must not remain action targets.
+    private bool textActionHit(string text, *hash<NcursesUi::Rect> draw_bounds, int py, int px) {
+        hash<NcursesUi::Rect> content = contentRect(); content.rows = min(1, content.rows);
+        hash<NcursesUi::Rect> clip = NcursesUi::Geometry::intersect(content, visibleRect());
+        if (draw_bounds) { clip = NcursesUi::Geometry::intersect(clip, draw_bounds); }
+        if (!NcursesUi::Geometry::rectContains(clip, py, px)) { return False; }
+        int col = content.x;
+        foreach string cluster in (NcursesUi::TerminalText::graphemes(NcursesUi::TerminalText::clipRight(text, content.cols))) {
+            int end = col + NcursesUi::TerminalText::displayWidth(cluster);
+            if (px >= col && px < end) { return col >= clip.x && end <= clip.x + clip.cols; }
+            col = end;
+            if (col > px) { break; }
+        }
+        return False;
+    }
+
     /** Releases rendering resources when this subtree has no drawable area.
         Subclasses owning cursor requests override this and call the base method.
     */

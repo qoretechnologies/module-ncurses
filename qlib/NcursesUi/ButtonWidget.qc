@@ -40,11 +40,7 @@ public class ButtonWidget inherits NcursesUi::Widget {
     /** Clears the mouse target when the surface is fully clipped. */
     nothing onDrawClipped() { draw_bounds = NcursesUi::Geometry::makeRect(0, 0, 0, 0); Widget::onDrawClipped(); }
     private bool actionHit(int y, int x) {
-        hash<NcursesUi::Rect> rect = contentRect(); rect.rows = min(1, rect.rows);
-        rect.cols = min(rect.cols, NcursesUi::TerminalText::displayWidth("[ " + (busy ? "Working…" : label) + " ]"));
-        rect = NcursesUi::Geometry::intersect(rect, visibleRect());
-        if (draw_bounds) { rect = NcursesUi::Geometry::intersect(rect, draw_bounds); }
-        return NcursesUi::Geometry::rectContains(rect, y, x);
+        return textActionHit("[ " + (busy ? "Working…" : label) + " ]", draw_bounds, y, x);
     }
     /** Handles Enter, Space and primary clicks. @param event input @return handled/action result */
     hash<NcursesUi::EventResult> processEvent(hash<Ncurses::InputEvent> event) {

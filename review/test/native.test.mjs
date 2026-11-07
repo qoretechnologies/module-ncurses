@@ -24,6 +24,10 @@ test('PTY input, composed frames, resize and deterministic reset', async () => {
     }
     await native.command('step'); const scripted = await native.command('step');
     assert.equal(scripted.artifact.checkpoint, 'last'); assert.equal(scripted.artifact.state.selected, 23);
+    // Non-input command errors do not leave unread PTY bytes and remain recoverable.
+    while (native.index + 1 < native.story.steps.length) { await native.command('step'); }
+    await assert.rejects(native.command('step'), /GALLERY-STEP-ERROR/);
+    assert.deepEqual((await native.command('reset')).artifact, initial.artifact);
     assert.ok(output.includes('Row 00'));
   } finally { assert.equal((await native.close()).code, 0); }
 });
@@ -82,6 +86,20 @@ test('a terminal carriage-return activates a checkbox once', async () => {
     assert.equal((await native.ready).artifact.state.checked, false);
     assert.equal((await native.command('input', { data: '\r' })).artifact.state.checked, true);
     assert.equal((await native.command('input', { data: '\r' })).artifact.state.checked, false);
+  } finally { await native.close(); }
+});
+
+test('throwing PTY input closes the stream and rejects queued retry without consuming a stale fence', async () => {
+  const native = new NativeStory(story('attachment.invalid'));
+  let pid;
+  try {
+    await native.ready; pid = native.nativePid;
+    const failed = native.command('input', { data: '\r' });
+    const retry = native.command('input', { data: 'x' });
+    await assert.rejects(failed, /GALLERY-FILE-ERROR/);
+    await assert.rejects(retry, /Native story is closed/);
+    await native.closed;
+    assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' });
   } finally { await native.close(); }
 });
 
