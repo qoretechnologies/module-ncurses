@@ -578,7 +578,7 @@ API: @ref NcursesUi::FileBrowserWidget "FileBrowserWidget". [Source](https://git
 
 Browse repository-owned sample files and a bounded text preview.
 
-Keyboard: Arrows select; Enter opens a directory; Tab switches preview; Escape dismisses.
+Keyboard: Arrows select; Enter/Tab opens a directory; Shift+Tab goes back; F7 switches panes; Escape dismisses.
 Mouse: Click files or preview entries; wheel scrolls the active pane.
 
 | State | Story or reason |
@@ -594,7 +594,7 @@ Mouse: Click files or preview entries; wheel scrolls the active pane.
 | constrained | file-browser.constrained |
 
 Initial geometry: 16 rows × 64 columns.
-Checkpoints: initial: Browse repository-owned sample files and a bounded text preview.
+Checkpoints: initial: Browse repository-owned sample files and a bounded text preview.; interaction: Arrows select; Enter/Tab opens a directory; Shift+Tab goes back; F7 switches panes; Escape dismisses.
 
 @section catalog_file_selection_default FileSelectionWidget
 API: @ref NcursesUi::FileSelectionWidget "FileSelectionWidget". [Source](https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/FileSelectionWidget.qc)
@@ -641,5 +641,40 @@ Mouse: Click a displayed action; wheel scrolls.
 
 Initial geometry: 16 rows × 64 columns.
 Checkpoints: initial: Read attachment metadata, text preview and explicit operation feedback.
+
+@section catalog_interactions Additional Interaction Scenarios
+Every interactive widget has a mouse story. Label and StatusBar are read-only and have no mouse action.
+These cases use the same native events for headless assertions and real PTY/browser input.
+
+| Story | Review checkpoint |
+| --- | --- |
+| transcript.background-reading | Preserve the reading anchor while background output arrives; resume explicitly. |
+| assistance-popup.cancel-stale | Dismiss pending assistance and reject a late provider result without changing the draft or focus. |
+| progress.cancel-stale | Cancel an operation, retry, and reject a late result from the old attempt. |
+| text-editor.mouse | Exercise the visible mouse target for TextEditorWidget. Primary click places the caret; wheel scrolls. |
+| table.mouse | Exercise the visible mouse target for TableWidget. Click selects; double-click activates; wheel moves one row. |
+| completion-popup.mouse | Exercise the visible mouse target for CompletionPopupWidget. Click selects; an outside primary click dismisses and reaches the editor. |
+| text-input.mouse | Exercise the visible mouse target for TextInputWidget. Click places the caret. |
+| transcript.mouse | Exercise the visible mouse target for TranscriptWidget. Wheel scrolls without stealing focus. |
+| code-view.mouse | Exercise the visible mouse target for CodeViewWidget. Wheel scrolls; drag selects text. |
+| button.mouse | Exercise the visible mouse target for ButtonWidget. Primary click activates inside the button. |
+| checkbox.mouse | Exercise the visible mouse target for CheckboxWidget. Click the label or box to toggle. |
+| radio-group.mouse | Exercise the visible mouse target for RadioGroupWidget. Click chooses; wheel moves highlight. |
+| combo-box.mouse | Exercise the visible mouse target for ComboBoxWidget. Click edits and selects a visible choice. |
+| described-choice.mouse | Exercise the visible mouse target for DescribedChoiceWidget. Click chooses a described row. |
+| form.mouse | Exercise the visible mouse target for FormWidget. Click a field to edit or an action to submit. |
+| list.mouse | Exercise the visible mouse target for ListWidget. Click selects; double-click activates; wheel scrolls. |
+| tree.mouse | Exercise the visible mouse target for TreeWidget. Click selects; wheel scrolls. |
+| key-value.mouse | Exercise the visible mouse target for KeyValueWidget. Click selects; wheel scrolls. |
+| text-chart.mouse | Exercise the visible mouse target for TextChartWidget. Wheel scrolls. |
+| menu-bar.mouse | Exercise the visible mouse target for MenuBarWidget. Click a menu label, then a command. |
+| dropdown-menu.mouse | Exercise the visible mouse target for DropdownMenuWidget. Click a command; outside click dismisses. |
+| dialog.mouse | Exercise the visible mouse target for DialogWidget. Click a visible action or close control. |
+| assistance-popup.mouse | Exercise the visible mouse target for AssistancePopupWidget. Click a result; wheel scrolls documentation. |
+| progress.mouse | Exercise the visible mouse target for ProgressWidget. Click the displayed start/cancel action. |
+| timeline.mouse | Exercise the visible mouse target for TimelineWidget. Wheel scrolls history; click selects. |
+| file-browser.mouse | Exercise the visible mouse target for FileBrowserWidget. Click files or preview entries; wheel scrolls the active pane. |
+| file-selection.mouse | Exercise the visible mouse target for FileSelectionWidget. Click selects; wheel scrolls. |
+| attachment.mouse | Exercise the visible mouse target for AttachmentWidget. Click a displayed action; wheel scrolls. |
 
 */

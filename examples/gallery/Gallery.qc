@@ -40,6 +40,7 @@ class Gallery {
         *hash<Ncurses::Size> overlay_size;
         int preset = 0;
         bool closed = False;
+        *int cursor_tick;
     }
     constructor(NcursesUi::Application application, string id) {
         app = application; available = app.getSession().terminalSize();
@@ -47,6 +48,7 @@ class Gallery {
         try {
             select(id);
             app.setGlobalKeyHandler(hash<NcursesUi::EventResult> sub (hash<Ncurses::InputEvent> event) { return handle(event); });
+            cursor_tick = app.addOwnedTickCallback(sub () { runner.syncCursor(); });
         } catch (hash<ExceptionInfo> ex) { close(); rethrow; }
     }
     NcursesGallery::Runner current() { return runner; }
@@ -153,6 +155,7 @@ class Gallery {
     nothing close() {
         if (closed) { return; } closed = True;
         on_exit app.setGlobalKeyHandler(NOTHING);
+        on_exit { if (exists cursor_tick) { app.removeTickCallback(cursor_tick); cursor_tick = NOTHING; } }
         on_exit { if (runner) { runner.close(); runner = NOTHING; } }
         closeOverlay();
     }

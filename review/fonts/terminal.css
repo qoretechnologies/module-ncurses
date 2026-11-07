@@ -1,0 +1,10 @@
+/* Copyright 2026 Qore Technologies, s.r.o. SPDX-License-Identifier: MIT */
+/* Complete upstream glyph coverage: the Google Fonts web subsets omit ACS box glyphs. */
+@font-face {
+  font-family: 'Noto Sans Mono'; font-style: normal; font-display: block; font-weight: 400;
+  src: url('./NotoSansMono-Regular.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Noto Sans Mono'; font-style: normal; font-display: block; font-weight: 700;
+  src: url('./NotoSansMono-Bold.ttf') format('truetype');
+}

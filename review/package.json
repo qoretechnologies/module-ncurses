@@ -1,0 +1,30 @@
+{
+  "name": "ncurses-ux-workflow",
+  "version": "1.0.0",
+  "description": "Native ncurses Storybook and visual review tooling",
+  "scripts": {
+    "dev": "node dev.mjs",
+    "generate": "node generate.mjs",
+    "build": "npm run generate && storybook build --quiet --disable-telemetry",
+    "test": "node --test test/*.test.mjs",
+    "review": "node visual.mjs"
+  },
+  "license": "MIT",
+  "type": "module",
+  "dependencies": {
+    "@fontsource/noto-emoji": "5.3.2",
+    "@fontsource/noto-sans-sc": "5.3.1",
+    "@playwright/test": "1.65.0",
+    "@storybook/html-vite": "10.6.6",
+    "@xterm/xterm": "6.0.0",
+    "pixelmatch": "8.0.0",
+    "pngjs": "7.0.0",
+    "storybook": "10.6.6",
+    "vite": "8.3.6",
+    "ws": "8.22.1"
+  },
+  "private": true,
+  "engines": {
+    "node": ">=24 <25"
+  }
+}

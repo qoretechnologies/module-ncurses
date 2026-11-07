@@ -25,7 +25,8 @@ public namespace NcursesUi {
 /** Code completion popup widget.
 
     Displays a scrollable list of completion items in a floating panel.
-    Supports keyboard navigation (Up/Down, Enter, Escape) and displays
+    Supports keyboard navigation (Up/Down, Enter, Escape), primary-click selection,
+    double-click acceptance and wheel navigation, and displays
     a kind indicator for each item (e.g., "f" for function, "c" for class).
 
     Items are hashes with keys:
@@ -296,9 +297,12 @@ public class CompletionPopupWidget inherits NcursesUi::PanelWidget {
         @since ncurses 1.0
     */
     hash<NcursesUi::EventResult> processEvent(hash<Ncurses::InputEvent> ev) {
+        if (!isAvailable()) { return <NcursesUi::EventResult>{"handled": False}; }
         if (ev.type == Ncurses::InputType::Key) {
             string name = ev.name ?? "";
-            if (name == "KEY_UP") {
+            if (name == "KEY_ENTER") {
+                selectHighlighted(); return <NcursesUi::EventResult>{"handled": True, "action": "select"};
+            } else if (name == "KEY_UP") {
                 moveHighlight(-1);
                 return <NcursesUi::EventResult>{"handled": True};
             } else if (name == "KEY_DOWN") {
@@ -313,7 +317,7 @@ public class CompletionPopupWidget inherits NcursesUi::PanelWidget {
             }
         } else if (ev.type == Ncurses::InputType::Char) {
             int code = ord(ev.ch ?? "");
-            if (code == 0x0a) {
+            if (code == 0x0a || code == 0x0d) {
                 # Enter - select highlighted item
                 selectHighlighted();
                 return <NcursesUi::EventResult>{"handled": True, "action": "select"};
@@ -329,6 +333,30 @@ public class CompletionPopupWidget inherits NcursesUi::PanelWidget {
                 # any other key - dismiss and let the key propagate
                 dismiss();
                 return <NcursesUi::EventResult>{"handled": False, "action": "dismiss"};
+            }
+        } else if (ev.type == Ncurses::InputType::Mouse && ev.mouse) {
+            int buttons = ev.mouse.button_state;
+            if (!hitTest(ev.mouse.y, ev.mouse.x)) {
+                if (buttons & (Ncurses::BUTTON1_PRESSED | Ncurses::BUTTON1_CLICKED | Ncurses::BUTTON1_DOUBLE_CLICKED)) {
+                    dismiss(); return <NcursesUi::EventResult>{"handled": False, "action": "dismiss"};
+                }
+                return <NcursesUi::EventResult>{"handled": False};
+            }
+            if (buttons & (Ncurses::BUTTON4_PRESSED | Ncurses::BUTTON5_PRESSED)) {
+                moveHighlight(buttons & Ncurses::BUTTON4_PRESSED ? -1 : 1);
+                return <NcursesUi::EventResult>{"handled": True};
+            }
+            hash<NcursesUi::Rect> rect = NcursesUi::Geometry::intersect(contentRect(), visibleRect());
+            if (NcursesUi::Geometry::rectContains(rect, ev.mouse.y, ev.mouse.x)
+                    && (buttons & (Ncurses::BUTTON1_PRESSED | Ncurses::BUTTON1_CLICKED | Ncurses::BUTTON1_DOUBLE_CLICKED))) {
+                int index = scroll_offset + ev.mouse.y - contentRect().y;
+                if (index >= 0 && index < completion_items.size()) {
+                    moveHighlight(index - highlight_index);
+                    if (buttons & Ncurses::BUTTON1_DOUBLE_CLICKED) {
+                        selectHighlighted(); return <NcursesUi::EventResult>{"handled": True, "action": "select"};
+                    }
+                    return <NcursesUi::EventResult>{"handled": True};
+                }
             }
         }
         return <NcursesUi::EventResult>{"handled": False};

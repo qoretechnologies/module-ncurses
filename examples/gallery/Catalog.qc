@@ -1,6 +1,95 @@
 # Copyright 2026 Qore Technologies, s.r.o. SPDX-License-Identifier: MIT
 namespace NcursesGallery {
 class Catalog {
+    static list<hash<NcursesGallery::Story>> mouseScenarios(list<hash<NcursesGallery::Story>> definitions) {
+        list<hash<NcursesGallery::Story>> result = ();
+        foreach hash<NcursesGallery::Story> original in (definitions) {
+            if (original.state != "default" || Variants::includes(("LabelWidget", "StatusBarWidget"), original.widget)) { continue; }
+            hash<NcursesGallery::Story> story = original; story.state = "mouse";
+            hash<auto> fixture = {}; fixture += original.fixture; story.fixture = fixture;
+            story.id = original.id.split(".")[0] + ".mouse";
+            story.purpose = "Exercise the visible mouse target for " + original.widget + ". " + original.mouse;
+            int y = 0; int x = 3; int buttons = Ncurses::BUTTON1_CLICKED; hash<auto> expected;
+            switch (original.widget) {
+                case "TextEditorWidget": x = 1; expected = {"cursor_x": 1, "focus": "TextEditorWidget"}; break;
+                case "TextInputWidget": x = 6; expected = {"cursor_x": 6, "focus": "TextInputWidget"}; break;
+                case "TranscriptWidget": buttons = Ncurses::BUTTON4_PRESSED; expected = {"following": False, "scroll": 0}; break;
+                case "CodeViewWidget":
+                    story.fixture.text = strmul("int answer = 42;\n", 30); buttons = Ncurses::BUTTON5_PRESSED;
+                    story.steps[0].expected = {"scroll": 0}; expected = {"scroll_min": 1}; break;
+                case "ButtonWidget": expected = {"activations": 1}; break;
+                case "CheckboxWidget": expected = {"checked": True}; break;
+                case "RadioGroupWidget": y = 1; expected = {"selected": 1, "highlight": 1}; break;
+                case "ComboBoxWidget":
+                    story.fixture.text = "Execute"; story.steps[0].expected = {"text": "Execute"}; x = 1;
+                    expected = {"cursor_x": 1, "text": "Execute"}; break;
+                case "DescribedChoiceWidget": y = 3; expected = {"choice": "execute"}; break;
+                case "FormWidget": y = 7; x = 1; expected = {"include_details": False}; break;
+                case "ListWidget": y = 1; expected = {"selected": 1}; break;
+                case "TableWidget": y = 2; expected = {"selected": 1}; break;
+                case "TreeWidget":
+                case "KeyValueWidget": y = 1; expected = {"has_selection": True}; break;
+                case "TextChartWidget":
+                    story.geometry = <Ncurses::Size>{"rows": 2, "cols": 30}; story.steps[0].expected = {"scroll": 0};
+                    buttons = Ncurses::BUTTON5_PRESSED; expected = {"scroll_min": 1}; break;
+                case "MenuBarWidget": expected = {"active_menu": 0, "modal": True}; break;
+                case "DropdownMenuWidget": y = 5; x = 4; expected = {"activations": 1, "modal": False}; break;
+                case "DialogWidget": y = 9; x = 24; expected = {"activations": 1, "modal": False}; break;
+                case "CompletionPopupWidget": y = 4; x = 4; expected = {"selected": 1, "modal": True}; break;
+                case "AssistancePopupWidget": y = 3; x = 10; expected = {"selected_kind": "signature"}; break;
+                case "ProgressWidget": y = 2; expected = {"operation_state": NcursesUi::ActionState::Running, "contains": "25%"}; break;
+                case "TimelineWidget": y = 2; expected = {"event": "completed"}; break;
+                case "FileBrowserWidget": y = 2; expected = {"has_selection": True}; break;
+                case "FileSelectionWidget": x = 1; expected = {"file_count": 1}; break;
+                case "AttachmentWidget": y = 7; expected = {"activations": 1, "operation_state": NcursesUi::ActionState::Completed}; break;
+                default: throw "GALLERY-STORY-ERROR", "Missing mouse review for " + original.widget;
+            }
+            story.steps = (story.steps[0], <NcursesGallery::Step>{"checkpoint": "mouse", "instruction": original.mouse,
+                "event": <Ncurses::InputEvent>{"type": Ncurses::InputType::Mouse,
+                    "mouse": <Ncurses::MouseEvent>{"y": y, "x": x, "button_state": buttons}}, "expected": expected});
+            result += story;
+        }
+        return result;
+    }
+    static list<hash<NcursesGallery::Story>> scenarios(list<hash<NcursesGallery::Story>> definitions) {
+        list<hash<NcursesGallery::Story>> result = ();
+        foreach hash<NcursesGallery::Story> original in (definitions) {
+            if (original.state != "default" || !Variants::includes(("TranscriptWidget", "ProgressWidget", "AssistancePopupWidget"), original.widget)) { continue; }
+            hash<NcursesGallery::Story> story = original; story.state = "scenario";
+            if (story.widget == "TranscriptWidget") {
+                story.id = "transcript.background-reading";
+                story.purpose = "Preserve the reading anchor while background output arrives; resume explicitly.";
+                story.geometry = <Ncurses::Size>{"rows": 4, "cols": 32};
+                story.fixture.lines = ("History 01", "History 02", "History 03", "History 04", "History 05", "History 06", "History 07", "History 08");
+                story.steps = (
+                    <NcursesGallery::Step>{"checkpoint": "following", "instruction": "Start at the latest output.", "expected": {"following": True, "unread": 0, "scroll_min": 1}},
+                    <NcursesGallery::Step>{"checkpoint": "reading", "instruction": "Home pauses following at the first line.", "event": Registry::key("KEY_HOME"), "expected": {"following": False, "scroll": 0}},
+                    <NcursesGallery::Step>{"checkpoint": "background", "instruction": "Deliver two background lines without moving the reading anchor.", "action": "append-output", "expected": {"following": False, "scroll": 0, "unread": 2, "contains": "History 01"}},
+                    <NcursesGallery::Step>{"checkpoint": "latest", "instruction": "End resumes following and clears unread feedback.", "event": Registry::key("KEY_END"), "expected": {"following": True, "unread": 0, "scroll_min": 1, "contains": "Background 10"}}
+                );
+            } else if (story.widget == "ProgressWidget") {
+                story.id = "progress.cancel-stale";
+                story.purpose = "Cancel an operation, retry, and reject a late result from the old attempt.";
+                story.steps = (
+                    <NcursesGallery::Step>{"checkpoint": "pending", "instruction": "Start from an idle operation.", "expected": {"operation_state": NcursesUi::ActionState::Pending}},
+                    <NcursesGallery::Step>{"checkpoint": "running", "instruction": "Enter begins deterministic progress.", "event": Registry::key("KEY_ENTER"), "action": "remember-attempt", "expected": {"operation_state": NcursesUi::ActionState::Running, "contains": "25%"}},
+                    <NcursesGallery::Step>{"checkpoint": "cancelled", "instruction": "C cancels with visible feedback.", "event": <Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "c"}, "expected": {"operation_state": NcursesUi::ActionState::Cancelled, "contains": "Cancelled"}},
+                    <NcursesGallery::Step>{"checkpoint": "retry", "instruction": "Enter starts a new attempt.", "event": Registry::key("KEY_ENTER"), "expected": {"operation_state": NcursesUi::ActionState::Running}},
+                    <NcursesGallery::Step>{"checkpoint": "stale", "instruction": "Deliver the cancelled attempt's completion; current progress remains unchanged.", "action": "stale-progress", "expected": {"operation_state": NcursesUi::ActionState::Running, "stale_attempted": True, "stale_accepted": False, "contains": "25%"}}
+                );
+            } else {
+                story.id = "assistance-popup.cancel-stale";
+                story.purpose = "Dismiss pending assistance and reject a late provider result without changing the draft or focus.";
+                story.steps = (
+                    <NcursesGallery::Step>{"checkpoint": "pending", "instruction": "Begin a pending provider request.", "action": "request-assistance", "expected": {"loading": True, "modal": True}},
+                    <NcursesGallery::Step>{"checkpoint": "dismiss", "instruction": "Escape cancels and restores the editor caret.", "event": <Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "\e"}, "expected": {"loading": False, "modal": False, "focus": "TextEditorWidget", "cursor": 1}},
+                    <NcursesGallery::Step>{"checkpoint": "stale", "instruction": "Deliver obsolete assistance; keep the unchanged draft and restored focus.", "action": "stale-assistance", "expected": {"stale_attempted": True, "stale_accepted": False, "text": "greet(na)", "focus": "TextEditorWidget", "modal": False, "cursor": 1}}
+                );
+            }
+            result += story;
+        }
+        return result;
+    }
     static hash<NcursesGallery::Story> entry(string id, string widget, string purpose, hash<auto> fixture,
             string keyboard, string mouse, hash<auto> expected, *hash<Ncurses::InputEvent> event, *hash<auto> after) {
         list<hash<NcursesGallery::Step>> steps = (<NcursesGallery::Step>{"checkpoint": "initial", "instruction": purpose, "expected": expected},);
@@ -69,7 +158,7 @@ class Catalog {
             entry("timeline", "TimelineWidget", "Review timestamped operation history and expand event details.", {"timestamp": "2026-01-02T03:04:05Z"},
                 "Up/Down select events; Enter/Space toggles details.", "Wheel scrolls history; click selects.", {"event": "started", "contains": "2026-01-02"}, down, {"event": "completed"}),
             entry("file-browser", "FileBrowserWidget", "Browse repository-owned sample files and a bounded text preview.", {"directory": "examples/gallery/fixtures"},
-                "Arrows select; Enter opens a directory; Tab switches preview; Escape dismisses.", "Click files or preview entries; wheel scrolls the active pane.", {"modal": True, "contains": "sample.txt"}),
+                "Arrows select; Enter/Tab opens a directory; Shift+Tab goes back; F7 switches panes; Escape dismisses.", "Click files or preview entries; wheel scrolls the active pane.", {"modal": True, "contains": "sample.txt"}, Registry::key("KEY_F(7)"), {"focus": "ScrollableWidget"}),
             entry("file-selection", "FileSelectionWidget", "Select fixture metadata without modifying files.", {"files": (
                 <NcursesUi::FileSelectionEntry>{"id": "sample", "name": "sample 界é.txt", "path": "fixture/sample.txt", "size": 64, "type": "text/plain"},
                 <NcursesUi::FileSelectionEntry>{"id": "missing", "name": "missing.txt", "path": "fixture/missing.txt", "error": "File was removed"})},

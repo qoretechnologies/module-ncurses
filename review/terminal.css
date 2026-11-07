@@ -1,0 +1,14 @@
+/* Copyright 2026 Qore Technologies, s.r.o. SPDX-License-Identifier: MIT */
+.native-review { display: block; color: #18212b; font: 15px/1.5 system-ui, sans-serif; padding: 20px; }
+.native-review h2 { margin: 0; font-size: 22px; }
+.native-review p { max-width: 80ch; margin: 8px 0; }
+.native-help { color: #44515f; }
+.native-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 16px 0; }
+.native-toolbar button, .native-toolbar a { font: inherit; padding: 6px 12px; border: 1px solid #8a99a8; border-radius: 4px; background: #fff; color: #18212b; }
+.native-toolbar button { cursor: pointer; }
+.native-toolbar button:focus-visible, .native-toolbar a:focus-visible { outline: 3px solid #2365ba; outline-offset: 2px; }
+.native-status { font-size: 13px; color: #44515f; }
+.native-status[data-error] { color: #9b1c25; }
+.native-terminal { display: inline-block; background: #101418; padding: 0; }
+.native-terminal .xterm { padding: 0; }
+.native-review pre { padding: 16px; background: #f1f4f7; overflow: auto; }

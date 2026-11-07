@@ -25,9 +25,30 @@ class GalleryTest inherits Test {
         addTestCase("reset disposes queued work and owned subscriptions", \queuedReset());
         addTestCase("assistance selected result reflects navigation filtering and cancellation", \assistanceSelection());
         addTestCase("registered geometry and equal-size device changes are respected", \deviceGeometry());
+        addTestCase("nonmodal cursor follows final focus during capture and native event loops", \cursorPolicy());
         set_return_value(main());
     }
     private code<nothing()> storyTest(hash<NcursesGallery::Story> story) { return sub () { runStory(story); }; }
+    cursorPolicy() {
+        Ncurses::TestTerminal terminal(24, 80); NcursesUi::Application app({"test_terminal": terminal}); on_exit app.close();
+        NcursesGallery::Gallery gallery(app, "form.default"); on_exit gallery.close();
+        assertEq(1, gallery.current().capture().frame.cursor.visibility);
+        app.getSession().injectInput("\t\t\x11"); app.run();
+        assertEq(cast<NcursesUi::FormWidget>(gallery.current().control()).getControl("enabled"), app.getFocusManager().getCurrentFocus());
+        assertEq(0, app.getSession().capture().cursor.visibility);
+        gallery.reset(); assertEq(1, gallery.current().capture().frame.cursor.visibility);
+        app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "\t"});
+        app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "\t"});
+        assertEq(0, gallery.current().capture().frame.cursor.visibility);
+        gallery.select("form.loading"); assertEq(0, gallery.current().capture().frame.cursor.visibility);
+        gallery.select("text-editor.disabled"); assertEq(0, gallery.current().capture().frame.cursor.visibility);
+        gallery.close();
+        # Removed tick callbacks must not reference the closed runner on another loop.
+        app.setRoot(new NcursesUi::Widget()); app.setGlobalKeyHandler(hash<NcursesUi::EventResult> sub (hash<Ncurses::InputEvent> event) {
+            app.quit(); return <NcursesUi::EventResult>{"handled": True};
+        });
+        app.getSession().injectInput("q"); app.run(); assertFalse(app.isRunning());
+    }
     private nothing runStory(hash<NcursesGallery::Story> story) {
             Ncurses::TestTerminal terminal(story.geometry.rows, story.geometry.cols);
             Ncurses::Session session({"test_terminal": terminal}); on_exit session.close();

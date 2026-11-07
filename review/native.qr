@@ -1,0 +1,55 @@
+#!/usr/bin/env qore
+# Copyright 2026 Qore Technologies, s.r.o. SPDX-License-Identifier: MIT
+%requires ncurses
+%requires NcursesUi
+%requires json
+%include "examples/gallery/Registry.qc"
+%include "examples/gallery/Catalog.qc"
+%include "examples/gallery/Variants.qc"
+%include "examples/gallery/Fixture.qc"
+%include "examples/gallery/Runner.qc"
+
+# stdin/stdout are a private control pipe; ncurses exclusively owns the supplied PTY.
+string id = ARGV[1]; NcursesGallery::Registry::find(id);
+NcursesUi::Application app({"tty_path": ARGV[0], "use_tty": True, "raw": True,
+    "mouse": True, "bracketed_paste": True, "cursor": 1, "use_colors": ARGV[2] != "mono"});
+on_exit app.close();
+NcursesGallery::Runner runner(app, id); on_exit runner.close();
+File terminal(); terminal.open(ARGV[0], O_WRONLY); on_exit terminal.close();
+code<nothing(int, *hash<auto>)> complete = sub (int sequence, *hash<auto> captured) {
+    hash<auto> artifact = captured ?? runner.capture(); artifact.index = runner.checkpointIndex();
+    terminal.write(sprintf("\e]777;ncurses-gallery;%d\a", sequence));
+    printf("%s\n", make_json({"type": "frame", "sequence": sequence, "artifact": artifact}));
+};
+complete(0);
+while (True) {
+    *string line = stdin.readLine(); if (!line) { break; }
+    hash<auto> command = parse_json(line); bool closing = False; *hash<auto> captured;
+    try {
+        switch (command.action) {
+            case "capture": break;
+            case "reset": runner.reset(); break;
+            case "step": captured = runner.step(); break;
+            case "resize":
+                app.getSession().resize(int(command.rows), int(command.cols));
+                app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Resize}); break;
+            case "input":
+                while (True) {
+                    hash<Ncurses::InputEvent> event = app.getSession().screen().readEvent(-1, 25);
+                    if (event.type == Ncurses::InputType::Char && event.ch == "\x1e") { break; }
+                    # The fence also terminates an otherwise ambiguous standalone Escape.
+                    if (event.type == Ncurses::InputType::Alt && event.ch == "\x1e") {
+                        app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "\e"}); break;
+                    }
+                    app.processEvent(event);
+                }
+                break;
+            case "close": closing = True; break;
+            default: throw "GALLERY-COMMAND-ERROR", "Unknown bridge action";
+        }
+        if (closing) { break; }
+        complete(int(command.sequence), captured);
+    } catch (hash<ExceptionInfo> ex) {
+        printf("%s\n", make_json({"type": "error", "sequence": command.sequence, "error": ex.err, "description": ex.desc}));
+    }
+}

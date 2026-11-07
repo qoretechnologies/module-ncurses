@@ -19,6 +19,11 @@ class Fixture {
         *NcursesUi::AssistanceModel assistance;
         int activations = 0;
         bool closed = False;
+        *hash<NcursesUi::ActionRequest> latest_attempt;
+        *hash<NcursesUi::ActionRequest> stale_attempt;
+        *hash<NcursesUi::AssistanceRequest> stale_assistance;
+        bool stale_attempted = False;
+        bool stale_accepted = False;
     }
     constructor(NcursesUi::Application application, hash<NcursesGallery::Story> definition) {
         app = application; story = definition;
@@ -51,7 +56,8 @@ class Fixture {
             case "CheckboxWidget": widget = new NcursesUi::CheckboxWidget(data.label); break;
             case "RadioGroupWidget": widget = new NcursesUi::RadioGroupWidget(data.options); break;
             case "ComboBoxWidget":
-                NcursesUi::ComboBoxWidget combo(data.options); if (story.state == "unicode") { combo.setText("Unicode 界é " + strmul("long ", 20) + "界é"); } widget = combo; break;
+                NcursesUi::ComboBoxWidget combo(data.options); if (exists data.text) { combo.setText(data.text); }
+                if (story.state == "unicode") { combo.setText("Unicode 界é " + strmul("long ", 20) + "界é"); } widget = combo; break;
             case "DescribedChoiceWidget":
                 NcursesUi::DescribedChoiceWidget described(data.choices); described.setOnSubmit(sub (hash<NcursesUi::ChoiceSelection> selection) { ++activations; }); widget = described; break;
             case "FormWidget":
@@ -92,7 +98,7 @@ class Fixture {
                 NcursesUi::StatusBarWidget status(); status.setSegments(data.segments); widget = status; break;
             case "ProgressWidget":
                 action = new NcursesGallery::FixtureAction(data.label); NcursesUi::ProgressWidget progress(action);
-                progress.setOnStart(sub (hash<NcursesUi::ActionRequest> token) { action.progress(token, 1.0, 4.0, "One of four items reviewed"); }); widget = progress; break;
+                progress.setOnStart(sub (hash<NcursesUi::ActionRequest> token) { latest_attempt = token; action.progress(token, 1.0, 4.0, "One of four items reviewed"); }); widget = progress; break;
             case "TimelineWidget":
                 NcursesUi::TimelineWidget timeline();
                 if (story.state != "empty") {
@@ -131,7 +137,6 @@ class Fixture {
         } else {
             app.setRoot(widget); app.getFocusManager().setFocus(widget);
             if (widget instanceof NcursesUi::FormWidget) { app.getFocusManager().setFocus(cast<NcursesUi::FormWidget>(widget).getControl("name")); }
-            *NcursesUi::Widget focus = app.getFocusManager().getCurrentFocus(); app.getSession().setCursor(focus && focus.wantsCursor() ? 1 : 0);
         }
         app.drawAll(); applyState(); app.drawAll();
     }
@@ -175,9 +180,25 @@ class Fixture {
         }
     }
     private nothing dismiss() { app.popModal(); if (panel) { panel.destroyPanel(); } }
+    nothing perform(string command) {
+        switch (command) {
+            case "append-output":
+                cast<NcursesUi::TranscriptWidget>(widget).appendLines(("Background 09", "Background 10")); break;
+            case "remember-attempt": @assert(latest_attempt); stale_attempt = latest_attempt; break;
+            case "stale-progress":
+                @assert(action && stale_attempt); stale_attempted = True;
+                stale_accepted = action.complete(stale_attempt, "Obsolete result"); break;
+            case "request-assistance": @assert(assistance); stale_assistance = assistance.beginRequest(); break;
+            case "stale-assistance":
+                @assert(assistance && stale_assistance); stale_attempted = True;
+                stale_accepted = assistance.complete(stale_assistance, <NcursesUi::AssistanceResponse>{"completions": ()}); break;
+            default: throw "GALLERY-ACTION-ERROR", "Unknown model action: " + command;
+        }
+    }
     hash<auto> inspect() {
         hash<auto> state = {}; state.activations = activations;
         state.empty = False; state.has_selection = False; state.has_error = False; state.loading = False;
+        if (story.state == "scenario") { state.stale_attempted = stale_attempted; state.stale_accepted = stale_accepted; }
         if (owner) { state.text = owner.getText(); }
         if (widget instanceof NcursesUi::ScrollableWidget) { state.scroll = cast<NcursesUi::ScrollableWidget>(widget).getScrollY(); }
         if (widget instanceof NcursesUi::TextInputWidget) { state.text = cast<NcursesUi::TextInputWidget>(widget).getText(); }
@@ -199,6 +220,7 @@ class Fixture {
         if (widget instanceof NcursesUi::TranscriptWidget) {
             NcursesUi::TranscriptWidget transcript = cast<NcursesUi::TranscriptWidget>(widget);
             state.empty = !transcript.getBlocks(); state.has_selection = transcript.getSelectedText() != "";
+            state.following = transcript.isFollowing(); state.unread = transcript.getUnreadCount();
         }
         if (widget instanceof NcursesUi::CodeViewWidget) { state.empty = cast<NcursesUi::CodeViewWidget>(widget).getText() == ""; }
         if (widget instanceof NcursesUi::CheckboxWidget) { state.has_selection = state.checked; }
@@ -224,7 +246,7 @@ class Fixture {
         if (widget instanceof NcursesUi::TimelineWidget) { state.empty = !cast<NcursesUi::TimelineWidget>(widget).getEventIds(); state.has_selection = state.event == "completed"; }
         if (widget instanceof NcursesUi::FileBrowserWidget) { state.has_selection = cast<NcursesUi::FileBrowserWidget>(widget).getSelectedFile().label == "sample.txt"; }
         if (widget instanceof NcursesUi::AttachmentWidget) { state.has_error = !!(cast<NcursesUi::AttachmentWidget>(widget).getError()); }
-        if (form) { state.empty = form.getValue("name") == ""; state.has_error = !!(form.getErrors()); state.loading = form.getState() == NcursesUi::ActionState::Running; }
+        if (form) { state.empty = form.getValue("name") == ""; state.include_details = form.getValue("enabled"); state.has_error = !!(form.getErrors()); state.loading = form.getState() == NcursesUi::ActionState::Running; }
         if (action) { state.has_error = !!(action.getError()); state.loading = action.getState() == NcursesUi::ActionState::Running; }
         if (assistance) {
             state.empty = !cast<NcursesUi::AssistancePopupWidget>(widget).getResults();

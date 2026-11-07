@@ -37,6 +37,7 @@ public class CheckboxWidget inherits NcursesUi::Widget {
         bool checked = False;
         #! callback fired on toggle
         *code<nothing(bool)> on_toggle;
+        *hash<NcursesUi::Rect> draw_bounds;
     }
 
     /** Creates a new CheckboxWidget.
@@ -107,6 +108,8 @@ public class CheckboxWidget inherits NcursesUi::Widget {
         @since ncurses 1.0
     */
     nothing draw(Ncurses::Window w) {
+        hash<Ncurses::Position> origin = w.position(); hash<Ncurses::Size> size = w.size();
+        draw_bounds = NcursesUi::Geometry::makeRect(origin.y, origin.x, size.rows, size.cols);
         hash<NcursesUi::Rect> cr = drawContentRect(w);
         string indicator = checked ? "[X]" : "[ ]";
         string text = indicator + " " + label;
@@ -115,12 +118,23 @@ public class CheckboxWidget inherits NcursesUi::Widget {
         text = TerminalText::clipRight(text, cr.cols);
 
         hash<auto> style;
-        if (hasFocus()) {
+        if (!isAvailable()) {
+            style = {"attrs": Ncurses::Attr::Dim};
+        } else if (hasFocus()) {
             style = {"attrs": Ncurses::Attr::Bold};
         }
 
         TerminalText::clearSpan(w, cr.y, cr.x, cr.cols);
         w.drawTextClipped(cr.y, cr.x, text, style);
+    }
+    /** Clears the mouse target when the surface is fully clipped. */
+    nothing onDrawClipped() { draw_bounds = NcursesUi::Geometry::makeRect(0, 0, 0, 0); Widget::onDrawClipped(); }
+    private bool actionHit(int y, int x) {
+        hash<NcursesUi::Rect> rect = contentRect(); rect.rows = min(1, rect.rows);
+        rect.cols = min(rect.cols, NcursesUi::TerminalText::displayWidth("[ ] " + label));
+        rect = NcursesUi::Geometry::intersect(rect, visibleRect());
+        if (draw_bounds) { rect = NcursesUi::Geometry::intersect(rect, draw_bounds); }
+        return NcursesUi::Geometry::rectContains(rect, y, x);
     }
 
     /** Handles toggle events.
@@ -129,13 +143,16 @@ public class CheckboxWidget inherits NcursesUi::Widget {
         @since ncurses 1.0
     */
     hash<NcursesUi::EventResult> processEvent(hash<Ncurses::InputEvent> ev) {
+        if (!isAvailable()) { return <NcursesUi::EventResult>{"handled": False}; }
         if (ev.type == Ncurses::InputType::Char) {
             int code = ord(ev.ch ?? "");
-            if (code == 0x20 || code == 0x0a) {
+            if (code == 0x20 || code == 0x0a || code == 0x0d) {
                 toggle();
                 return <NcursesUi::EventResult>{"handled": True, "action": "toggle"};
             }
-        } else if (ev.type == Ncurses::InputType::Mouse) {
+        } else if (ev.type == Ncurses::InputType::Key && ev.name == "KEY_ENTER") {
+            toggle(); return <NcursesUi::EventResult>{"handled": True, "action": "toggle"};
+        } else if (ev.type == Ncurses::InputType::Mouse && ev.mouse && actionHit(ev.mouse.y, ev.mouse.x)) {
             int bs = ev.mouse.button_state;
             if (bs & Ncurses::BUTTON1_CLICKED || bs & Ncurses::BUTTON1_PRESSED) {
                 toggle();
