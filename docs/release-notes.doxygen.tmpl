@@ -9,6 +9,9 @@
     above visibly bounded values, with spacing between fields and a non-color focus
     marker. Clicking a label, description or error focuses its value without changing
     it; read-only, disabled and detached fields cannot acquire focus this way.
+    Application-disabled controls remain disabled across model synchronization and
+    submission transitions. Metadata clicks lay out pending errors or replacement
+    fields even when focus does not change.
     Compact layout preserves the field label and input when at least two rows are
     available, marks truncated metadata with an ellipsis, and restores it after resize.
     Existing field/control APIs and typed drafts are preserved; applications with

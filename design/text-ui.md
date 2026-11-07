@@ -121,7 +121,11 @@ native caret, password masking and mouse-to-text coordinate mapping. Metadata la
 delegate `mouseFocusTarget()` to the associated control through the existing scoped
 dispatcher; they never forward an activation or mutate a value. Pending model/schema
 changes are reconciled before delegation, and a detached or unavailable control is
-not returned. A failed synchronization propagates without changing focus.
+not returned. Successful metadata refresh also lays out and invalidates the owning
+form, even when focus is unchanged or the clicked label was replaced. A failed
+synchronization propagates without changing focus. Bound controls combine the
+application's enabled flag with a separate form availability gate, preserving
+application disabling across refresh, submission, cancellation and retry.
 
 Focus reveals the entire field group. If a field exceeds the viewport height, layout
 allocates a control row, a label row, an error row and a help row in that priority,

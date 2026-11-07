@@ -332,7 +332,10 @@ transcript.returnToLatest();
     side rails. A leading @c > identifies the focused field without relying on color.
     Read-only fields are explicitly labeled and dimmed. Clicking a label, description
     or error focuses its associated available control without editing or toggling it;
-    the dispatcher's active focus scope remains authoritative. FormWidget scrolls the
+    the dispatcher's active focus scope remains authoritative. Disabling a control
+    through getControl().setEnabled(False) survives model refresh and submission
+    transitions; enabling it cannot override a read-only or submitting form.
+    FormWidget scrolls the
     whole focused field into view when it fits, and focuses the first
     invalid field when bound to Application::getFocusManager(). Password controls
     mask whole Unicode graphemes; explicit value/callback APIs still expose the value.

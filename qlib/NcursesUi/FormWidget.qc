@@ -21,10 +21,24 @@ class FormFieldLabel inherits NcursesUi::LabelWidget {
         }
     }
 }
+/** @internal Keeps application availability separate from form submission/read-only state. */
+class FormControlAvailability {
+    private { bool application_enabled = True; bool form_enabled = True; }
+    nothing setApplicationEnabled(bool value) {
+        application_enabled = value; applyEnabled(application_enabled && form_enabled);
+    }
+    nothing setFormEnabled(bool value) {
+        if (form_enabled == value) { return; }
+        form_enabled = value; applyEnabled(application_enabled && form_enabled);
+    }
+    private abstract nothing applyEnabled(bool value);
+}
 /** @internal Multiline field adapter delivering changes through the form model. */
-class FormEditorControl inherits NcursesUi::TextEditorWidget {
+class FormEditorControl inherits NcursesUi::TextEditorWidget, NcursesUi::FormControlAvailability {
     private { code<nothing(string)> changed; code<nothing()> prepare; }
     constructor(code<nothing(string)> callback, code<nothing()> before) { prepare = before; changed = callback; setEnterSubmits(False); setAutoHeight(2, 4); }
+    nothing setEnabled(bool value) { setApplicationEnabled(value); }
+    private nothing applyEnabled(bool value) { Widget::setEnabled(value); }
     hash<NcursesUi::EventResult> processEvent(hash<Ncurses::InputEvent> event) {
         prepare();
         if (!getParent() || !isAvailable()) { return <NcursesUi::EventResult>{}; }
@@ -33,9 +47,11 @@ class FormEditorControl inherits NcursesUi::TextEditorWidget {
     }
 }
 /** @internal Imports external values before the input takes an editing/submission snapshot. */
-class FormTextInputControl inherits NcursesUi::TextInputWidget {
+class FormTextInputControl inherits NcursesUi::TextInputWidget, NcursesUi::FormControlAvailability {
     private { code<nothing()> prepare; }
     constructor(code<nothing()> callback) { prepare = callback; }
+    nothing setEnabled(bool value) { setApplicationEnabled(value); }
+    private nothing applyEnabled(bool value) { Widget::setEnabled(value); }
     hash<NcursesUi::EventResult> processEvent(hash<Ncurses::InputEvent> event) {
         prepare();
         # A schema replacement may have removed this control during preparation.
@@ -44,11 +60,13 @@ class FormTextInputControl inherits NcursesUi::TextInputWidget {
     }
 }
 /** @internal Preserves the distinction between an unset Boolean and an explicit False. */
-class FormCheckboxControl inherits NcursesUi::CheckboxWidget {
+class FormCheckboxControl inherits NcursesUi::CheckboxWidget, NcursesUi::FormControlAvailability {
     private { code<nothing(bool)> changed; code<nothing()> prepare; }
     constructor(code<nothing(bool)> callback, bool value, code<nothing()> before) : CheckboxWidget("", value) {
         prepare = before; changed = callback; setOnToggle(callback);
     }
+    nothing setEnabled(bool value) { setApplicationEnabled(value); }
+    private nothing applyEnabled(bool value) { Widget::setEnabled(value); }
     hash<NcursesUi::EventResult> processEvent(hash<Ncurses::InputEvent> event) {
         prepare(); if (!getParent()) { return <NcursesUi::EventResult>{}; }
         return CheckboxWidget::processEvent(event);
@@ -56,9 +74,11 @@ class FormCheckboxControl inherits NcursesUi::CheckboxWidget {
     nothing setChecked(bool value) { CheckboxWidget::setChecked(value); changed(value); }
 }
 /** @internal Synchronizes pending model changes before navigating a bound choice. */
-class FormChoiceControl inherits NcursesUi::DescribedChoiceWidget {
+class FormChoiceControl inherits NcursesUi::DescribedChoiceWidget, NcursesUi::FormControlAvailability {
     private { code<nothing()> prepare; }
     constructor(list<hash<NcursesUi::ChoiceItem>> items, code<nothing()> before) : DescribedChoiceWidget(items) { prepare = before; }
+    nothing setEnabled(bool value) { setApplicationEnabled(value); }
+    private nothing applyEnabled(bool value) { Widget::setEnabled(value); }
     hash<NcursesUi::EventResult> processEvent(hash<Ncurses::InputEvent> event) {
         prepare(); if (!getParent()) { return <NcursesUi::EventResult>{}; }
         return DescribedChoiceWidget::processEvent(event);
@@ -278,10 +298,10 @@ public class FormWidget inherits NcursesUi::Widget {
         foreach hash<NcursesUi::FormField> field in (next) {
             next_controls{field.name} = createControl(field);
             NcursesUi::Widget control = next_controls{field.name};
-            next_labels{field.name} = new NcursesUi::FormFieldLabel(field.label, control, sub () { syncPresentation(); });
-            next_help{field.name} = new NcursesUi::FormFieldLabel(field.help, control, sub () { syncPresentation(); });
+            next_labels{field.name} = new NcursesUi::FormFieldLabel(field.label, control, sub () { prepareMetadata(); });
+            next_help{field.name} = new NcursesUi::FormFieldLabel(field.help, control, sub () { prepareMetadata(); });
             next_help{field.name}.setVisible(field.help != "");
-            next_errors{field.name} = new NcursesUi::FormFieldLabel("", control, sub () { syncPresentation(); });
+            next_errors{field.name} = new NcursesUi::FormFieldLabel("", control, sub () { prepareMetadata(); });
             next_errors{field.name}.setVisible(False);
             if (field.type == NcursesUi::FieldType::Choice && exists model.getValue(field.name) && !choiceAvailable(field, string(model.getValue(field.name)))) { next_invalid{field.name} = True; }
         }
@@ -352,6 +372,11 @@ public class FormWidget inherits NcursesUi::Widget {
         foreach hash<NcursesUi::ChoiceItem> item in (field.choices) { if (item.value == value && !item.disabled) { return True; } } return False;
     }
     private nothing storeValue(string name, auto value) { model.setValue(name, value); observed_value_revisions{name} = model.getValueRevision(name); remove imported_invalid_choices{name}; }
+    private nothing prepareMetadata() {
+        # The form remains alive through this callback even if refreshing replaces
+        # the clicked label. Acknowledged model changes must receive layout too.
+        syncPresentation(); layout(); markDirty();
+    }
     private nothing syncPresentation() {
         if (fields != model.getFields()) { buildFields(); return; }
         if (synchronizing) { return; } synchronizing = True; on_exit synchronizing = False;
@@ -374,7 +399,7 @@ public class FormWidget inherits NcursesUi::Widget {
         bool editable = state != NcursesUi::ActionState::Running && state != NcursesUi::ActionState::Completed;
         foreach hash<NcursesUi::FormField> field in (fields) {
             NcursesUi::Widget control = controls{field.name};
-            if (control.isEnabled() != (editable && !field.read_only)) { control.setEnabled(editable && !field.read_only); }
+            cast<NcursesUi::FormControlAvailability>(control).setFormEnabled(editable && !field.read_only);
             string text = messages{field.name} ?? (imported_invalid_choices{field.name} ? "Choose an available value" : ""); bool invalid = exists messages{field.name} || imported_invalid_choices{field.name}; errors{field.name}.setText(invalid ? styled("Error: " + text, "\e[1;31m") : ""); errors{field.name}.setVisible(invalid);
         }
         string status = messages{""} ?? model.getFailure() ?? "";

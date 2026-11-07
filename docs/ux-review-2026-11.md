@@ -47,6 +47,12 @@ precede explicit baseline acceptance.
     drafts, unavailable controls, pending schema replacement and synchronization
     failure. The mouse story includes heading/help focus and checkbox focus before
     the actual toggle, replayed through browser mouse input.
+  - PR review found two synchronization boundaries missed by the initial tests.
+    Metadata refresh now lays out and invalidates the owning form even when focus
+    is unchanged or a schema replacement detaches the clicked label. Application
+    disabling is tracked independently of the form's read-only/submission gate,
+    including changes while submission is running. Regressions cover pending errors,
+    replacement without focus and all four control adapter classes across cancellation.
   - Compact scrolling reveals the whole field group. Oversized groups prioritize a
     control row and label, then error/help; clipped metadata shows an ellipsis and
     returns after resizing. A one-row stress viewport prioritizes editing and cannot
