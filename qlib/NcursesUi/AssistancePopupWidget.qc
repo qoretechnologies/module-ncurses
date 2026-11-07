@@ -3,10 +3,12 @@
 public namespace NcursesUi {
 /** Caret-anchored assistance with ranked completions, diagnostics, actions and signature help.
     Type to filter completion labels; Up/Down select, Enter activates, Tab switches
-    between the result list and scrollable documentation, and Escape dismisses.
-    Use the application's popup stack and setOnDismiss() to pop/destroy the panel.
+    between the result list and scrollable documentation. Escape and outside primary
+    clicks dismiss; outside clicks can continue to the underlying control.
+    Use the application's popup stack and setOnDismiss() to remove/destroy the panel.
     The editor's shared caret mapping supplies the anchor across wrapping/scrolling.
-    If the caret is outside the visible editor, positionAtCaret() hides/cancels help.
+    If the caret is outside the visible editor, positionAtCaret() dismisses help
+    through the same ownership callback as Escape.
     Models, widgets and callbacks belong to the UI thread.
 */
 public class AssistancePopupWidget inherits NcursesUi::PanelWidget {
@@ -36,7 +38,7 @@ public class AssistancePopupWidget inherits NcursesUi::PanelWidget {
         results.setOnActivate(sub (hash<auto> item) { activateSelected(); });
         addChild(results); addChild(documentation); refresh();
     }
-    /** Sets dismissal integration. @param callback pops/destroys this popup in the owning application */
+    /** Sets dismissal integration. @param callback removes/destroys this popup in the owning application */
     nothing setOnDismiss(*code<nothing()> callback) { on_dismiss = callback; }
     /** Sets maximum popup dimensions. @param rows positive rows @param columns positive columns @throw ASSISTANCE-SIZE-ERROR if invalid */
     nothing setMaximumSize(int rows, int columns) {
@@ -57,10 +59,11 @@ public class AssistancePopupWidget inherits NcursesUi::PanelWidget {
     int getDocumentationScrollY() { return documentation.getScrollY(); }
     /** Positions and clamps the popup using the current editor caret.
         @param rows terminal rows @param columns terminal columns @return whether a visible anchor exists
+        @note Losing an anchor dismisses visible assistance and invokes setOnDismiss() once.
     */
     bool positionAtCaret(int rows, int columns) {
         *hash<Ncurses::Position> anchor = editor.getCaretScreenPosition();
-        if (!anchor || rows <= 0 || columns <= 0) { setVisible(False); return False; }
+        if (!anchor || rows <= 0 || columns <= 0) { if (isVisible()) { dismiss(); } return False; }
         setVisible(True); int height = min(maximum_rows, rows); int width = min(maximum_cols, columns);
         setHasBorder(height >= 3 && width >= 3);
         int y = anchor.y + 1; if (y + height > rows) { y = anchor.y - height; }
@@ -113,6 +116,12 @@ public class AssistancePopupWidget inherits NcursesUi::PanelWidget {
             return <NcursesUi::EventResult>{"handled": True, "action": activateSelected() ? "accept" : NOTHING};
         }
         if (event.type == Ncurses::InputType::Mouse && event.mouse) {
+            if (!hitTest(event.mouse.y, event.mouse.x)
+                    && (event.mouse.button_state & (Ncurses::BUTTON1_PRESSED | Ncurses::BUTTON1_CLICKED
+                        | Ncurses::BUTTON1_DOUBLE_CLICKED | Ncurses::BUTTON1_TRIPLE_CLICKED))) {
+                # Release owned panels/providers before the dispatcher forwards the click.
+                dismiss(); return <NcursesUi::EventResult>{"action": "dismiss"};
+            }
             if (documentation.hitTest(event.mouse.y, event.mouse.x)) { docs_active = True; updateTitle(); markDirty(); return documentation.processEvent(event); }
             if (results.hitTest(event.mouse.y, event.mouse.x)) { docs_active = False; updateTitle(); markDirty(); return results.processEvent(event); }
             return <NcursesUi::EventResult>{};

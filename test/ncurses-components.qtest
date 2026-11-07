@@ -1,4 +1,5 @@
 #!/usr/bin/env qore
+# Copyright 2026 Qore Technologies, s.r.o.
 
 %prepend-module-path "${SCRIPT_DIR}/../build"
 %prepend-module-path "${SCRIPT_DIR}/../build/qlib-qmod"
@@ -152,6 +153,7 @@ class NcursesComponentsTest inherits Test {
         addTestCase("FileBrowserWidget toggle hidden", \testFileBrowserHidden());
         addTestCase("FileBrowserWidget split layout", \testFileBrowserSplitLayout());
         addTestCase("FileBrowserWidget preview", \testFileBrowserPreview());
+        addTestCase("FileBrowserWidget previews actual bounded data and rejects special files", \testFileBrowserPreviewData());
         addTestCase("FileBrowserWidget Tab navigation", \testFileBrowserTabNavigation());
         addTestCase("FileBrowserWidget Qore load callback", \testFileBrowserQoreLoad());
         addTestCase("FileBrowserWidget dismiss", \testFileBrowserDismiss());
@@ -2151,28 +2153,47 @@ class NcursesComponentsTest inherits Test {
         on_exit th.close();
 
         string test_dir = fixture_dir;
+        string empty_path = test_dir + "/empty.txt";
+        File empty_file();
+        empty_file.open(empty_path, O_CREAT | O_WRONLY | O_EXCL, 0600);
+        empty_file.close();
+        on_exit unlink(empty_path);
 
         NcursesUi::FileBrowserWidget fb(th.session(), test_dir);
 
-        # preview should start empty
+        # Unselected and genuinely empty previews must explain their state.
         NcursesUi::LineListContent pc = fb.getPreviewContent();
-        assertEq(0, pc.lineCount());
-
-        # navigate selection to a file (skip ".." at index 0)
+        assertEq("Select a file or directory to preview.", pc.getLine(0));
         NcursesUi::ListWidget fl = fb.getFileList();
-        if (fl.getItems().size() > 1) {
-            # find a file (not directory)
-            for (int i = 0; i < fl.getItems().size(); ++i) {
-                if (!fl.getItems()[i].is_dir) {
-                    fl.setSelectedIndex(i);
-                    # setSelectedIndex now fires on_select, which triggers preview loading
-                    break;
-                }
-            }
-        }
+        assertEq("empty.txt", fl.getItems()[1].label);
+        fl.setSelectedIndex(1);
+        assertEq("(Empty file)", pc.getLine(0));
+        assertEq("example.txt", fl.getItems()[2].label);
+        fl.setSelectedIndex(2);
+        assertEq("fixture", pc.getLine(0));
+        fb.navigateTo(test_dir);
+        assertEq("Select a file or directory to preview.", pc.getLine(0));
+    }
 
-        # preview widget should exist
-        assertTrue(exists fb.getPreviewWidget());
+    testFileBrowserPreviewData() {
+        NcursesUi::TestHarness th(12, 40); on_exit th.close();
+        string large_path = fixture_dir + "/large.txt"; File large();
+        large.open(large_path, O_CREAT | O_WRONLY | O_EXCL, 0600); on_exit unlink(large_path);
+        large.write(strmul("x", 1048577)); large.close();
+        list<hash<auto>> cases = ({"path": large_path, "expected": "(File too large to preview)"},
+            {"path": fixture_dir + "/missing.txt", "expected": "(Cannot preview file)"},
+            {"path": "/dev/null", "expected": "(Special file; preview unavailable)"});
+        if (is_file("/proc/self/status")) {
+            assertEq(0, hstat("/proc/self/status").size);
+            cases += {"path": "/proc/self/status", "expected": "Name:"};
+        }
+        foreach hash<auto> example in (cases) {
+            NcursesUi::FileBrowserWidget browser(th.session(), fixture_dir);
+            browser.getFileList().setItems(({"label": "..", "path": fixture_dir, "is_dir": True, "type": "dir"},
+                {"label": "sample", "path": example.path, "is_dir": False, "type": "binary", "file_info": {"is_text": False}}));
+            browser.getFileList().setSelectedIndex(1);
+            assertEq(0, browser.getPreviewContent().getLine(0).find(example.expected));
+        }
     }
 
     /** Test Tab toggles focus between file list and preview pane. */

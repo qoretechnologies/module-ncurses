@@ -277,9 +277,9 @@ Checkpoints: initial: Filter choices while retaining a visible editing caret.; i
 @section catalog_described_choice_default DescribedChoiceWidget
 API: @ref NcursesUi::DescribedChoiceWidget "DescribedChoiceWidget". [Source](https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/DescribedChoiceWidget.qc)
 
-Read the reason for the default and compare described alternatives.
+Choose an option: the filled circle marks selection; the highlighted title follows keyboard focus.
 
-Keyboard: Up/Down highlight; Space chooses; Enter submits; disabled choices are skipped.
+Keyboard: Up/Down moves focus; Space, Enter or a click selects. Unavailable choices are skipped.
 Mouse: Click chooses a described row.
 
 | State | Story or reason |
@@ -295,7 +295,7 @@ Mouse: Click chooses a described row.
 | constrained | described-choice.constrained |
 
 Initial geometry: 16 rows × 64 columns.
-Checkpoints: initial: Read the reason for the default and compare described alternatives.; interaction: Up/Down highlight; Space chooses; Enter submits; disabled choices are skipped.
+Checkpoints: initial: Choose an option: the filled circle marks selection; the highlighted title follows keyboard focus.; interaction: Up/Down moves focus; Space, Enter or a click selects. Unavailable choices are skipped.
 
 @section catalog_form_default FormWidget
 API: @ref NcursesUi::FormWidget "FormWidget". [Source](https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/FormWidget.qc)
@@ -463,7 +463,7 @@ API: @ref NcursesUi::DialogWidget "DialogWidget". [Source](https://github.com/qo
 
 Read an explanation and deliberately choose an action.
 
-Keyboard: Tab selects actions; Enter activates; Escape dismisses.
+Keyboard: Tab selects actions; Enter activates; Escape dismisses. Up/Down or Page keys scroll a long message.
 Mouse: Click a visible action or close control.
 
 | State | Story or reason |
@@ -479,7 +479,7 @@ Mouse: Click a visible action or close control.
 | constrained | dialog.constrained |
 
 Initial geometry: 16 rows × 64 columns.
-Checkpoints: initial: Read an explanation and deliberately choose an action.; interaction: Tab selects actions; Enter activates; Escape dismisses.
+Checkpoints: initial: Read an explanation and deliberately choose an action.; interaction: Tab selects actions; Enter activates; Escape dismisses. Up/Down or Page keys scroll a long message.
 
 @section catalog_assistance_popup_default AssistancePopupWidget
 API: @ref NcursesUi::AssistancePopupWidget "AssistancePopupWidget". [Source](https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/AssistancePopupWidget.qc)
@@ -649,6 +649,7 @@ These cases use the same native events for headless assertions and real PTY/brow
 | Story | Review checkpoint |
 | --- | --- |
 | transcript.background-reading | Preserve the reading anchor while background output arrives; resume explicitly. |
+| described-choice.submit | Submit one reviewed choice. Enter completes this one-shot form; Reset story opens a fresh form. |
 | assistance-popup.cancel-stale | Dismiss pending assistance and reject a late provider result without changing the draft or focus. |
 | progress.cancel-stale | Cancel an operation, retry, and reject a late result from the old attempt. |
 | text-editor.mouse | Exercise the visible mouse target for TextEditorWidget. Primary click places the caret; wheel scrolls. |
@@ -676,5 +677,6 @@ These cases use the same native events for headless assertions and real PTY/brow
 | file-browser.mouse | Exercise the visible mouse target for FileBrowserWidget. Click files or preview entries; wheel scrolls the active pane. |
 | file-selection.mouse | Exercise the visible mouse target for FileSelectionWidget. Click selects; wheel scrolls. |
 | attachment.mouse | Exercise the visible mouse target for AttachmentWidget. Click a displayed action; wheel scrolls. |
+| text-editor.code | Edit syntax-highlighted Qore code with qrepl completion and signature help. Drafts are not executed. |
 
 */

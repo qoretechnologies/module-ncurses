@@ -347,6 +347,8 @@ public hashdecl EventResult {
     *string action;
     #! optional associated data
     *hash<auto> data;
+    #! optional widget requesting mouse capture until primary release or scope cancellation
+    *NcursesUi::Widget mouse_capture;
 }
 
 /** @internal A modal scope and the focus suspended while it is active. */

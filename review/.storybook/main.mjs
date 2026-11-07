@@ -1,10 +1,21 @@
 // Copyright 2026 Qore Technologies, s.r.o. SPDX-License-Identifier: MIT
+import { fileURLToPath } from 'node:url';
+const terminalModule = fileURLToPath(new URL('../terminal.mjs', import.meta.url));
 export default {
   framework: '@storybook/html-vite',
   stories: ['../generated/*.stories.js'],
   addons: [],
   core: { disableTelemetry: true },
   async viteFinal(config) {
+    config.plugins = [...(config.plugins ?? []), {
+      name: 'native-terminal-registration-reload',
+      handleHotUpdate({ file, server }) {
+        if (file !== terminalModule) { return; }
+        // A CustomElementRegistry cannot replace a registered constructor. Start
+        // a fresh document instead of evaluating another definition in that registry.
+        server.ws.send({ type: 'full-reload' }); return [];
+      },
+    }];
     config.server = { ...config.server,
       // Storybook owns the HTTP server. Vite needs it explicitly for proxy WS upgrades.
       ...(config.server?.middlewareMode && config.server?.hmr?.server

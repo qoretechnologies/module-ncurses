@@ -40,15 +40,19 @@ export class NativeTerminal extends HTMLElement {
     const toolbar = document.createElement('div'); toolbar.className = 'native-toolbar'; this.append(toolbar);
     const button = (label, action) => {
       const control = document.createElement('button'); control.type = 'button'; control.textContent = label;
-      control.addEventListener('click', () => { void action().catch(error => this.showError(error)); }); toolbar.append(control);
+      control.addEventListener('click', () => { void Promise.resolve().then(action).catch(error => this.showError(error)); }); toolbar.append(control);
+      return control;
     };
-    button('Reset story', () => this.reset()); button('Next checkpoint', () => this.step());
+    button('Reset story', () => this.reset()); this.nextStep = button('Next checkpoint', () => this.step());
+    button('Focus terminal', () => this.term.focus());
     button('Inspect frame', () => this.capture().then(frame => { this.inspection.hidden = false; this.inspection.textContent = JSON.stringify({ state: frame.state, cursor: frame.frame.cursor, rows: frame.frame.rows, cols: frame.frame.cols }, null, 2); }));
-    for (const [label, size] of [['Tiny', { rows: 4, cols: 12 }], ['Standard', { rows: 24, cols: 80 }], ['Wide', { rows: 32, cols: 120 }]]) {
+    for (const [label, size] of [['4×12 stress test', { rows: 4, cols: 12 }], ['Standard', { rows: 24, cols: 80 }], ['Wide', { rows: 32, cols: 120 }]]) {
       button(label, () => this.resize(size.rows, size.cols));
     }
     const api = document.createElement('a'); api.href = story.api_url; api.textContent = 'Widget API source'; api.target = '_blank'; api.rel = 'noreferrer'; toolbar.append(api);
     this.status = document.createElement('p'); this.status.className = 'native-status'; this.status.setAttribute('role', 'status'); this.status.textContent = 'Starting native story…'; this.append(this.status);
+    this.feedback = document.createElement('p'); this.feedback.className = 'native-feedback'; this.feedback.setAttribute('aria-live', 'polite'); this.append(this.feedback);
+    this.viewportNote = document.createElement('p'); this.viewportNote.className = 'native-viewport-note'; this.append(this.viewportNote);
     this.host = document.createElement('div'); this.host.className = 'native-terminal'; this.append(this.host);
     this.inspection = document.createElement('pre'); this.inspection.hidden = true; this.append(this.inspection);
     await Promise.all([
@@ -60,9 +64,20 @@ export class NativeTerminal extends HTMLElement {
     const size = this.geometry ?? story.geometry;
     this.term = new Terminal({ ...size, rows: size.rows, cols: size.cols, scrollback: 0, fontSize: 14,
       fontFamily: '"Noto Sans Mono", "Noto Sans SC", "Noto Emoji", monospace', fontWeight: '400', fontWeightBold: '700',
-      lineHeight: 1, letterSpacing: 0, cursorBlink: false, cursorStyle: 'block', allowTransparency: false,
+      // An alpha glyph atlas uses grayscale coverage instead of host-dependent LCD
+      // subpixel colors. The terminal theme/host background remains fully opaque.
+      lineHeight: 1, letterSpacing: 0, cursorBlink: false, cursorStyle: 'block', allowTransparency: true,
       customGlyphs: true, theme, allowProposedApi: true });
     this.term.open(this.host);
+    // Cell-edge geometry is drawn by xterm, independent of font ascenders/descenders.
+    const { WebglAddon } = await import('@xterm/addon-webgl');
+    if (this.closing) { return; }
+    // Browser screenshots capture the composited frame, so the renderer should
+    // discard prior framebuffer pixels, including cursors on otherwise empty rows.
+    const renderer = new WebglAddon();
+    this.term.loadAddon(renderer);
+    this.resources.push(renderer.onContextLoss(() => this.fail(new Error('Terminal graphics context lost. Reload the story to reconnect.'))));
+    this.dataset.renderer = 'webgl';
     this.resources.push(this.term.parser.registerOscHandler(777, data => {
       const match = /^ncurses-gallery;(\d+)$/.exec(data);
       if (!match) { return false; }
@@ -117,6 +132,16 @@ export class NativeTerminal extends HTMLElement {
     } finally { rendered.dispose(); this.renders.delete(painting); }
     this.frame = message.artifact;
     this.status.textContent = `${this.frame.checkpoint} · ${this.frame.frame.rows}×${this.frame.frame.cols} · Focus: ${this.frame.state.focus || 'none'}`;
+    delete this.status.dataset.error;
+    const state = this.frame.state;
+    this.feedback.textContent = state.feedback || (state.enabled === false ? 'Disabled state: this control cannot be activated.'
+      : state.empty ? 'Empty state: no sample content is loaded. Editable controls still accept input.'
+      : state.modal === false && /Popup|Dialog|FileBrowser/.test(this.definition.widget) ? 'Closed. Reset the story to open it again.'
+      : 'Live preview — click inside the terminal and use the controls described above.');
+    this.updateCheckpointControl();
+    const size = this.definition.review_size ?? { rows: 6, cols: 24 };
+    this.viewportNote.textContent = this.frame.frame.rows < size.rows || this.frame.frame.cols < size.cols
+      ? `Stress viewport: ${this.frame.frame.cols} columns × ${this.frame.frame.rows} rows. Recommended for this example: ${size.cols}×${size.rows}. Use Standard to expand; the actual clipped output remains visible below.` : '';
     const pending = this.requests.get(message.request); this.requests.delete(message.request); pending?.resolve(this.frame);
     this.dispatchEvent(new CustomEvent('native-frame', { detail: this.frame }));
   }
@@ -136,11 +161,23 @@ export class NativeTerminal extends HTMLElement {
     this.requestChain = operation.catch(() => {});
     return operation;
   }
-  async input(data, encoding = 'utf8') { await this.ready; return await this.request('input', { data, encoding }); }
+  updateCheckpointControl() {
+    const next = this.definition.steps[this.frame.index + 1];
+    this.nextStep.disabled = this.interacted || !next;
+    this.nextStep.title = this.interacted ? 'Reset the story to replay its recorded steps.' : next?.instruction || 'All recorded steps are complete.';
+  }
+  async input(data, encoding = 'utf8') {
+    await this.ready; this.interacted = true; this.updateCheckpointControl();
+    return await this.request('input', { data, encoding });
+  }
   async capture() { await this.ready; return await this.request('capture'); }
-  async reset() { await this.ready; return await this.request('reset'); }
-  async step() { await this.ready; return await this.request('step'); }
-  async resize(rows, cols) { await this.ready; return await this.request('resize', { rows, cols }); }
+  async reset() { await this.ready; this.interacted = false; const frame = await this.request('reset'); this.term.focus(); return frame; }
+  async step() {
+    await this.ready;
+    if (this.interacted) { throw new Error('Reset the story before replaying recorded checkpoints after manual input.'); }
+    const frame = await this.request('step'); this.term.focus(); return frame;
+  }
+  async resize(rows, cols) { await this.ready; const frame = await this.request('resize', { rows, cols }); this.term.focus(); return frame; }
   showError(error) { if (this.status) { this.status.textContent = error.message; this.status.dataset.error = 'true'; } }
   fail(error) {
     clearTimeout(this.startTimer);

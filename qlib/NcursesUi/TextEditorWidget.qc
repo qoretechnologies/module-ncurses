@@ -12,6 +12,9 @@ public class TextEditorWidget inherits NcursesUi::ScrollableWidget {
         NcursesUi::EditorBuffer model();
         NcursesUi::LineListContent lines();
         list<string> logical_lines = ("",);
+        list<string> styled_lines = ("",);
+        *code<string(string)> highlighter;
+        bool formatting = False;
         list<int> line_offsets = (0,);
         string displayed_text = "";
         string prompt = "";
@@ -35,16 +38,43 @@ public class TextEditorWidget inherits NcursesUi::ScrollableWidget {
     /** Returns the editing model. @return UI-thread-owned model */
     NcursesUi::EditorBuffer getBuffer() { return model; }
     /** Sets a document and resets undo/history browsing. @param text plain text */
-    nothing setText(string text) { model.setText(normalizePaste(text)); preferred_column = NOTHING; sync(); }
+    nothing setText(string text) {
+        if (formatting) { throw "EDITOR-HIGHLIGHT-ERROR", "A highlighter cannot modify its editor"; }
+        text = normalizePaste(text); list<string> prepared = formatText(text, highlighter);
+        model.setText(text); preferred_column = NOTHING; sync(prepared);
+    }
     /** Returns the complete document. @return text including hard newlines */
     string getText() { return model.getText(); }
+    /** Sets optional source-preserving ANSI syntax highlighting.
+        @param callback receives the plain document, returns identical text with ANSI styling; NOTHING disables styling
+        @throw EDITOR-HIGHLIGHT-ERROR if styling changes source or reenters the editor
+        Callback errors propagate without installing the replacement provider. Editing and undo remain plain text.
+        setText() formats before replacing the draft. If a provider fails after interactive editing or a direct
+        buffer mutation, that draft and its undo history remain intact; replace/disable the provider to resume drawing.
+        @note Callbacks run on the UI thread and must not mutate the editor or its buffer. Cursor movement uses cached styles.
+    */
+    nothing setHighlighter(*code<string(string)> callback) {
+        list<string> next = formatText(model.getText(), callback);
+        sync(next); highlighter = callback; markDirty();
+    }
+    private list<string> formatText(string text, *code<string(string)> callback) {
+        if (formatting) { throw "EDITOR-HIGHLIGHT-ERROR", "A highlighter cannot reenter its editor"; }
+        if (!callback) { return split("\n", text, False, True); }
+        formatting = True; on_exit formatting = False;
+        string styled;
+        # Lock the model against direct provider mutations as well as editor setters.
+        model.submit(sub (string current) { styled = callback(text); });
+        if (TerminalText::plainAnsi(styled) != text) { throw "EDITOR-HIGHLIGHT-ERROR", "Syntax styling changed source text"; }
+        return TerminalText::styledLines(styled);
+    }
     /** Sets a styled, noneditable first-line prefix. It participates in wrapping and caret geometry.
         @param value single-line ANSI-styled prompt @throw EDITOR-PROMPT-ERROR for hard newlines
     */
     nothing setPrompt(string value) {
+        if (formatting) { throw "EDITOR-HIGHLIGHT-ERROR", "A highlighter cannot modify its editor"; }
         if (value.find("\n") >= 0 || value.find("\r") >= 0) { throw "EDITOR-PROMPT-ERROR", "Prompt must be one logical line"; }
         if (value == prompt) { return; }
-        sync(); lines.setLine(0, value + logical_lines[0]);
+        sync(); lines.setLine(0, value + styled_lines[0]);
         prompt = value; prompt_length = NcursesUi::TerminalText::plainAnsi(value).length();
         caret_revision = -1; markDirty();
     }
@@ -207,18 +237,19 @@ public class TextEditorWidget inherits NcursesUi::ScrollableWidget {
     private int sourceOffset(hash<Ncurses::Position> source) {
         return line_offsets[source.y] + max(0, source.x - (source.y == 0 ? prompt_length : 0));
     }
-    private nothing sync() {
+    private nothing sync(*list<string> prepared) {
         string text = model.getText();
-        if (text != displayed_text) {
+        if (text != displayed_text || exists prepared) {
             list<string> next = split("\n", text, False, True); if (!next) { next = ("",); }
-            if (next.size() == logical_lines.size()) {
-                for (int i = 0; i < next.size(); ++i) {
-                    if (next[i] != logical_lines[i]) { lines.setLine(i, (i == 0 ? prompt : "") + next[i]); }
+            list<string> styled = prepared ?? formatText(text, highlighter); if (!styled) { styled = ("",); }
+            if (styled.size() == styled_lines.size()) {
+                for (int i = 0; i < styled.size(); ++i) {
+                    if (styled[i] != styled_lines[i]) { lines.setLine(i, (i == 0 ? prompt : "") + styled[i]); }
                 }
-            } else { list<string> rendered = next; rendered[0] = prompt + rendered[0]; lines.setLines(rendered); }
+            } else { list<string> rendered = styled; rendered[0] = prompt + rendered[0]; lines.setLines(rendered); }
             list<int> offsets = (); int offset = 0;
             foreach string line in (next) { offsets += offset; offset += line.length() + 1; }
-            logical_lines = next; line_offsets = offsets; displayed_text = text;
+            logical_lines = next; styled_lines = styled; line_offsets = offsets; displayed_text = text;
         }
         if (model.getRevision() != caret_revision || hasFocus() != caret_focus) {
             if (hasFocus()) {

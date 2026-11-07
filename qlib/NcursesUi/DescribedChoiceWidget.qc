@@ -77,6 +77,8 @@ public class DescribedChoiceWidget inherits NcursesUi::ScrollableWidget {
     }
     /** Returns the stable typed selection. @return NOTHING until explicitly chosen or defaulted */
     *hash<NcursesUi::ChoiceSelection> getSelection() { return selected; }
+    /** Returns the keyboard-highlighted option independently of selection. @return index, or -1 */
+    int getHighlightIndex() { return highlight; }
     /** Selects a predefined value, or clears selection. @param value stable value or NOTHING @throw CHOICE-VALUE-ERROR for unavailable values */
     nothing setValue(*string value) {
         checkEditable();
@@ -142,9 +144,9 @@ public class DescribedChoiceWidget inherits NcursesUi::ScrollableWidget {
         ScrollableWidget::draw(window);
     }
     /** Reveals the active option when keyboard focus enters. */
-    nothing onFocusIn() { reveal_highlight = True; }
+    nothing onFocusIn() { reveal_highlight = True; refreshLines(); }
     /** Releases an editable custom caret on focus loss. */
-    nothing onFocusOut() { clearCursorLine(); }
+    nothing onFocusOut() { clearCursorLine(); refreshLines(); }
     /** Handles navigation, choosing, custom editing and submission. @param event input @return event result */
     hash<NcursesUi::EventResult> processEvent(hash<Ncurses::InputEvent> event) {
         if (!isAvailable()) { return <NcursesUi::EventResult>{}; }
@@ -204,16 +206,25 @@ public class DescribedChoiceWidget inherits NcursesUi::ScrollableWidget {
     private nothing refreshLines() {
         list<string> text = (); list<int> owners = (); list<int> starts = ();
         for (int i = 0; i < items.size() + (custom ? 1 : 0); ++i) {
+            if (i) { text += ""; owners += -1; }
             starts += text.size(); bool free = i == items.size();
             bool chosen = selected && (free ? selected.is_custom : (!selected.is_custom && selected.value == items[i].value));
             string label = free ? custom_label + ": " + custom_input.getText() : items[i].label;
             string row = (chosen ? "● " : "○ ") + label;
-            if (!free && items[i].disabled) { row = "\e[2m" + row + " (unavailable)\e[0m"; }
-            else if (i == highlight) { row = "\e[7m" + row + "\e[0m"; }
+            bool disabled = !free && items[i].disabled;
+            if (disabled) { row += " (unavailable)"; }
+            string heading_style = disabled ? "\e[2m" : (i == highlight && hasFocus() ? "\e[1;7;36m" : "\e[1;36m");
             # Labels and descriptions may contain hard newlines; all their rows map to the same stable option.
-            list<string> rows = split("\n", row);
-            if (!free && items[i].description != "") { rows += split("\n", "  " + items[i].description); }
-            if (!free && items[i].recommendation != "") { rows += split("\n", "  " + items[i].recommendation); }
+            list<string> rows = ();
+            foreach string line in (split("\n", row)) { rows += heading_style + line + "\e[0m"; }
+            if (!free && items[i].description != "") {
+                foreach string line in (split("\n", items[i].description)) {
+                    rows += (disabled ? "\e[2m" : "") + "  " + line + "\e[0m";
+                }
+            }
+            if (!free && items[i].recommendation != "") {
+                foreach string line in (split("\n", items[i].recommendation)) { rows += "\e[1;32m  " + line + "\e[0m"; }
+            }
             foreach string line in (rows) { text += line; owners += i; }
         }
         if (!text) { text += "No available choices"; owners += -1; }

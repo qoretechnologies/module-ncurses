@@ -446,8 +446,16 @@ bool NcursesSession::pushInput(int code, ExceptionSink* xsink) {
 }
 
 int NcursesSession::readInput(WINDOW* window) {
-    if (injected_input.empty()) { return wgetch(window); }
-    int result = injected_input.back(); injected_input.pop_back(); return result;
+    if (!injected_input.empty()) {
+        int result = injected_input.back(); injected_input.pop_back(); return result;
+    }
+    if (pending_native_mouse) {
+        if (getmouse(&buffered_mouse) == OK) {
+            return NC_BUFFERED_MOUSE;
+        }
+        pending_native_mouse = false;
+    }
+    return wgetch(window);
 }
 
 QoreStringNode* NcursesSession::readCharacter(WINDOW* window, int lead, ExceptionSink* xsink) {

@@ -9,6 +9,10 @@
 .native-toolbar button:focus-visible, .native-toolbar a:focus-visible { outline: 3px solid #2365ba; outline-offset: 2px; }
 .native-status { font-size: 13px; line-height: 20px; color: #44515f; }
 .native-status[data-error] { color: #9b1c25; }
+.native-feedback { padding: 8px 12px; background: #e9f2fa; border-left: 4px solid #2365ba; font-weight: 600; }
+.native-viewport-note:not(:empty) { padding: 8px 12px; background: #fff4d9; border-left: 4px solid #966500; }
+.native-terminal:focus-within { outline: 2px solid #2365ba; outline-offset: 4px; }
+.native-toolbar button:disabled { color: #68737d; background: #e9edf0; cursor: default; }
 /* Integral surrounding line boxes and block layout keep the terminal origin on
    a device pixel, independent of host-font wrapping and inline baseline metrics. */
 .native-terminal { display: block; width: max-content; background: #101418; padding: 0; }

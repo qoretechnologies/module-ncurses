@@ -10,6 +10,7 @@ class Runner {
         *NcursesUi::TableWidget table;
         *NcursesUi::CompletionPopupWidget popup;
         *NcursesGallery::Fixture fixture;
+        *NcursesGallery::CodePreview code_preview;
         bool closed = False;
         int checkpoint_index = -1;
         hash<Ncurses::Size> initial_size;
@@ -25,7 +26,7 @@ class Runner {
     int checkpointIndex() { return checkpoint_index; }
     private nothing checkOpen() { if (closed) { throw "GALLERY-CLOSED-ERROR", "The story has been closed"; } }
     private nothing release() {
-        on_exit { popup = NOTHING; fixture = NOTHING; table = NOTHING; editor = NOTHING; widget = NOTHING; }
+        on_exit { popup = NOTHING; fixture = NOTHING; code_preview = NOTHING; table = NOTHING; editor = NOTHING; widget = NOTHING; }
         on_exit {
             if (app.getSession().isOpen()) {
                 app.setRoot(new NcursesUi::Widget());
@@ -35,6 +36,7 @@ class Runner {
         on_exit {
             on_exit { if (popup) { popup.setOnSelect(NOTHING); popup.setOnDismiss(NOTHING); popup.destroyPanel(); } }
             if (fixture) { fixture.close(); }
+            if (code_preview) { code_preview.close(); }
         }
         while (app.getDispatcher().hasModal()) { app.popModal(); }
     }
@@ -60,7 +62,10 @@ class Runner {
                 break;
             default: throw "GALLERY-STORY-ERROR", "No fixture factory for " + definition.widget;
         }
-        app.setRoot(widget); app.getFocusManager().setFocus(widget);
+        if (definition.id == "text-editor.code") {
+            code_preview = new NcursesGallery::CodePreview(app, editor); app.setRoot(code_preview);
+        } else { app.setRoot(widget); }
+        app.getFocusManager().setFocus(widget);
         if (definition.widget == "CompletionPopupWidget") {
             popup = new NcursesUi::CompletionPopupWidget(app.getSession(), definition.state == "empty" ? () : definition.fixture.items);
             popup.setOnDismiss(sub () { dismiss(); });
@@ -91,8 +96,8 @@ class Runner {
             app.getSession().setCursor(focus && focus.wantsCursor() ? 1 : 0);
         }
     }
-    private nothing dismiss() { app.popModal(); if (popup) { popup.destroyPanel(); } }
-    hash<auto> inspect() {
+    private nothing dismiss() { if (popup) { on_exit popup.destroyPanel(); app.removeModal(popup); } }
+    hash<auto> inspect(*hash<Ncurses::ScreenCapture> frame) {
         checkOpen();
         *NcursesUi::Widget focus = app.getFocusManager().getCurrentFocus();
         hash<auto> state = {"focus": focus ? focus.className() : "", "modal": app.getDispatcher().hasModal(), "enabled": widget.isEnabled()};
@@ -100,11 +105,30 @@ class Runner {
         if (editor) { state.text = editor.getText(); state.scroll = editor.getScrollY(); state.empty = editor.getText() == ""; state.has_selection = editor.getBuffer().selectedText() != ""; }
         if (table) { state.selected = table.getSelectedRow(); state.scroll = table.getScrollOffset(); state.empty = !table.getRows(); state.has_selection = table.getSelectedRow() == 1; }
         if (popup && app.getDispatcher().hasModal()) { state.selected = popup.getHighlightIndex(); state.empty = !popup.getItems(); state.has_selection = popup.getHighlightIndex() == 1; }
+        if (definition.state == "constrained") {
+            state.visible_content = hasVisibleContent(popup && app.getDispatcher().hasModal() ? popup : widget,
+                focus, frame ?? app.getSession().capture());
+        }
         return state;
     }
     hash<auto> capture(string checkpoint = "interactive") {
         checkOpen(); app.drawAll(); syncCursor();
-        return {"story": definition.id, "checkpoint": checkpoint, "state": inspect(), "frame": app.getSession().capture()};
+        hash<Ncurses::ScreenCapture> frame = app.getSession().capture();
+        return {"story": definition.id, "checkpoint": checkpoint, "state": inspect(frame), "frame": frame};
+    }
+    static bool hasVisibleContent(NcursesUi::Widget control, *NcursesUi::Widget focus, hash<Ncurses::ScreenCapture> frame) {
+        if (!control.isVisible() || (control instanceof NcursesUi::PanelWidget
+                && !cast<NcursesUi::PanelWidget>(control).getWindow())) { return False; }
+        hash<NcursesUi::Rect> rect = NcursesUi::Geometry::intersect(control.contentRect(), control.visibleRect());
+        rect = NcursesUi::Geometry::intersect(rect, NcursesUi::Geometry::makeRect(0, 0, frame.rows, frame.cols));
+        for (int y = rect.y; y < rect.y + rect.rows; ++y) {
+            for (int x = rect.x; x < rect.x + rect.cols; ++x) {
+                if (trim(frame.cells[y * frame.cols + x].text) != "") { return True; }
+            }
+        }
+        return focus && control.containsWidget(focus) && focus.wantsCursor() && frame.cursor.visibility > 0
+            && NcursesUi::Geometry::rectContains(rect, frame.cursor.y, frame.cursor.x)
+            && NcursesUi::Geometry::rectContains(focus.contentRect(), frame.cursor.y, frame.cursor.x);
     }
     hash<auto> step() {
         checkOpen();

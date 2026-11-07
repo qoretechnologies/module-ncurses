@@ -19,6 +19,7 @@ hashdecl Story {
     string state = "default";
     hash<auto> fixture;
     hash<Ncurses::Size> geometry;
+    *hash<Ncurses::Size> review_size;
     string keyboard;
     string mouse;
     hash<string, string> states;
@@ -105,6 +106,18 @@ class Registry {
         result = Variants::expand(result + Catalog::stories());
         result += Catalog::scenarios(result);
         result += Catalog::mouseScenarios(result);
+        result += <NcursesGallery::Story>{"id": "text-editor.code", "widget": "TextEditorWidget",
+            "api": "NcursesUi::TextEditorWidget", "state": "scenario", "purpose": "Edit syntax-highlighted Qore code with qrepl completion and signature help. Drafts are not executed.",
+            "fixture": {"text": "# Complete the function name with F8\nint answer = 42;\npri"}, "geometry": <Ncurses::Size>{"rows": 12, "cols": 64},
+            "keyboard": "F8 opens completions; arrows select; Enter accepts; Escape dismisses. Enter in the editor inserts a newline; Ctrl-Z undoes.",
+            "mouse": "Click to place the caret; click completion entries and double-click to accept.", "states": result[0].states,
+            "steps": (
+                <NcursesGallery::Step>{"checkpoint": "editing", "instruction": "Inspect highlighted comments, types and numbers.", "expected": {"focus": "TextEditorWidget", "contains": "int answer = 42"}},
+                <NcursesGallery::Step>{"checkpoint": "completions", "instruction": "F8 requests qrepl symbol completions for pri.", "event": key("KEY_F(8)"), "expected": {"modal": True, "contains": "printf"}},
+                <NcursesGallery::Step>{"checkpoint": "select", "instruction": "Select printf.", "event": key("KEY_DOWN"), "expected": {"modal": True}},
+                <NcursesGallery::Step>{"checkpoint": "accept", "instruction": "Enter inserts the completion and displays signature help.", "event": key("KEY_ENTER"), "expected": {"modal": False, "focus": "TextEditorWidget", "contains": "printf("}},
+                <NcursesGallery::Step>{"checkpoint": "undo", "instruction": "Undo restores the incomplete function name as one edit.", "event": <Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "\x1a"}, "expected": {"text": "# Complete the function name with F8\nint answer = 42;\npri"}}
+            )};
         for (int i = 0; i < result.size(); ++i) {
             string file = result[i].widget == "KeyValueWidget" ? "TreeWidget" : result[i].widget == "TextChartWidget" ? "TextChart" : result[i].widget;
             result[i].api_url = "https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/" + file + ".qc";

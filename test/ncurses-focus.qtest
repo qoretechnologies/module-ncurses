@@ -58,6 +58,10 @@ class NcursesFocusTest inherits Test {
         addTestCase("mouse miss and wheel do not reach an unrelated editor", \mouseIsolation());
         addTestCase("modal Tab and Shift Tab cycle inside the scope", \modalTraversal());
         addTestCase("nested modal scopes restore focus", \nestedModals());
+        addTestCase("owned modal removal preserves covered focus restoration", \removeOwnedModal());
+        addTestCase("owned modal removal guards errors and unavailable focus", \removeModalFailures());
+        addTestCase("removing a covered scope preserves the active mouse gesture", \removeModalCapture());
+        addTestCase("application removal prunes owned delivery and preserves modal cursor state", \removeModalOwnership());
         addTestCase("removed suspended focus is not restored", \removedFocus());
         addTestCase("hidden disabled and empty scopes release focus", \availability());
         addTestCase("tree reparenting is unique and rejects cycles", \tree());
@@ -165,6 +169,63 @@ class NcursesFocusTest inherits Test {
         assertEq(inner, ed.popModal()); assertEq(a, ed.getFocusManager().getCurrentFocus());
         assertEq(outer, ed.popModal()); assertEq(base, ed.getFocusManager().getCurrentFocus());
         assertFalse(exists ed.popModal());
+    }
+    removeOwnedModal() {
+        NcursesUi::Widget root(); NcursesUi::TextInputWidget base(); root.addChild(base);
+        FocusProbe outer(); FocusProbe middle(); FocusProbe inner();
+        foreach FocusProbe probe in ((outer, middle, inner)) { probe.setFocusable(True); }
+        NcursesUi::EventDispatcher ed(); ed.getFocusManager().reconcile(root); ed.getFocusManager().setFocus(base);
+        ed.pushModal(outer); ed.pushPopup(middle); ed.pushModal(inner);
+        assertTrue(ed.removeModal(middle)); assertEq((outer, inner), ed.getModalStack());
+        assertEq(inner, ed.getFocusManager().getCurrentFocus()); assertEq(1, inner.entered); assertEq(0, inner.left);
+        assertFalse(ed.removeModal(middle)); assertFalse(ed.removeModal(root));
+        assertTrue(ed.removeModal(outer)); assertEq((inner,), ed.getModalStack());
+        assertEq(inner, ed.getFocusManager().getCurrentFocus()); assertEq(0, inner.left);
+        assertTrue(ed.removeModal(inner)); assertFalse(ed.hasModal());
+        assertEq(base, ed.getFocusManager().getCurrentFocus()); assertEq(root, ed.getFocusManager().getScope());
+        assertFalse(ed.removeModal(inner));
+    }
+    removeModalFailures() {
+        foreach bool detached in ((False, True)) {
+            NcursesUi::Widget root(); NcursesUi::TextInputWidget base(); root.addChild(base);
+            NcursesUi::Widget outer(); NcursesUi::Widget inner(); NcursesUi::EventDispatcher ed();
+            ed.getFocusManager().reconcile(root); ed.getFocusManager().setFocus(base); ed.pushModal(outer); ed.pushModal(inner);
+            assertTrue(ed.removeModal(outer));
+            if (detached) { root.removeChild(base); } else { base.setVisible(False); }
+            assertEq(inner, ed.popModal()); assertNothing(ed.getFocusManager().getCurrentFocus());
+            assertEq(root, ed.getFocusManager().getScope());
+        }
+        NcursesUi::Widget root(); FocusProbe outer(); FocusProbe inner(); outer.setFocusable(True); inner.setFocusable(True);
+        NcursesUi::EventDispatcher ed(); ed.getFocusManager().reconcile(root); ed.pushModal(outer);
+        inner.enter_callback = sub () { ed.removeModal(outer); };
+        assertThrows("MODAL-SCOPE-ERROR", sub () { ed.pushModal(inner); });
+        assertEq((outer,), ed.getModalStack()); assertEq(outer, ed.getFocusManager().getCurrentFocus());
+        outer.fail_out = True;
+        assertThrows("FOCUS-OUT-TEST", sub () { ed.removeModal(outer); });
+        assertFalse(ed.hasModal()); assertFalse(outer.hasFocus()); assertNothing(ed.getFocusManager().getCurrentFocus());
+    }
+    removeModalCapture() {
+        NcursesUi::Widget root(); NcursesUi::Widget covered(); NcursesUi::Widget active();
+        active.setFrameValues(0, 0, 4, 12); NcursesUi::ButtonWidget button("Run"); button.setFrameValues(0, 0, 1, 8); active.addChild(button);
+        int activated = 0; button.setOnActivate(sub (string label) { ++activated; });
+        NcursesUi::EventDispatcher ed(); ed.getFocusManager().reconcile(root); ed.pushModal(covered); ed.pushModal(active);
+        ed.dispatch(root, mouse(0, 2, Ncurses::BUTTON1_PRESSED)); assertTrue(button.isPressed());
+        assertTrue(ed.removeModal(covered)); assertTrue(button.isPressed()); assertEq(active, ed.topModal());
+        ed.dispatch(root, mouse(10, 20, Ncurses::BUTTON1_RELEASED)); assertFalse(button.isPressed()); assertEq(0, activated);
+        ed.dispatch(root, mouse(0, 2, Ncurses::BUTTON1_PRESSED)); assertTrue(button.isPressed());
+        assertTrue(ed.removeModal(active)); assertFalse(button.isPressed()); assertFalse(ed.hasModal());
+    }
+    removeModalOwnership() {
+        NcursesUi::TestHarness th(10, 30); on_exit th.close(); NcursesUi::Application app(th.session()); on_exit app.close();
+        NcursesUi::TextInputWidget base(); app.setRoot(base); app.getFocusManager().setFocus(base); th.session().setCursor(2);
+        NcursesUi::Widget covered(); NcursesUi::TextInputWidget active(); app.pushModal(covered); app.pushModal(active);
+        int delivered = 0; NcursesUi::UiEventScope scope = app.createEventScope(sub (auto payload) { ++delivered; }, covered);
+        assertTrue(scope.post("queued")); assertEq(1, visibility(th.session()));
+        assertTrue(app.removeModal(covered)); assertEq(active, app.getFocusManager().getCurrentFocus());
+        assertEq(1, visibility(th.session())); assertFalse(scope.post("late"));
+        assertEq(0, app.processPending()); assertEq(0, delivered);
+        assertTrue(app.removeModal(active)); assertEq(base, app.getFocusManager().getCurrentFocus());
+        assertEq(2, visibility(th.session())); assertFalse(app.removeModal(active));
     }
     removedFocus() {
         NcursesUi::Widget root(); NcursesUi::TextInputWidget base(); root.addChild(base);

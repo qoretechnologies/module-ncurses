@@ -125,6 +125,7 @@ public class FileBrowserWidget inherits NcursesUi::PanelWidget {
         });
         setClosable(True);
         refreshListing();
+        clearPreview();
         updateStatusText();
     }
 
@@ -347,16 +348,19 @@ public class FileBrowserWidget inherits NcursesUi::PanelWidget {
         int content_rows = cr.rows - 1;
         int status_row = cr.y + cr.rows - 1;
 
-        # split: 35% file list (left), 65% preview (right)
-        int list_cols = min(cr.cols - 2, max(1, cr.cols * 35 / 100));
-        int preview_cols = cr.cols - list_cols - 1;  # -1 for divider
+        # Narrow viewports show the active pane at full width; F7 exposes the other
+        # pane without changing selection or either pane's scroll position.
+        bool split = cr.cols >= 48;
+        int active = getFocusedPane();
+        int list_cols = split ? min(cr.cols - 2, max(1, cr.cols * 35 / 100)) : cr.cols;
+        int preview_cols = split ? cr.cols - list_cols - 1 : cr.cols;
 
         # Child frames and mouse events use screen coordinates.
         hash<NcursesUi::Rect> absolute = contentRect();
         hash<NcursesUi::Rect> list_frame = NcursesUi::Geometry::makeRect(
-            absolute.y, absolute.x, content_rows, list_cols);
+            absolute.y, absolute.x, split || active == 0 ? content_rows : 0, list_cols);
         hash<NcursesUi::Rect> preview_frame = NcursesUi::Geometry::makeRect(
-            absolute.y, absolute.x + list_cols + 1, content_rows, preview_cols);
+            absolute.y, absolute.x + (split ? list_cols + 1 : 0), split || active == 1 ? content_rows : 0, preview_cols);
 
         file_list.setFrame(list_frame);
         preview_widget.setFrame(preview_frame);
@@ -373,7 +377,7 @@ public class FileBrowserWidget inherits NcursesUi::PanelWidget {
         } else {
             div_style = {"fg": Ncurses::Color::Cyan, "attrs": Ncurses::Attr::Bold};
         }
-        pw.drawVLine(cr.y, div_x, content_rows, NOTHING, div_style);
+        if (split) { pw.drawVLine(cr.y, div_x, content_rows, NOTHING, div_style); }
 
         # draw status line at bottom
         drawStatusLine(pw, status_row, cr.x, cr.cols);
@@ -556,17 +560,36 @@ public class FileBrowserWidget inherits NcursesUi::PanelWidget {
 
         string path = item.path;
         try {
-            hash<auto> st = hstat(path);
+            hash<StatInfo> st = hstat(path);
+            if (st.type != "REGULAR") {
+                preview_content.appendLine("(Special file; preview unavailable)");
+                preview_widget.markDirty();
+                return;
+            }
             if (st.size > max_preview_size) {
                 preview_content.appendLine("(File too large to preview)");
                 preview_content.appendLine(sprintf("Size: %s", formatSize(st.size)));
                 preview_widget.markDirty();
                 return;
             }
+            # Metadata can report zero for readable virtual files, or change while
+            # the file is read. Determine EOF and enforce the limit on actual bytes.
+            binary data = ReadOnlyFile::readBinaryFile(path, max_preview_size + 1);
+            if (!data.size()) {
+                preview_content.appendLine("(Empty file)");
+                preview_widget.markDirty();
+                return;
+            }
+            if (data.size() > max_preview_size) {
+                preview_content.appendLine("(File too large to preview)");
+                preview_widget.markDirty();
+                return;
+            }
 
             # check for binary files by extension, magic info, or content
             string ftype = item.type ?? "file";
-            if (ftype == "binary" || isBinaryContent(path, item)) {
+            # An empty-file classification based on zero stat size is unreliable.
+            if ((st.size && ftype == "binary") || isBinaryContent(data, st.size ? item : NOTHING)) {
                 preview_content.appendLine("(Binary file)");
                 preview_content.appendLine(sprintf("Size: %s", formatSize(st.size)));
                 # show MIME type and description from magic info if available
@@ -580,8 +603,7 @@ public class FileBrowserWidget inherits NcursesUi::PanelWidget {
                 return;
             }
 
-            string data = ReadOnlyFile::readTextFile(path);
-            list<string> lines = data.split("\n");
+            list<string> lines = data.toString().split("\n");
             foreach string line in (lines) {
                 preview_content.appendLine(line);
             }
@@ -648,6 +670,7 @@ public class FileBrowserWidget inherits NcursesUi::PanelWidget {
     /** Clears the preview pane. */
     private nothing clearPreview() {
         preview_content.clear();
+        preview_content.appendLine("Select a file or directory to preview.");
         preview_widget.setScrollY(0);
         preview_dir_items = ();
         preview_dir_path = NOTHING;
@@ -691,7 +714,8 @@ public class FileBrowserWidget inherits NcursesUi::PanelWidget {
         # draw status text with bright foreground for readability
         hash<auto> text_style = {"fg": Ncurses::Color::White, "bg": Ncurses::Color::Blue,
             "attrs": Ncurses::Attr::Bold};
-        string text = " " + status_text;
+        string text = width < 48 ? (getFocusedPane() == 0 ? "F7:Preview" : "F7:Files") + " | Enter:Open | Esc:Close"
+            : " " + status_text;
         text = TerminalText::clipRight(text, width);
         w.drawText(row, x, text, text_style);
     }
@@ -849,32 +873,21 @@ public class FileBrowserWidget inherits NcursesUi::PanelWidget {
         Uses the file info provider's \c is_text field when available in the
         item's \c file_info hash; otherwise falls back to null-byte scanning.
 
-        @param path the file path
+        @param data the bounded file contents
         @param item the file item hash (may contain \c file_info from provider)
         @return True if the file appears to be binary
         @since ncurses 1.0
     */
-    private bool isBinaryContent(string path, *hash<auto> item) {
+    private bool isBinaryContent(binary data, *hash<auto> item) {
         # use magic info if available
         if (item.file_info.is_text != NOTHING) {
             return !item.file_info.is_text;
         }
         # fallback: scan for null bytes
-        try {
-            ReadOnlyFile f(path);
-            *binary chunk = f.readBinary(8192);
-            if (!chunk || !chunk.size()) {
-                return False;
-            }
-            for (int i = 0; i < chunk.size(); ++i) {
-                if (chunk[i] == 0) {
-                    return True;
-                }
-            }
-            return False;
-        } catch (hash<ExceptionInfo> ex) {
-            return False;
+        for (int i = 0; i < min(8192, data.size()); ++i) {
+            if (data[i] == 0) { return True; }
         }
+        return False;
     }
 
     private string renderFileItem(hash<auto> item) {

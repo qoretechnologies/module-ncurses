@@ -1326,7 +1326,7 @@ hash<InputEvent> Window::readEvent(*int timeout_ms, *int poll_ms) [flags=NAMED_A
         }
         if (rc != ERR) {
             ReferenceHolder<QoreHashNode> h(new QoreHashNode(hashdeclInputEvent, xsink), xsink);
-            h->setKeyValue("code", rc == NC_INJECTED_MOUSE ? KEY_MOUSE : rc, xsink);
+            h->setKeyValue("code", rc == NC_INJECTED_MOUSE || rc == NC_BUFFERED_MOUSE ? KEY_MOUSE : rc, xsink);
             if (rc == NC_INJECTED_PASTE) {
                 if (win->session->injected_paste.empty()) {
                     xsink->raiseException("NCURSES-ERROR", "injected paste marker has no payload"); return nothing();
@@ -1336,7 +1336,7 @@ hash<InputEvent> Window::readEvent(*int timeout_ms, *int poll_ms) [flags=NAMED_A
                 h->setKeyValue("ch", new QoreStringNode(text.data(), text.size(), QCS_UTF8), xsink);
                 win->session->injected_paste_bytes -= text.size();
                 win->session->injected_paste.pop_back();
-            } else if (rc == KEY_MOUSE || rc == NC_INJECTED_MOUSE) {
+            } else if (rc == KEY_MOUSE || rc == NC_INJECTED_MOUSE || rc == NC_BUFFERED_MOUSE) {
                 MEVENT ev = {};
                 bool have_event;
                 if (rc == NC_INJECTED_MOUSE) {
@@ -1347,8 +1347,12 @@ hash<InputEvent> Window::readEvent(*int timeout_ms, *int poll_ms) [flags=NAMED_A
                     ev = win->session->injected_mouse.back();
                     win->session->injected_mouse.pop_back();
                     have_event = true;
+                } else if (rc == NC_BUFFERED_MOUSE) {
+                    ev = win->session->buffered_mouse;
+                    have_event = true;
                 } else {
                     have_event = getmouse(&ev) == OK;
+                    win->session->pending_native_mouse = have_event;
                 }
                 if (have_event) {
                     h->setKeyValue("type", NC_INPUT_MOUSE, xsink);
