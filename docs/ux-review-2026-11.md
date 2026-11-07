@@ -51,6 +51,17 @@ full native cell/attribute/cursor/focus/scroll state. The
   middleware mode. Supplying the owning HTTP server fixes the proxy. Generated
   artifact directories are excluded from HMR so review output cannot reload an
   active story. The documented development command is tested end to end.
+- Cross-platform CI found fractional terminal placement from surrounding system-font
+  line boxes. Integer line heights and block placement now keep captures on device
+  pixels; varying surrounding fonts and wrapping leaves terminal images identical.
+  The manifest records browser and native locales separately and fingerprints styles.
+  The reviewed correction preserves all 1,098 semantic artifacts; 644 PNGs lose
+  one fractional-placement row, with unchanged widths. Representative corrected
+  images from all 16 affected widget groups were inspected before acceptance.
+- Protocol review added browser serialization through actual render completion,
+  fatal input-error teardown, and bounded incoming/outgoing WebSocket queues.
+  Held-render, queued-disposal, throwing-callback and resource-bound regressions
+  cover these failure and overlap paths.
 - Foundation issue [#5621](https://github.com/qoretechnologies/qore/issues/5621) was
   fixed and merged before this review: base-only scenes are staged when no visible
   native panel exists, preserving libpanel overlap propagation otherwise.

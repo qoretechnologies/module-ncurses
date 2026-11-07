@@ -19,7 +19,7 @@ export class NativeTerminal extends HTMLElement {
   constructor() {
     super(); this.sequence = -1; this.requests = new Map(); this.fences = new Map(); this.seenFences = new Set();
     this.start = deferred(); this.ready = this.start.promise; this.resources = []; this.closing = false;
-    this.renders = new Set();
+    this.renders = new Set(); this.requestChain = Promise.resolve();
   }
   connectedCallback() {
     if (!this.mounted) {
@@ -108,7 +108,7 @@ export class NativeTerminal extends HTMLElement {
       const barrier = this.fences.get(message.sequence) ?? deferred(); this.fences.set(message.sequence, barrier); await barrier.promise;
     }
     this.fences.delete(message.sequence); this.seenFences.delete(message.sequence);
-    if (this.closing) { return; }
+    if (!this.requests.has(message.request)) { return; }
     const painting = deferred(); this.renders.add(painting);
     const rendered = this.term.onRender(() => { rendered.dispose(); painting.resolve(); });
     try {
@@ -121,11 +121,20 @@ export class NativeTerminal extends HTMLElement {
     this.dispatchEvent(new CustomEvent('native-frame', { detail: this.frame }));
   }
   request(type, values = {}) {
-    if (this.socket?.readyState !== WebSocket.OPEN) { return Promise.reject(new Error('Native connection is not open')); }
-    const request = ++this.sequence; const result = deferred(); this.requests.set(request, result);
-    const deadline = setTimeout(() => this.fail(new Error(`Native ${type} completion deadline exceeded`)), 20000);
-    this.socket.send(JSON.stringify({ ...values, type, request }));
-    return result.promise.finally(() => clearTimeout(deadline));
+    const operation = this.requestChain.then(async () => {
+      if (this.closing && type !== 'close') { throw new Error('Native story is closing'); }
+      if (this.socket?.readyState !== WebSocket.OPEN) { throw new Error('Native connection is not open'); }
+      const request = ++this.sequence; const result = deferred(); this.requests.set(request, result);
+      const deadline = setTimeout(() => this.fail(new Error(`Native ${type} completion deadline exceeded`)), 20000);
+      try {
+        this.socket.send(JSON.stringify({ ...values, type, request }));
+        // Frames resolve only after native draw, PTY parsing and browser rendering.
+        // Sending the next command earlier can paint it over this frame's barrier.
+        return await result.promise;
+      } finally { clearTimeout(deadline); this.requests.delete(request); }
+    });
+    this.requestChain = operation.catch(() => {});
+    return operation;
   }
   async input(data, encoding = 'utf8') { await this.ready; return await this.request('input', { data, encoding }); }
   async capture() { await this.ready; return await this.request('capture'); }

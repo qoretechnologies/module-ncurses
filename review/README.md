@@ -158,6 +158,8 @@ the native widgets do not have this tooling restriction. A command accepts at mo
 local sessions. Each connection allows at most 64 outstanding commands and 1 MiB
 of queued JSON; exceeding either limit closes and cleans up the session. Completed
 commands release their queue budget. These are review-tool resource bounds, not widget API limits.
+Outbound buffering is capped at 8 MiB; a non-reading peer is disconnected and its
+native process is cleaned up.
 An exception while dispatching terminal input closes that session because its
 completion fence may be unread. Select the story again to start a fresh session.
 
@@ -165,8 +167,8 @@ Only known story IDs and fixed gallery commands are accepted. WebSocket origins
 must match the loopback review server (or the explicit development origin).
 There is no shell or arbitrary executable endpoint. Process startup, commands and
 teardown have failure deadlines; successful synchronization uses completion
-signals, never sleeping or polling for a frame. See
-[the implemented protocol](../design/widget-review.md).
+signals, never sleeping or polling for a frame. Commands serialize through browser
+render completion; see [the implemented protocol](../design/widget-review.md).
 
 The existing Ubuntu CI job installs the checksum-pinned Node 24.11.1 runtime and
 the lockfile's Chromium, then runs build, integration tests and the full visual

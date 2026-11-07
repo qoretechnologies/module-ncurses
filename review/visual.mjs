@@ -44,10 +44,11 @@ async function run() {
     page.setDefaultTimeout(20000);
     const errors = []; page.on('pageerror', error => errors.push(error.message));
     manifest.environment = { browser: browser.version(), platform: process.platform, ...browserOptions,
-      args: browserArgs, term: 'xterm-256color', locale: 'C.UTF-8', timezone: 'UTC',
+      args: browserArgs, term: 'xterm-256color', nativeLocale: 'C.UTF-8', timezone: 'UTC',
       dependencies: digest(await fs.readFile(path.join(directory, 'package-lock.json'))),
       fonts: digest(await fs.readFile(path.join(directory, 'fonts/sources.json'))),
-      renderer: digest(await fs.readFile(path.join(directory, 'terminal.mjs'))) };
+      renderer: digest(await fs.readFile(path.join(directory, 'terminal.mjs'))),
+      styles: digest(await fs.readFile(path.join(directory, 'terminal.css'))) };
     const cases = matrix(server.stories).filter(item => !values.filter || item.key.includes(values.filter));
     if (!cases.length) { throw new Error('No matching review scenarios'); }
     const environmentChanged = !previous || serialize(previous.environment) !== serialize(manifest.environment);

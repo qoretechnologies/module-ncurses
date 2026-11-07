@@ -31,6 +31,9 @@ test('visual command reports missing, unchanged, changed and invalid evidence wi
   result = await run(args); assert.equal(result.code, 0, result.output);
   assert.deepEqual(JSON.parse(await fs.readFile(path.join(output, 'report.json'))), []);
   const manifest = JSON.parse(await fs.readFile(path.join(baseline, 'manifest.json')));
+  assert.equal(manifest.environment.locale, 'en-US');
+  assert.equal(manifest.environment.nativeLocale, 'C.UTF-8');
+  assert.equal(manifest.environment.styles, digest(await fs.readFile(path.join(directory, 'terminal.css'))));
   const key = manifest.entries[0].key;
   const framePath = path.join(baseline, `${key}.json.gz`), imagePath = path.join(baseline, `${key}.png`);
   const frame = unpack(await fs.readFile(framePath)); frame.frame.cells[0].text = 'Changed';

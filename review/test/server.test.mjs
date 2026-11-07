@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import WebSocket from 'ws';
-import { createBridgeServer } from '../server.mjs';
+import { createBridgeServer, outputBudget, sendWithinBudget } from '../server.mjs';
 
 function connect(server, origin = `http://127.0.0.1:${server.port}`) {
   return new WebSocket(`ws://127.0.0.1:${server.port}/native`, { origin });
@@ -20,6 +20,19 @@ function response(socket, request) {
     socket.on('message', listener); socket.once('error', failed); socket.once('close', closed);
   });
 }
+
+test('outbound backpressure counts UTF-8 bytes and terminates before crossing its budget', () => {
+  const message = { type: 'error', error: '界' }, data = JSON.stringify(message);
+  const sent = [];
+  const socket = { readyState: WebSocket.OPEN, bufferedAmount: outputBudget - Buffer.byteLength(data),
+    send(value) { sent.push(value); this.bufferedAmount += Buffer.byteLength(value); },
+    terminate() { this.readyState = WebSocket.CLOSED; } };
+  assert.equal(sendWithinBudget(socket, message), true); assert.deepEqual(sent, [data]);
+  assert.equal(socket.bufferedAmount, outputBudget);
+  assert.equal(sendWithinBudget(socket, message), false); assert.equal(socket.readyState, WebSocket.CLOSED);
+  assert.deepEqual(sent, [data], 'overflow never enters the transport buffer');
+  assert.equal(sendWithinBudget(socket, message), false); assert.deepEqual(sent, [data]);
+});
 
 test('WebSocket transports the actual story and rejects unknown actions', async () => {
   const server = await createBridgeServer({ port: 0 });

@@ -19,6 +19,9 @@ Before enqueueing, each connection limits outstanding work (including its in-fli
 command) to 64 requests and 1 MiB of retained JSON. Overflow closes the connection
 and its native process; queued callbacks skip closed sessions. Completion releases
 both counters so the limit bounds bursts, not the lifetime number of commands.
+Outbound WebSocket buffering is capped at 8 MiB, counting UTF-8 payload bytes
+before each send. A non-reading peer exceeding that budget is terminated and its
+native session is closed immediately.
 
 For input, the supervisor writes actual terminal bytes followed by U+001E. The
 native loop consumes events until the reserved fence; a standalone Escape followed
@@ -37,6 +40,10 @@ then emits the corresponding semantic frame on the control pipe. The browser wai
 for that exact marker to be parsed by xterm, requests a render, and waits for
 `onRender` before resolving the request. This orders native drawing, transport,
 parsing and painting without sleeps, polling or assumptions about network latency.
+The browser serializes outgoing commands through that render completion, so an
+overlapping input cannot overpaint an earlier command before its barrier resolves.
+Disposal finishes the in-flight frame, rejects queued work and then waits for the
+native close acknowledgement before releasing terminal resources.
 
 A reset releases the old fixture/modal tree and reconstructs the same story at its
 initial geometry. A resize applies TIOCSWINSZ and ncurses logical resize before its
@@ -59,6 +66,10 @@ evidence, verifies artifact hashes and records that evidence's digest. CI only
 compares and publishes artifacts. The checked-in review record contains per-widget
 interaction observations and dispositions; tests alone are not presented as proof
 of usability.
+Browser locale and native process locale are recorded separately. Integer line
+heights and block layout place the terminal on a device-pixel boundary, so host
+UI-font wrapping cannot change terminal screenshot rounding or glyph alignment.
+Both renderer source and styles are fingerprinted.
 
 ## Bridge choice
 

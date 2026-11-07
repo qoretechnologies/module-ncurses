@@ -5,6 +5,7 @@ import { chromium } from '@playwright/test';
 import { createBridgeServer } from '../server.mjs';
 import { fileURLToPath } from 'node:url';
 import { openStory, command } from '../browser.mjs';
+import { imageDiff } from '../artifacts.mjs';
 
 test('Storybook mounts real PTY output and native completion barriers', { timeout: 30000 }, async () => {
   const server = await createBridgeServer({ port: 0, staticDir: fileURLToPath(new URL('../storybook-static/', import.meta.url)) });
@@ -118,5 +119,67 @@ test('editor and overlapping popup use browser keyboard, paste, mouse and resize
     capture = await view().evaluate(element => element.capture());
     assert.equal(capture.state.selected, 2); assert.equal(capture.frame.colors_enabled, false);
     await view().evaluate(element => element.dispose());
+  } finally { await browser.close(); await server.close(); }
+});
+
+test('overlapping commands wait for rendered frames and disposal rejects queued work', { timeout: 30000 }, async () => {
+  const server = await createBridgeServer({ port: 0, staticDir: fileURLToPath(new URL('../storybook-static/', import.meta.url)) });
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage();
+    await openStory(page, `http://127.0.0.1:${server.port}`, server.stories.find(story => story.id === 'text-editor.empty'));
+    const result = await page.locator('ncurses-native-terminal').evaluate(async element => {
+      const send = element.socket.send.bind(element.socket), onRender = element.term.onRender.bind(element.term);
+      const sent = []; element.socket.send = data => { sent.push(JSON.parse(data).type); send(data); };
+      const holdNextRender = () => {
+        let release, signal; const held = new Promise(resolve => { signal = resolve; });
+        Object.defineProperty(element.term, 'onRender', { configurable: true, value: listener => {
+          Object.defineProperty(element.term, 'onRender', { configurable: true, value: onRender });
+          return onRender(event => { if (!release) { release = () => listener(event); signal(); } });
+        } });
+        return { held, release: () => release() };
+      };
+      const firstRender = holdNextRender();
+      const first = element.input('X'), second = element.input('Y');
+      await firstRender.held;
+      const sentBeforeRender = [...sent];
+      firstRender.release();
+      const frames = await Promise.all([first, second]);
+      const lines = Array.from({ length: element.term.rows }, (_, y) => element.term.buffer.active.getLine(y).translateToString());
+      if (sentBeforeRender.length !== 1) { return { sentBeforeRender, texts: frames.map(frame => frame.state.text), lines }; }
+      const finalRender = holdNextRender();
+      const finalInput = element.input('Z'); await finalRender.held;
+      const queued = element.capture().then(() => 'unexpected completion', error => error.message);
+      const disposed = element.dispose(); finalRender.release();
+      await finalInput; await disposed;
+      return { sentBeforeRender, texts: frames.map(frame => frame.state.text), lines, queued: await queued, pending: element.requests.size };
+    });
+    assert.deepEqual(result.sentBeforeRender, ['input']);
+    assert.deepEqual(result.texts, ['X', 'XY']); assert.ok(result.lines.some(line => line.includes('XY')));
+    assert.match(result.queued, /closing|disposed/); assert.equal(result.pending, 0);
+    assert.equal(server.sessionCount, 0);
+  } finally { await browser.close(); await server.close(); }
+});
+
+test('terminal image geometry is independent of surrounding system-font metrics', { timeout: 30000 }, async () => {
+  const server = await createBridgeServer({ port: 0, staticDir: fileURLToPath(new URL('../storybook-static/', import.meta.url)) });
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage();
+    await openStory(page, `http://127.0.0.1:${server.port}`, server.stories.find(story => story.id === 'completion-popup.focused'));
+    let reference;
+    for (const [font, repeats] of ['system-ui', 'serif', 'monospace'].flatMap(font => [1, 2, 5, 17, 18, 31].map(repeats => [font, repeats]))) {
+      await page.locator('ncurses-native-terminal').evaluate((element, [font, repeats]) => {
+        element.style.fontFamily = font;
+        element.querySelector('p').textContent = 'Surrounding review instructions '.repeat(repeats);
+      }, [font, repeats]);
+      await command(page, 'capture');
+      const bounds = await page.locator('.native-terminal').boundingBox();
+      assert.equal(bounds.y % 1, 0, `${font}: fractional placement changes screenshot rounding and glyph rasterization`);
+      const current = await page.locator('.native-terminal').screenshot();
+      if (reference) { const diff = imageDiff(reference, current); assert.equal(diff.pixels, 0); assert.equal(diff.resized, false); }
+      else { reference = current; }
+    }
+    await command(page, 'dispose');
   } finally { await browser.close(); await server.close(); }
 });

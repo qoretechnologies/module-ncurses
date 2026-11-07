@@ -8,6 +8,17 @@ import { NativeStory, dimensions, registry } from './native.mjs';
 const mime = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json',
   '.woff2': 'font/woff2', '.woff': 'font/woff', '.ttf': 'font/ttf', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon' };
 
+export const outputBudget = 8 * 1024 * 1024;
+/** Stop a non-reading peer before transport buffers can grow without bound. */
+export function sendWithinBudget(ws, message) {
+  if (ws.readyState !== WebSocket.OPEN) { return false; }
+  const data = JSON.stringify(message);
+  if (ws.bufferedAmount + Buffer.byteLength(data) > outputBudget) {
+    ws.terminate(); return false;
+  }
+  ws.send(data); return true;
+}
+
 export async function createBridgeServer({ port = 6007, staticDir, allowedOrigins = [], qore = 'qore' } = {}) {
   const definitions = await registry(); const stories = new Map(definitions.map(story => [story.id, story]));
   const connections = new Set(); let stopping = false;
@@ -37,7 +48,7 @@ export async function createBridgeServer({ port = 6007, staticDir, allowedOrigin
     const connection = { ws, native: null, chain: Promise.resolve(), lastRequest: -1, closing: null,
       outstanding: 0, queuedBytes: 0 };
     connections.add(connection);
-    const send = message => { if (ws.readyState === WebSocket.OPEN) { ws.send(JSON.stringify(message)); } };
+    const send = message => { if (!sendWithinBudget(ws, message)) { void connection.close(); } };
     connection.close = () => {
       if (!connection.closing) {
         connection.closing = (async () => {
