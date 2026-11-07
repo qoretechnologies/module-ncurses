@@ -76,6 +76,11 @@ Ordinary default labels contain no unexplained Unicode stress glyphs; use `--uni
 
 ## Tests, artifacts and acceptance
 
+Chart review includes `native-textchartwidget--expanded` (six rows with wider bars)
+and `native-textchartwidget--ascii` (the complete fallback symbol ramp is explained).
+The default is a compact Unicode sparkline. Expanded heights are relative to the
+snapshot minimum and maximum, not an implied zero baseline.
+
 ```sh
 cd review
 npm run build
@@ -229,6 +234,10 @@ checks; neither is a human usability study. Apply observable criteria informed b
 - [Von Restorff effect](https://lawsofux.com/von-restorff-effect/): titles, the focused
   action and recommendations have distinct emphasis. Color is reinforced by weight,
   spacing and marks; highlighting every line equally does not create hierarchy.
+  Table headers use underlining and never share the selected row's reverse-video
+  treatment. Progress separates title, state, filled/remaining units and actions.
+  Charts identify their min/max scale, ordering and gaps; larger charts preserve
+  source samples and normalization rather than implying a zero baseline.
 - [Fitts's law](https://lawsofux.com/fittss-law/): visible labels and rows provide
   useful mouse targets; padding, clipped areas and unrelated blank space do not
   activate another action.

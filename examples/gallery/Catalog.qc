@@ -64,9 +64,22 @@ class Catalog {
     static list<hash<NcursesGallery::Story>> scenarios(list<hash<NcursesGallery::Story>> definitions) {
         list<hash<NcursesGallery::Story>> result = ();
         foreach hash<NcursesGallery::Story> original in (definitions) {
-            if (original.state != "default" || !Variants::includes(("TranscriptWidget", "ProgressWidget", "AssistancePopupWidget", "DescribedChoiceWidget"), original.widget)) { continue; }
+            if (original.state != "default" || !Variants::includes(("TranscriptWidget", "ProgressWidget", "AssistancePopupWidget", "DescribedChoiceWidget", "TextChartWidget"), original.widget)) { continue; }
             hash<NcursesGallery::Story> story = original; story.state = "scenario";
-            if (story.widget == "DescribedChoiceWidget") {
+            if (story.widget == "TextChartWidget") {
+                story.id = "text-chart.ascii"; hash<auto> ascii_fixture = {}; ascii_fixture += story.fixture;
+                ascii_fixture.ascii = True; story.fixture = ascii_fixture;
+                story.purpose = "ASCII fallback: the legend orders every symbol from low to high; ? marks missing samples.";
+                story.steps = (<NcursesGallery::Step>{"checkpoint": "ascii", "instruction": story.purpose,
+                    "expected": {"contains": ".:-=+*#@", "scroll": 0}},);
+                result += story;
+                story = original; story.state = "scenario"; story.id = "text-chart.expanded";
+                hash<auto> expanded_fixture = {}; expanded_fixture += original.fixture;
+                expanded_fixture.chart_height = 6; story.fixture = expanded_fixture;
+                story.purpose = "Expanded bars use six terminal rows and wider samples for greater visual resolution; ? remains a missing sample.";
+                story.steps = (<NcursesGallery::Step>{"checkpoint": "expanded", "instruction": story.purpose,
+                    "expected": {"contains": "Height: min to max", "scroll": 0}},);
+            } else if (story.widget == "DescribedChoiceWidget") {
                 story.id = "described-choice.submit"; hash<auto> submit_fixture = {}; submit_fixture += story.fixture;
                 submit_fixture.submit = True; story.fixture = submit_fixture;
                 story.purpose = "Submit one reviewed choice. Enter completes this one-shot form; Reset story opens a fresh form.";
@@ -161,7 +174,7 @@ class Catalog {
                 "Right expands, Left collapses, Up/Down select, Enter activates.", "Click selects; wheel scrolls.", {"contains": "Root"}, Registry::key("KEY_RIGHT"), {"scroll": 0}),
             entry("key-value", "KeyValueWidget", "Inspect labeled scalar values and nested details.", {"data": {"name": "Preview", "count": 3}},
                 "Tree navigation: arrows expand, collapse and select.", "Click selects; wheel scrolls.", {"contains": "Values"}),
-            entry("text-chart", "TextChartWidget", "Read exact numeric summary alongside a bounded sparkline.", {"samples": (1.0, 4.0, NOTHING, 2.0, 8.0)},
+            entry("text-chart", "TextChartWidget", "Read samples from left to right: taller bars mean larger values; ? is a missing sample. The summary gives exact values.", {"samples": (1.0, 4.0, NOTHING, 2.0, 8.0)},
                 "Arrows and page keys scroll the summary.", "Wheel scrolls.", {"contains": "samples; min", "scroll": 0}),
             entry("menu-bar", "MenuBarWidget", "Discover menu commands and disabled choices.", {"menus": menus},
                 "Alt+F opens File; arrows navigate; Escape closes.", "Click a menu label, then a command.", {"active_menu": -1},
@@ -174,7 +187,7 @@ class Catalog {
                 "Type filters; Tab reaches documentation; Enter applies; Escape cancels.", "Click a result; wheel scrolls documentation.", {"modal": True, "contains": "name"}, escape, {"modal": False, "text": "greet(na)"}),
             entry("status-bar", "StatusBarWidget", "Read compact key help and state without requiring color.", {"segments": ({"text": "F1 Help"}, {"text": "Ready"}, {"text": "UTF-8"})},
                 "Read-only; the application handles displayed shortcuts.", "Read-only status segments.", {"focus": "", "contains": "F1 Help"}),
-            entry("progress", "ProgressWidget", "Start a controlled operation and display truthful progress with cancellation.", {"label": "Preview operation"},
+            entry("progress", "ProgressWidget", "Start a controlled operation: emphasized fill and exact counts show progress; state text and color identify the outcome.", {"label": "Preview operation"},
                 "Enter starts/retries; C or Escape cancels an active operation.", "Click the displayed start/cancel action.", {"operation_state": NcursesUi::ActionState::Pending}, enter, {"operation_state": NcursesUi::ActionState::Running, "contains": "25%"}),
             entry("timeline", "TimelineWidget", "Review timestamped operation history and expand event details.", {"timestamp": "2026-01-02T03:04:05Z"},
                 "Up/Down select events; Enter/Space toggles details.", "Wheel scrolls history; click selects.", {"event": "started", "contains": "2026-01-02"}, down, {"event": "completed"}),

@@ -1,0 +1,158 @@
+#!/usr/bin/env qore
+# Copyright 2026 Qore Technologies, s.r.o. SPDX-License-Identifier: MIT
+%modern
+%prepend-module-path "${SCRIPT_DIR}/../qlib"
+%requires ncurses
+%requires NcursesUi
+%requires QUnit
+%include "test/TestHarness.qc"
+%exec-class WidgetEmphasisTest
+class WidgetEmphasisTest inherits Test {
+    constructor() : Test("WidgetEmphasisTest", "1.0", \ARGV) {
+        addTestCase("progress states and actions have semantic color and monochrome cues", \progress());
+        addTestCase("table headers selection focus and disabled state are distinct", \table());
+        addTestCase("chart defaults to recognizable bars with an explicit ASCII fallback", \chart());
+        addTestCase("emphasis survives narrow geometry clipping and recovery", \geometry());
+        addTestCase("expanded charts preserve endpoints gaps and finite extreme values", \expanded());
+        set_return_value(main());
+    }
+    private int row(Ncurses::Window screen, string text) {
+        list<string> lines = screen.readLines(0, 24, 80);
+        for (int y = 0; y < lines.size(); ++y) { if (lines[y].find(text) >= 0) { return y; } }
+        throw "MISSING-RENDERED-TEXT", text;
+    }
+    private hash<Ncurses::ScreenCell> cell(NcursesUi::TestHarness th, int y, int x = 0) {
+        return th.session().capture().cells[y * 80 + x];
+    }
+    private nothing stateStyle(NcursesUi::TestHarness th, string text, int color, bool colors) {
+        hash<Ncurses::ScreenCell> c = cell(th, row(th.screen(), text));
+        assertTrue(!!(c.attrs & Ncurses::Attr::Bold));
+        if (colors) { assertEq(color, c.fg); }
+    }
+    progress() {
+        foreach bool colors in ((True, False)) {
+            NcursesUi::TestHarness th(24, 80, {"use_colors": colors}); on_exit th.close();
+            NcursesUi::Application app(th.session()); on_exit app.close();
+            NcursesUi::ActionModel model("preview", "Preview operation"); NcursesUi::ProgressWidget widget(model);
+            *hash<NcursesUi::ActionRequest> request;
+            widget.setOnStart(sub (hash<NcursesUi::ActionRequest> token) { request = token; });
+            app.setRoot(widget); app.getFocusManager().setFocus(widget); app.drawAll();
+            stateStyle(th, "Preview operation", Ncurses::Color::Cyan, colors);
+            assertTrue(!!(cell(th, row(th.screen(), "[Enter: Start]")).attrs & Ncurses::Attr::Reverse));
+            assertTrue(widget.start()); app.drawAll(); row(th.screen(), "Working");
+            stateStyle(th, "Running", Ncurses::Color::Cyan, colors);
+            model.progress(request, 1.0, 4.0); app.drawAll();
+            assertTrue(!!(cell(th, 2, 1).attrs & Ncurses::Attr::Bold));
+            assertTrue(!!(cell(th, 2, 11).attrs & Ncurses::Attr::Dim));
+            assertTrue(join("\n", widget.getStatusLines()).find("25%") >= 0);
+            assertEq(-1, join("\n", widget.getStatusLines()).find("\e"));
+            assertTrue(widget.cancel()); app.drawAll(); stateStyle(th, "Cancelled", Ncurses::Color::Yellow, colors);
+            assertTrue(widget.start()); model.fail(request, "Connection lost\nTry again"); app.drawAll();
+            stateStyle(th, "Failed", Ncurses::Color::Red, colors);
+            stateStyle(th, "Error: Connection lost", Ncurses::Color::Red, colors);
+            stateStyle(th, "Try again", Ncurses::Color::Red, colors);
+            assertTrue(widget.start()); model.progress(request, 4.0, 4.0); model.complete(request); app.drawAll();
+            stateStyle(th, "Completed", Ncurses::Color::Green, colors); assertFalse(widget.start());
+            widget.setEnabled(False); app.drawAll(); assertTrue(!!(cell(th, 0).attrs & Ncurses::Attr::Dim));
+            assertFalse(widget.cancel()); assertFalse(widget.isDirty());
+            widget.setEnabled(True); app.drawAll(); stateStyle(th, "Preview operation", Ncurses::Color::Cyan, colors);
+        }
+    }
+    private nothing setupTable(NcursesUi::TableWidget widget) {
+        widget.setColumns(({"key": "name", "header": "Name", "width": 20}, {"key": "value", "header": "Value", "width": 8}));
+        list<hash<auto>> rows = ();
+        for (int i = 0; i < 30; ++i) { rows += {"name": sprintf("Row %02d", i), "value": i}; }
+        widget.setRows(rows);
+    }
+    table() {
+        foreach bool colors in ((True, False)) {
+            NcursesUi::TestHarness th(24, 80, {"use_colors": colors}); on_exit th.close();
+            NcursesUi::Application app(th.session()); on_exit app.close(); NcursesUi::TableWidget widget(); setupTable(widget);
+            app.setRoot(widget); app.getFocusManager().setFocus(widget); app.drawAll();
+            hash<Ncurses::ScreenCell> header = cell(th, 0); hash<Ncurses::ScreenCell> selected = cell(th, 1);
+            assertTrue(!!(header.attrs & Ncurses::Attr::Bold)); assertTrue(!!(header.attrs & Ncurses::Attr::Underline));
+            assertFalse(!!(header.attrs & Ncurses::Attr::Reverse)); assertTrue(!!(selected.attrs & Ncurses::Attr::Reverse));
+            assertTrue(!!(selected.attrs & Ncurses::Attr::Bold)); assertFalse(!!(cell(th, 2).attrs & Ncurses::Attr::Reverse));
+            if (colors) { assertEq(Ncurses::Color::Cyan, header.fg); assertEq(Ncurses::Color::Cyan, selected.fg); }
+            app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Key, "name": "KEY_END"}); app.drawAll();
+            assertEq(29, widget.getSelectedRow()); assertTrue(!!(cell(th, row(th.screen(), "Row 29")).attrs & Ncurses::Attr::Reverse));
+            app.getFocusManager().setFocus(NOTHING); app.drawAll();
+            assertFalse(!!(cell(th, row(th.screen(), "Row 29")).attrs & Ncurses::Attr::Bold));
+            widget.setEnabled(False); app.drawAll(); assertTrue(!!(cell(th, 0).attrs & Ncurses::Attr::Dim));
+            assertTrue(!!(cell(th, row(th.screen(), "Row 29")).attrs & Ncurses::Attr::Dim));
+            app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Key, "name": "KEY_HOME"}); assertEq(29, widget.getSelectedRow());
+            assertFalse(widget.isDirty());
+        }
+    }
+    chart() {
+        foreach bool colors in ((True, False)) {
+            NcursesUi::TestHarness th(24, 80, {"use_colors": colors}); on_exit th.close();
+            NcursesUi::Application app(th.session()); on_exit app.close();
+            NcursesUi::TextChart data((1.0, 4.0, NOTHING, 2.0, 8.0), "Values", "ms"); NcursesUi::TextChartWidget widget(data);
+            app.setRoot(widget); app.drawAll(); assertTrue(widget.getUnicode());
+            int y = row(th.screen(), "Samples (left to right):") + 1;
+            assertEq("▁", cell(th, y).text); assertEq("▄", cell(th, y, 1).text);
+            assertEq("?", cell(th, y, 2).text); assertEq("█", cell(th, y, 4).text);
+            assertTrue(!!(cell(th, y).attrs & Ncurses::Attr::Bold));
+            if (colors) { assertEq(Ncurses::Color::Cyan, cell(th, y).fg); assertEq(Ncurses::Color::Yellow, cell(th, y, 2).fg); }
+            row(th.screen(), "Scale:"); row(th.screen(), "missing sample"); row(th.screen(), "last 8");
+            widget.setUnicode(False); app.drawAll(); y = row(th.screen(), "Samples (left to right):") + 1;
+            assertEq(".=?:@", th.screen().readText(y, 0, 5)); row(th.screen(), ".:-=+*#@"); assertFalse(widget.getUnicode());
+            assertEq(".=?:@", data.sparkline(80));
+            widget.setEnabled(False); app.drawAll(); assertTrue(!!(cell(th, y).attrs & Ncurses::Attr::Dim));
+            widget.setEnabled(True); app.drawAll(); assertTrue(!!(cell(th, y).attrs & Ncurses::Attr::Bold));
+            widget.setChart(new NcursesUi::TextChart((), "Empty")); app.drawAll(); row(th.screen(), "No data");
+            assertEq(0, widget.getScrollY()); assertFalse(widget.isDirty());
+            widget.setChart(new NcursesUi::TextChart((NOTHING, NOTHING), "Gaps")); app.drawAll(); row(th.screen(), "2 gaps"); row(th.screen(), "??");
+        }
+    }
+    geometry() {
+        NcursesUi::TestHarness th(24, 80); on_exit th.close(); NcursesUi::Application app(th.session()); on_exit app.close();
+        NcursesUi::Widget root(); app.setRoot(root);
+        NcursesUi::ActionModel model("id", "Progress"); NcursesUi::ProgressWidget progress(model);
+        hash<NcursesUi::ActionRequest> token = model.begin(); model.progress(token, 1.0, 2.0);
+        NcursesUi::TableWidget table(); setupTable(table);
+        NcursesUi::TextChartWidget chart(new NcursesUi::TextChart((-1e308, 0.0, 1e308, NOTHING), "Extreme"));
+        foreach NcursesUi::Widget widget in ((progress, table, chart)) {
+            root.addChild(widget);
+            foreach int width in ((0, 1, 2, 4, 12, 40)) {
+                widget.setFrameValues(2, 3, 4, width); app.drawAll(); assertFalse(widget.isDirty());
+                hash<Ncurses::ScreenCapture> before = th.session().capture(); app.drawAll(); assertEq(before, th.session().capture());
+            }
+            widget.setFrameValues(0, 0, 24, 80); app.drawAll(); assertFalse(widget.isDirty()); root.removeChild(widget);
+        }
+        root.addChild(chart); app.drawAll(); row(th.screen(), "Extreme"); row(th.screen(), "missing sample");
+        assertEq(0, chart.getScrollY());
+    }
+    expanded() {
+        NcursesUi::TextChart data((-1e308, 0.0, 1e308, NOTHING), "Range");
+        list<string> rows = data.bars(16, 4); assertEq(4, rows.size());
+        foreach string line in (rows) { assertEq(16, Ncurses::Ansi::len(line)); }
+        assertEq("███", rows[0].substr(8, 3)); assertEq("▁▁▁", rows[3].substr(0, 3));
+        assertEq("?", rows[3].substr(13, 1)); assertEq(" ", rows[0].substr(13, 1));
+        assertEq((" ", " ", " ", "?"), data.bars(1, 4)); assertEq((), data.bars(0, 4));
+        assertEq("###", data.bars(16, 4, False)[0].substr(8, 3));
+        NcursesUi::TextChart empty(); assertEq((), empty.bars(20, 6));
+        NcursesUi::TextChart constant((2.0, 2.0)); rows = constant.bars(4, 4);
+        assertEq(("    ", "    ", "████", "████"), rows);
+        assertThrows("CHART-WIDTH-ERROR", sub () { data.bars(-1, 4); });
+        assertThrows("CHART-HEIGHT-ERROR", sub () { data.bars(10, 0); });
+        assertThrows("CHART-HEIGHT-ERROR", sub () { data.bars(10, 65); });
+        NcursesUi::TestHarness th(24, 80); on_exit th.close(); NcursesUi::Application app(th.session()); on_exit app.close();
+        NcursesUi::TextChartWidget widget(data); widget.setChartHeight(6); app.setRoot(widget); app.drawAll();
+        assertEq(6, widget.getChartHeight()); int top = row(th.screen(), "Samples (left to right):") + 1;
+        assertEq("█", cell(th, top, 16).text); assertEq("▁", cell(th, top + 5).text);
+        assertEq("?", cell(th, top + 5, 27).text); row(th.screen(), "Height: min to max");
+        assertThrows("CHART-HEIGHT-ERROR", sub () { widget.setChartHeight(0); }); assertEq(6, widget.getChartHeight());
+        widget.setUnicode(False); app.drawAll(); assertEq("#", cell(th, top, 16).text);
+        foreach int width in ((0, 1, 2, 12)) {
+            widget.setFrameValues(0, 0, 4, width); app.drawAll(); assertFalse(widget.isDirty());
+        }
+        widget.setFrameValues(0, 0, 24, 80); widget.setChartHeight(64); app.drawAll();
+        widget.scrollTo(NcursesUi::ScrollDirection::End); app.drawAll(); row(th.screen(), "missing sample");
+        assertTrue(widget.getScrollY() > 0); assertFalse(widget.isDirty());
+        assertThrows("CHART-HEIGHT-ERROR", sub () { widget.setChartHeight(65); }); assertEq(64, widget.getChartHeight());
+        widget.setScrollY(0);
+        widget.setChartHeight(1); app.drawAll(); assertEq(1, widget.getChartHeight()); row(th.screen(), ".:-=+*#@"); assertFalse(widget.isDirty());
+    }
+}

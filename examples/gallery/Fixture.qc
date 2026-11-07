@@ -103,7 +103,11 @@ class Fixture {
                 NcursesUi::ListWidget list_widget(); list_widget.setItems(data.items); widget = list_widget; break;
             case "TreeWidget": widget = new NcursesUi::TreeWidget(data.data); break;
             case "KeyValueWidget": widget = new NcursesUi::KeyValueWidget(data.data); break;
-            case "TextChartWidget": widget = new NcursesUi::TextChartWidget(new NcursesUi::TextChart(data.samples, story.state == "unicode" ? "Values 界é" : "Values", "ms")); break;
+            case "TextChartWidget":
+                NcursesUi::TextChartWidget chart_widget(new NcursesUi::TextChart(data.samples, story.state == "unicode" ? "Values 界é" : "Values", "ms"));
+                if (data.ascii) { chart_widget.setUnicode(False); }
+                if (data.chart_height) { chart_widget.setChartHeight(data.chart_height); }
+                widget = chart_widget; break;
             case "MenuBarWidget":
                 NcursesUi::MenuBarWidget menu(); menu.setApplication(app);
                 if (story.state != "empty") { menu.addMenu(story.state == "unicode" ? "File 界é" : "File", data.menus); }

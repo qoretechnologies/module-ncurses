@@ -27,6 +27,7 @@ class FormPresentationTest inherits Test {
         addTestCase("metadata synchronization handles schema replacement and exceptions", \replacement());
         addTestCase("metadata refresh lays out pending errors and unfocused schema replacements", \pendingMetadata());
         addTestCase("application disabling survives synchronization and form state transitions", \applicationDisabled());
+        addTestCase("unfocused field availability repaints its heading and boundaries", \availabilityStyle());
         addTestCase("password multiline and choice values retain their native behavior", \typed());
         set_return_value(main());
     }
@@ -282,6 +283,24 @@ class FormPresentationTest inherits Test {
             definitions[1].read_only = True; model.setFields(definitions); app.drawAll();
             control = form.getControl("count"); control.setEnabled(True);
             assertFalse(control.isEnabled()); assertFalse(control.isAvailable());
+        }
+    }
+    availabilityStyle() {
+        foreach bool color in ((True, False)) {
+            NcursesUi::TestHarness th(20, 50, {"use_colors": color}); on_exit th.close();
+            NcursesUi::Application app(th.session()); on_exit app.close();
+            NcursesUi::FormModel model(fields()); NcursesUi::FormWidget form(model); app.setRoot(form);
+            app.getFocusManager().setFocus(form.getControl("name")); app.drawAll();
+            NcursesUi::Widget control = form.getControl("count");
+            foreach bool enabled in ((False, True)) {
+                control.setEnabled(enabled); app.drawAll();
+                hash<Ncurses::ScreenCapture> frame = th.session().capture();
+                int label = row(th.screen(), "Attempts"); hash<NcursesUi::Rect> value = control.getFrame();
+                assertEq(!enabled, !!(frame.cells[label * 50 + 2].attrs & Ncurses::Attr::Dim));
+                assertEq(enabled, !!(frame.cells[label * 50 + 2].attrs & Ncurses::Attr::Bold));
+                assertEq(!enabled, !!(frame.cells[value.y * 50 + value.x - 1].attrs & Ncurses::Attr::Dim));
+                assertEq(form.getControl("name"), app.getFocusManager().getCurrentFocus()); assertFalse(form.isDirty());
+            }
         }
     }
     typed() {

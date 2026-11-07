@@ -126,6 +126,8 @@ form, even when focus is unchanged or the clicked label was replaced. A failed
 synchronization propagates without changing focus. Bound controls combine the
 application's enabled flag with a separate form availability gate, preserving
 application disabling across refresh, submission, cancellation and retry.
+Effective control availability also participates in layout invalidation, so changing
+an unfocused control repaints its heading and boundaries without a model revision.
 
 Focus reveals the entire field group. If a field exceeds the viewport height, layout
 allocates a control row, a label row, an error row and a help row in that priority,
@@ -197,7 +199,12 @@ pending, running, cancelled, failed and completed states. Cancellation invalidat
 attempt; a successful receipt requires explicit reset before another start. Unknown
 totals are represented by NOTHING, and determinate progress rejects nonfinite or
 out-of-range values. `ProgressWidget` resolves content/scrollbar width before painting
-its bar. `TimelineWidget` appends immutable timestamped snapshots into transcript
+its bar. State words have semantic color, filled segments/counts and active actions
+have emphasis, and timestamps/remaining segments are dim. Plain status inspection
+strips styling; availability and focus participate in the presentation cache.
+Table headers use bold cyan underlining without reverse video; reverse data selection
+adds bold cyan emphasis only while focused. Disabled tables retain selection with dim cues.
+`TimelineWidget` appends immutable timestamped snapshots into transcript
 blocks; it indexes event/block/source identities, trims expired metadata with bounded
 history, and preserves only retained details. Described choices compose with actions
 for application-owned approval/review semantics.
@@ -239,6 +246,12 @@ ASCII/optional Unicode sparklines. It uses arbitrary-precision normalization to 
 float overflow across opposite-sign extreme values. Downsampling includes endpoints
 when at least two cells fit; one cell shows the latest source position. No decoder,
 network operation or external application is invoked implicitly.
+The widget defaults to Unicode bars with an explicit min/max scale and highlighted
+gaps; its ASCII fallback lists the full symbol ramp. Expanded charts use 1–64 rows,
+eight vertical sublevels per Unicode cell and up to eight columns per source sample.
+Heights are normalized from the snapshot minimum to maximum; constant samples use
+the midpoint. Wider rendering repeats each sampled bar horizontally rather than
+inventing intermediate data. A gap has a question mark at the baseline and no bar.
 
 The shared list uses the effective ancestor/target viewport for paging, selection
 reveal, scrollbars and mouse bounds, preserving manual scrolling until selection or

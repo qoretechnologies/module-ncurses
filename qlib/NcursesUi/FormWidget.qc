@@ -123,6 +123,7 @@ public class FormWidget inherits NcursesUi::Widget {
         *hash<NcursesUi::Rect> draw_bounds;
         *hash<NcursesUi::Rect> drawn_visible;
         hash<string, bool> framed_controls = {};
+        hash<string, bool> layout_availability = {};
     }
     /** Creates controls for a model. @param value UI-thread-owned form model */
     constructor(NcursesUi::FormModel value) {
@@ -168,7 +169,7 @@ public class FormWidget inherits NcursesUi::Widget {
     /** Translates the form and discards obsolete target clipping. @param dy row displacement @param dx column displacement */
     nothing translate(int dy, int dx) { draw_bounds = NOTHING; Widget::translate(dy, dx); layout(); }
     /** Includes model revision and newly focused controls in repaint decisions. @return local dirty state */
-    bool needsOwnDraw() { return Widget::needsOwnDraw() || revision != model.getRevision() || last_focus != findFocused() || layout_view != layoutViewport(); }
+    bool needsOwnDraw() { return Widget::needsOwnDraw() || revision != model.getRevision() || last_focus != findFocused() || layout_view != layoutViewport() || availabilityChanged(); }
     /** Reports local/model or child invalidation. @return needs repaint */
     bool isDirty() { return needsOwnDraw() || Widget::isDirty(); }
     /** Reconciles model state and lays out children before clipping decisions.
@@ -177,7 +178,7 @@ public class FormWidget inherits NcursesUi::Widget {
     nothing drawTree(Ncurses::Window window, bool force = False) {
         hash<Ncurses::Position> origin = window.position(); hash<Ncurses::Size> size = window.size();
         draw_bounds = NcursesUi::Geometry::makeRect(origin.y, origin.x, size.rows, size.cols); drawn_visible = visibleRect();
-        if (revision != model.getRevision() || last_focus != findFocused() || layout_view != layoutViewport()) { syncPresentation(); layout(); markDirty(); }
+        if (revision != model.getRevision() || last_focus != findFocused() || layout_view != layoutViewport() || availabilityChanged()) { syncPresentation(); layout(); markDirty(); }
         Widget::drawTree(window, force);
     }
     /** Acknowledges model changes while clipped. */
@@ -189,9 +190,11 @@ public class FormWidget inherits NcursesUi::Widget {
         list<int> heights = (); list<int> offsets = (); list<int> indents = (); list<int> widths = (); int total = 0;
         int indent = view.cols >= 6 ? 2 : 0;
         *NcursesUi::Widget current = findFocused(); int reveal_start = -1; int reveal_end = -1;
+        hash<string, bool> next_availability = {};
         framed_controls = {};
         foreach hash<NcursesUi::FormField> field in (fields) {
             NcursesUi::Widget control = controls{field.name}; int start = total;
+            next_availability{field.name} = control.isAvailable();
             bool active = current && control.containsWidget(current);
             string heading = (view.cols >= 3 ? (active ? "> " : "  ") : "")
                 + (field.label == "" ? field.name : field.label) + (field.required ? " *" : "")
@@ -254,7 +257,7 @@ public class FormWidget inherits NcursesUi::Widget {
         for (int i = 0; i < ordered.size(); ++i) {
             ordered[i].setFrameValues(view.y + offsets[i] - scroll_y, view.x + indents[i], heights[i], widths[i]);
         }
-        last_focus = current; layout_view = view;
+        last_focus = current; layout_view = view; layout_availability = next_availability;
     }
     /** Paints text-value boundaries outside the actual editing and mouse-caret area.
         @param window output surface
@@ -277,6 +280,12 @@ public class FormWidget inherits NcursesUi::Widget {
     }
     private static string styled(string text, string style) {
         return style + join("\e[0m\n" + style, split("\n", text, False, True)) + "\e[0m";
+    }
+    private bool availabilityChanged() {
+        foreach string name in (keys controls) {
+            if (!exists layout_availability{name} || layout_availability{name} != controls{name}.isAvailable()) { return True; }
+        }
+        return False;
     }
     private hash<NcursesUi::Rect> layoutViewport() {
         hash<NcursesUi::Rect> visible = visibleRect(); hash<NcursesUi::Rect> view = NcursesUi::Geometry::intersect(contentRect(), visible);

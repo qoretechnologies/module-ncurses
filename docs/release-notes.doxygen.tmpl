@@ -5,6 +5,14 @@
     @section ncurses_1_0 ncurses Module Version 1.0
     - initial release
 
+    ProgressWidget uses semantic state colors, emphasized fill/counts and focused
+    actions while retaining plain-text inspection. TableWidget headers use bold
+    underlining, distinct from reverse-video data selection in color and monochrome.
+    TextChartWidget now defaults to Unicode sparklines with explicit min/max and gap
+    legends. setUnicode(False) retains an ASCII fallback; setChartHeight(6) enables
+    larger bars with six rows of resolution. TextChart::bars() returns expanded
+    plain-text charts; the existing sparkline() string API remains ASCII by default.
+
     FormWidget now groups bold field labels, descriptions and validation messages
     above visibly bounded values, with spacing between fields and a non-color focus
     marker. Clicking a label, description or error focuses its value without changing
