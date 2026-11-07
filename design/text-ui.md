@@ -255,3 +255,32 @@ applicable executable scenarios. `tools/widget_catalog.py` derives the Doxygen
 catalog from that same registry and rejects unregistered public widgets, duplicate
 IDs and missing state links. Native tests cover every scenario, repeated captures
 and reset equivalence; CLI tests execute every widget in color and monochrome.
+
+## Borders, emphasis and activation feedback
+
+PanelWidget owns a BorderEdges bit mask. Border insets and caller padding are
+independent: contentRect adds them, and setHasBorder changes only the mask. The
+application chooses edges explicitly. Root/docked panels spanning the viewport use
+horizontal edges or no frame; floating dialogs/popups use a complete frame. Adjacent
+panes share a single separator, owned by the container. No terminal-size heuristic
+silently changes a caller's floating-panel geometry. The gallery's docked file browser
+explicitly refits to the full viewport; ordinary panels retain requested dimensions.
+
+Selection and focus use independent signals. DescribedChoice headings carry bold
+cyan text, reverse focus, and a filled/empty selection circle. Descriptions are
+indented, recommendations are bold green, and unavailable options are dim with an
+explicit label. Spacing, marks and weight retain meaning without color.
+
+Button primary press acquires dispatcher mouse capture and paints bold/underlined
+pressed brackets. Release inside activates once; outside release cancels. Captures
+belong to one root/modal scope and are released on resize, removal, unavailability,
+scope changes and exceptions. Keyboard/synthesized activation is immediate; applications
+show a persistent result rather than adding a timer solely to simulate animation.
+
+TextEditorWidget accepts a plain-to-ANSI highlighter. Output must preserve source
+exactly. Formatting locks direct model mutations and rejects editor reentrancy.
+Styles are cached by source text, while caret/selection geometry uses plain offsets.
+Replacement providers and setText format before committing. Interactive edits remain
+in the model if formatting fails, allowing recovery by replacing/disabling the provider.
+The gallery uses astparser highlights and QoreRepl completion/hints without evaluating
+drafts or persisting history. General widgets do not require either provider.

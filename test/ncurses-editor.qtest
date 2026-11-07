@@ -26,7 +26,40 @@ class EditorTest inherits Test {
         addTestCase("selection highlighting and clipped editor focus stay correct", \display());
         addTestCase("word and hard line edits preserve undo and grapheme boundaries", \wordEdits());
         addTestCase("styled prompts share wrapping and caret geometry before paint", \prompts());
+        addTestCase("syntax styling preserves edits Unicode cursor undo and failure recovery", \syntax());
         set_return_value(main());
+    }
+    syntax() {
+        NcursesUi::TestHarness th(10, 30); on_exit th.close();
+        NcursesUi::TextEditorWidget editor(); editor.setFrameValues(0, 0, 6, 12); editor.setFocused(True);
+        string text = "int x = 1;\n# 界é"; editor.setText(text);
+        int calls = 0;
+        editor.setHighlighter(string sub (string source) { ++calls; return "\e[1;36m" + source + "\e[0m"; });
+        editor.drawTree(th.screen()); th.refresh();
+        assertEq(text, editor.getText()); assertTrue(!!(th.session().capture().cells[0].attrs & Ncurses::Attr::Bold));
+        assertEq(Ncurses::Color::Cyan, th.session().capture().cells[0].fg);
+        hash<Ncurses::Position> cursor = th.screen().cursor(); int before = calls;
+        editor.drawTree(th.screen(), True); assertEq(before, calls); assertEq(cursor, th.screen().cursor());
+        editor.insertPaste("Z"); assertEq(text + "Z", editor.getText());
+        editor.getBuffer().undo(); editor.drawTree(th.screen()); assertEq(text, editor.getText());
+        editor.setPrompt("\e[33m> \e[0m"); editor.getBuffer().setCursor(0); editor.drawTree(th.screen()); th.refresh();
+        assertEq(2, th.screen().cursor().x); assertEq(Ncurses::Color::Cyan, th.session().capture().cells[2].fg);
+        assertThrows("EDITOR-HIGHLIGHT-ERROR", sub () { editor.setHighlighter(string sub (string source) { return source + "!"; }); });
+        assertEq(text, editor.getText());
+        assertThrows("EDITOR-BUSY-ERROR", sub () { editor.setHighlighter(string sub (string source) { editor.getBuffer().insert("oops"); return source; }); });
+        assertThrows("EDITOR-HIGHLIGHT-ERROR", sub () { editor.setHighlighter(string sub (string source) { editor.setPrompt("changed"); return source; }); });
+        assertEq(text, editor.getText());
+        editor.setHighlighter(string sub (string source) { if (source.find("bad") >= 0) { throw "SYNTAX-ERROR", "provider failed"; } return source; });
+        assertThrows("SYNTAX-ERROR", sub () { editor.setText("bad"); }); assertEq(text, editor.getText());
+        editor.getBuffer().setCursor(text.length());
+        assertThrows("SYNTAX-ERROR", sub () { editor.insertPaste("bad"); });
+        assertEq(text + "bad", editor.getText());
+        # A provider failure retains the user's draft; disabling that provider restores painting.
+        editor.setHighlighter(NOTHING); editor.drawTree(th.screen());
+        editor.getBuffer().undo(); editor.drawTree(th.screen()); assertEq(text, editor.getText());
+        editor.setText(""); editor.setHighlighter(string sub (string source) { return "\e[32m" + source + "\e[0m"; });
+        editor.insertPaste("界é\nnext"); editor.setFrameValues(0, 0, 3, 4); editor.drawTree(th.screen());
+        assertEq("界é\nnext", editor.getText()); assertTrue(th.screen().cursor().x < 4);
     }
     selection() {
         NcursesUi::EditorBuffer b(); b.setText("Aé界👩‍💻Z"); b.select(2, 5);

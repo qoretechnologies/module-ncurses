@@ -77,28 +77,8 @@ public class CodeViewWidget inherits NcursesUi::TranscriptWidget {
         if (NcursesUi::TerminalText::plainAnsi(result) != text) { throw "CODEVIEW-HIGHLIGHT-ERROR", "Syntax styling changed the source text"; }
         return result;
     }
-    private static string stylePrefix(hash<auto> style) {
-        list<string> codes = ("0",);
-        if (exists style.fg && style.fg >= 0) { codes += string(30 + int(style.fg)); }
-        if (exists style.bg && style.bg >= 0) { codes += string(40 + int(style.bg)); }
-        int attrs = style.attrs ?? 0;
-        if (attrs & Ncurses::Attr::Bold) { codes += "1"; }
-        if (attrs & Ncurses::Attr::Dim) { codes += "2"; }
-        if (attrs & Ncurses::Attr::Underline) { codes += "4"; }
-        if (attrs & Ncurses::Attr::Reverse) { codes += "7"; }
-        return "\e[" + join(";", codes) + "m";
-    }
     private nothing commitText(string original, string plain, string styled, string syntax) {
-        list<string> lines = ("",);
-        # Segment styles are complete states, so hard newlines can restart them independently.
-        foreach hash<auto> segment in (Ncurses::Ansi::parse(styled)) {
-            string prefix = stylePrefix(segment.style ?? {});
-            list<string> parts = split("\n", string(segment.text), False, True);
-            for (int i = 0; i < parts.size(); ++i) {
-                if (i) { lines += ""; }
-                lines[-1] += prefix + parts[i] + "\e[0m";
-            }
-        }
+        list<string> lines = NcursesUi::TerminalText::styledLines(styled);
         TranscriptWidget::clear(); TranscriptWidget::appendBlock(lines, "code", syntax); setFollowTail(False); setScrollY(0);
         source = original; displayed = plain; language = syntax;
     }

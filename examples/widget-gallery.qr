@@ -2,10 +2,13 @@
 # Copyright 2026 Qore Technologies, s.r.o.
 %requires ncurses
 %requires NcursesUi
+%requires QoreRepl
+%requires astparser >= 3.0
 %requires json
 %include "examples/gallery/Registry.qc"
 %include "examples/gallery/Catalog.qc"
 %include "examples/gallery/Variants.qc"
+%include "examples/gallery/CodeSupport.qc"
 %include "examples/gallery/Fixture.qc"
 %include "examples/gallery/Runner.qc"
 %include "examples/gallery/Gallery.qc"

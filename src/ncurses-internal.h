@@ -105,6 +105,7 @@ constexpr int NC_INPUT_WAKE = 7;
 // follow ungetch's LIFO ordering, not ncurses's separate mouse-event ring.
 constexpr int NC_INJECTED_MOUSE = 0x40000000;
 constexpr int NC_INJECTED_PASTE = 0x40000001;
+constexpr int NC_BUFFERED_MOUSE = 0x40000002;
 // ncurses key-trie values are 16-bit even though ungetch() accepts full ints.
 constexpr int NC_PASTE_BEGIN = 0x7000;
 
@@ -155,6 +156,10 @@ public:
     QoreStringNode* readCharacter(WINDOW* window, int lead, ExceptionSink* xsink);
     void injectAlt(const QoreString* text, ExceptionSink* xsink);
     std::vector<MEVENT> injected_mouse;
+    // wgetch can enqueue several mouse events but return only one KEY_MOUSE
+    // when a following key terminates gesture parsing. Drain them before that key.
+    bool pending_native_mouse = false;
+    MEVENT buffered_mouse = {};
     std::vector<std::string> injected_paste;
     bool bracketed_paste = false;
     bool raw_requested = false;

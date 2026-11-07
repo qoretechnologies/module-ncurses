@@ -1060,6 +1060,12 @@ nothing Session::flushInput() {
     NcursesCallGuard guard(session);
     flushinp();
     session->injected_input.clear(); session->injected_mouse.clear(); session->injected_paste.clear();
+    // flushinp clears the input FIFO, not ncurses's separate mouse-event ring.
+    // The finite ring cannot grow while this guard is held and no input is read.
+    MEVENT discarded;
+    while (getmouse(&discarded) == OK) {
+    }
+    session->pending_native_mouse = false;
     session->injected_paste_bytes = 0; session->resetPaste();
     return nothing();
 }

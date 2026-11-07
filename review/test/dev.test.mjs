@@ -6,7 +6,7 @@ import { once } from 'node:events';
 import { fileURLToPath } from 'node:url';
 import { chromium } from '@playwright/test';
 import { registry } from '../native.mjs';
-import { openStory, command } from '../browser.mjs';
+import { openStory, command, browserArgs } from '../browser.mjs';
 
 test('documented development command serves Storybook and proxies the native session', { timeout: 60000 }, async () => {
   const child = spawn(process.execPath, ['dev.mjs'], { cwd: fileURLToPath(new URL('../', import.meta.url)), stdio: ['ignore', 'pipe', 'pipe'] });
@@ -17,7 +17,7 @@ test('documented development command serves Storybook and proxies the native ses
     child.once('error', reject); child.once('close', () => reject(new Error('Development server closed before readiness: ' + output)));
   });
   try {
-    await ready; browser = await chromium.launch(); page = await browser.newPage();
+    await ready; browser = await chromium.launch({ args: browserArgs }); page = await browser.newPage();
     page.on('console', message => { if (message.type() === 'error') { diagnostics.push(message.text()); } });
     page.on('requestfailed', request => diagnostics.push(`${request.url()}: ${request.failure()?.errorText}`));
     page.on('websocket', socket => {

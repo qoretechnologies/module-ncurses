@@ -528,4 +528,58 @@ files.setHandler(NcursesUi::FileOperation::Export, bool sub (list<hash<NcursesUi
 NcursesUi::TextChart chart((1.0, 4.0, NOTHING, 2.0), "Requests", "count");
 @assert(chart.sparkline(4) == ".@?-");
     @endcode
+    @section ncursesuipresentation Borders, emphasis and code editing
+
+    Use @ref NcursesUi::PanelWidget::setBorderEdges() with @ref NcursesUi::BorderEdges
+    to choose frame edges explicitly. Full-width root/docked panels normally use
+    Horizontal or None; floating dialogs and popups keep All. Let a container own
+    one separator between neighboring panes. Padding is additional to the active
+    border insets and survives changes to the edge mask.
+
+    @code{.py}
+%modern
+%requires ncurses
+%requires NcursesUi
+Ncurses::TestTerminal terminal(8, 40);
+Ncurses::Session session({"test_terminal": terminal});
+on_exit session.close();
+NcursesUi::PanelWidget panel(session, "Review");
+panel.setFrameValues(0, 0, 8, 40);
+panel.setBorderEdges(NcursesUi::BorderEdges::Horizontal);
+panel.setPadding(NcursesUi::Geometry::makeInsets(0, 0, 1, 1));
+@assert(panel.contentRect().cols == 38);
+@assert(panel.contentRect().rows == 6);
+    @endcode
+
+    Described choices separate focused headings from indented descriptions and
+    recommendations. Color reinforces spacing, weight and selection marks; it is
+    never the only state cue. Arrows highlight, Space selects, and Enter selects
+    and optionally submits. Only applications installing setOnSubmit get the
+    one-shot submission lifecycle; resetSubmission reopens it.
+
+    ButtonWidget paints a held primary press and activates on release inside the
+    painted target. Release outside cancels. Keyboard activation is immediate;
+    show persistent success/error feedback beside the action, as in the gallery.
+    EventDispatcher owns mouse capture until release or cancellation. Native input
+    drains queued mouse events before the next key, including rapid press/release
+    reports terminated by keyboard input.
+
+    TextEditorWidget::setHighlighter accepts a source-preserving plain-to-ANSI
+    callback. Plain offsets, selection, copying and undo are unchanged. Providers
+    run on the UI thread and cannot mutate the editor. Replacement/setText failures
+    retain the prior presentation; failures after an edit retain that draft and undo
+    history, allowing recovery by replacing or disabling the provider. CodeViewWidget
+    offers the analogous read-only provider API. TerminalText::styledLines preserves
+    active ANSI styles across hard newlines.
+
+    Run the actual syntax/completion example from the checkout root:
+    @verbatim
+QORE_MODULE_DIR=build-debug:qlib qore --enable-debug --warnings-are-errors examples/widget-gallery.qr --story text-editor.code
+    @endverbatim
+    This example requires astparser 3.0+ and QoreRepl. F8 requests real qrepl symbol
+    completions; Enter accepts, Escape dismisses, and Ctrl-Z undoes. Call signature
+    hints follow the caret. The draft is never evaluated and history is disabled.
+    Incomplete source remains editable when no parser spans are available. The
+    provider is not a project-wide language server. See examples/gallery/CodeSupport.qc
+    for a reusable provider and integration with AssistanceModel/AssistancePopupWidget.
 */

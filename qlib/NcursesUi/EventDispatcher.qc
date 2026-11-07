@@ -36,6 +36,8 @@ public class EventDispatcher {
         NcursesUi::FocusManager focus_mgr();
         list<hash<NcursesUi::ModalFocusState>> modal_stack = ();
         bool changing_scope = False;
+        *NcursesUi::Widget mouse_capture;
+        *NcursesUi::Widget capture_scope;
         *code<hash<NcursesUi::EventResult>(hash<Ncurses::InputEvent>)> global_key_handler;
     }
 
@@ -55,6 +57,9 @@ public class EventDispatcher {
     nothing setRootScope(NcursesUi::Widget root) {
         if (changing_scope || focus_mgr.isChangingFocus()) {
             throw "MODAL-SCOPE-ERROR", "A focus callback cannot replace the root scope";
+        }
+        if (!modal_stack && mouse_capture && (capture_scope != root || !root.containsWidget(mouse_capture))) {
+            cancelMouseCapture();
         }
         if (modal_stack) {
             modal_stack[0].previous_scope = root;
@@ -95,6 +100,7 @@ public class EventDispatcher {
         }
         changing_scope = True;
         on_exit changing_scope = False;
+        cancelMouseCapture();
         if (!w.isAvailable()) {
             throw "MODAL-SCOPE-ERROR", "A modal scope must be visible and enabled";
         }
@@ -143,6 +149,7 @@ public class EventDispatcher {
         }
         changing_scope = True;
         on_exit changing_scope = False;
+        cancelMouseCapture();
         if (!modal_stack) {
             return NOTHING;
         }
@@ -205,20 +212,33 @@ public class EventDispatcher {
         @since ncurses 1.0
     */
     hash<NcursesUi::EventResult> dispatch(NcursesUi::Widget root, hash<Ncurses::InputEvent> ev) {
+        on_error cancelMouseCapture();
         if (global_key_handler && ev.type != Ncurses::InputType::Resize) {
             hash<NcursesUi::EventResult> result = global_key_handler(ev);
             if (result.handled) {
+                if (ev.type == Ncurses::InputType::Mouse && ev.mouse
+                        && (ev.mouse.button_state & Ncurses::BUTTON1_RELEASED)) { cancelMouseCapture(); }
                 return result;
             }
         }
         setRootScope(root);
         NcursesUi::Widget scope = topModal() ?? root;
+        if (mouse_capture && (scope != capture_scope || !mouse_capture.isAvailable()
+                || !scope.containsWidget(mouse_capture))) { cancelMouseCapture(); }
+        if (ev.type == Ncurses::InputType::Resize) { cancelMouseCapture(); }
         if (hasModal()) {
             focus_mgr.reconcile(scope);
         }
         if (ev.type == Ncurses::InputType::Mouse) {
             if (!ev.mouse) {
                 return <NcursesUi::EventResult>{"handled": False};
+            }
+            if (mouse_capture) {
+                # Captured release/motion must reach the pressed control even outside its frame.
+                on_exit {
+                    if (ev.mouse.button_state & Ncurses::BUTTON1_RELEASED) { cancelMouseCapture(); }
+                }
+                return mouse_capture.processEvent(ev);
             }
             if (hasModal() && !scope.hitTest(ev.mouse.y, ev.mouse.x)) {
                 bool popup = modal_stack[modal_stack.size() - 1].popup;
@@ -250,7 +270,12 @@ public class EventDispatcher {
                     target = target.getParent();
                 }
             }
-            return scope.dispatchTo(hit, ev);
+            hash<NcursesUi::EventResult> result = scope.dispatchTo(hit, ev);
+            if (result.mouse_capture && result.mouse_capture.isAvailable()
+                    && scope.containsWidget(result.mouse_capture) && scope == (topModal() ?? root)) {
+                mouse_capture = result.mouse_capture; capture_scope = scope;
+            }
+            return result;
         }
         hash<NcursesUi::EventResult> result = scope.dispatchTo(focus_mgr.getCurrentFocus() ?? scope, ev);
         if (!result.handled && scope == (topModal() ?? root)
@@ -258,6 +283,13 @@ public class EventDispatcher {
             return <NcursesUi::EventResult>{"handled": True};
         }
         return result;
+    }
+
+    /** Cancels and releases the current mouse gesture. Called before resizing or closing the application. */
+    nothing cancelMouseCapture() {
+        *NcursesUi::Widget previous = mouse_capture;
+        mouse_capture = NOTHING; capture_scope = NOTHING;
+        if (previous) { previous.onMouseCaptureLost(); }
     }
 
     private static bool primaryClick(hash<Ncurses::InputEvent> ev) {

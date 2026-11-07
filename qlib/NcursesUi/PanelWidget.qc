@@ -22,6 +22,10 @@
 */
 
 public namespace NcursesUi {
+/** Panel border edges. Combine individual edges with bitwise OR.
+    Horizontal is suitable for docked full-width content; floating panels use All.
+*/
+public enum BorderEdges : int { None = 0, Top = 1, Bottom = 2, Left = 4, Right = 8, Horizontal = 3, All = 15 }
 /** Widget that owns an ncurses Panel.
 
     Unlike regular widgets that draw into their parent's window, a
@@ -46,7 +50,7 @@ public class PanelWidget inherits NcursesUi::Widget {
         #! panel title
         *string title;
         #! whether to draw a border
-        bool has_border = True;
+        int border_edges = NcursesUi::BorderEdges::All;
         #! whether the panel can be closed via [X]
         bool closable = False;
         #! column position of the close button
@@ -65,10 +69,34 @@ public class PanelWidget inherits NcursesUi::Widget {
     constructor(Ncurses::Session s, *string t) {
         session = s;
         title = t;
-        # panels have border padding by default
-        if (has_border) {
-            setPadding(NcursesUi::Geometry::makeInsets(1, 1, 1, 1));
+    }
+
+    /** Sets explicit border edges without changing content padding.
+        @param edges bitwise combination of BorderEdges values
+        @throw PANEL-BORDER-ERROR for unknown edge bits
+        @par Example
+        @code
+        panel.setBorderEdges(NcursesUi::BorderEdges::Horizontal);
+        panel.setPadding(NcursesUi::Geometry::makeInsets(0, 0, 1, 1));
+        @endcode
+    */
+    nothing setBorderEdges(int edges) {
+        if (edges < 0 || edges > NcursesUi::BorderEdges::All) {
+            throw "PANEL-BORDER-ERROR", "Unknown panel border edges";
         }
+        border_edges = edges; close_col = -1; close_len = 0; markDirty();
+    }
+
+    /** Returns the configured border edge mask. @return BorderEdges combination */
+    int getBorderEdges() { return border_edges; }
+
+    /** Returns content inside border edges and independently configured padding.
+        @return screen-coordinate content rectangle
+    */
+    hash<NcursesUi::Rect> contentRect() {
+        return NcursesUi::Geometry::rectInset(Widget::contentRect(), NcursesUi::Geometry::makeInsets(
+            (border_edges & NcursesUi::BorderEdges::Top) ? 1 : 0, (border_edges & NcursesUi::BorderEdges::Bottom) ? 1 : 0,
+            (border_edges & NcursesUi::BorderEdges::Left) ? 1 : 0, (border_edges & NcursesUi::BorderEdges::Right) ? 1 : 0));
     }
 
     /** Returns the panel's window, or NOTHING if not created.
@@ -155,20 +183,14 @@ public class PanelWidget inherits NcursesUi::Widget {
         @since ncurses 1.0
     */
     nothing setHasBorder(bool v) {
-        has_border = v;
-        if (v) {
-            setPadding(NcursesUi::Geometry::makeInsets(1, 1, 1, 1));
-        } else {
-            setPadding(NcursesUi::Geometry::makeInsets(0, 0, 0, 0));
-        }
-        markDirty();
+        setBorderEdges(v ? NcursesUi::BorderEdges::All : NcursesUi::BorderEdges::None);
     }
 
     /** Returns whether a border is drawn.
         @since ncurses 1.0
     */
     bool getHasBorder() {
-        return has_border;
+        return border_edges != NcursesUi::BorderEdges::None;
     }
 
     /** Sets whether the panel shows a close button [X].
@@ -320,30 +342,42 @@ public class PanelWidget inherits NcursesUi::Widget {
         if (!win) {
             return;
         }
-        win.erase();
-        if (has_border && win.size().rows >= 2 && win.size().cols >= 2) {
-            win.box({"fg": Ncurses::Color::Blue});
+        win.erase(); close_col = -1; close_len = 0;
+        hash<Ncurses::Size> f = win.size();
+        if (border_edges && f.rows >= 2 && f.cols >= 2) {
+            bool top = !!(border_edges & NcursesUi::BorderEdges::Top);
+            bool bottom = !!(border_edges & NcursesUi::BorderEdges::Bottom);
+            bool left = !!(border_edges & NcursesUi::BorderEdges::Left);
+            bool right = !!(border_edges & NcursesUi::BorderEdges::Right);
+            hash<auto> style = {"fg": Ncurses::Color::Blue};
+            win.border(left ? NOTHING : " ", right ? NOTHING : " ", top ? NOTHING : " ", bottom ? NOTHING : " ",
+                top && left ? NOTHING : " ", top && right ? NOTHING : " ",
+                bottom && left ? NOTHING : " ", bottom && right ? NOTHING : " ", style);
+            if (top && !left) { win.drawHLine(0, 0, 1, NOTHING, style); }
+            if (top && !right) { win.drawHLine(0, f.cols - 1, 1, NOTHING, style); }
+            if (bottom && !left) { win.drawHLine(f.rows - 1, 0, 1, NOTHING, style); }
+            if (bottom && !right) { win.drawHLine(f.rows - 1, f.cols - 1, 1, NOTHING, style); }
+            if (left && !top) { win.drawVLine(0, 0, 1, NOTHING, style); }
+            if (left && !bottom) { win.drawVLine(f.rows - 1, 0, 1, NOTHING, style); }
+            if (right && !top) { win.drawVLine(0, f.cols - 1, 1, NOTHING, style); }
+            if (right && !bottom) { win.drawVLine(f.rows - 1, f.cols - 1, 1, NOTHING, style); }
+            if (!top) { win.noutrefresh(); return; }
+            int title_start = left ? 2 : 0;
+            int title_end = f.cols - (right ? 1 : 0);
+            if (closable && title_end - (left ? 1 : 0) >= 3) {
+                close_len = 3; close_col = max(left ? 1 : 0, title_end - close_len - 1);
+                title_end = max(title_start, close_col - 1);
+            }
             if (title) {
-                hash<Ncurses::Size> f = win.size();
-                string decorated = " " + title + " ";
-                int title_x;
-                if (center_title) {
-                    title_x = max(2, (f.cols
-                        - TerminalText::displayWidth(decorated)) / 2);
-                } else {
-                    title_x = 2;
-                }
+                string decorated = TerminalText::clipRight(" " + title + " ", max(0, title_end - title_start));
+                int title_x = center_title
+                    ? max(title_start, min(title_end - TerminalText::displayWidth(decorated),
+                        (f.cols - TerminalText::displayWidth(decorated)) / 2)) : title_start;
                 win.drawTextClipped(0, title_x, decorated,
                     {"fg": Ncurses::Color::Yellow, "attrs": Ncurses::Attr::Bold});
             }
-            close_col = -1;
-            close_len = 0;
-            if (closable) {
-                hash<Ncurses::Size> f = win.size();
-                string label = "[X]";
-                close_len = TerminalText::displayWidth(label);
-                close_col = max(1, f.cols - close_len - 2);
-                win.drawTextClipped(0, close_col, label,
+            if (close_len) {
+                win.drawTextClipped(0, close_col, "[X]",
                     {"fg": Ncurses::Color::Red, "attrs": Ncurses::Attr::Bold});
             }
         }

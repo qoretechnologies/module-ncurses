@@ -98,7 +98,7 @@ class Gallery {
         closeOverlay(); expandOverlay(); on_error closeOverlay();
         picker = new NcursesGallery::Picker(app.getSession(), sub (string id) { select(id); });
         hash<Ncurses::Size> size = app.getSession().screen().size();
-        picker.setHasBorder(size.rows >= 5 && size.cols >= 12);
+        picker.setBorderEdges(size.rows >= 5 && size.cols >= 12 ? NcursesUi::BorderEdges::Horizontal : NcursesUi::BorderEdges::None);
         picker.setFrameValues(0, 0, size.rows, size.cols); picker.layout(); picker.createPanel(); app.pushModal(picker);
         app.getFocusManager().setFocus(picker.query); app.drawAll();
     }

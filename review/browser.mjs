@@ -3,7 +3,8 @@ export const browserOptions = {
   viewport: { width: 1500, height: 1100 }, deviceScaleFactor: 1, locale: 'en-US', timezoneId: 'UTC',
   colorScheme: 'dark', reducedMotion: 'reduce',
 };
-export const browserArgs = ['--disable-lcd-text', '--font-render-hinting=none'];
+export const browserArgs = ['--disable-lcd-text', '--font-render-hinting=none',
+  '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'];
 
 export function storybookId(story) {
   return `native-${story.widget.toLowerCase()}--${story.id.split('.')[1]}`;
@@ -12,7 +13,7 @@ export function storybookId(story) {
 /** Translate registry events to xterm-256color input bytes, retaining one source of expectations. */
 export function inputBytes(event) {
   const keys = { KEY_ENTER: '\r', KEY_UP: '\x1bOA', KEY_DOWN: '\x1bOB', KEY_RIGHT: '\x1bOC', KEY_LEFT: '\x1bOD',
-    KEY_HOME: '\x1bOH', KEY_END: '\x1bOF', KEY_PPAGE: '\x1b[5~', KEY_NPAGE: '\x1b[6~', 'KEY_F(7)': '\x1b[18~' };
+    KEY_HOME: '\x1bOH', KEY_END: '\x1bOF', KEY_PPAGE: '\x1b[5~', KEY_NPAGE: '\x1b[6~', 'KEY_F(7)': '\x1b[18~', 'KEY_F(8)': '\x1b[19~' };
   if (event.type === 1) { return event.ch; }
   if (event.type === 5) { return '\x1b' + event.ch; }
   if (event.type === 6) { return '\x1b[200~' + event.ch + '\x1b[201~'; }

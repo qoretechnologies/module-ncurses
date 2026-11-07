@@ -347,9 +347,8 @@ public class Application {
     */
     nothing close() {
         events.checkThread(); running = False; events.close(); tick_callbacks = {};
-        if (session.isOpen()) {
-            session.close();
-        }
+        on_exit { if (session.isOpen()) { session.close(); } }
+        dispatcher.cancelMouseCapture();
     }
 
     /** Performs a full draw cycle.
@@ -403,6 +402,7 @@ public class Application {
         @since ncurses 1.0
     */
     private nothing handleResize() {
+        dispatcher.cancelMouseCapture();
         layoutRoot();
         hash<Ncurses::Size> size = session.screen().size();
         foreach NcursesUi::Widget modal in (dispatcher.getModalStack()) {

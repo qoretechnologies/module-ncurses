@@ -5,6 +5,31 @@
     @section ncurses_1_0 ncurses Module Version 1.0
     - initial release
 
+    Interactive UX follow-up adds continuous WebGL box drawing to Storybook, explicit
+    compact/stress/recovery scenarios, live action/state feedback and a code editor
+    story using astparser syntax highlighting and qrepl completion/signature hints.
+    Default labels use ordinary text; Unicode stress cases remain explicitly named.
+    DescribedChoiceWidget separates bold focused titles, indented descriptions,
+    recommendations and selection marks. Its default story permits repeated selection;
+    a separate submission story explains its one-shot lifecycle.
+    ButtonWidget paints primary-press feedback and activates on release inside the
+    original target; outside release, focus loss, resize, detachment and modal changes
+    cancel the press. Keyboard/synthesized clicks remain immediate. Window::readEvent()
+    drains native mouse events queued behind one KEY_MOUSE notification before the next
+    key; rapid press/release gestures no longer lose their release. flushInput() also
+    clears the separate mouse queue. EventDispatcher
+    owns scoped mouse capture and cleans it up on errors.
+    FileBrowserWidget shows one full-width pane below 48 content columns; F7 switches
+    panes while retaining selection. Unselected previews provide guidance and empty
+    files are identified explicitly. Compact dialogs prioritize the wrapped message
+    over decorative padding while retaining actions.
+    PanelWidget::setBorderEdges() supports independent edges; content padding is now
+    additional to border insets and is preserved when borders change. Existing default
+    panel content insets remain one cell. Full-width gallery panels omit side borders.
+    TextEditorWidget::setHighlighter() applies source-preserving ANSI styles without
+    changing editing offsets or undo; providers run on the UI thread and errors retain
+    drafts. TerminalText::styledLines() preserves ANSI styles over hard newlines.
+
     Storybook now reviews the actual native gallery through a local PTY/xterm.js
     adapter. Shared keyboard, mouse, background-output and cancellation scenarios
     produce composed cell/cursor/focus/scroll evidence and exact PNG comparisons.

@@ -751,6 +751,12 @@ public class Widget {
         return result;
     }
 
+    /** Cancels an in-progress mouse gesture when capture is lost.
+        Called on release, scope changes, detachment or failed dispatch. The default does nothing.
+    */
+    nothing onMouseCaptureLost() {
+    }
+
     /** Focus-in callback. Called when this widget gains focus.
         @since ncurses 1.0
     */

@@ -32,6 +32,29 @@ public namespace NcursesUi {
         @ref plainAnsi() and @ref drawAnsiSlice() for ANSI-styled text.
 */
 public class TerminalText {
+    /** Splits ANSI-styled text at hard newlines while preserving each line's style.
+        @param text styled text @return independently renderable logical lines
+    */
+    static list<string> styledLines(string text) {
+        list<string> lines = ("",);
+        foreach hash<auto> segment in (Ncurses::Ansi::parse(text)) {
+            hash<auto> style = segment.style ?? {}; list<string> codes = ("0",);
+            if (exists style.fg && style.fg >= 0) { codes += string(30 + int(style.fg)); }
+            if (exists style.bg && style.bg >= 0) { codes += string(40 + int(style.bg)); }
+            int attrs = style.attrs ?? 0;
+            if (attrs & Ncurses::Attr::Bold) { codes += "1"; }
+            if (attrs & Ncurses::Attr::Dim) { codes += "2"; }
+            if (attrs & Ncurses::Attr::Underline) { codes += "4"; }
+            if (attrs & Ncurses::Attr::Reverse) { codes += "7"; }
+            string prefix = "\e[" + join(";", codes) + "m";
+            list<string> parts = split("\n", string(segment.text), False, True);
+            for (int i = 0; i < parts.size(); ++i) {
+                if (i) { lines += ""; }
+                lines[-1] += prefix + parts[i] + "\e[0m";
+            }
+        }
+        return lines;
+    }
     /** Returns the terminal display width of plain text.
         @param text text to measure
         @return terminal display columns occupied by @p text

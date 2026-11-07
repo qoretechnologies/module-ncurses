@@ -115,4 +115,13 @@ session.screen().readEvent();
     For controls inside overlays and modal input routing, use
     @ref NcursesUi::PanelWidget "PanelWidget" and @ref NcursesUi::DialogWidget "DialogWidget";
     see @ref ncurses_ui_widgetsguide "UI Widget Toolkit".
+    @section ncursesexamplecode Highlighted code with completion
+    The widget gallery's @c text-editor.code example combines source-preserving
+    syntax highlighting, qrepl symbol completions and signature hints. It requires
+    astparser 3.0+ and QoreRepl. The @c code-view.default story uses the same parser
+    for read-only source. F8 requests completion, Enter accepts, Escape dismisses,
+    and Ctrl-Z undoes the insertion. Drafts are not executed.
+    @verbatim
+QORE_MODULE_DIR=build-debug:qlib qore --enable-debug --warnings-are-errors examples/widget-gallery.qr --story text-editor.code
+    @endverbatim
 */

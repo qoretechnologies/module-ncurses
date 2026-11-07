@@ -125,6 +125,7 @@ public class FileBrowserWidget inherits NcursesUi::PanelWidget {
         });
         setClosable(True);
         refreshListing();
+        clearPreview();
         updateStatusText();
     }
 
@@ -347,16 +348,19 @@ public class FileBrowserWidget inherits NcursesUi::PanelWidget {
         int content_rows = cr.rows - 1;
         int status_row = cr.y + cr.rows - 1;
 
-        # split: 35% file list (left), 65% preview (right)
-        int list_cols = min(cr.cols - 2, max(1, cr.cols * 35 / 100));
-        int preview_cols = cr.cols - list_cols - 1;  # -1 for divider
+        # Narrow viewports show the active pane at full width; F7 exposes the other
+        # pane without changing selection or either pane's scroll position.
+        bool split = cr.cols >= 48;
+        int active = getFocusedPane();
+        int list_cols = split ? min(cr.cols - 2, max(1, cr.cols * 35 / 100)) : cr.cols;
+        int preview_cols = split ? cr.cols - list_cols - 1 : cr.cols;
 
         # Child frames and mouse events use screen coordinates.
         hash<NcursesUi::Rect> absolute = contentRect();
         hash<NcursesUi::Rect> list_frame = NcursesUi::Geometry::makeRect(
-            absolute.y, absolute.x, content_rows, list_cols);
+            absolute.y, absolute.x, split || active == 0 ? content_rows : 0, list_cols);
         hash<NcursesUi::Rect> preview_frame = NcursesUi::Geometry::makeRect(
-            absolute.y, absolute.x + list_cols + 1, content_rows, preview_cols);
+            absolute.y, absolute.x + (split ? list_cols + 1 : 0), split || active == 1 ? content_rows : 0, preview_cols);
 
         file_list.setFrame(list_frame);
         preview_widget.setFrame(preview_frame);
@@ -373,7 +377,7 @@ public class FileBrowserWidget inherits NcursesUi::PanelWidget {
         } else {
             div_style = {"fg": Ncurses::Color::Cyan, "attrs": Ncurses::Attr::Bold};
         }
-        pw.drawVLine(cr.y, div_x, content_rows, NOTHING, div_style);
+        if (split) { pw.drawVLine(cr.y, div_x, content_rows, NOTHING, div_style); }
 
         # draw status line at bottom
         drawStatusLine(pw, status_row, cr.x, cr.cols);
@@ -557,6 +561,12 @@ public class FileBrowserWidget inherits NcursesUi::PanelWidget {
         string path = item.path;
         try {
             hash<auto> st = hstat(path);
+            # File identification may classify an empty file as non-text.
+            if (!st.size) {
+                preview_content.appendLine("(Empty file)");
+                preview_widget.markDirty();
+                return;
+            }
             if (st.size > max_preview_size) {
                 preview_content.appendLine("(File too large to preview)");
                 preview_content.appendLine(sprintf("Size: %s", formatSize(st.size)));
@@ -581,6 +591,11 @@ public class FileBrowserWidget inherits NcursesUi::PanelWidget {
             }
 
             string data = ReadOnlyFile::readTextFile(path);
+            if (data == "") {
+                preview_content.appendLine("(Empty file)");
+                preview_widget.markDirty();
+                return;
+            }
             list<string> lines = data.split("\n");
             foreach string line in (lines) {
                 preview_content.appendLine(line);
@@ -648,6 +663,7 @@ public class FileBrowserWidget inherits NcursesUi::PanelWidget {
     /** Clears the preview pane. */
     private nothing clearPreview() {
         preview_content.clear();
+        preview_content.appendLine("Select a file or directory to preview.");
         preview_widget.setScrollY(0);
         preview_dir_items = ();
         preview_dir_path = NOTHING;
@@ -691,7 +707,8 @@ public class FileBrowserWidget inherits NcursesUi::PanelWidget {
         # draw status text with bright foreground for readability
         hash<auto> text_style = {"fg": Ncurses::Color::White, "bg": Ncurses::Color::Blue,
             "attrs": Ncurses::Attr::Bold};
-        string text = " " + status_text;
+        string text = width < 48 ? (getFocusedPane() == 0 ? "F7:Preview" : "F7:Files") + " | Enter:Open | Esc:Close"
+            : " " + status_text;
         text = TerminalText::clipRight(text, width);
         w.drawText(row, x, text, text_style);
     }

@@ -10,6 +10,7 @@ class Runner {
         *NcursesUi::TableWidget table;
         *NcursesUi::CompletionPopupWidget popup;
         *NcursesGallery::Fixture fixture;
+        *NcursesGallery::CodePreview code_preview;
         bool closed = False;
         int checkpoint_index = -1;
         hash<Ncurses::Size> initial_size;
@@ -25,7 +26,7 @@ class Runner {
     int checkpointIndex() { return checkpoint_index; }
     private nothing checkOpen() { if (closed) { throw "GALLERY-CLOSED-ERROR", "The story has been closed"; } }
     private nothing release() {
-        on_exit { popup = NOTHING; fixture = NOTHING; table = NOTHING; editor = NOTHING; widget = NOTHING; }
+        on_exit { popup = NOTHING; fixture = NOTHING; code_preview = NOTHING; table = NOTHING; editor = NOTHING; widget = NOTHING; }
         on_exit {
             if (app.getSession().isOpen()) {
                 app.setRoot(new NcursesUi::Widget());
@@ -35,6 +36,7 @@ class Runner {
         on_exit {
             on_exit { if (popup) { popup.setOnSelect(NOTHING); popup.setOnDismiss(NOTHING); popup.destroyPanel(); } }
             if (fixture) { fixture.close(); }
+            if (code_preview) { code_preview.close(); }
         }
         while (app.getDispatcher().hasModal()) { app.popModal(); }
     }
@@ -60,7 +62,10 @@ class Runner {
                 break;
             default: throw "GALLERY-STORY-ERROR", "No fixture factory for " + definition.widget;
         }
-        app.setRoot(widget); app.getFocusManager().setFocus(widget);
+        if (definition.id == "text-editor.code") {
+            code_preview = new NcursesGallery::CodePreview(app, editor); app.setRoot(code_preview);
+        } else { app.setRoot(widget); }
+        app.getFocusManager().setFocus(widget);
         if (definition.widget == "CompletionPopupWidget") {
             popup = new NcursesUi::CompletionPopupWidget(app.getSession(), definition.state == "empty" ? () : definition.fixture.items);
             popup.setOnDismiss(sub () { dismiss(); });
@@ -129,7 +134,10 @@ class Runner {
             else if (key == "cursor_x") { valid = artifact.frame.cursor.x == expected{key}; }
             else if (key == "focus_nonempty") { valid = artifact.state.focus != ""; }
             else if (key == "scroll_min") { valid = artifact.state.scroll >= expected{key}; }
-            else if (key == "contains") {
+            else if (key == "visible_content") {
+                string text; foreach hash<Ncurses::ScreenCell> cell in (artifact.frame.cells) { text += cell.text; }
+                valid = trim(text) != "" || artifact.frame.cursor.visibility > 0;
+            } else if (key == "contains") {
                 string text; foreach hash<Ncurses::ScreenCell> cell in (artifact.frame.cells) { text += cell.text; }
                 valid = text.find(expected{key}) >= 0;
             } else { valid = artifact.state{key} == expected{key}; }

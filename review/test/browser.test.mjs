@@ -4,12 +4,12 @@ import assert from 'node:assert/strict';
 import { chromium } from '@playwright/test';
 import { createBridgeServer } from '../server.mjs';
 import { fileURLToPath } from 'node:url';
-import { openStory, command } from '../browser.mjs';
+import { openStory, command, browserArgs } from '../browser.mjs';
 import { imageDiff } from '../artifacts.mjs';
 
 test('Storybook mounts real PTY output and native completion barriers', { timeout: 30000 }, async () => {
   const server = await createBridgeServer({ port: 0, staticDir: fileURLToPath(new URL('../storybook-static/', import.meta.url)) });
-  const browser = await chromium.launch();
+  const browser = await chromium.launch({ args: browserArgs });
   try {
     const page = await browser.newPage({ viewport: { width: 1400, height: 1000 }, deviceScaleFactor: 1 });
     const errors = []; page.on('pageerror', error => errors.push(error.message));
@@ -37,7 +37,7 @@ test('Storybook mounts real PTY output and native completion barriers', { timeou
 
 test('same-page story replacement tears down prior PTYs, including mounting and startup failures', { timeout: 30000 }, async () => {
   const server = await createBridgeServer({ port: 0, staticDir: fileURLToPath(new URL('../storybook-static/', import.meta.url)) });
-  const browser = await chromium.launch();
+  const browser = await chromium.launch({ args: browserArgs });
   try {
     const page = await browser.newPage();
     await openStory(page, `http://127.0.0.1:${server.port}`, server.stories.find(story => story.id === 'label.default'));
@@ -57,7 +57,7 @@ test('same-page story replacement tears down prior PTYs, including mounting and 
   } finally { await browser.close(); await server.close(); }
   assert.equal(server.sessionCount, 0);
   const failed = await createBridgeServer({ port: 0, qore: '/nonexistent/qore', staticDir: fileURLToPath(new URL('../storybook-static/', import.meta.url)) });
-  const failedBrowser = await chromium.launch();
+  const failedBrowser = await chromium.launch({ args: browserArgs });
   try {
     const page = await failedBrowser.newPage();
     await assert.rejects(openStory(page, `http://127.0.0.1:${failed.port}`, failed.stories[0]), /No such file|Native/);
@@ -67,7 +67,7 @@ test('same-page story replacement tears down prior PTYs, including mounting and 
 
 test('missing Storybook registration fails within the readiness deadline', { timeout: 10000 }, async () => {
   const server = await createBridgeServer({ port: 0, staticDir: fileURLToPath(new URL('../storybook-static/', import.meta.url)) });
-  const browser = await chromium.launch();
+  const browser = await chromium.launch({ args: browserArgs });
   try {
     const page = await browser.newPage();
     await assert.rejects(openStory(page, `http://127.0.0.1:${server.port}`,
@@ -78,7 +78,7 @@ test('missing Storybook registration fails within the readiness deadline', { tim
 
 test('editor and overlapping popup use browser keyboard, paste, mouse and resize', { timeout: 30000 }, async () => {
   const server = await createBridgeServer({ port: 0, staticDir: fileURLToPath(new URL('../storybook-static/', import.meta.url)) });
-  const browser = await chromium.launch();
+  const browser = await chromium.launch({ args: browserArgs });
   const page = await browser.newPage({ viewport: { width: 1400, height: 1000 }, deviceScaleFactor: 1 });
   const open = async (id, args = '') => {
     await page.goto(`http://127.0.0.1:${server.port}/iframe.html?id=${id}&viewMode=story${args}`);
@@ -124,7 +124,7 @@ test('editor and overlapping popup use browser keyboard, paste, mouse and resize
 
 test('overlapping commands wait for rendered frames and disposal rejects queued work', { timeout: 30000 }, async () => {
   const server = await createBridgeServer({ port: 0, staticDir: fileURLToPath(new URL('../storybook-static/', import.meta.url)) });
-  const browser = await chromium.launch();
+  const browser = await chromium.launch({ args: browserArgs });
   try {
     const page = await browser.newPage();
     await openStory(page, `http://127.0.0.1:${server.port}`, server.stories.find(story => story.id === 'text-editor.empty'));
@@ -163,7 +163,7 @@ test('overlapping commands wait for rendered frames and disposal rejects queued 
 
 test('terminal image geometry is independent of surrounding system-font metrics', { timeout: 30000 }, async () => {
   const server = await createBridgeServer({ port: 0, staticDir: fileURLToPath(new URL('../storybook-static/', import.meta.url)) });
-  const browser = await chromium.launch();
+  const browser = await chromium.launch({ args: browserArgs });
   try {
     const page = await browser.newPage();
     await openStory(page, `http://127.0.0.1:${server.port}`, server.stories.find(story => story.id === 'completion-popup.focused'));
@@ -180,6 +180,93 @@ test('terminal image geometry is independent of surrounding system-font metrics'
       if (reference) { const diff = imageDiff(reference, current); assert.equal(diff.pixels, 0); assert.equal(diff.resized, false); }
       else { reference = current; }
     }
+    await command(page, 'dispose');
+  } finally { await browser.close(); await server.close(); }
+});
+
+test('button presses, choice hierarchy, compact recovery and code assistance are usable with real browser input', { timeout: 60000 }, async () => {
+  const server = await createBridgeServer({ port: 0, staticDir: fileURLToPath(new URL('../storybook-static/', import.meta.url)) });
+  const browser = await chromium.launch({ args: browserArgs });
+  try {
+    const page = await browser.newPage({ viewport: { width: 1400, height: 1000 }, deviceScaleFactor: 1 });
+    const errors = []; page.on('pageerror', error => errors.push(error.message));
+    const open = (id, mono = false) => openStory(page, `http://127.0.0.1:${server.port}`, server.stories.find(story => story.id === id), mono);
+    const cell = async (x, y) => {
+      const bounds = await page.locator('.xterm-screen').boundingBox();
+      const size = await page.locator('ncurses-native-terminal').evaluate(e => ({ cols: e.term.cols, rows: e.term.rows }));
+      return { x: bounds.x + (x + 0.5) * bounds.width / size.cols, y: bounds.y + (y + 0.5) * bounds.height / size.rows };
+    };
+    await open('button.default');
+    const button = await cell(4, 0); await page.mouse.move(button.x, button.y); await page.mouse.down();
+    let frame = await command(page, 'capture'); assert.equal(frame.state.pressed, true); assert.equal(frame.state.activations, 0);
+    assert.match(await page.locator('.native-feedback').textContent(), /Release inside/);
+    await page.mouse.up(); frame = await command(page, 'capture'); assert.equal(frame.state.activations, 1); assert.equal(frame.state.pressed, false);
+    assert.match(await page.locator('.native-feedback').textContent(), /Preview complete/);
+    await page.mouse.down(); const outside = await cell(4, 4); await page.mouse.move(outside.x, outside.y); await page.mouse.up();
+    frame = await command(page, 'capture'); assert.equal(frame.state.activations, 1); assert.equal(frame.state.pressed, false);
+    await page.getByRole('button', { name: 'Focus terminal', exact: true }).click(); await page.keyboard.press('Space');
+    frame = await command(page, 'capture'); assert.equal(frame.state.activations, 2);
+    assert.equal(await page.getByRole('button', { name: 'Next checkpoint' }).isDisabled(), true);
+    await command(page, 'reset'); assert.equal(await page.getByRole('button', { name: 'Next checkpoint' }).isEnabled(), true);
+    await command(page, 'step'); await command(page, 'step'); assert.equal(await page.getByRole('button', { name: 'Next checkpoint' }).isDisabled(), true);
+    for (const mono of [false, true]) {
+      await open('described-choice.default', mono);
+      await page.keyboard.press('ArrowDown'); frame = await command(page, 'capture');
+      assert.equal(frame.state.highlight, 1); assert.equal(frame.state.choice, 'preview');
+      await page.keyboard.press('Enter'); frame = await command(page, 'capture'); assert.equal(frame.state.choice, 'execute');
+      await page.keyboard.press('ArrowUp'); await page.keyboard.press('Space'); frame = await command(page, 'capture'); assert.equal(frame.state.choice, 'preview');
+      const execute = await cell(5, 4); await page.mouse.click(execute.x, execute.y); frame = await command(page, 'capture'); assert.equal(frame.state.choice, 'execute');
+      await page.locator('.native-terminal').screenshot({ path: `/tmp/ncurses-choice-${mono ? 'mono' : 'color'}.png` });
+    }
+    await open('described-choice.submit'); await page.keyboard.press('Enter'); await command(page, 'capture');
+    assert.match(await page.locator('.native-feedback').textContent(), /Submitted.*Reset/);
+    await open('file-browser.constrained'); await command(page, 'resize', 4, 12);
+    assert.match(await page.locator('.native-viewport-note').textContent(), /Stress viewport/);
+    await page.getByRole('button', { name: 'Standard', exact: true }).click(); frame = await command(page, 'capture'); assert.equal(frame.frame.cols, 80);
+    assert.equal(await page.locator('.native-viewport-note').textContent(), '');
+    await open('text-editor.code'); await page.keyboard.press('F8'); frame = await command(page, 'capture'); assert.equal(frame.state.modal, true);
+    await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter'); frame = await command(page, 'capture');
+    assert.match(frame.state.text, /printf\($/); assert.equal(frame.state.focus, 'TextEditorWidget');
+    assert.ok(frame.frame.cells.map(cell => cell.text).join('').includes('fmt'));
+    await page.locator('.native-terminal').screenshot({ path: '/tmp/ncurses-code-editor.png' });
+    await page.keyboard.press('Control+z'); frame = await command(page, 'capture'); assert.match(frame.state.text, /pri$/);
+    await page.keyboard.press('F8'); await page.keyboard.press('Escape'); frame = await command(page, 'capture'); assert.equal(frame.state.modal, false);
+    assert.deepEqual(errors, []); await command(page, 'dispose');
+  } finally { await browser.close(); await server.close(); }
+});
+
+test('WebGL draws contiguous frame edges and reports lost graphics contexts', { timeout: 30000 }, async () => {
+  const { PNG } = await import('pngjs');
+  const server = await createBridgeServer({ port: 0, staticDir: fileURLToPath(new URL('../storybook-static/', import.meta.url)) });
+  const browser = await chromium.launch({ args: browserArgs });
+  try {
+    const page = await browser.newPage();
+    await openStory(page, `http://127.0.0.1:${server.port}`, server.stories.find(story => story.id === 'completion-popup.focused'));
+    const data = await page.locator('ncurses-native-terminal').evaluate(e => ({ renderer: e.dataset.renderer, cols: e.term.cols, rows: e.term.rows,
+      lines: Array.from({ length: e.term.rows }, (_, y) => e.term.buffer.active.getLine(y).translateToString()) }));
+    assert.equal(data.renderer, 'webgl');
+    const png = PNG.sync.read(await page.locator('.xterm-screen').screenshot());
+    const cellWidth = png.width / data.cols, cellHeight = png.height / data.rows;
+    const lit = (x, y) => { const offset = (y * png.width + x) * 4; return png.data[offset] > 60 || png.data[offset + 1] > 60 || png.data[offset + 2] > 60; };
+    let joins = 0;
+    for (let y = 0; y + 1 < data.rows; y++) {
+      for (let x = 0; x < data.cols; x++) {
+        if (data.lines[y][x] !== '│' || data.lines[y + 1][x] !== '│') { continue; }
+        const middle = Math.floor((x + 0.5) * cellWidth);
+        for (let py = Math.ceil(y * cellHeight); py < Math.floor((y + 2) * cellHeight); py++) {
+          assert.ok([-2, -1, 0, 1, 2].some(dx => lit(middle + dx, py)), `border gap at row ${py}`);
+        }
+        joins++;
+      }
+    }
+    assert.ok(joins > 0, 'the real popup must contain adjacent vertical border cells');
+    const lost = await page.locator('ncurses-native-terminal').evaluate(async e => {
+      const closed = new Promise(resolve => e.socket.addEventListener('close', resolve, { once: true }));
+      const canvas = [...e.querySelectorAll('canvas')].find(c => c.getContext('webgl2'));
+      canvas.getContext('webgl2').getExtension('WEBGL_lose_context').loseContext();
+      await closed; return { closing: e.closing, message: e.status.textContent };
+    });
+    assert.equal(lost.closing, true); assert.match(lost.message, /Reload the story/);
     await command(page, 'dispose');
   } finally { await browser.close(); await server.close(); }
 });

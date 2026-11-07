@@ -196,10 +196,10 @@ public class DialogWidget inherits NcursesUi::PanelWidget {
         if (!getWindow()) { return; }
         w = getWindow();
         hash<NcursesUi::Rect> cr = localContentRect();
-        int pad = cr.rows >= 5 && cr.cols >= 4 ? 1 : 0;
+        int pad = messagePadding(cr);
         int width = max(0, cr.cols - 2 * pad);
         bool compact_message = show_message && cr.rows <= 2;
-        int message_rows = compact_message ? cr.rows : max(0, cr.rows - 2 * pad - (buttons ? 2 : 0));
+        int message_rows = compact_message ? cr.rows : max(0, cr.rows - 2 * pad - (buttons ? (cr.rows <= 2 ? 1 : 2) : 0));
         list<string> lines = wrappedMessage(max(1, width));
         message_offset = max(0, min(message_offset, lines.size() - max(1, message_rows)));
         for (int i = 0; i < message_rows && i + message_offset < lines.size(); ++i) {
@@ -242,6 +242,12 @@ public class DialogWidget inherits NcursesUi::PanelWidget {
     */
     nothing fitToScreen(int rows, int cols) { centerOn(rows, cols); }
 
+    private int messagePadding(hash<NcursesUi::Rect> rect) {
+        # Keep decorative spacing only when the complete wrapped message fits.
+        return rect.rows >= 5 && rect.cols >= 4
+            && wrappedMessage(rect.cols - 2).size() + 2 + (buttons ? 2 : 0) <= rect.rows ? 1 : 0;
+    }
+
     private list<string> wrappedMessage(int width) {
         list<string> lines = ();
         foreach string line in (message_lines) {
@@ -253,8 +259,8 @@ public class DialogWidget inherits NcursesUi::PanelWidget {
 
     private nothing scrollMessage(int direction, bool page = False) {
         hash<NcursesUi::Rect> cr = localContentRect();
-        int pad = cr.rows >= 5 && cr.cols >= 4 ? 1 : 0;
-        int visible = max(1, cr.rows - 2 * pad - (buttons ? 2 : 0));
+        int pad = messagePadding(cr);
+        int visible = max(1, show_message && cr.rows <= 2 ? cr.rows : cr.rows - 2 * pad - (buttons ? (cr.rows <= 2 ? 1 : 2) : 0));
         int count = wrappedMessage(max(1, cr.cols - 2 * pad)).size();
         if (!show_message && cr.rows <= 2) { show_message = True; }
         else { message_offset = max(0, min(message_offset + direction * (page ? visible : 1), count - visible)); }

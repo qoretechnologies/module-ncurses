@@ -167,10 +167,10 @@ class ReviewControlsTest inherits Test {
         NcursesUi::TestHarness th(10, 30); on_exit th.close(); NcursesUi::DescribedChoiceWidget choice(options()); choice.setFrameValues(0, 0, 3, 20); choice.setFocused(True);
         choice.drawTree(th.screen()); assertTrue(choice.getScrollY() >= 9); assertTrue(th.screen().readText(2, 0, 19).find("Option 11") >= 0);
         choice.processEvent(key("KEY_PPAGE")); int manually = choice.getScrollY(); choice.drawTree(th.screen()); assertEq(manually, choice.getScrollY());
-        choice.setFrameValues(0, 0, 1, 15); choice.drawTree(th.screen()); assertEq(11, choice.getScrollY());
+        choice.setFrameValues(0, 0, 1, 15); choice.drawTree(th.screen()); assertEq(22, choice.getScrollY()); # option groups have a blank separator
         choice.setItems((<NcursesUi::ChoiceItem>{"value": "first", "label": "First"}, <NcursesUi::ChoiceItem>{"value": "new", "label": "New", "default_value": True}));
-        choice.drawTree(th.screen()); assertEq(1, choice.getScrollY()); assertEq("new", choice.getSelection().value);
-        choice.setFocused(False); choice.scrollTo(NcursesUi::ScrollDirection::Home); choice.setFocused(True); choice.drawTree(th.screen()); assertEq(1, choice.getScrollY());
+        choice.drawTree(th.screen()); assertEq(2, choice.getScrollY()); assertEq("new", choice.getSelection().value);
+        choice.setFocused(False); choice.scrollTo(NcursesUi::ScrollDirection::Home); choice.setFocused(True); choice.drawTree(th.screen()); assertEq(2, choice.getScrollY());
     }
     completedScroll() {
         NcursesUi::TestHarness th(8, 30); on_exit th.close(); NcursesUi::DescribedChoiceWidget choice(options()); choice.setFrameValues(0, 0, 3, 20);

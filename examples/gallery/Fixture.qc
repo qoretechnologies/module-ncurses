@@ -1,5 +1,23 @@
 # Copyright 2026 Qore Technologies, s.r.o. SPDX-License-Identifier: MIT
 namespace NcursesGallery {
+# The gallery owns a docked full-screen browser; floating panels retain requested bounds.
+class DockedFileBrowser inherits NcursesUi::FileBrowserWidget {
+    constructor(Ncurses::Session session, string directory) : FileBrowserWidget(session, directory) {}
+    nothing fitToScreen(int rows, int cols) {
+        resize(NcursesUi::Geometry::makeRect(0, 0, rows, cols)); layout();
+    }
+}
+class ActionPreview inherits NcursesUi::Widget {
+    private { NcursesUi::Widget action; NcursesUi::LabelWidget result("Ready to run preview."); }
+    constructor(NcursesUi::Widget control) { action = control; addChild(action); addChild(result); }
+    nothing showResult(int count) { result.setText(sprintf("\e[1;32mPreview complete (%d)\e[0m\nNo files changed.", count)); }
+    nothing layout() {
+        hash<NcursesUi::Rect> rect = contentRect();
+        action.setFrameValues(rect.y, rect.x, min(1, rect.rows), rect.cols);
+        int gap = rect.rows >= 4 ? 1 : 0;
+        result.setFrameValues(rect.y + 1 + gap, rect.x, max(0, rect.rows - 1 - gap), rect.cols);
+    }
+}
 # The fixture model keeps recorded timestamps stable while retaining real action transitions.
 class FixtureAction inherits NcursesUi::ActionModel {
     constructor(string label) : ActionModel("gallery-operation", label) {}
@@ -24,6 +42,7 @@ class Fixture {
         *hash<NcursesUi::AssistanceRequest> stale_assistance;
         bool stale_attempted = False;
         bool stale_accepted = False;
+        *NcursesGallery::ActionPreview action_preview;
     }
     constructor(NcursesUi::Application application, hash<NcursesGallery::Story> definition) {
         app = application; story = definition;
@@ -43,6 +62,13 @@ class Fixture {
             if (story.widget == "TranscriptWidget") { data.lines = ("Unicode 界é " + strmul("long content ", 12),); }
             if (exists data.menus) { data.menus[0].label = "Open 界é " + strmul("long ", 10); }
             if (exists data.completion) { data.completion = "name 界é " + strmul("documentation ", 6); }
+            if (exists data.options && data.options) { data.options[0] = "Preview 界é"; }
+            if (exists data.choices && data.choices) { data.choices[0].label = "Preview 界é"; }
+            if (exists data.items && data.items) { data.items[0].label = "First 界é"; }
+            if (exists data.data) { data.data.name = "Preview 界é"; }
+            if (exists data.segments && data.segments) { data.segments[0].text = "Ready 界é"; }
+            if (exists data.files && data.files) { data.files[0].name = "sample 界é.txt"; }
+            if (exists data.attachment) { data.attachment.name = "sample 界é.txt"; }
         }
         switch (story.widget) {
             case "LabelWidget": widget = new NcursesUi::LabelWidget(data.text); break;
@@ -50,16 +76,22 @@ class Fixture {
                 NcursesUi::TextInputWidget input(data.prompt); input.setText(data.text); input.setClearOnSubmit(False); widget = input; break;
             case "TranscriptWidget":
                 NcursesUi::TranscriptWidget transcript(); transcript.appendLines(data.lines); widget = transcript; break;
-            case "CodeViewWidget": widget = new NcursesUi::CodeViewWidget(data.text, data.language); break;
+            case "CodeViewWidget":
+                NcursesUi::CodeViewWidget code(data.text, data.language); NcursesGallery::CodeSupport support();
+                code.setHighlighter(string sub (string text, string language) { return support.highlight(text); }); widget = code; break;
             case "ButtonWidget":
-                NcursesUi::ButtonWidget button(data.label); button.setOnActivate(sub (string id) { ++activations; }); widget = button; break;
+                NcursesUi::ButtonWidget button(data.label);
+                action_preview = new NcursesGallery::ActionPreview(button);
+                button.setOnActivate(sub (string id) { ++activations; action_preview.showResult(activations); }); widget = button; break;
             case "CheckboxWidget": widget = new NcursesUi::CheckboxWidget(data.label); break;
             case "RadioGroupWidget": widget = new NcursesUi::RadioGroupWidget(data.options); break;
             case "ComboBoxWidget":
                 NcursesUi::ComboBoxWidget combo(data.options); if (exists data.text) { combo.setText(data.text); }
                 if (story.state == "unicode") { combo.setText("Unicode 界é " + strmul("long ", 20) + "界é"); } widget = combo; break;
             case "DescribedChoiceWidget":
-                NcursesUi::DescribedChoiceWidget described(data.choices); described.setOnSubmit(sub (hash<NcursesUi::ChoiceSelection> selection) { ++activations; }); widget = described; break;
+                NcursesUi::DescribedChoiceWidget described(data.choices);
+                if (story.state == "invalid" || data.submit) { described.setOnSubmit(sub (hash<NcursesUi::ChoiceSelection> selection) { ++activations; }); }
+                widget = described; break;
             case "FormWidget":
                 form = new NcursesUi::FormModel((
                     <NcursesUi::FormField>{"name": "name", "label": "Request name", "required": True, "default_value": data.name, "help": "A recognizable name for this request."},
@@ -102,12 +134,12 @@ class Fixture {
             case "TimelineWidget":
                 NcursesUi::TimelineWidget timeline();
                 if (story.state != "empty") {
-                    timeline.appendEvent(<NcursesUi::TimelineEvent>{"id": "started", "timestamp": date(data.timestamp), "title": "Preview started 界é", "details": ("Inspecting four items",), "state": NcursesUi::ActionState::Running});
+                    timeline.appendEvent(<NcursesUi::TimelineEvent>{"id": "started", "timestamp": date(data.timestamp), "title": story.state == "unicode" ? "Preview started 界é" : "Preview started", "details": ("Inspecting four items",), "state": NcursesUi::ActionState::Running});
                     timeline.appendEvent(<NcursesUi::TimelineEvent>{"id": "completed", "timestamp": date(data.timestamp), "title": "Preview complete", "details": ("No files modified",)});
                 }
                 widget = timeline; break;
             case "FileBrowserWidget":
-                NcursesUi::FileBrowserWidget browser(app.getSession(), data.directory);
+                NcursesGallery::DockedFileBrowser browser(app.getSession(), data.directory);
                 browser.setFileInfoProvider(*hash<auto> sub (string path) { return {"description": "Gallery fixture", "mime_type": "text/plain", "is_text": True}; });
                 browser.setOnDismiss(sub () { dismiss(); }); widget = browser; panel = browser; break;
             case "FileSelectionWidget":
@@ -123,7 +155,7 @@ class Fixture {
         }
         @assert(widget);
         if (panel) {
-            if (!owner) { owner = new NcursesUi::TextEditorWidget(); owner.setText("Background draft 界é"); }
+            if (!owner) { owner = new NcursesUi::TextEditorWidget(); owner.setText("Background draft"); }
             app.setRoot(owner); app.getFocusManager().setFocus(owner); app.getSession().setCursor(1); app.drawAll();
             hash<Ncurses::Size> size = app.getSession().screen().size();
             if (widget instanceof NcursesUi::DropdownMenuWidget) {
@@ -131,11 +163,12 @@ class Fixture {
             } else if (widget instanceof NcursesUi::AssistancePopupWidget) {
                 cast<NcursesUi::AssistancePopupWidget>(widget).positionAtCaret(size.rows, size.cols);
             } else if (widget instanceof NcursesUi::FileBrowserWidget) {
+                panel.setBorderEdges(NcursesUi::BorderEdges::Horizontal);
                 panel.setFrameValues(0, 0, size.rows, size.cols);
             } else { panel.fitToScreen(size.rows, size.cols); }
             panel.createPanel(); app.pushPopup(panel);
         } else {
-            app.setRoot(widget); app.getFocusManager().setFocus(widget);
+            app.setRoot(action_preview ?? widget); app.getFocusManager().setFocus(widget);
             if (widget instanceof NcursesUi::FormWidget) { app.getFocusManager().setFocus(cast<NcursesUi::FormWidget>(widget).getControl("name")); }
         }
         app.drawAll(); applyState(); app.drawAll();
@@ -207,7 +240,15 @@ class Fixture {
             state.selected = cast<NcursesUi::RadioGroupWidget>(widget).getSelectedIndex(); state.highlight = cast<NcursesUi::RadioGroupWidget>(widget).getHighlightIndex();
         }
         if (widget instanceof NcursesUi::ComboBoxWidget) { state.text = cast<NcursesUi::ComboBoxWidget>(widget).getText(); }
-        if (widget instanceof NcursesUi::DescribedChoiceWidget) { state.choice = cast<NcursesUi::DescribedChoiceWidget>(widget).getSelection().value; }
+        if (widget instanceof NcursesUi::DescribedChoiceWidget) {
+            NcursesUi::DescribedChoiceWidget choice = cast<NcursesUi::DescribedChoiceWidget>(widget);
+            state.choice = choice.getSelection().value; state.highlight = choice.getHighlightIndex(); state.operation_state = choice.getState();
+        }
+        if (widget instanceof NcursesUi::ButtonWidget) {
+            state.pressed = cast<NcursesUi::ButtonWidget>(widget).isPressed();
+            state.feedback = !widget.isAvailable() ? "Disabled: preview cannot run." : state.pressed ? "Release inside the button to run; release outside to cancel."
+                : activations ? sprintf("Preview complete. Activated %d time%s; no files changed.", activations, activations == 1 ? "" : "s") : "Ready. Press and release the button, or use Enter/Space.";
+        }
         if (widget instanceof NcursesUi::ListWidget) { state.selected = cast<NcursesUi::ListWidget>(widget).getSelectedIndex(); state.scroll = cast<NcursesUi::ListWidget>(widget).getScrollOffset(); }
         if (widget instanceof NcursesUi::MenuBarWidget) { state.active_menu = cast<NcursesUi::MenuBarWidget>(widget).getActiveMenu(); }
         if (widget instanceof NcursesUi::DropdownMenuWidget) { state.highlight = cast<NcursesUi::DropdownMenuWidget>(widget).getHighlightIndex(); }
@@ -229,6 +270,8 @@ class Fixture {
         if (widget instanceof NcursesUi::DescribedChoiceWidget) {
             NcursesUi::DescribedChoiceWidget choice = cast<NcursesUi::DescribedChoiceWidget>(widget);
             state.empty = !choice.getItems(); state.has_selection = state.choice == "execute"; state.has_error = !!(choice.getError());
+            state.feedback = state.empty ? "No choices are available in this empty state." : "Selected: " + (state.choice ?? "none") + ". Use arrows to highlight; Space, Enter or click to choose.";
+            if (choice.getState() == NcursesUi::ActionState::Completed) { state.feedback = "Submitted. Reset the story to choose again."; }
         }
         if (widget instanceof NcursesUi::ListWidget) { state.empty = !cast<NcursesUi::ListWidget>(widget).getItems(); state.has_selection = state.selected == 1; }
         if (widget instanceof NcursesUi::TreeWidget) {
@@ -246,7 +289,7 @@ class Fixture {
         if (widget instanceof NcursesUi::TimelineWidget) { state.empty = !cast<NcursesUi::TimelineWidget>(widget).getEventIds(); state.has_selection = state.event == "completed"; }
         if (widget instanceof NcursesUi::FileBrowserWidget) { state.has_selection = cast<NcursesUi::FileBrowserWidget>(widget).getSelectedFile().label == "sample.txt"; }
         if (widget instanceof NcursesUi::AttachmentWidget) { state.has_error = !!(cast<NcursesUi::AttachmentWidget>(widget).getError()); }
-        if (form) { state.empty = form.getValue("name") == ""; state.include_details = form.getValue("enabled"); state.has_error = !!(form.getErrors()); state.loading = form.getState() == NcursesUi::ActionState::Running; }
+        if (form) { state.operation_state = form.getState(); state.empty = form.getValue("name") == ""; state.include_details = form.getValue("enabled"); state.has_error = !!(form.getErrors()); state.loading = form.getState() == NcursesUi::ActionState::Running; }
         if (action) { state.has_error = !!(action.getError()); state.loading = action.getState() == NcursesUi::ActionState::Running; }
         if (assistance) {
             state.empty = !cast<NcursesUi::AssistancePopupWidget>(widget).getResults();

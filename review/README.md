@@ -10,7 +10,7 @@ The native gallery works without Node or a browser.
 ## Run locally
 
 Requirements: Linux, Python 3.9+ with PTY support, Node 24, Qore with the local
-ncurses module built, and the Chromium dependencies reported by Playwright. Build
+ncurses module built, astparser 3.0+ and QoreRepl for the code stories, and the Chromium dependencies reported by Playwright. Build
 `build-debug/` as Debug with the same install prefix as `which qore`; see the main
 build instructions. Nothing needs to be installed over the system module.
 
@@ -35,9 +35,9 @@ For example, open the editor directly:
 
 Monochrome and geometry are Storybook args. A direct iframe URL can use
 `iframe.html?id=native-tablewidget--scrolling&viewMode=story&args=monochrome:true;rows:24;cols:80`.
-The toolbar offers 4×12, 24×80 and 32×120 presets. Reset returns to the story's
+The toolbar offers an explicit 4×12 stress test, Standard (24×80) and Wide (32×120). Compact stories start at 8×40, exercise extreme clipping and recovery, then perform a real interaction. Reset returns to the story's
 initial args and fixture, including its modal state. Next checkpoint executes the
-next registered event/model delivery and checks its expected state. There are no
+next registered event/model delivery and checks its expected state. After manual input, reset before replaying recorded steps; the checkpoint button explains this and disables at the end. Focus terminal returns keyboard input to xterm. Live feedback explains empty/disabled/closed states and completed actions. There are no
 external services or user-file mutations in fixtures.
 
 `NCURSES_BUILD_DIR` selects another local binary build (for example `../build`,
@@ -53,6 +53,23 @@ QORE_MODULE_DIR=build-debug:qlib qore --enable-debug --warnings-are-errors \
 QORE_MODULE_DIR=build-debug:qlib qore --enable-debug --warnings-are-errors \
   examples/widget-gallery.qr --headless --story transcript.background-reading
 ```
+
+## Code and choice examples
+
+`native-texteditorwidget--code` highlights Qore syntax with astparser's tree-sitter grammar.
+F8 opens qrepl's reflection-backed completion service; Enter accepts a suggestion,
+Escape dismisses it, and Ctrl-Z undoes the insertion. Signature hints update as the
+caret moves. Drafts are never evaluated and REPL history is disabled. This example
+provides symbol completion and call hints, not a project-wide language server.
+Incomplete source remains editable even when the parser has no highlight spans.
+`CodeViewWidget` stories use the same syntax provider for read-only source.
+
+`native-describedchoicewidget--default` remains freely selectable. Bold cyan titles,
+indented descriptions, green recommendation text, blank group separators and a filled
+selection circle distinguish roles. Reverse video marks keyboard focus independently
+of the chosen value. Monochrome retains weight, markers and spacing. The separate
+`--submit` story demonstrates one-shot submission and explains Reset after completion.
+Ordinary default labels contain no unexplained Unicode stress glyphs; use `--unicode`.
 
 ## Tests, artifacts and acceptance
 
@@ -139,15 +156,14 @@ launch flags. Native processes use `TERM=xterm-256color`, `LC_ALL=C.UTF-8` and
 `TZ=UTC`. Fixtures supply fixed timestamps and deterministic data. The complete
 Noto Sans Mono regular/bold fonts are vendored with upstream commit, SHA-256 and
 OFL license in `fonts/`; the web subsets omit box-drawing glyphs and are unsuitable
-for the DOM terminal renderer. CJK and emoji fallback packages are pinned.
+for consistent ordinary text and fallback. CJK and emoji fallback packages are pinned.
 
 The semantic artifact is the authoritative ncurses composition, not an OCR of the
 browser. ACS cells retain their original codepoint plus the alternate-character
 attribute; the emulator translates them to box glyphs. Browser font rasterization,
 Unicode width tables, emoji presentation and terminal-supported attributes can
 differ from another terminal. The capture API's capability limits still apply.
-The browser uses the DOM renderer: font glyphs determine border joins; no GPU
-renderer or image rendering is required. Normalizing away cells, attributes or
+The browser uses the pinned WebGL addon with custom box-drawing glyphs, which join at cell edges independently of font metrics. Browser tests and captures pin ANGLE/SwiftShader software rendering; the live browser uses its available WebGL context. Context creation failure is visible; context loss closes the native session and asks for a reload. Normalizing away cells, attributes or
 cursor state is deliberately avoided.
 
 Browser/desktop shortcuts such as Ctrl+L, Ctrl+W and some Alt combinations can be
@@ -194,7 +210,14 @@ checks; neither is a human usability study. Apply observable criteria informed b
   defaults have explanations, unavailable choices explain their status. No
   arbitrary seven-item limit is imposed.
 - [Proximity](https://lawsofux.com/law-of-proximity/): labels, help and validation
-  remain next to their fields; errors retain the user's input.
+  remain next to their fields; errors retain the user's input. Choice descriptions
+  stay with their title, with more space between choices than within a choice.
+- [Common region](https://lawsofux.com/law-of-common-region/): floating overlays
+  have continuous frames; full-width docked regions use shared separators without
+  spending columns on redundant outer side borders.
+- [Von Restorff effect](https://lawsofux.com/von-restorff-effect/): titles, the focused
+  action and recommendations have distinct emphasis. Color is reinforced by weight,
+  spacing and marks; highlighting every line equally does not create hierarchy.
 - [Fitts's law](https://lawsofux.com/fittss-law/): visible labels and rows provide
   useful mouse targets; padding, clipped areas and unrelated blank space do not
   activate another action.
