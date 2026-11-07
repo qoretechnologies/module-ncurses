@@ -72,7 +72,9 @@ export class NativeTerminal extends HTMLElement {
     // Cell-edge geometry is drawn by xterm, independent of font ascenders/descenders.
     const { WebglAddon } = await import('@xterm/addon-webgl');
     if (this.closing) { return; }
-    const renderer = new WebglAddon(true);
+    // Browser screenshots capture the composited frame, so the renderer should
+    // discard prior framebuffer pixels, including cursors on otherwise empty rows.
+    const renderer = new WebglAddon();
     this.term.loadAddon(renderer);
     this.resources.push(renderer.onContextLoss(() => this.fail(new Error('Terminal graphics context lost. Reload the story to reconnect.'))));
     this.dataset.renderer = 'webgl';
@@ -136,9 +138,7 @@ export class NativeTerminal extends HTMLElement {
       : state.empty ? 'Empty state: no sample content is loaded. Editable controls still accept input.'
       : state.modal === false && /Popup|Dialog|FileBrowser/.test(this.definition.widget) ? 'Closed. Reset the story to open it again.'
       : 'Live preview — click inside the terminal and use the controls described above.');
-    const next = this.definition.steps[this.frame.index + 1];
-    this.nextStep.disabled = this.interacted || !next;
-    this.nextStep.title = this.interacted ? 'Reset the story to replay its recorded steps.' : next?.instruction || 'All recorded steps are complete.';
+    this.updateCheckpointControl();
     const size = this.definition.review_size ?? { rows: 6, cols: 24 };
     this.viewportNote.textContent = this.frame.frame.rows < size.rows || this.frame.frame.cols < size.cols
       ? `Stress viewport: ${this.frame.frame.cols} columns × ${this.frame.frame.rows} rows. Recommended for this example: ${size.cols}×${size.rows}. Use Standard to expand; the actual clipped output remains visible below.` : '';
@@ -161,10 +161,22 @@ export class NativeTerminal extends HTMLElement {
     this.requestChain = operation.catch(() => {});
     return operation;
   }
-  async input(data, encoding = 'utf8') { await this.ready; this.interacted = true; return await this.request('input', { data, encoding }); }
+  updateCheckpointControl() {
+    const next = this.definition.steps[this.frame.index + 1];
+    this.nextStep.disabled = this.interacted || !next;
+    this.nextStep.title = this.interacted ? 'Reset the story to replay its recorded steps.' : next?.instruction || 'All recorded steps are complete.';
+  }
+  async input(data, encoding = 'utf8') {
+    await this.ready; this.interacted = true; this.updateCheckpointControl();
+    return await this.request('input', { data, encoding });
+  }
   async capture() { await this.ready; return await this.request('capture'); }
   async reset() { await this.ready; this.interacted = false; const frame = await this.request('reset'); this.term.focus(); return frame; }
-  async step() { await this.ready; const frame = await this.request('step'); this.term.focus(); return frame; }
+  async step() {
+    await this.ready;
+    if (this.interacted) { throw new Error('Reset the story before replaying recorded checkpoints after manual input.'); }
+    const frame = await this.request('step'); this.term.focus(); return frame;
+  }
   async resize(rows, cols) { await this.ready; const frame = await this.request('resize', { rows, cols }); this.term.focus(); return frame; }
   showError(error) { if (this.status) { this.status.textContent = error.message; this.status.dataset.error = 'true'; } }
   fail(error) {

@@ -61,7 +61,9 @@ the image inspections described below precede explicit baseline acceptance.
     language server. Read-only code remains navigable without color.
   - Story controls expose live selection, activation and operation results, focus,
     usable size presets and recovery from stress sizes. Manual input invalidates the
-    scripted next checkpoint until reset, avoiding a misleading mixed replay.
+    scripted next checkpoint as soon as input is accepted, before its rendered
+    frame arrives. Direct replay requests are rejected until reset too; held-render
+    regressions cover both input/reset orderings to prevent a misleading mixed replay.
   - Fast native mouse input could lose a release when ncurses queued several mouse
     reports behind one KEY_MOUSE notification. Reading the remaining native queue
     before the next key fixes the root cause. Raw PTY tests cover following ASCII,
@@ -79,6 +81,15 @@ the image inspections described below precede explicit baseline acceptance.
     profiles reproduced the mismatch. An alpha glyph atlas selects grayscale
     coverage while the terminal background remains opaque; a regression compares
     both profiles exactly. Pixel thresholds and semantic assertions are unchanged.
+  - The subsequent capture exposed stale outline cursors on empty read-only frames.
+    Preserving the WebGL framebuffer retained cursor pixels when blank cells required
+    no background-model update. The normal discard-after-presentation mode clears
+    them; browser screenshots capture the compositor and require no preserved buffer.
+    A cursor-only show/hide regression reproduces the 50-pixel failure and checks
+    completely blank hidden-cursor output in color and monochrome.
+    The complete recapture changes only 28 empty-state images across eight families
+    to remove those outlines; all 1,344 native states and the other 1,316 images
+    are unchanged. Every corrected image is entirely the expected background.
 - [#5622](https://github.com/qoretechnologies/qore/issues/5622): visible mouse action
   targets were inconsistent. Button/checkbox hit tests now exclude unrelated blank
   rows, padding and clipped areas; disabled/ancestor-disabled actions render dim.

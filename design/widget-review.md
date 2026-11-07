@@ -110,6 +110,10 @@ The WebGL addon draws box glyphs to cell boundaries. Its version, xterm version,
 software rendering flags, fonts, theme and geometry participate in baseline identity.
 A transparent glyph atlas uses grayscale coverage instead of host-dependent LCD
 subpixel colors; the terminal theme and host still paint an opaque background.
+The framebuffer uses the normal discard-after-presentation lifecycle: compositor
+screenshots do not require preservation, which can retain old cursor pixels on
+empty frames. Cursor-only show/hide tests check that blank hidden-cursor output
+contains no stale pixels in either theme mode.
 A pixel test checks consecutive real popup border cells for vertical gaps. Graphics
 context loss rejects outstanding work and closes the PTY, with reload guidance.
 Editing the terminal adapter in development triggers a full document reload: custom

@@ -37,7 +37,10 @@ Monochrome and geometry are Storybook args. A direct iframe URL can use
 `iframe.html?id=native-tablewidget--scrolling&viewMode=story&args=monochrome:true;rows:24;cols:80`.
 The toolbar offers an explicit 4×12 stress test, Standard (24×80) and Wide (32×120). Compact stories start at 8×40, exercise extreme clipping and recovery, then perform a real interaction. Reset returns to the story's
 initial args and fixture, including its modal state. Next checkpoint executes the
-next registered event/model delivery and checks its expected state. After manual input, reset before replaying recorded steps; the checkpoint button explains this and disables at the end. Focus terminal returns keyboard input to xterm. Live feedback explains empty/disabled/closed states and completed actions. There are no
+next registered event/model delivery and checks its expected state. Manual input
+immediately disables recorded replay, including while its frame is still rendering;
+reset before replaying recorded steps. The checkpoint button explains this and also
+disables at the end. Focus terminal returns keyboard input to xterm. Live feedback explains empty/disabled/closed states and completed actions. There are no
 external services or user-file mutations in fixtures.
 
 `NCURSES_BUILD_DIR` selects another local binary build (for example `../build`,

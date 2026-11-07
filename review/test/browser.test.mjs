@@ -161,6 +161,50 @@ test('overlapping commands wait for rendered frames and disposal rejects queued 
   } finally { await browser.close(); await server.close(); }
 });
 
+test('manual input blocks recorded checkpoints before rendering and reset preserves command ordering', { timeout: 30000 }, async () => {
+  const server = await createBridgeServer({ port: 0, staticDir: fileURLToPath(new URL('../storybook-static/', import.meta.url)) });
+  const browser = await chromium.launch({ args: browserArgs });
+  try {
+    const page = await browser.newPage();
+    await openStory(page, `http://127.0.0.1:${server.port}`, server.stories.find(story => story.id === 'button.default'));
+    const result = await page.locator('ncurses-native-terminal').evaluate(async element => {
+      const send = element.socket.send.bind(element.socket), onRender = element.term.onRender.bind(element.term);
+      const sent = []; element.socket.send = data => { sent.push(JSON.parse(data).type); send(data); };
+      let release, signal; const held = new Promise(resolve => { signal = resolve; });
+      Object.defineProperty(element.term, 'onRender', { configurable: true, value: listener => {
+        Object.defineProperty(element.term, 'onRender', { configurable: true, value: onRender });
+        return onRender(event => { if (!release) { release = () => listener(event); signal(); } });
+      } });
+      const input = element.input(' ');
+      await held;
+      const beforeRender = { disabled: element.nextStep.disabled, title: element.nextStep.title };
+      element.nextStep.click();
+      const blocked = await element.step().then(() => 'unexpected step', error => error.message);
+      const sentBeforeRender = [...sent];
+      // A reset accepted after the edit makes the following recorded step valid.
+      const reset = element.reset(), step = element.step();
+      release();
+      const frames = await Promise.all([input, reset, step]);
+      // Conversely, an edit accepted after reset must still invalidate replay.
+      const nextReset = element.reset(), nextInput = element.input(' ');
+      const blockedAfterReset = await element.step().then(() => 'unexpected step', error => error.message);
+      await Promise.all([nextReset, nextInput]);
+      return { beforeRender, blocked, sentBeforeRender, activations: frames.map(frame => frame.state.activations),
+        indices: frames.map(frame => frame.index), blockedAfterReset, disabled: element.nextStep.disabled, sent };
+    });
+    assert.equal(result.beforeRender.disabled, true);
+    assert.match(result.beforeRender.title, /Reset/);
+    assert.match(result.blocked, /Reset the story/);
+    assert.deepEqual(result.sentBeforeRender, ['input']);
+    assert.deepEqual(result.activations, [1, 0, 0]);
+    assert.deepEqual(result.indices, [-1, -1, 0]);
+    assert.match(result.blockedAfterReset, /Reset the story/);
+    assert.equal(result.disabled, true);
+    assert.deepEqual(result.sent, ['input', 'reset', 'step', 'reset', 'input']);
+    await command(page, 'dispose');
+  } finally { await browser.close(); await server.close(); }
+});
+
 test('terminal image geometry is independent of surrounding system-font metrics', { timeout: 30000 }, async () => {
   const server = await createBridgeServer({ port: 0, staticDir: fileURLToPath(new URL('../storybook-static/', import.meta.url)) });
   const browser = await chromium.launch({ args: browserArgs });
@@ -278,6 +322,39 @@ test('WebGL draws contiguous frame edges and reports lost graphics contexts', { 
     });
     assert.equal(lost.closing, true); assert.match(lost.message, /Reload the story/);
     await command(page, 'dispose');
+  } finally { await browser.close(); await server.close(); }
+});
+
+test('empty hidden-cursor frames erase previously rendered cursor pixels', { timeout: 30000 }, async () => {
+  const { PNG } = await import('pngjs');
+  const server = await createBridgeServer({ port: 0, staticDir: fileURLToPath(new URL('../storybook-static/', import.meta.url)) });
+  const browser = await chromium.launch({ args: browserArgs });
+  try {
+    const page = await browser.newPage();
+    for (const id of ['transcript.empty', 'code-view.empty']) {
+      for (const mono of [false, true]) {
+        const frame = await openStory(page, `http://127.0.0.1:${server.port}`, server.stories.find(story => story.id === id), mono);
+        assert.equal(frame.frame.cursor.visibility, 0);
+        // A cursor-only redraw of an otherwise blank terminal must clear the old
+        // cursor too. Await actual rendering and compositor screenshots each time.
+        const cursor = async visible => {
+          await page.locator('ncurses-native-terminal').evaluate(async (element, visible) => {
+            element.term.blur();
+            await new Promise(resolve => element.term.write(`\x1b[1;1H\x1b[?25${visible ? 'h' : 'l'}`, resolve));
+          }, visible);
+          await command(page, 'capture');
+          const png = PNG.sync.read(await page.locator('.native-terminal').screenshot());
+          let foreground = 0;
+          for (let i = 0; i < png.data.length; i += 4) {
+            if (png.data[i] !== 16 || png.data[i + 1] !== 20 || png.data[i + 2] !== 24 || png.data[i + 3] !== 255) { foreground++; }
+          }
+          return foreground;
+        };
+        assert.ok(await cursor(true) > 0, `${id}: visible cursor must be drawn`);
+        assert.equal(await cursor(false), 0, `${id}: hidden cursor must leave a blank terminal`);
+        await command(page, 'dispose');
+      }
+    }
   } finally { await browser.close(); await server.close(); }
 });
 

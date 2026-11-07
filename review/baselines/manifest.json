@@ -1341,7 +1341,7 @@
       "widget": "LabelWidget",
       "hashes": {
         "json.gz": "884d53aad382133275a31306d2635dac740a435a7d3ae9bd0e44504ae8993cd7",
-        "png": "3335eade878f0b33e230043eaef0f6c9cb7ced04b50c8df85596b74451ac44ae"
+        "png": "c0f09d94c3476075f3e43ad2538acbc51d8c7ef7f02a362f04c2b4bb3ce3f7fd"
       }
     },
     {
@@ -1350,7 +1350,7 @@
       "widget": "LabelWidget",
       "hashes": {
         "json.gz": "57c0761a710983b22eb528036d0e739b30131ebc5d398f4aa47af92f16fb29ef",
-        "png": "3335eade878f0b33e230043eaef0f6c9cb7ced04b50c8df85596b74451ac44ae"
+        "png": "c0f09d94c3476075f3e43ad2538acbc51d8c7ef7f02a362f04c2b4bb3ce3f7fd"
       }
     },
     {
@@ -1359,7 +1359,7 @@
       "widget": "LabelWidget",
       "hashes": {
         "json.gz": "d2ac147c4ed7952e42d80f09f1b459a78a1830a89b968a69d90ba63f6bd6c4e8",
-        "png": "3335eade878f0b33e230043eaef0f6c9cb7ced04b50c8df85596b74451ac44ae"
+        "png": "c0f09d94c3476075f3e43ad2538acbc51d8c7ef7f02a362f04c2b4bb3ce3f7fd"
       }
     },
     {
@@ -1368,7 +1368,7 @@
       "widget": "LabelWidget",
       "hashes": {
         "json.gz": "4b71448aa3abc230e41b01e5a085c130d270ec5a823d6457c71dd54f05bd6e3e",
-        "png": "3335eade878f0b33e230043eaef0f6c9cb7ced04b50c8df85596b74451ac44ae"
+        "png": "c0f09d94c3476075f3e43ad2538acbc51d8c7ef7f02a362f04c2b4bb3ce3f7fd"
       }
     },
     {
@@ -1971,7 +1971,7 @@
       "widget": "TranscriptWidget",
       "hashes": {
         "json.gz": "066b3a6b9871e593a5810205901db305f2445b796542e1f73586ef6cedc6666d",
-        "png": "e9622ba00a7a3b3e1fc9725c3b4651cc0d3a2380d9a0e2be77b4cbef7cc07a6b"
+        "png": "c0f09d94c3476075f3e43ad2538acbc51d8c7ef7f02a362f04c2b4bb3ce3f7fd"
       }
     },
     {
@@ -1980,7 +1980,7 @@
       "widget": "TranscriptWidget",
       "hashes": {
         "json.gz": "f2a1f048be054f5390264a93f1338b56b361c93dec3f2892917085ab371d1ee4",
-        "png": "e9622ba00a7a3b3e1fc9725c3b4651cc0d3a2380d9a0e2be77b4cbef7cc07a6b"
+        "png": "c0f09d94c3476075f3e43ad2538acbc51d8c7ef7f02a362f04c2b4bb3ce3f7fd"
       }
     },
     {
@@ -1989,7 +1989,7 @@
       "widget": "TranscriptWidget",
       "hashes": {
         "json.gz": "c0852a5a3976cf46f8d47b2e2a2a6c66243f79ff7c6804d678396c42140ee590",
-        "png": "3335eade878f0b33e230043eaef0f6c9cb7ced04b50c8df85596b74451ac44ae"
+        "png": "c0f09d94c3476075f3e43ad2538acbc51d8c7ef7f02a362f04c2b4bb3ce3f7fd"
       }
     },
     {
@@ -1998,7 +1998,7 @@
       "widget": "TranscriptWidget",
       "hashes": {
         "json.gz": "8af321e1ed808b9ea897aa22e94a96a50c8e82e5ade75ea59e3d24f77d097062",
-        "png": "3335eade878f0b33e230043eaef0f6c9cb7ced04b50c8df85596b74451ac44ae"
+        "png": "c0f09d94c3476075f3e43ad2538acbc51d8c7ef7f02a362f04c2b4bb3ce3f7fd"
       }
     },
     {
@@ -2367,7 +2367,7 @@
       "widget": "CodeViewWidget",
       "hashes": {
         "json.gz": "95b82e79fb78ce545fc21f45b50464a9a2b0dcd77e7f4b40320c8e5a3228c46b",
-        "png": "3335eade878f0b33e230043eaef0f6c9cb7ced04b50c8df85596b74451ac44ae"
+        "png": "c0f09d94c3476075f3e43ad2538acbc51d8c7ef7f02a362f04c2b4bb3ce3f7fd"
       }
     },
     {
@@ -2376,7 +2376,7 @@
       "widget": "CodeViewWidget",
       "hashes": {
         "json.gz": "2859c22a57f139b5f98d24b697fd1ccb9aadb9e76678d7648a113793138f6a5d",
-        "png": "3335eade878f0b33e230043eaef0f6c9cb7ced04b50c8df85596b74451ac44ae"
+        "png": "c0f09d94c3476075f3e43ad2538acbc51d8c7ef7f02a362f04c2b4bb3ce3f7fd"
       }
     },
     {
@@ -2385,7 +2385,7 @@
       "widget": "CodeViewWidget",
       "hashes": {
         "json.gz": "dcc0903c6799163d0274dc30b037dc4fa3e62841299413a12505b5b963b90d01",
-        "png": "3335eade878f0b33e230043eaef0f6c9cb7ced04b50c8df85596b74451ac44ae"
+        "png": "c0f09d94c3476075f3e43ad2538acbc51d8c7ef7f02a362f04c2b4bb3ce3f7fd"
       }
     },
     {
@@ -2394,7 +2394,7 @@
       "widget": "CodeViewWidget",
       "hashes": {
         "json.gz": "b54f84ebddcd378a72b1f36f47f61711272fd62ee4e7cc55d3f321dd9d1ccc26",
-        "png": "3335eade878f0b33e230043eaef0f6c9cb7ced04b50c8df85596b74451ac44ae"
+        "png": "c0f09d94c3476075f3e43ad2538acbc51d8c7ef7f02a362f04c2b4bb3ce3f7fd"
       }
     },
     {
@@ -3447,7 +3447,7 @@
       "widget": "RadioGroupWidget",
       "hashes": {
         "json.gz": "ec4c7e4bc5847a61594ce06ec03791558b0fd7e2d75cfebb272c9fc382a3b8de",
-        "png": "3335eade878f0b33e230043eaef0f6c9cb7ced04b50c8df85596b74451ac44ae"
+        "png": "c0f09d94c3476075f3e43ad2538acbc51d8c7ef7f02a362f04c2b4bb3ce3f7fd"
       }
     },
     {
@@ -3456,7 +3456,7 @@
       "widget": "RadioGroupWidget",
       "hashes": {
         "json.gz": "75188b85aafd8586a56872aa6d39a7fa6c6a850ce898321e0e262c9cd4f21483",
-        "png": "3335eade878f0b33e230043eaef0f6c9cb7ced04b50c8df85596b74451ac44ae"
+        "png": "c0f09d94c3476075f3e43ad2538acbc51d8c7ef7f02a362f04c2b4bb3ce3f7fd"
       }
     },
     {
@@ -3465,7 +3465,7 @@
       "widget": "RadioGroupWidget",
       "hashes": {
         "json.gz": "34aa95e147bfb274927fa5cb88559da981511b77084e5c1713245a7775dc7da9",
-        "png": "3335eade878f0b33e230043eaef0f6c9cb7ced04b50c8df85596b74451ac44ae"
+        "png": "c0f09d94c3476075f3e43ad2538acbc51d8c7ef7f02a362f04c2b4bb3ce3f7fd"
       }
     },
     {
@@ -3474,7 +3474,7 @@
       "widget": "RadioGroupWidget",
       "hashes": {
         "json.gz": "dc878aa039c5a099c9dcc697c2ab1a537fc0237dcf1c1bac49a9208d9dd88432",
-        "png": "3335eade878f0b33e230043eaef0f6c9cb7ced04b50c8df85596b74451ac44ae"
+        "png": "c0f09d94c3476075f3e43ad2538acbc51d8c7ef7f02a362f04c2b4bb3ce3f7fd"
       }
     },
     {
@@ -5157,7 +5157,7 @@
       "widget": "ListWidget",
       "hashes": {
         "json.gz": "49d763a4340adfe5c80b66304ae7858d204b7aaa51a80adfe845a8ef189b6efa",
-        "png": "3335eade878f0b33e230043eaef0f6c9cb7ced04b50c8df85596b74451ac44ae"
+        "png": "c0f09d94c3476075f3e43ad2538acbc51d8c7ef7f02a362f04c2b4bb3ce3f7fd"
       }
     },
     {
@@ -5166,7 +5166,7 @@
       "widget": "ListWidget",
       "hashes": {
         "json.gz": "bb27c1e792e6c1fb713306d5fd7b8de3bfb6cc77dbb2bbfb2a7a2eb0265912f5",
-        "png": "3335eade878f0b33e230043eaef0f6c9cb7ced04b50c8df85596b74451ac44ae"
+        "png": "c0f09d94c3476075f3e43ad2538acbc51d8c7ef7f02a362f04c2b4bb3ce3f7fd"
       }
     },
     {
@@ -5175,7 +5175,7 @@
       "widget": "ListWidget",
       "hashes": {
         "json.gz": "79182ae6894217e38f364d027f8dbe238571501a6fe62ea686b362d70401c2df",
-        "png": "3335eade878f0b33e230043eaef0f6c9cb7ced04b50c8df85596b74451ac44ae"
+        "png": "c0f09d94c3476075f3e43ad2538acbc51d8c7ef7f02a362f04c2b4bb3ce3f7fd"
       }
     },
     {
@@ -5184,7 +5184,7 @@
       "widget": "ListWidget",
       "hashes": {
         "json.gz": "afc713c7a2a6db99d962be1e76db1500fc3cd7a51bbeda3d367d9db7768b8b02",
-        "png": "3335eade878f0b33e230043eaef0f6c9cb7ced04b50c8df85596b74451ac44ae"
+        "png": "c0f09d94c3476075f3e43ad2538acbc51d8c7ef7f02a362f04c2b4bb3ce3f7fd"
       }
     },
     {
@@ -6669,7 +6669,7 @@
       "widget": "MenuBarWidget",
       "hashes": {
         "json.gz": "1ce0858a2c12526ab8dff38ba68a4c16ad2cb10af514a33e3f09a5884b947203",
-        "png": "3335eade878f0b33e230043eaef0f6c9cb7ced04b50c8df85596b74451ac44ae"
+        "png": "c0f09d94c3476075f3e43ad2538acbc51d8c7ef7f02a362f04c2b4bb3ce3f7fd"
       }
     },
     {
@@ -6678,7 +6678,7 @@
       "widget": "MenuBarWidget",
       "hashes": {
         "json.gz": "b997e11542cbd8bcab53c71bde902a7aa7fa6ff5c820bfb82d19c69a117e0ea1",
-        "png": "3335eade878f0b33e230043eaef0f6c9cb7ced04b50c8df85596b74451ac44ae"
+        "png": "c0f09d94c3476075f3e43ad2538acbc51d8c7ef7f02a362f04c2b4bb3ce3f7fd"
       }
     },
     {
@@ -8199,7 +8199,7 @@
       "widget": "StatusBarWidget",
       "hashes": {
         "json.gz": "54c8d7217f52820ab5b1703f4ff3b85b57761934b48cbd6a41f09de4419f7ad0",
-        "png": "3335eade878f0b33e230043eaef0f6c9cb7ced04b50c8df85596b74451ac44ae"
+        "png": "c0f09d94c3476075f3e43ad2538acbc51d8c7ef7f02a362f04c2b4bb3ce3f7fd"
       }
     },
     {
@@ -8208,7 +8208,7 @@
       "widget": "StatusBarWidget",
       "hashes": {
         "json.gz": "af77dd4380e34015e79bb3eddf1823e4d0cf98f6ec79b0a2545893053339674c",
-        "png": "3335eade878f0b33e230043eaef0f6c9cb7ced04b50c8df85596b74451ac44ae"
+        "png": "c0f09d94c3476075f3e43ad2538acbc51d8c7ef7f02a362f04c2b4bb3ce3f7fd"
       }
     },
     {
@@ -8847,7 +8847,7 @@
       "widget": "TimelineWidget",
       "hashes": {
         "json.gz": "12672240f1b19779436e75e9271d777d3c9a940f12b276619d5918bca81b5744",
-        "png": "3335eade878f0b33e230043eaef0f6c9cb7ced04b50c8df85596b74451ac44ae"
+        "png": "c0f09d94c3476075f3e43ad2538acbc51d8c7ef7f02a362f04c2b4bb3ce3f7fd"
       }
     },
     {
@@ -8856,7 +8856,7 @@
       "widget": "TimelineWidget",
       "hashes": {
         "json.gz": "45bf59af4b08cea66fb10ceb3a243af261aa62fb60aec59f068536da4a4bb1b9",
-        "png": "3335eade878f0b33e230043eaef0f6c9cb7ced04b50c8df85596b74451ac44ae"
+        "png": "c0f09d94c3476075f3e43ad2538acbc51d8c7ef7f02a362f04c2b4bb3ce3f7fd"
       }
     },
     {
@@ -8865,7 +8865,7 @@
       "widget": "TimelineWidget",
       "hashes": {
         "json.gz": "8cd2bc2ec3e39408054b38971ca62a3a8fd18b6c9037d435791725d294560545",
-        "png": "3335eade878f0b33e230043eaef0f6c9cb7ced04b50c8df85596b74451ac44ae"
+        "png": "c0f09d94c3476075f3e43ad2538acbc51d8c7ef7f02a362f04c2b4bb3ce3f7fd"
       }
     },
     {
@@ -8874,7 +8874,7 @@
       "widget": "TimelineWidget",
       "hashes": {
         "json.gz": "b6ccc35c79660b0e67d26b2219c76b02505e8fe10a67322a8eeaf5be56539962",
-        "png": "3335eade878f0b33e230043eaef0f6c9cb7ced04b50c8df85596b74451ac44ae"
+        "png": "c0f09d94c3476075f3e43ad2538acbc51d8c7ef7f02a362f04c2b4bb3ce3f7fd"
       }
     },
     {
@@ -12124,12 +12124,12 @@
     "timezone": "UTC",
     "dependencies": "ec2067694183c25eb2923b33b5ee257ed4fca9aa080e3179aafef6702de40112",
     "fonts": "03f7dd59be6bd76c193949b23f249a5c7de61cb007934282b61b1d6dbbff08be",
-    "renderer": "6e5ceb1f2e270a15dc5701719bcee942436af17dc88c5215d3498d6c454a1e96",
+    "renderer": "47ac3b14d8a553c0be56f54d8741cce17c12dbd6db7f8d2e78c6c6f01b9a2149",
     "styles": "0d2f1ecbb579829af7397da72c01e4945b312972390d825739e4bb9554ef6300"
   },
   "acceptance": {
     "reviewer": "Codex",
     "evidence": "../docs/ux-review-2026-11.md",
-    "evidence_sha256": "cd5908389c0be3bba90d971bc6a15c10732fa48337790226aa8a00ef5cbaaffc"
+    "evidence_sha256": "268e3aca96a0cd38731629f130d5a25f424c71325101769231f2af9b561f13d8"
   }
 }
