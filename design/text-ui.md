@@ -327,3 +327,33 @@ Replacement providers and setText format before committing. Interactive edits re
 in the model if formatting fails, allowing recovery by replacing/disabling the provider.
 The gallery uses astparser highlights and QoreRepl completion/hints without evaluating
 drafts or persisting history. General widgets do not require either provider.
+
+
+### Shared workflow controllers
+
+`EditorAssistance` owns a buffer-bound `AssistanceModel` and its popup, including
+placement around the caret, empty-result feedback, dismissal, error cleanup and
+focus restoration. `NcursesQore::CodeSupport` is a separate optional language
+adapter accepting the application's existing `QoreRepl` instance. Source styling
+uses an independent optional astparser; completions never evaluate draft source.
+The application serializes assistance and evaluation against that live backend.
+
+`BackgroundTask` owns one worker and a UI-event scope. It remains busy through
+completion delivery, catches worker exceptions as typed result data, and releases
+callbacks before joining during disposal. It exposes the existing `ActionModel`
+for state/progress views. Joining is for tests and shutdown; worker execution is
+not cancellable unless the underlying operation supplies a separate mechanism.
+qrepl retains the submitted buffer revision and only clears an unchanged draft on
+success. Capture workers wake the event loop when complete output lines arrive.
+
+`Dialogs` composes existing forms, dialogs and file browsers, owning dismissal and
+focus restoration. Validation remains in `FormModel`; acceptance semantics remain
+application callbacks. `PanelWidget::setCenteredSize()` clamps floating panels and
+restores preferred size on regrowth. Status segments can declare priority and a
+compact label; allocation favors important state while retaining display order.
+
+Full-application gallery entries load `bin/qrepl` itself with a supplied Application
+and disabled persistent history. The browser bridge uses the actual event loop and
+posts control commands from a reader worker; explicit input fences and worker joins
+are completion barriers. Program output has a separate capture pipe from bridge
+protocol output. Regular widget stories keep their existing deterministic bridge.

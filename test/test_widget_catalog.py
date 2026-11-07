@@ -30,13 +30,15 @@ class CatalogTest(unittest.TestCase):
     def test_generated_catalog_matches_registry(self):
         catalog.validate(self.stories)
         self.assertEqual((ROOT / 'docs/widget-catalog.dox').read_text(), catalog.render(self.stories))
-        self.assertEqual(27, len({s['widget'] for s in self.stories}))
+        self.assertEqual(27, len({s['widget'] for s in self.stories if not s.get('application')}))
         self.assertGreater(len(self.stories), 150)
         self.assertTrue(all(s['steps'][0]['expected'] for s in self.stories))
         self.assertEqual(25, len([s for s in self.stories if s['state'] == 'mouse']))
-        scenarios = {s['id'] for s in self.stories if s['state'] == 'scenario'}
+        scenarios = {s['id'] for s in self.stories if s['state'] == 'scenario' and not s.get('application')}
         self.assertEqual(7, len(scenarios))
         self.assertTrue({'text-chart.ascii', 'text-chart.expanded'} <= scenarios)
+        self.assertEqual({'qrepl.default', 'qrepl.completion', 'qrepl.error', 'qrepl.files', 'qrepl.constrained'},
+                         {s['id'] for s in self.stories if s.get('application')})
 
     def test_missing_mouse_scenario_fails(self):
         with self.assertRaisesRegex(ValueError, 'Missing mouse scenarios'):

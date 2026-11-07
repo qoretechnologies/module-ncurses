@@ -1,6 +1,6 @@
 .\" Copyright (C) 2026 David Nichols
 .\" SPDX-License-Identifier: MIT
-.TH QREPL 1 "September 2026" "Qore ncurses 2.0.0" "User Commands"
+.TH QREPL 1 "November 2026" "Qore ncurses 2.0.0" "User Commands"
 .SH NAME
 qrepl \- interactive Qore shell with a terminal user interface
 .SH SYNOPSIS
@@ -17,8 +17,27 @@ variable.
 .B \-h, \-\-help
 Print usage information and exit.
 .SH INTERACTIVE USE
-Enter Qore expressions at the prompt. Use /help for the available commands.
-Press Ctrl+Q or Esc to open the quit dialog.
+Press Enter to evaluate Qore expressions. Evaluation runs in the background;
+output continues to arrive while the editor and menus remain usable.
+The status bar shows whether evaluation is running or output following is paused.
+.TP
+.B Tab
+Show completion choices and signature help for the current session.
+.TP
+.B F1
+Show keyboard help. Use /help for Qore commands.
+.TP
+.B F6
+Switch between the editor and output. In output, Home pauses following and End
+resumes following new output.
+.TP
+.B Alt+F
+Open the File menu. Load selects a source file; Save prompts for a filename and
+confirms before overwriting an existing file.
+.TP
+.B Ctrl+Q or Esc
+Open the quit confirmation. Running evaluation finishes before exit; this does
+not cancel the evaluated code.
 .SH ENVIRONMENT
 .TP
 .B TERM

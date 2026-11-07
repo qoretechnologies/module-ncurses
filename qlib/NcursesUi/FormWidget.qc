@@ -146,6 +146,11 @@ public class FormWidget inherits NcursesUi::Widget {
     nothing setOnSubmit(*code<auto(hash<auto>)> callback) { on_submit = callback; revision = -1; markDirty(); }
     /** Sets cancellation notification. @param callback optional application handler */
     nothing setOnCancel(*code<nothing()> callback) { on_cancel = callback; }
+    /** Names the form actions for the application's workflow.
+        @param submit affirmative action @param cancel dismissal label */
+    nothing setActionLabels(string submit, string cancel = "Cancel") {
+        submit_button.setLabel(submit); cancel_button.setLabel(cancel); layout_view = NOTHING; layout(); markDirty();
+    }
     /** Returns the form's vertical content offset. @return rows above the viewport */
     int getScrollY() { return scroll_y; }
     /** Synchronizes programmatic input edits, validates and submits once.

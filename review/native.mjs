@@ -127,7 +127,7 @@ export class NativeStory extends EventEmitter {
     const operation = this.chain.then(async () => {
       await this.ready;
       if (this.closing) { throw new Error('Native story is closed'); }
-      if (!['capture', 'input', 'resize', 'reset', 'step'].includes(action)) { throw new Error('Unknown native action'); }
+      if (!['capture', 'input', 'resize', 'reset', 'step', 'settle'].includes(action)) { throw new Error('Unknown native action'); }
       const command = { action, sequence: ++this.sequence };
       if (action === 'input') {
         const encoding = values.encoding ?? 'utf8';

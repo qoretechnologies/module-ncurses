@@ -5,6 +5,17 @@
     @section ncurses_1_0 ncurses Module Version 1.0
     - initial release
 
+    Reusable EditorAssistance, BackgroundTask and Dialogs controllers own popup/focus
+    cleanup, worker result delivery and adaptive confirmation/prompt/file workflows.
+    NcursesQore provides an optional language adapter using a caller's live QoreRepl
+    session. StatusBarWidget supports priority and compact labels; PanelWidget supports
+    clamped centered sizing, and FormWidget supports application-specific action labels.
+    qrepl adopts these APIs for syntax highlighting, exact completion ranges, help,
+    real file selection/save prompts, consistent quitting and responsive evaluation.
+    Output streams during work and edits made during evaluation survive its result.
+    The backend does not expose safe cancellation; quit can wait for completion.
+    Five full-application stories exercise the actual qrepl code through its event loop.
+
     ProgressWidget uses semantic state colors, emphasized fill/counts and focused
     actions while retaining plain-text inspection. TableWidget headers use bold
     underlining, distinct from reverse-video data selection in color and monochrome.

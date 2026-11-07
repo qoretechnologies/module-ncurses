@@ -130,7 +130,7 @@ public class Application {
         @param layout the layout to use
         @since ncurses 1.0
     */
-    nothing setRootLayout(NcursesUi::BoxLayout layout) {
+    nothing setRootLayout(*NcursesUi::BoxLayout layout) {
         root_layout = layout;
     }
 

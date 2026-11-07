@@ -29,15 +29,80 @@ qrepl
     View > Search Output opens literal search. F3/Shift-F3 visit next/previous matches.
     Bracketed paste inserts one undoable operation without evaluating embedded newlines.
     Output retains the latest 10,000 logical lines; the editor grows to six rows and
-    then scrolls within its allocation. Tab completion uses the visible wrapped caret.
+    then scrolls within its allocation. Syntax highlighting uses the optional astparser
+    module. Tab completion uses the live session, replaces the full token around the
+    caret, and preserves existing parentheses or namespace separators. The popup
+    provides documentation and signatures; Tab switches to its help pane. Escape
+    dismisses it, and an accepted completion is one undoable edit.
 
-    Use <tt>/help</tt> for console commands. Ctrl-Q or Escape opens exit confirmation.
+    Use F1 for keyboard help and <tt>/help</tt> for console commands. Ctrl-Q, Alt-Q,
+    File > Quit and typed quit commands use the same confirmation. Alt-F opens File;
+    Ctrl-Left/Right move by word. File > Load opens the browser; File > Save asks for
+    a filename and confirms replacement of an existing file. Cancel restores the draft.
+    Paused/unread output and execution state take priority over secondary status text.
     Alt-key menu shortcuts provide file, edit, view and help actions. Command history
     is persisted in <tt>~/.qore-repl-history</tt>. Output capture preserves complete
     lines and marks unterminated output with a reversed percent sign. Capture workers
     enqueue text only; widget mutation and drawing stay on the UI thread. Each worker
     drain uses a finite byte-count snapshot, so continuously produced output cannot
     starve flush or shutdown. Ordinary Enter remains LF even with paste enabled.
+
+    Evaluation runs in one worker. Typing, output navigation, searching and resizing
+    stay available while it executes; duplicate submissions and backend assistance are
+    held until completion. Edits made during evaluation are not cleared by its result.
+    Quit during execution offers to finish and then exit; it does not claim to cancel
+    arbitrary Qore code. Output arrives through a capture reader and wakes the UI.
+
+    @section ncursestoolscontrollers Reusable UI Workflows
+
+    @ref NcursesUi::EditorAssistance owns versioned results, popup placement, dismissal
+    and focus restoration. @ref NcursesQore::CodeSupport adapts an existing QoreRepl
+    evaluator; NcursesUi itself has no Qore language dependency. Keep evaluator calls
+    serialized with assistance, while syntax highlighting uses a separate parser.
+    This complete, headless example checks an atomic completion and undo:
+
+    @code{.py}
+%modern
+%requires ncurses
+%requires NcursesUi
+%requires NcursesQore
+%requires QoreRepl
+Ncurses::TestTerminal terminal(12, 60);
+on_exit terminal.close();
+NcursesUi::Application app({"test_terminal": terminal});
+on_exit app.close();
+NcursesUi::TextEditorWidget editor();
+app.setRoot(editor);
+app.getFocusManager().setFocus(editor);
+QoreRepl::QoreRepl repl({"history_file": NOTHING});
+NcursesQore::CodeSupport language(repl);
+editor.setHighlighter(string sub (string source) { return language.highlight(source); });
+NcursesUi::EditorAssistance help(app, editor,
+    hash<NcursesUi::AssistanceResponse> sub (hash<NcursesUi::AssistanceRequest> request) {
+        return language.complete(request);
+    });
+on_exit help.close();
+editor.setText("get_qore_library_in");
+@assert(help.request(True));
+@assert(editor.getText() == "get_qore_library_info()");
+@assert(editor.getBuffer().undo());
+@assert(editor.getText() == "get_qore_library_in");
+    @endcode
+
+    @ref NcursesUi::BackgroundTask owns single-worker execution, ActionModel state,
+    UI-thread completion delivery and teardown. Its start(work, finished) rejects a
+    second start until the first completion is delivered. The work callback must not
+    access widgets. join() is a deterministic test/shutdown barrier; interactive event
+    handlers must not call it. close() releases callbacks and joins without claiming
+    to cancel the operation. Applications may retain the model for progress views.
+
+    @ref NcursesUi::Dialogs provides confirm(), message(), prompt() and openFile().
+    Prompt fields reuse FormWidget labels, descriptions, validation, mouse focus and
+    scrolling. Callback semantics stay in the application; close() releases all owned
+    panels. PanelWidget::setCenteredSize() retains preferred dimensions across resize
+    while immediately clamping to the terminal. StatusBarWidget segment priority and
+    compact labels keep essential state visible; higher priorities are allocated first,
+    while display order and alignment remain unchanged. Legacy segments retain clipping.
 
     @section ncursestoolshelpers Building a Custom Console
 

@@ -1,6 +1,7 @@
 #!/usr/bin/env qore
 # Copyright 2026 Qore Technologies, s.r.o.
 %requires ncurses
+%requires NcursesQore
 %requires NcursesUi
 %requires QoreRepl
 %requires astparser >= 3.0

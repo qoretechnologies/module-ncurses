@@ -3,6 +3,7 @@
 %modern
 %prepend-module-path "${SCRIPT_DIR}/../qlib"
 %requires ncurses
+%requires NcursesQore
 %requires NcursesUi
 %try-module astparser >= 3.0
 %define NoAstparser
@@ -46,6 +47,7 @@ class GalleryTest inherits Test {
         addTestCase("assistance selected result reflects navigation filtering and cancellation", \assistanceSelection());
         addTestCase("registered geometry and equal-size device changes are respected", \deviceGeometry());
         addTestCase("nonmodal cursor follows final focus during capture and native event loops", \cursorPolicy());
+        addTestCase("full application stories retain their bindings and release the embedded layout", \appRouting());
         set_return_value(main());
     }
     private code<nothing()> storyTest(hash<NcursesGallery::Story> story) { return sub () { runStory(story); }; }
@@ -239,7 +241,7 @@ class GalleryTest inherits Test {
         assertEq("table.scrolling", NcursesGallery::Registry::search("TABLE")[0].id);
         assertEq(0, NcursesGallery::Registry::search("unmatched").size());
         hash<string, bool> widgets = {};
-        foreach hash<NcursesGallery::Story> story in (NcursesGallery::Registry::search("")) { widgets{story.widget} = True; }
+        foreach hash<NcursesGallery::Story> story in (NcursesGallery::Registry::search("")) { if (!story.application) { widgets{story.widget} = True; } }
         assertEq(27, widgets.size());
         list<hash<NcursesGallery::Story>> copy = NcursesGallery::Registry::stories(); copy[0].id = "changed.id";
         assertEq("text-editor.boundaries", NcursesGallery::Registry::stories()[0].id);
@@ -359,6 +361,19 @@ class GalleryTest inherits Test {
         assertEq((), popup.getResults()); assertNothing(popup.getSelectedResult());
         assertEq(("No assistance available",), popup.getDocumentation());
     }
+    appRouting() {
+        NcursesUi::TestHarness th(20, 80); on_exit th.close(); NcursesUi::Application app(th.session());
+        NcursesGallery::Gallery gallery(app, "qrepl.default"); on_exit gallery.close();
+        app.processEvent(NcursesGallery::Registry::key("KEY_F(6)")); assertEq("TranscriptWidget", gallery.current().inspect().focus);
+        app.processEvent(NcursesGallery::Registry::key("KEY_F(6)")); assertEq("TextEditorWidget", gallery.current().inspect().focus);
+        app.processEvent(NcursesGallery::Registry::key("KEY_F(1)")); assertTrue(app.getDispatcher().hasModal());
+        app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "\e"});
+        app.processEvent(NcursesGallery::Registry::key("KEY_F(14)")); assertTrue(!!gallery.navigation()); gallery.closeOverlay();
+        gallery.select("table.scrolling"); app.processEvent(NcursesGallery::Registry::key("KEY_END")); assertEq(23, gallery.current().inspect().selected);
+        gallery.select("qrepl.completion"); app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "\t"}); assertTrue(app.getDispatcher().hasModal());
+        gallery.reset(); assertFalse(app.getDispatcher().hasModal()); assertEq("pri", gallery.current().inspect().text);
+    }
+
 }
 
 %else

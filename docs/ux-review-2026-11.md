@@ -24,17 +24,49 @@ exact artifact set, geometry/configuration, browser/font versions, hashes and th
 review's acceptance digest. Each PNG has a neighboring `.json.gz` artifact with the
 full native cell/attribute/cursor/focus/scroll state. The
 [review instructions](../review/README.md) reproduce baseline/current/diff reports.
-The current capture contains 1,358 checkpoints from 208 stories. It retains all
-1,344 keys from the previous follow-up and adds six form metadata-focus checkpoints
-and eight ASCII/expanded chart checkpoints. Relative to that follow-up, 209 existing
-checkpoints change in Forms, Progress, Tables and TextChart; the other 1,135 match
-exactly. All 2,716 current artifact hashes and unchanged capture configuration were
-verified before acceptance.
-The earlier renderer follow-up retained 1,098 keys and added 246 interaction/recovery/
-code checkpoints. Native state assertions and the image inspections described below
-precede explicit baseline acceptance.
+The current capture contains 1,388 checkpoints from 213 stories. It retains all
+1,358 keys from the preceding widget follow-up and adds 30 checkpoints for the
+actual qrepl application. Fourteen existing popup checkpoints change to keep the
+source/caret visible and show the shared Qore completion metadata; the other 1,344
+match exactly. All 2,776 current artifact hashes were verified before acceptance.
+The prior Forms/Progress/Table/TextChart follow-up added 14 checkpoints and changed
+209 existing checkpoints; the observations below retain that review evidence.
+Native state assertions and rendered-image inspection precede explicit acceptance.
 
 ## Findings and disposition
+
+- [#5631](https://github.com/qoretechnologies/qore/issues/5631): qrepl now consumes
+  reusable `EditorAssistance`, `BackgroundTask`, `Dialogs`, centered-panel sizing,
+  adaptive status segments and the optional `NcursesQore::CodeSupport` adapter.
+  General editor/workflow APIs do not depend on the Qore evaluator.
+  - The real application is embedded in five executable stories: evaluation,
+    completion, error recovery, a constrained viewport and file workflows. These
+    run the same `bin/qrepl` implementation through a PTY with its continuous event
+    loop, including output arriving between browser commands.
+  - Tab opens live-session completion with signatures and exact replacement ranges;
+    Escape removes the popup and restores the draft/caret. Source coloring remains
+    readable in monochrome. F1 explains keys, F6 switches editor/output, and Alt+F
+    opens the File menu without conflicting with word movement.
+  - Evaluation runs off the UI thread with one outstanding request. A FIFO-gated
+    native-browser test observes streamed output, edits the draft, resizes and
+    cancels a quit confirmation while evaluation is still blocked. Releasing the
+    gate and joining explicitly proves completion preserves the newer draft.
+    Status says Evaluating, Ready, Error or Paused with an unread count; narrow
+    layouts prioritize state over secondary hints. There is no cancellation claim:
+    “Finish and quit” waits for the running evaluator before exit.
+  - Save uses a labeled, validated filename form and overwrite confirmation. Load
+    uses the shared file browser. Mouse/keyboard field behavior, cancel/focus
+    restoration, ordinary-file activation, Unicode paths and actual save/load
+    are covered by the controller and application tests. The upstream backend's
+    missing-terminator export defect was separately authorized for correction in
+    Qore; module tests also exercise complete source on the existing backend.
+  - All 30 new captures (24 distinct images) and all 14 changed existing captures
+    (eight distinct images) were inspected in color and monochrome. The 4×12
+    stress story keeps the editing line or Paused state visible; it does not claim
+    simultaneous access to every menu/status label at that size. The filename
+    prompt keeps its label/help/value/actions grouped and restores the draft on
+    cancel. A browser keyboard review of the actual completion story confirmed
+    opening, legible selection/documentation and a visible source line.
 
 - [#5629](https://github.com/qoretechnologies/qore/issues/5629): user review found
   weak progress emphasis, table headers resembling selection, and an unexplained
@@ -296,3 +328,38 @@ documentation checks and platform CI evidence are linked in the delivery PR and
 central roadmap issues. Acceptance is performed only after reviewing the complete
 capture set and the fixes above; the acceptance command itself cannot establish
 usability or authorize a merge.
+
+## qrepl follow-up implementation audit
+
+The audit follows the local `audit-changes` checklist. Evidence below applies to
+this follow-up; earlier native implementation checks remain recorded above.
+
+| Check | Status | Evidence |
+| --- | --- | --- |
+| Core module index and language release notes | N/A | External module; no Qore core registration. |
+| Module release notes | Pass | `NcursesQore.qm` initial release and module release notes describe the shared APIs. |
+| CMake and QMOD registration | Pass | NcursesQore participates in installation, AOT compilation and two-phase docs. |
+| Module structure | Pass | Lowercase intro, `%modern`, separated classes, one module entrypoint, no deprecated includes, 2026 copyrights. |
+| Tests | Pass | Local module paths, executable modern tests, debugging and warnings-as-errors; source and AOT gates below. |
+| Sandboxing | Pass | General controllers perform no filesystem/network I/O; the file-browser adapter delegates existing authorized file operations. Review bridge uses local PTY/control pipes with explicit bounds and cleanup. |
+| Cooperative cancellation | N/A | No C++ changes. BackgroundTask explicitly joins rather than claiming worker cancellation; scopes reject stale delivery. |
+| DataProvider action registration | N/A | No provider actions. |
+| DataProvider types and allowed values | N/A | No provider schemas. |
+| DataProvider descriptions and scheme actions | N/A | No provider/app registration. |
+| FactoryMap and JNI/JAR registration | N/A | No provider factories or JVM dependencies. |
+| Workarounds and stubs | Pass | Shared APIs replace duplicated application/gallery logic; the upstream save defect is fixed in its owner repository. |
+| Exception safety | Pass | Worker failures are typed results; delivery failures surface at join; modal cleanup clears callbacks and destroys panels even on errors. Failure-path tests cover callbacks/providers and disposal. |
+| Thread safety | Pass | Widget ownership stays on the UI thread; one worker owns the evaluator, with scoped wake-driven completion and synchronized capture queues. |
+| Type safety | Pass | Typed callbacks, TaskResult and existing assistance/form schemas; explicit casts pass AOT compilation without warnings. |
+| Performance | Pass | Wake-driven idle loop, serialized background work, bounded control messages, sorted status priorities, no input-handler joins. |
+| Error handling | Pass | Invalid dimensions/spacing, invalid completion cursor, duplicate/closed task start, field validation, worker failure and stale results are tested. |
+| Documentation | Pass | API contracts, runnable embedding example, tool guide, man page, gallery instructions and implemented architecture updated. |
+| QPP namespace/flags and native ownership | N/A | No QPP/C++ changes. |
+| Security | Pass | No arbitrary bridge command endpoint, no credentials, local-only review service; fixture teardown and native-protocol bounds retained. |
+| Correctness | Pass | Exact completion ranges and suffix retention, Unicode, tiny/resize layouts, save/overwrite/cancel/load, draft revision preservation, focus restoration and actual streaming tested. |
+
+Final local gates: 45 QUnit suites, 955 cases / 22,029 assertions; 26 compiled-module
+suites, 627 cases / 7,934 assertions. Documentation/API checks, executable examples,
+widget-catalog drift checks and CI tree-reuse tests pass. Browser/native tooling
+and platform CI results are linked in the delivery PR. No C++ changed, so this
+follow-up does not require a new Valgrind run.

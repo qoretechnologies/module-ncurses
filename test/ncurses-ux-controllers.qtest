@@ -1,0 +1,159 @@
+#!/usr/bin/env qore
+# Copyright 2026 Qore Technologies, s.r.o. SPDX-License-Identifier: MIT
+%modern
+%prepend-module-path "${SCRIPT_DIR}/../qlib"
+%requires ncurses
+%requires NcursesUi
+%requires NcursesQore
+%requires QoreRepl
+%requires QUnit
+%include "test/TestHarness.qc"
+%exec-class ControllersTest
+class ControllersTest inherits Test {
+    constructor() : Test("ControllersTest", "1.0", \ARGV) {
+        addTestCase("workers serialize starts and deliver results only on the UI thread", \workers());
+        addTestCase("worker and callback errors retain lifecycle invariants", \failures());
+        addTestCase("closing work drops callbacks and rejects later starts", \shutdown());
+        addTestCase("priority status retains essential state and Unicode boundaries", \status());
+        addTestCase("centered panels clamp and regrow without losing their requested size", \geometry());
+        addTestCase("prompts validate locally, restore focus and retain cancelled drafts", \prompts());
+        addTestCase("confirmation acceptance is once-only and exception safe", \confirm());
+        addTestCase("assistance uses precise live-session ranges and existing suffixes", \language());
+        addTestCase("assistance owns popup cleanup, errors, undo and stale requests", \assistance());
+        addTestCase("file workflows accept ordinary text files and restore focus", \fileDialog());
+        set_return_value(main());
+    }
+    private hash<Ncurses::InputEvent> chr(string text) { return <Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": text}; }
+    workers() {
+        NcursesUi::TestHarness th(12, 40); on_exit th.close(); NcursesUi::Application app(th.session());
+        NcursesUi::BackgroundTask task(app, "work", "Work"); on_exit task.close();
+        Counter entered(1); Counter release(1); on_error release.dec(); int count = 0; int ui = gettid();
+        task.start(auto sub () { entered.dec(); release.waitForZero(); return gettid(); }, sub (hash<NcursesUi::TaskResult> result) {
+            assertEq(ui, gettid()); assertTrue(ui != result.value); assertFalse(task.isRunning()); ++count;
+        });
+        entered.waitForZero(); assertTrue(task.isRunning()); assertEq(NcursesUi::ActionState::Running, task.getModel().getState());
+        assertThrows("UI-TASK-BUSY", sub () { task.start(auto sub () { return 0; }, sub (hash<NcursesUi::TaskResult> result) {}); });
+        assertEq(0, count); release.dec(); task.join(); assertTrue(task.isRunning()); assertEq(0, count);
+        assertEq(1, app.processPending()); assertEq(1, count); assertEq(NcursesUi::ActionState::Completed, task.getModel().getState());
+        task.start(auto sub () { return "second"; }, sub (hash<NcursesUi::TaskResult> result) { assertEq("second", result.value); ++count; });
+        task.join(); app.processPending(); assertEq(2, count);
+    }
+    failures() {
+        NcursesUi::TestHarness th(12, 40); on_exit th.close(); NcursesUi::Application app(th.session());
+        NcursesUi::BackgroundTask task(app, "error", "Error"); on_exit task.close(); bool called = False;
+        task.start(auto sub () { throw "WORK-ERROR", "Expected error"; }, sub (hash<NcursesUi::TaskResult> result) {
+            assertEq("WORK-ERROR", result.error.err); called = True;
+        });
+        task.join(); app.processPending(); assertTrue(called); assertFalse(task.isRunning());
+        assertEq(NcursesUi::ActionState::Failed, task.getModel().getState());
+        task.start(auto sub () { return 1; }, sub (hash<NcursesUi::TaskResult> result) { throw "CALLBACK-ERROR", "Expected callback error"; });
+        task.join(); assertThrows("CALLBACK-ERROR", sub () { app.processPending(); }); assertFalse(task.isRunning());
+        assertEq(0, app.processPending());
+    }
+    shutdown() {
+        NcursesUi::TestHarness th(8, 20); on_exit th.close(); NcursesUi::Application app(th.session());
+        NcursesUi::BackgroundTask task(app, "close", "Close"); bool called = False;
+        task.start(auto sub () { return 42; }, sub (hash<NcursesUi::TaskResult> result) { called = True; });
+        task.close(); task.close(); assertEq(0, app.processPending()); assertFalse(called); assertFalse(task.isRunning());
+        assertThrows("UI-TASK-CLOSED", sub () { task.start(auto sub () { return 0; }, sub (hash<NcursesUi::TaskResult> result) {}); });
+    }
+    status() {
+        NcursesUi::StatusBarWidget bar();
+        bar.setSegments(({"text": "Ready", "priority": 80}, {"text": "Qore version", "priority": 0},
+            {"text": "Paused: 2 new, Ctrl-End: latest", "compact": "Paused +2", "priority": 100}));
+        assertEq(("Paused +2",), map $1.text, bar.fitSegments(12));
+        assertEq(("Ready", "Paused +2"), map $1.text, bar.fitSegments(16));
+        assertEq(("Ready", "Qore version", "Paused: 2 new, Ctrl-End: latest"), map $1.text, bar.fitSegments(80));
+        assertEq((), bar.fitSegments(0)); assertEq((), bar.fitSegments(-1));
+        bar.setSegments(({"text": "界é", "priority": 1},));
+        assertEq(0, NcursesUi::TerminalText::displayWidth(bar.fitSegments(1)[0].text));
+        assertEq("界", bar.fitSegments(2)[0].text); assertEq("界é", bar.fitSegments(3)[0].text);
+        assertThrows("STATUS-SPACING-ERROR", sub () { bar.setSegmentSpacing(-1); }); assertEq(1, bar.getSegmentSpacing());
+    }
+    geometry() {
+        NcursesUi::TestHarness th(24, 80); on_exit th.close(); NcursesUi::PanelWidget panel(th.session());
+        panel.setCenteredSize(10, 40); assertEq(NcursesUi::Geometry::makeRect(7, 20, 10, 40), panel.getFrame());
+        foreach hash<Ncurses::Size> size in ((<Ncurses::Size>{"rows": 4, "cols": 12}, <Ncurses::Size>{"rows": 1, "cols": 1}, <Ncurses::Size>{"rows": 24, "cols": 80})) {
+            panel.fitToScreen(size.rows, size.cols); hash<NcursesUi::Rect> rect = panel.getFrame();
+            assertTrue(rect.y >= 0 && rect.x >= 0 && rect.y + rect.rows <= size.rows && rect.x + rect.cols <= size.cols);
+        }
+        assertEq(NcursesUi::Geometry::makeRect(7, 20, 10, 40), panel.getFrame());
+        assertThrows("PANEL-SIZE-ERROR", sub () { panel.setCenteredSize(0, 10); });
+        panel.setFrameValues(1, 2, 3, 4); panel.fitToScreen(24, 80); assertEq(NcursesUi::Geometry::makeRect(1, 2, 3, 4), panel.getFrame());
+    }
+    prompts() {
+        NcursesUi::TestHarness th(20, 60); on_exit th.close(); NcursesUi::Application app(th.session());
+        NcursesUi::TextEditorWidget editor(); editor.setText("keep draft"); app.setRoot(editor); app.getFocusManager().setFocus(editor);
+        NcursesUi::Dialogs dialogs(app); on_exit dialogs.close(); int accepted = 0;
+        NcursesUi::PanelWidget panel = dialogs.prompt("Save", <NcursesUi::FormField>{"name": "path", "label": "Filename", "help": "Choose a destination", "required": True,
+            "validate": *string sub (auto value) { return value == "bad" ? "Invalid destination" : NOTHING; }}, sub (auto value) { assertEq("good", value); ++accepted; }, "Save");
+        app.drawAll(); app.processEvent(chr("\n")); assertTrue(app.getDispatcher().hasModal()); assertEq(0, accepted);
+        foreach string ch in (("b", "a", "d")) { app.processEvent(chr(ch)); } app.processEvent(chr("\n")); assertEq(0, accepted);
+        auto input = app.getFocusManager().getCurrentFocus(); assertTrue(input instanceof NcursesUi::TextInputWidget); input.setText("good");
+        # Edits must flow through the input's on-change callback, not mirror model state.
+        app.processEvent(chr("x")); app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Key, "name": "KEY_BACKSPACE"});
+        app.processEvent(chr("\n")); assertEq(1, accepted); assertFalse(app.getDispatcher().hasModal()); assertTrue(editor.hasFocus());
+        panel = dialogs.prompt("Cancel", <NcursesUi::FormField>{"name": "path", "label": "Filename"}, sub (auto value) { ++accepted; });
+        th.screen().resize(4, 12); app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Resize}); app.drawAll();
+        assertTrue(panel.getFrame().rows <= 4 && panel.getFrame().cols <= 12); app.processEvent(chr("\x1b"));
+        assertFalse(app.getDispatcher().hasModal()); assertEq(1, accepted); assertEq("keep draft", editor.getText()); assertTrue(editor.hasFocus());
+    }
+    confirm() {
+        NcursesUi::TestHarness th(12, 40); on_exit th.close(); NcursesUi::Application app(th.session());
+        NcursesUi::TextEditorWidget editor(); app.setRoot(editor); app.getFocusManager().setFocus(editor);
+        NcursesUi::Dialogs dialogs(app); on_exit dialogs.close(); int count = 0;
+        dialogs.confirm("Quit", "Discard the draft?", sub () { ++count; }, "Quit"); app.processEvent(chr("\x1b")); assertEq(0, count);
+        dialogs.confirm("Quit", "Discard the draft?", sub () { ++count; }, "Quit"); app.processEvent(chr("\n")); assertEq(1, count); assertTrue(editor.hasFocus());
+        dialogs.confirm("Error", "Call", sub () { throw "ACCEPT-ERROR", "Expected callback failure"; });
+        assertThrows("ACCEPT-ERROR", sub () { app.processEvent(chr("\n")); }); assertFalse(app.getDispatcher().hasModal()); assertTrue(editor.hasFocus());
+    }
+    language() {
+        QoreRepl::QoreRepl repl({"history_file": NOTHING}); NcursesQore::CodeSupport support(repl); NcursesUi::EditorBuffer buffer(); NcursesUi::AssistanceModel model(buffer);
+        hash<NcursesUi::AssistanceRequest> invalid = model.beginRequest(); invalid.cursor = -1;
+        assertThrows("QORE-ASSISTANCE-ERROR", sub () { support.complete(invalid); });
+        invalid.cursor = 1; assertThrows("QORE-ASSISTANCE-ERROR", sub () { support.complete(invalid); });
+        string draft = "int answer = 42; # 界é"; assertEq(draft, join("", map $1.text, Ncurses::Ansi::parse(support.highlight(draft))));
+        if (support.hasSyntaxHighlighting()) { assertTrue(draft != support.highlight(draft)); }
+        assertFalse(!!repl.eval("int sub ux_test_unique_function() { return 42; }").error);
+        foreach string source in (("ux_test_unique_funcTION()", "ux_test_unique_funcTION ()", "ux_test_unique_funcTION")) {
+            buffer.setText(source); buffer.setCursor("ux_test_unique_func".length());
+            hash<NcursesUi::AssistanceRequest> request = model.beginRequest(); model.complete(request, support.complete(request));
+            list<hash<NcursesUi::CompletionItem>> items = model.getCompletions(); assertEq(1, items.size());
+            assertEq(0, items[0].range.start); assertEq("ux_test_unique_funcTION".length(), items[0].range.end);
+            model.applyCompletion(items[0].id); assertEq(source.find(" ()") >= 0 ? "ux_test_unique_function ()" : "ux_test_unique_function()", buffer.getText());
+            assertTrue(buffer.undo()); assertEq(source, buffer.getText());
+        }
+        buffer.setText("/load"); buffer.setCursor(3);
+        hash<NcursesUi::AssistanceRequest> command = model.beginRequest(); model.complete(command, support.complete(command));
+        assertEq(0, model.getCompletions()[0].range.start); model.applyCompletion(model.getCompletions()[0].id); assertEq("/load", buffer.getText());
+        buffer.setText("get_qore_library_info()"); buffer.setCursor("get_qore_library_in".length());
+        hash<NcursesUi::AssistanceRequest> request = model.beginRequest(); model.complete(request, support.complete(request));
+        model.applyCompletion(model.getCompletions()[0].id); assertEq("get_qore_library_info()", buffer.getText());
+    }
+    assistance() {
+        NcursesUi::TestHarness th(12, 40); on_exit th.close(); NcursesUi::Application app(th.session()); NcursesUi::TextEditorWidget editor();
+        app.setRoot(editor); app.getFocusManager().setFocus(editor); app.drawAll();
+        NcursesUi::EditorAssistance controller(app, editor, hash<NcursesUi::AssistanceResponse> sub (hash<NcursesUi::AssistanceRequest> request) {
+            return <NcursesUi::AssistanceResponse>{"completions": (<NcursesUi::CompletionItem>{"id": "x", "label": "Example", "text": "example", "range": <NcursesUi::SourceRange>{"start": 0, "end": request.text.length()}},)};
+        }); on_exit controller.close();
+        assertTrue(controller.request()); assertTrue(app.getDispatcher().hasModal()); app.processEvent(chr("\x1b")); assertTrue(editor.hasFocus()); assertEq("", editor.getText());
+        assertTrue(controller.request(True)); assertEq("example", editor.getText()); assertTrue(editor.getBuffer().undo()); assertEq("", editor.getText());
+        hash<NcursesUi::AssistanceRequest> old = controller.getModel().beginRequest(); editor.setText("new draft");
+        assertFalse(controller.getModel().complete(old, <NcursesUi::AssistanceResponse>{})); assertFalse(controller.show());
+        controller.getModel().setProvider(hash<NcursesUi::AssistanceResponse> sub (hash<NcursesUi::AssistanceRequest> request) { throw "PROVIDER-ERROR", "Expected provider failure"; });
+        assertThrows("PROVIDER-ERROR", sub () { controller.request(); }); assertFalse(app.getDispatcher().hasModal()); assertEq("new draft", editor.getText());
+    }
+    fileDialog() {
+        NcursesUi::TestHarness th(12, 40); on_exit th.close(); NcursesUi::Application app(th.session());
+        NcursesUi::TextEditorWidget editor(); app.setRoot(editor); app.getFocusManager().setFocus(editor);
+        NcursesUi::Dialogs dialogs(app); on_exit dialogs.close(); string selected;
+        string directory = "/tmp/ncurses-dialog-files-" + getpid(); mkdir(directory, 0700);
+        string path = directory + "/notes.txt"; on_exit { unlink(path); rmdir(directory); }
+        File file(); file.open(path, O_WRONLY | O_CREAT | O_EXCL, 0600); file.write("notes"); file.close();
+        NcursesUi::FileBrowserWidget browser = dialogs.openFile(directory, sub (string value) { selected = value; });
+        NcursesUi::ListWidget list = browser.getFileList();
+        for (int i = 0; i < list.getItems().size(); ++i) { if (list.getItems()[i].path == path) { list.setSelectedIndex(i); break; } }
+        app.drawAll(); app.processEvent(chr("\n")); assertEq(path, selected); assertFalse(app.getDispatcher().hasModal()); assertTrue(editor.hasFocus());
+    }
+
+}

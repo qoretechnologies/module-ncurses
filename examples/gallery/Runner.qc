@@ -11,12 +11,15 @@ class Runner {
         *NcursesUi::CompletionPopupWidget popup;
         *NcursesGallery::Fixture fixture;
         *NcursesGallery::CodePreview code_preview;
+        *Program repl_program;
+        *object repl;
+        bool capture_output;
         bool closed = False;
         int checkpoint_index = -1;
         hash<Ncurses::Size> initial_size;
     }
-    constructor(NcursesUi::Application application, string id) {
-        app = application; definition = Registry::find(id);
+    constructor(NcursesUi::Application application, string id, bool capture = False) {
+        app = application; definition = Registry::find(id); capture_output = capture;
         initial_size = app.getSession().screen().size();
         try { reset(); } catch (hash<ExceptionInfo> ex) { close(); rethrow; }
     }
@@ -26,7 +29,7 @@ class Runner {
     int checkpointIndex() { return checkpoint_index; }
     private nothing checkOpen() { if (closed) { throw "GALLERY-CLOSED-ERROR", "The story has been closed"; } }
     private nothing release() {
-        on_exit { popup = NOTHING; fixture = NOTHING; code_preview = NOTHING; table = NOTHING; editor = NOTHING; widget = NOTHING; }
+        on_exit { repl = NOTHING; repl_program = NOTHING; popup = NOTHING; fixture = NOTHING; code_preview = NOTHING; table = NOTHING; editor = NOTHING; widget = NOTHING; }
         on_exit {
             if (app.getSession().isOpen()) {
                 app.setRoot(new NcursesUi::Widget());
@@ -35,6 +38,7 @@ class Runner {
         }
         on_exit {
             on_exit { if (popup) { popup.setOnSelect(NOTHING); popup.setOnDismiss(NOTHING); popup.destroyPanel(); } }
+            if (repl) { repl.close(); }
             if (fixture) { fixture.close(); }
             if (code_preview) { code_preview.close(); }
         }
@@ -46,6 +50,15 @@ class Runner {
         if (reset_size) { initial_size = reset_size; }
         app.getSession().resize(initial_size.rows, initial_size.cols);
         app.getSession().setCursor(1);
+        if (definition.application) {
+            repl_program = new Program(PO_DEFAULT);
+            string source = ReadOnlyFile::readTextFile(get_script_dir() + "/../bin/qrepl"); source =~ s/%exec-class QRepl//;
+            source += "\nobject sub galleryRepl(NcursesUi::Application app, bool capture) { return new QRepl(app.getSession(), False, app, NOTHING, capture); }\n";
+            *hash<ExceptionInfo> warnings = repl_program.parse(source, "qrepl-story", WARN_ALL);
+            if (warnings) { throw "GALLERY-QREPL-WARNING", warnings; }
+            repl = repl_program.callFunction("galleryRepl", app, capture_output);
+            editor = repl.getEditor(); widget = app.getRoot(); editor.setText(definition.fixture.draft); app.layoutRoot(); app.drawAll(); syncCursor(); return;
+        }
         if (definition.catalog) {
             fixture = new NcursesGallery::Fixture(app, definition); widget = fixture.control(); syncCursor(); return;
         }
@@ -97,10 +110,15 @@ class Runner {
         }
     }
     private nothing dismiss() { if (popup) { on_exit popup.destroyPanel(); app.removeModal(popup); } }
+    nothing settle() { if (repl) { repl.joinEvaluation(); } }
+    hash<NcursesUi::EventResult> handleEvent(hash<Ncurses::InputEvent> event) {
+        return repl ? repl.processEvent(event) : <NcursesUi::EventResult>{};
+    }
     hash<auto> inspect(*hash<Ncurses::ScreenCapture> frame) {
         checkOpen();
         *NcursesUi::Widget focus = app.getFocusManager().getCurrentFocus();
         hash<auto> state = {"focus": focus ? focus.className() : "", "modal": app.getDispatcher().hasModal(), "enabled": widget.isEnabled()};
+        if (repl) { state.evaluating = repl.isEvaluating(); state.following = repl.getTranscript().isFollowing(); }
         if (fixture) { state += fixture.inspect(); }
         if (editor) { state.text = editor.getText(); state.scroll = editor.getScrollY(); state.empty = editor.getText() == ""; state.has_selection = editor.getBuffer().selectedText() != ""; }
         if (table) { state.selected = table.getSelectedRow(); state.scroll = table.getScrollOffset(); state.empty = !table.getRows(); state.has_selection = table.getSelectedRow() == 1; }
@@ -138,10 +156,16 @@ class Runner {
             app.getSession().resize(step.size.rows, step.size.cols);
             app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Resize});
         }
-        if (step.event) { app.processEvent(step.event); }
+        if (step.event && !handleEvent(step.event).handled) { app.processEvent(step.event); }
         if (step.action) {
-            if (!fixture) { throw "GALLERY-ACTION-ERROR", "This story has no model action"; }
-            fixture.perform(step.action);
+            if (repl) {
+                if (step.action == "evaluate") { repl.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "\n"}); repl.joinEvaluation(); }
+                else if (step.action == "pause-output") {
+                    for (int i = 0; i < 30; ++i) { repl.getTranscript().appendLine("Review line " + i); }
+                    app.drawAll(); repl.processEvent(Registry::key("KEY_PPAGE"));
+                } else { throw "GALLERY-ACTION-ERROR", "Unknown application action"; }
+            } else if (!fixture) { throw "GALLERY-ACTION-ERROR", "This story has no model action"; }
+            else { fixture.perform(step.action); }
         }
         hash<auto> artifact = capture(step.checkpoint);
         verify(artifact, step.expected); ++checkpoint_index; return artifact;

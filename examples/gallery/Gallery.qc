@@ -129,6 +129,11 @@ class Gallery {
     }
     private hash<NcursesUi::EventResult> handle(hash<Ncurses::InputEvent> event) {
         observeGeometry();
+        if (runner.story().application && !picker && !info) {
+            if (event.type == Ncurses::InputType::Key && event.name =~ /^KEY_F\(1[3-8]\)$/) {
+                int function = int(event.name.substr(6, 2)) - 12; event.name = "KEY_F(" + function + ")";
+            } else { return runner.handleEvent(event); }
+        }
         if (event.type == Ncurses::InputType::Char && event.ch == "\x11") { app.quit(); }
         else if (event.type == Ncurses::InputType::Char && event.ch == "\e" && (picker || info)) { closeOverlay(); }
         else if (event.type == Ncurses::InputType::Key) {

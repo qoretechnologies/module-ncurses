@@ -41,7 +41,8 @@ next registered event/model delivery and checks its expected state. Manual input
 immediately disables recorded replay, including while its frame is still rendering;
 reset before replaying recorded steps. The checkpoint button explains this and also
 disables at the end. Focus terminal returns keyboard input to xterm. Live feedback explains empty/disabled/closed states and completed actions. There are no
-external services or user-file mutations in fixtures.
+external services or user-file mutations in the scripted fixtures. Interactive qrepl
+stories execute the Qore code you enter, and their file actions operate on local files.
 
 `NCURSES_BUILD_DIR` selects another local binary build (for example `../build`,
 resolved relative to the invoking working directory). The source Qore modules
@@ -56,6 +57,21 @@ QORE_MODULE_DIR=build-debug:qlib qore --enable-debug --warnings-are-errors \
 QORE_MODULE_DIR=build-debug:qlib qore --enable-debug --warnings-are-errors \
   examples/widget-gallery.qr --headless --story transcript.background-reading
 ```
+
+## Full qrepl application
+
+Open <http://127.0.0.1:6006/?path=/story/native-qrepl--default> for the actual application.
+The completion, error, files and constrained stories cover application wiring as well
+as individual widgets. Enter evaluates, Tab opens completions, F1 shows keys and F6
+switches output/editor. Persistent history is disabled in these embedded sessions.
+In the native gallery, Shift-F1 through Shift-F6 access gallery controls so qrepl's
+own function keys retain their meaning. Browser toolbar controls work as usual.
+
+Evaluation and output capture run while the real UI event loop continues handling
+input. The PTY tests use an explicit FIFO gate to verify streaming output and editing
+during work. Recorded evaluation steps join their worker before capture; the tooling
+`settle` command provides the same explicit barrier without timed polling. Arbitrary
+Qore evaluation is not advertised as cancellable; finish-and-quit waits for it.
 
 ## Code and choice examples
 
