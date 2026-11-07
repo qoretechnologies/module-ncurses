@@ -353,12 +353,33 @@ Further review covered running-work and final-result paths. Application gallery
 controls use Alt-1 through Alt-6, retaining Shift-F3 search navigation and the
 draft. The compact gallery help keeps every shortcut and its dismissal instruction
 visible at the registered 16×72 size. Reset/replay/story selection reject active work before any teardown or
-geometry mutation; FIFO-gated tests then exercise editing, resizing, cancellation
+geometry mutation. Ordinary function keys remain within an open Help/Search
+modal, protecting unsaved drafts; the regression covers all six keys. FIFO-gated tests then exercise editing, resizing, cancellation
 and recovery. A dedicated final frame and terminal/render barrier preserve both
 successful and failed results when Finish and quit was accepted before the worker
 completed. Browser tests verify the actual terminal content before normal close.
 Capture notification failures are retained for the caller while the reader keeps
 draining; fatal read failures close the read end so producers fail promptly.
+
+History refresh now uses the shared EditorBuffer API's optional navigation
+preservation. An active browsing snapshot keeps its original draft/selection until
+the user returns or edits, then adopts the latest history update. Tests cover
+duplicates, replaced/empty histories, repeated refreshes, edits, undo, locked
+callbacks and completion while the user browses history. The intentional-quit
+test also handles its event deadline immediately so an earlier input failure
+cannot leave an unhandled rejection.
+
+The user approved the stories on 2026-11-07 after reviewing the live gallery.
+The complete Ubuntu CI capture from pipeline 63556 has identical semantic and PNG
+hashes for all 1,388 checkpoints. Its sole difference is the renderer fingerprint
+after the reviewed final-frame protocol change; acceptance refreshes that metadata
+using the complete CI artifact set, without changing any accepted visual content.
+
+LAN review is explicitly configurable with `STORYBOOK_HOST=0.0.0.0`. Storybook
+accepts the machine hostname and proxies native sessions to a loopback-only
+bridge with the corresponding allowed origin. The development test connects by
+hostname through a non-loopback IPv4 interface and exercises native input and
+hot reload. The running review server was verified at `http://supah:6006`.
 
 ## qrepl follow-up implementation audit
 
@@ -386,11 +407,11 @@ this follow-up; earlier native implementation checks remain recorded above.
 | Error handling | Pass | Invalid dimensions/spacing, invalid completion cursor, duplicate/closed task start, field validation, worker failure and stale results are tested. |
 | Documentation | Pass | API contracts, runnable embedding example, tool guide, man page, gallery instructions and implemented architecture updated. |
 | QPP namespace/flags and native ownership | N/A | No QPP/C++ changes. |
-| Security | Pass | No arbitrary bridge command endpoint, no credentials, local-only review service; fixture teardown and native-protocol bounds retained. |
+| Security | Pass | No arbitrary bridge command endpoint or credentials; loopback by default, explicitly configured LAN Storybook binding with hostname/origin checks; bridge remains loopback-only. Fixture teardown and protocol bounds retained. |
 | Correctness | Pass | Exact completion ranges and suffix retention, Unicode, tiny/resize layouts, save/overwrite/cancel/load, draft revision preservation, focus restoration and actual streaming tested. |
 
-Final local gates: 45 QUnit suites, 960 cases / 22,115 assertions; 26 compiled-module
-suites, 632 cases / 8,020 assertions. Documentation/API checks, executable examples,
+Final local gates: 45 QUnit suites, 962 cases / 22,162 assertions; 26 compiled-module
+suites, 634 cases / 8,067 assertions. Documentation/API checks, executable examples,
 widget-catalog drift checks and CI tree-reuse tests pass. Browser/native tooling
 and platform CI results are linked in the delivery PR. No C++ changed, so this
 follow-up does not require a new Valgrind run.

@@ -352,6 +352,11 @@ for state/progress views. Joining is for tests and shutdown; worker execution is
 not cancellable unless the underlying operation supplies a separate mechanism.
 qrepl retains the submitted buffer revision and only clears an unchanged draft on
 success. Capture workers wake the event loop when complete output lines arrive.
+`EditorBuffer::setHistory(entries, True)` preserves active history navigation and
+the original draft/selection while retaining the newest history update separately.
+Returning to the draft or editing ends the browsing snapshot and applies that
+update. Completion can therefore append history without discarding a draft the
+user saved by navigating backward while evaluation was still running.
 
 `Dialogs` composes existing forms, dialogs and file browsers, owning dismissal and
 focus restoration. Validation remains in `FormModel`; acceptance semantics remain

@@ -151,6 +151,10 @@ class Gallery {
             } else if (!picker && !info) { return runner.handleEvent(event); }
             else if (event.type == Ncurses::InputType::Char && event.ch == "\x11") {
                 closeOverlay(); return runner.handleEvent(event);
+            } else if (!(event.type == Ncurses::InputType::Char && event.ch == "\e")) {
+                # Ordinary function keys belong to the active modal, not to the
+                # gallery's unmodified shortcuts for widget-only stories.
+                return <NcursesUi::EventResult>{};
             }
         }
         if (event.type == Ncurses::InputType::Char && event.ch == "\x11") { app.quit(); }

@@ -51,6 +51,7 @@ class QReplLiveTest inherits Test {
         addTestCase("fatal capture read failures close the reader and fail producers promptly", \captureReadFailure());
         addTestCase("live syntax colors and precise completion use evaluated symbols", \codeSupport());
         addTestCase("evaluation leaves UI responsive and preserves edits made during work", \responsive());
+        addTestCase("evaluation completion preserves the unfinished draft during history navigation", \historyDuringEvaluation());
         addTestCase("quit shortcuts and menus share confirmation, File mnemonic is reachable", \navigation());
         addTestCase("file workflows gather filenames and confirm overwrites", \files());
         addTestCase("narrow status exposes paused output and file panels remain bounded", \compact());
@@ -237,6 +238,25 @@ class QReplLiveTest inherits Test {
         editor.setText("next draft"); app.processEvent(chr("!"));
         release.dec(); released = True; client.joinEvaluation(); assertFalse(client.isEvaluating()); assertEq("next draft!", editor.getText());
         editor.setText("1 + 2"); app.processEvent(chr("\n")); client.joinEvaluation(); assertEq("", editor.getText());
+    }
+    historyDuringEvaluation() {
+        NcursesUi::TestHarness th(12, 40); on_exit th.close(); Counter entered(1); Counter release(1); bool released = False;
+        Program backend(PO_NEW_STYLE | PO_ALLOW_REPARSE, True);
+        backend.parse("our Counter entered; our Counter release;", "history worker gates");
+        backend.setGlobalVarValue("entered", entered); backend.setGlobalVarValue("release", release);
+        QoreRepl::QoreRepl repl({"program": backend, "history_file": NOTHING});
+        auto client = program.callFunction("createRepl", th.session(), repl);
+        on_exit { if (!released) { release.dec(); } client.close(); }
+        NcursesUi::Application app = client.getApplication(); NcursesUi::EditorBuffer buffer = client.getEditor().getBuffer();
+        buffer.setText("1 + 2"); app.processEvent(chr("\n")); client.joinEvaluation();
+        string command = "entered.dec(); release.waitForZero();";
+        buffer.setText(command); app.processEvent(chr("\n")); entered.waitForZero();
+        buffer.setText("unfinished 界 draft"); buffer.select(2, 12); hash<NcursesUi::EditorSnapshot> draft = buffer.snapshot();
+        app.processEvent(chr("\x10")); assertEq("1 + 2", buffer.getText());
+        release.dec(); released = True; client.joinEvaluation(); assertEq("1 + 2", buffer.getText());
+        app.processEvent(chr("\x0e")); assertEq(draft, buffer.snapshot());
+        app.processEvent(chr("\x10")); assertEq(command, buffer.getText());
+        app.processEvent(chr("\x0e")); assertEq(draft, buffer.snapshot());
     }
     navigation() {
         NcursesUi::TestHarness th(14, 60); on_exit th.close(); auto client = program.callFunction("createRepl", th.session()); on_exit client.close();

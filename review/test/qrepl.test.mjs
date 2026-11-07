@@ -134,6 +134,7 @@ test('intentional qrepl quit acknowledges its input and closes without failure',
     const dialog = await native.command('input', { data: '\x11' });
     assert.equal(dialog.artifact.state.modal, true);
     const ended = once(native, 'ended', { signal: AbortSignal.timeout(5000) });
+    ended.catch(() => {}); // A failed input still enters cleanup before this deadline rejects.
     const frame = await native.command('input', { data: '\r' });
     assert.equal(frame.artifact.state.modal, false);
     await ended;

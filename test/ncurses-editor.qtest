@@ -20,6 +20,7 @@ class EditorTest inherits Test {
         addTestCase("selection and undo operate on full graphemes", \selection());
         addTestCase("limits and callbacks preserve draft selection and undo", \failures());
         addTestCase("searchable history restores unfinished draft", \history());
+        addTestCase("history refresh preserves browsing snapshots and applies the latest update on exit", \historyRefresh());
         addTestCase("hard and soft rows use consistent cursor and mouse geometry", \geometry());
         addTestCase("vertical movement retains preferred display column", \vertical());
         addTestCase("paste and submit are distinct atomic operations", \pasteSubmit());
@@ -93,6 +94,29 @@ class EditorTest inherits Test {
         assertTrue(b.historyMove(True, "command")); assertEq("last command", b.getText());
         assertTrue(b.historyMove(True, "command")); assertEq(draft, b.snapshot()); assertFalse(b.historyMove(True));
         b.setHistory(()); assertFalse(b.historyMove()); assertEq(draft, b.snapshot());
+    }
+    historyRefresh() {
+        NcursesUi::EditorBuffer b(); b.setHistory(("first", "duplicate", "duplicate"));
+        b.setText("unfinished 界 draft"); b.select(2, 12); hash<NcursesUi::EditorSnapshot> draft = b.snapshot();
+        assertTrue(b.historyMove()); hash<NcursesUi::EditorSnapshot> recalled = b.snapshot(); int revision = b.getRevision();
+        b.setHistory(("replacement",), True); b.setHistory(("latest", "background"), True);
+        assertEq(recalled, b.snapshot()); assertEq(revision, b.getRevision());
+        assertTrue(b.historyMove()); assertEq("duplicate", b.getText());
+        assertTrue(b.historyMove(True)); assertEq("duplicate", b.getText());
+        assertTrue(b.historyMove(True)); assertEq(draft, b.snapshot());
+        assertTrue(b.historyMove()); assertEq("background", b.getText());
+        b.setHistory((), True); assertTrue(b.historyMove(True)); assertEq(draft, b.snapshot());
+        assertFalse(b.historyMove()); assertEq(draft, b.snapshot());
+        b.setHistory(("old",)); assertTrue(b.historyMove());
+        b.setHistory(("new",), True); b.setText("new draft");
+        assertTrue(b.historyMove()); assertEq("new", b.getText());
+        b.setHistory(("newest",), True); b.insert("!"); assertEq("new!", b.getText());
+        assertTrue(b.historyMove()); assertEq("newest", b.getText());
+        assertTrue(b.historyMove(True)); assertEq("new!", b.getText());
+        assertTrue(b.undo()); assertEq("new", b.getText());
+        b.setHistory(("reset",)); assertFalse(b.historyMove(True));
+        assertTrue(b.historyMove()); assertEq("reset", b.getText());
+        assertThrows("EDITOR-BUSY-ERROR", sub () { b.submit(sub (string text) { b.setHistory((), True); }); });
     }
     private hash<Ncurses::InputEvent> key(string name) { return <Ncurses::InputEvent>{"type": Ncurses::InputType::Key, "name": name}; }
     wordEdits() {

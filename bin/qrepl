@@ -3938,7 +3938,9 @@ class QRepl {
     bool isEvaluating() { return evaluation.isRunning(); }
     nothing close() { close_session(); }
 
-    private nothing refresh_history() { buffer.setHistory(map $1.text, history.getItems()); }
+    private nothing refresh_history() {
+        list<string> entries = map $1.text, history.getItems(); buffer.setHistory(entries, True);
+    }
 
     private nothing parse_args() {
         int i = 0;

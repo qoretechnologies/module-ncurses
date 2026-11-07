@@ -1,5 +1,6 @@
 // Copyright 2026 Qore Technologies, s.r.o. SPDX-License-Identifier: MIT
 import { fileURLToPath } from 'node:url';
+import { hostname } from 'node:os';
 const terminalModule = fileURLToPath(new URL('../terminal.mjs', import.meta.url));
 export default {
   framework: '@storybook/html-vite',
@@ -17,6 +18,7 @@ export default {
       },
     }];
     config.server = { ...config.server,
+      allowedHosts: [...(Array.isArray(config.server?.allowedHosts) ? config.server.allowedHosts : []), hostname()],
       // Storybook owns the HTTP server. Vite needs it explicitly for proxy WS upgrades.
       ...(config.server?.middlewareMode && config.server?.hmr?.server
         ? { middlewareMode: { server: config.server.hmr.server } } : {}),

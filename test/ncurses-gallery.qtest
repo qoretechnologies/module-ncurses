@@ -416,6 +416,11 @@ class GalleryTest inherits Test {
         string help = join("", map $1.text, gallery.current().capture().frame.cells);
         assertTrue(help.find("Alt-6 Inspect") >= 0);
         assertTrue(help.find("Escape: close this help.") >= 0);
+        NcursesUi::Widget help_modal = app.getDispatcher().topModal();
+        for (int fn = 1; fn <= 6; ++fn) {
+            app.processEvent(NcursesGallery::Registry::key("KEY_F(" + fn + ")"));
+            assertEq(help_modal, app.getDispatcher().topModal()); assertEq("keep this draft", editor.getText());
+        }
         app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "\x11"});
         NcursesUi::DialogWidget quit = cast<NcursesUi::DialogWidget>(app.getDispatcher().topModal());
         assertTrue(join(" ", quit.getMessageLines()).find("discard") >= 0);
@@ -437,7 +442,9 @@ class GalleryTest inherits Test {
             gallery.closeOverlay(); assertTrue(gallery.current().isEvaluating());
         }
         app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Alt, "ch": "2"});
-        assertTrue(!!gallery.navigation()); gallery.navigation().query.setText("label.default");
+        assertTrue(!!gallery.navigation()); NcursesGallery::Picker picker = gallery.navigation();
+        app.processEvent(NcursesGallery::Registry::key("KEY_F(3)")); assertEq(picker, gallery.navigation());
+        gallery.navigation().query.setText("label.default");
         app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "\n"});
         assertFalse(!!gallery.navigation()); assertEq("qrepl.default", gallery.current().story().id);
         gallery.closeOverlay(); editor.setText("new draft");

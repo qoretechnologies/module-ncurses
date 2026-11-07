@@ -29,6 +29,10 @@ Open <http://127.0.0.1:6006>. The PTY bridge binds to `127.0.0.1:6007`; both por
 must be free. Select a widget/state in the Storybook tree, use its native keyboard
 and mouse controls, paste text, reset, inspect focus/cursor, or change viewport
 size. The status line updates only after native draw and browser rendering finish.
+For review from another LAN machine, start with `STORYBOOK_HOST=0.0.0.0 npm run dev`
+and use the hostname URL printed at startup (for example, `http://supah:6006`).
+The native bridge stays on loopback and is reached through Storybook's proxy;
+the development host and WebSocket origin checks allow the machine's hostname.
 For example, open the editor directly:
 
 <http://127.0.0.1:6006/?path=/story/native-texteditorwidget--boundaries>

@@ -12520,12 +12520,12 @@
     "timezone": "UTC",
     "dependencies": "ec2067694183c25eb2923b33b5ee257ed4fca9aa080e3179aafef6702de40112",
     "fonts": "03f7dd59be6bd76c193949b23f249a5c7de61cb007934282b61b1d6dbbff08be",
-    "renderer": "47ac3b14d8a553c0be56f54d8741cce17c12dbd6db7f8d2e78c6c6f01b9a2149",
+    "renderer": "6a15e92ac017e73434ea575c4aa295a8e02cc7f206f13d2e5e88f2b82ae7404d",
     "styles": "0d2f1ecbb579829af7397da72c01e4945b312972390d825739e4bb9554ef6300"
   },
   "acceptance": {
     "reviewer": "Codex",
     "evidence": "docs/ux-review-2026-11.md",
-    "evidence_sha256": "b2283fc152e0f98ee90987540ad88295f289a5ddc5dc6d82da86881db4e63a59"
+    "evidence_sha256": "ba4ac5caf27570cab72eb05de8d32135581685ffffdf5f4cdddb8c69e2338247"
   }
 }
