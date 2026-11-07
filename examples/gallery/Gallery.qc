@@ -111,10 +111,12 @@ class Gallery {
     nothing showHelp(bool inspect = False, *string notice) {
         closeOverlay(); hash<auto> state = runner.capture();
         expandOverlay(); on_error closeOverlay();
-        string message = runner.story().purpose + "\n\n" + runner.story().keyboard + "\n" + runner.story().mouse
-            + (runner.story().application
-                ? "\n\nAlt-1 Help | Alt-2 Search | Alt-3 Reset | Alt-4 Size | Alt-5 Next step | Alt-6 Inspect | Ctrl+Q Quit"
-                : "\n\nF1 Help | F2 Search | F3 Reset | F4 Size | F5 Next step | F6 Inspect | Ctrl+Q Quit");
+        string message = runner.story().application
+            ? "Alt-1 Help   Alt-2 Search   Alt-3 Reset\nAlt-4 Size   Alt-5 Next step   Alt-6 Inspect\n\n"
+                + "qrepl: Enter evaluate; Tab complete; F1 help; F6 panes.\n"
+                + "F3 / Shift-F3: next / previous output search match.\nCtrl-Q: confirm quit. Escape: close this help."
+            : runner.story().purpose + "\n\n" + runner.story().keyboard + "\n" + runner.story().mouse
+                + "\n\nF1 Help | F2 Search | F3 Reset | F4 Size | F5 Next step | F6 Inspect | Ctrl+Q Quit";
         if (inspect) {
             message = sprintf("Story: %s\nFocus: %s\nModal: %y\nScroll: %y\nSelection: %y\nCursor: row %d, col %d, visibility %d\nFrame: %dx%d\nCheckpoint: %d/%d",
                 runner.story().id, state.state.focus, state.state.modal, state.state.scroll, state.state.selected,

@@ -351,7 +351,8 @@ error cleanup.
 
 Further review covered running-work and final-result paths. Application gallery
 controls use Alt-1 through Alt-6, retaining Shift-F3 search navigation and the
-draft. Reset/replay/story selection reject active work before any teardown or
+draft. The compact gallery help keeps every shortcut and its dismissal instruction
+visible at the registered 16×72 size. Reset/replay/story selection reject active work before any teardown or
 geometry mutation; FIFO-gated tests then exercise editing, resizing, cancellation
 and recovery. A dedicated final frame and terminal/render barrier preserve both
 successful and failed results when Finish and quit was accepted before the worker
@@ -388,8 +389,8 @@ this follow-up; earlier native implementation checks remain recorded above.
 | Security | Pass | No arbitrary bridge command endpoint, no credentials, local-only review service; fixture teardown and native-protocol bounds retained. |
 | Correctness | Pass | Exact completion ranges and suffix retention, Unicode, tiny/resize layouts, save/overwrite/cancel/load, draft revision preservation, focus restoration and actual streaming tested. |
 
-Final local gates: 45 QUnit suites, 960 cases / 22,113 assertions; 26 compiled-module
-suites, 632 cases / 8,018 assertions. Documentation/API checks, executable examples,
+Final local gates: 45 QUnit suites, 960 cases / 22,115 assertions; 26 compiled-module
+suites, 632 cases / 8,020 assertions. Documentation/API checks, executable examples,
 widget-catalog drift checks and CI tree-reuse tests pass. Browser/native tooling
 and platform CI results are linked in the delivery PR. No C++ changed, so this
 follow-up does not require a new Valgrind run.

@@ -413,6 +413,9 @@ class GalleryTest inherits Test {
         assertEq(editor, app.getFocusManager().getCurrentFocus()); assertEq("keep this draft", editor.getText());
         assertTrue(output.getScrollY() < last_match_scroll);
         app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Alt, "ch": "1"});
+        string help = join("", map $1.text, gallery.current().capture().frame.cells);
+        assertTrue(help.find("Alt-6 Inspect") >= 0);
+        assertTrue(help.find("Escape: close this help.") >= 0);
         app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "\x11"});
         NcursesUi::DialogWidget quit = cast<NcursesUi::DialogWidget>(app.getDispatcher().topModal());
         assertTrue(join(" ", quit.getMessageLines()).find("discard") >= 0);
