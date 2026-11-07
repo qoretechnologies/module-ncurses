@@ -15,6 +15,10 @@ exclusively for ncurses I/O; stdin/stdout are private JSON control pipes. The
 supervisor multiplexes control, raw PTY bytes and native frames with asyncio and
 file-descriptor readiness. Commands are serialized by the server and native owner.
 No client-supplied executable or shell command is evaluated.
+Before enqueueing, each connection limits outstanding work (including its in-flight
+command) to 64 requests and 1 MiB of retained JSON. Overflow closes the connection
+and its native process; queued callbacks skip closed sessions. Completion releases
+both counters so the limit bounds bursts, not the lifetime number of commands.
 
 For input, the supervisor writes actual terminal bytes followed by U+001E. The
 native loop consumes events until the reserved fence; a standalone Escape followed

@@ -155,7 +155,9 @@ Bracketed paste is supported. The review bridge reserves U+001E as its input
 completion fence and rejects it in pasted/typed payloads; other applications using
 the native widgets do not have this tooling restriction. A command accepts at most
 16 KiB of input; geometry is 1..100 rows and 1..240 columns, with four simultaneous
-local sessions. These are review-tool resource bounds, not widget API limits.
+local sessions. Each connection allows at most 64 outstanding commands and 1 MiB
+of queued JSON; exceeding either limit closes and cleans up the session. Completed
+commands release their queue budget. These are review-tool resource bounds, not widget API limits.
 An exception while dispatching terminal input closes that session because its
 completion fence may be unread. Select the story again to start a fresh session.
 

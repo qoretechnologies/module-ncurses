@@ -34,7 +34,8 @@ export async function createBridgeServer({ port = 6007, staticDir, allowedOrigin
     sockets.handleUpgrade(request, socket, head, ws => sockets.emit('connection', ws));
   });
   sockets.on('connection', ws => {
-    const connection = { ws, native: null, chain: Promise.resolve(), lastRequest: -1, closing: null };
+    const connection = { ws, native: null, chain: Promise.resolve(), lastRequest: -1, closing: null,
+      outstanding: 0, queuedBytes: 0 };
     connections.add(connection);
     const send = message => { if (ws.readyState === WebSocket.OPEN) { ws.send(JSON.stringify(message)); } };
     connection.close = () => {
@@ -50,8 +51,16 @@ export async function createBridgeServer({ port = 6007, staticDir, allowedOrigin
     ws.on('close', () => { void connection.close(); });
     ws.on('error', () => { ws.terminate(); void connection.close(); });
     ws.on('message', (data, binary) => {
+      if (connection.closing || ws.readyState !== WebSocket.OPEN) { return; }
+      // Count retained buffers before enqueueing, including the in-flight command.
+      // Per-message bounds alone do not constrain a client sending faster than Qore.
+      if (connection.outstanding >= 64 || connection.queuedBytes + data.length > 1024 * 1024) {
+        send({ type: 'error', fatal: true, error: 'Outstanding command budget exceeded (64 requests or 1 MiB)' });
+        ws.close(1008, 'Outstanding command budget exceeded'); void connection.close(); return;
+      }
+      ++connection.outstanding; connection.queuedBytes += data.length;
       connection.chain = connection.chain.then(async () => {
-        if (ws.readyState !== WebSocket.OPEN) { return; }
+        if (connection.closing || ws.readyState !== WebSocket.OPEN) { return; }
         let message;
         try {
           if (binary) { throw new Error('Expected a JSON text command'); }
@@ -83,7 +92,8 @@ export async function createBridgeServer({ port = 6007, staticDir, allowedOrigin
           send({ type: 'error', request: message?.request, error: error.message });
           if (!connection.native) { ws.close(1008, 'Invalid startup'); }
         }
-      }).catch(error => { send({ type: 'error', fatal: true, error: error.message }); ws.close(1011); });
+      }).catch(error => { send({ type: 'error', fatal: true, error: error.message }); ws.close(1011); })
+        .finally(() => { --connection.outstanding; connection.queuedBytes -= data.length; });
     });
   });
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(port, '127.0.0.1', resolve); });

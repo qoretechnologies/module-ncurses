@@ -10,11 +10,14 @@ function connect(server, origin = `http://127.0.0.1:${server.port}`) {
 }
 function response(socket, request) {
   return new Promise((resolve, reject) => {
+    const cleanup = () => { socket.off('message', listener); socket.off('error', failed); socket.off('close', closed); };
+    const failed = error => { cleanup(); reject(error); };
+    const closed = () => failed(new Error('Socket closed before the expected response'));
     const listener = data => {
       const message = JSON.parse(data.toString());
-      if (message.request === request) { socket.off('message', listener); resolve(message); }
+      if (message.request === request) { cleanup(); resolve(message); }
     };
-    socket.on('message', listener); socket.once('error', reject);
+    socket.on('message', listener); socket.once('error', failed); socket.once('close', closed);
   });
 }
 
@@ -82,5 +85,53 @@ test('session and message bounds reject excess work and release capacity', async
     recovered.send(JSON.stringify({ request: 1, type: 'input', data: '\x07'.repeat(16384) }));
     assert.equal((await escaped).artifact.story, 'label.default', 'valid input survives worst-case JSON escaping');
   } finally { for (const socket of sockets) { socket.terminate(); } await server.close(); }
+  assert.equal(server.sessionCount, 0);
+});
+
+test('queued request count and bytes are bounded before native startup completes', async () => {
+  const server = await createBridgeServer({ port: 0 });
+  try {
+    for (const large of [false, true]) {
+      const socket = connect(server); await once(socket, 'open');
+      const fatal = new Promise((resolve, reject) => socket.on('message', data => {
+        const message = JSON.parse(data.toString());
+        if (message.fatal) { resolve(message); }
+        else if (message.type === 'frame') { reject(new Error('Excess queued work was accepted')); }
+      }));
+      const closed = once(socket, 'close');
+      // One TCP batch is delivered while startup is still awaiting its native frame.
+      socket._socket.cork();
+      socket.send(JSON.stringify({ request: 0, type: 'start', story: 'label.default' }));
+      for (let request = 1; request <= (large ? 12 : 65); ++request) {
+        socket.send(JSON.stringify(large
+          ? { request, type: 'input', data: '\x07'.repeat(16384) }
+          : { request, type: 'capture' }));
+      }
+      socket._socket.uncork();
+      assert.match((await fatal).error, /Outstanding command budget exceeded/);
+      assert.equal((await closed)[0], 1008);
+    }
+  } finally { await server.close(); }
+  assert.equal(server.sessionCount, 0);
+});
+
+test('the exact request budget is accepted and completed commands release both counters', async () => {
+  const server = await createBridgeServer({ port: 0 });
+  const socket = connect(server); await once(socket, 'open');
+  try {
+    const completed = response(socket, 63);
+    socket._socket.cork();
+    socket.send(JSON.stringify({ request: 0, type: 'start', story: 'label.default' }));
+    for (let request = 1; request < 64; ++request) { socket.send(JSON.stringify({ request, type: 'capture' })); }
+    socket._socket.uncork();
+    assert.equal((await completed).artifact.story, 'label.default');
+    // Cumulative retained JSON exceeds 1 MiB, but only one command is outstanding.
+    for (let request = 64; request < 76; ++request) {
+      const result = response(socket, request);
+      socket.send(JSON.stringify({ request, type: 'capture', padding: 'x'.repeat(96 * 1024) }));
+      assert.equal((await result).artifact.story, 'label.default');
+    }
+    assert.equal(socket.listenerCount('error'), 0, 'completed response helpers release rejection listeners');
+  } finally { socket.terminate(); await server.close(); }
   assert.equal(server.sessionCount, 0);
 });
