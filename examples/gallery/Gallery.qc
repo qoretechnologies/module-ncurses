@@ -87,7 +87,8 @@ class Gallery {
         on_exit {
             if (info) { on_exit info = NOTHING; info.setOnButton(NOTHING); info.setOnDismiss(NOTHING); info.destroyPanel(); }
         }
-        if (picker || info) { app.popModal(); }
+        if (picker) { app.removeModal(picker); }
+        if (info) { app.removeModal(info); }
     }
     private nothing expandOverlay() {
         observeGeometry(); overlay_size = app.getSession().screen().size();

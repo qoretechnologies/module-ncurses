@@ -212,7 +212,7 @@ class Fixture {
             else if (assistance) { assistance.beginRequest(); }
         }
     }
-    private nothing dismiss() { app.popModal(); if (panel) { panel.destroyPanel(); } }
+    private nothing dismiss() { if (panel) { on_exit panel.destroyPanel(); app.removeModal(panel); } }
     nothing perform(string command) {
         switch (command) {
             case "append-output":

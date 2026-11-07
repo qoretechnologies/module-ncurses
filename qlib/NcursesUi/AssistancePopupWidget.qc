@@ -5,7 +5,7 @@ public namespace NcursesUi {
     Type to filter completion labels; Up/Down select, Enter activates, Tab switches
     between the result list and scrollable documentation. Escape and outside primary
     clicks dismiss; outside clicks can continue to the underlying control.
-    Use the application's popup stack and setOnDismiss() to pop/destroy the panel.
+    Use the application's popup stack and setOnDismiss() to remove/destroy the panel.
     The editor's shared caret mapping supplies the anchor across wrapping/scrolling.
     If the caret is outside the visible editor, positionAtCaret() dismisses help
     through the same ownership callback as Escape.
@@ -38,7 +38,7 @@ public class AssistancePopupWidget inherits NcursesUi::PanelWidget {
         results.setOnActivate(sub (hash<auto> item) { activateSelected(); });
         addChild(results); addChild(documentation); refresh();
     }
-    /** Sets dismissal integration. @param callback pops/destroys this popup in the owning application */
+    /** Sets dismissal integration. @param callback removes/destroys this popup in the owning application */
     nothing setOnDismiss(*code<nothing()> callback) { on_dismiss = callback; }
     /** Sets maximum popup dimensions. @param rows positive rows @param columns positive columns @throw ASSISTANCE-SIZE-ERROR if invalid */
     nothing setMaximumSize(int rows, int columns) {

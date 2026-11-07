@@ -24,7 +24,10 @@ class AssistanceDemo {
             if (exists payload.error) { model.fail(request, string(payload.error)); return; }
             if (!model.complete(request, payload.response)) { return; }
             popup = new NcursesUi::AssistancePopupWidget(session, editor, model);
-            popup.setOnDismiss(sub () { app.popModal(); popup.destroyPanel(); popup = NOTHING; });
+            popup.setOnDismiss(sub () {
+                *NcursesUi::AssistancePopupWidget old = popup; popup = NOTHING;
+                if (old) { on_exit old.destroyPanel(); app.removeModal(old); }
+            });
             hash<Ncurses::Size> size = session.screen().size();
             if (popup.positionAtCaret(size.rows, size.cols)) { popup.createPanel(); app.pushPopup(popup); }
         }, editor);

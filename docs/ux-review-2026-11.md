@@ -80,6 +80,11 @@ the image inspections described below precede explicit baseline acceptance.
     removing the panel and modal scope. Native and browser tests open assistance
     before shrinking to 1×1, verify continued editing, and reopen/dismiss after
     recovery; unit tests cover clipped/hidden anchors, cancellation and owner errors.
+    The nested variant opens gallery Help over assistance before shrinking. Owned
+    modal removal preserves Help and its focus, reconnects the restoration chain,
+    and restores editing after Help closes. Both code and standalone assistance
+    fixtures cover this path; scope tests also cover active capture, unavailable
+    prior focus, ownership cleanup, cursor restoration and callback failures.
   - Ubuntu's first follow-up capture matched every native state but exposed LCD
     color fringes in the opaque WebGL glyph atlas. Local grayscale/RGB fontconfig
     profiles reproduced the mismatch. An alpha glyph atlas selects grayscale

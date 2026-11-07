@@ -159,6 +159,40 @@ public class EventDispatcher {
         return entry.widget;
     }
 
+    /** Removes an owned modal or popup by identity, even below another overlay.
+        Removing the top scope restores focus like popModal(). Removing a covered
+        scope preserves active focus and mouse capture, and reconnects the next
+        overlay's restoration path to the removed scope's predecessor.
+        The caller retains responsibility for its widget and native panel lifetime.
+        @param widget scope to remove
+        @return True if removed, False if it is not active
+        @throw MODAL-SCOPE-ERROR during a focus or modal transition
+        @since ncurses 1.0
+    */
+    bool removeModal(NcursesUi::Widget widget) {
+        if (changing_scope || focus_mgr.isChangingFocus()) {
+            throw "MODAL-SCOPE-ERROR", "A focus callback cannot change the modal stack";
+        }
+        for (int index = 0; index < modal_stack.size(); ++index) {
+            if (modal_stack[index].widget != widget) { continue; }
+            if (index == modal_stack.size() - 1) { popModal(); return True; }
+            changing_scope = True;
+            on_exit changing_scope = False;
+            list<hash<NcursesUi::ModalFocusState>> remaining = modal_stack;
+            remaining[index + 1].previous_scope = remaining[index].previous_scope;
+            remaining[index + 1].previous_focus = remaining[index].previous_focus;
+            splice remaining, index, 1;
+            modal_stack = remaining;
+            widget.markDirty();
+            foreach hash<NcursesUi::ModalFocusState> entry in (modal_stack) {
+                entry.widget.markDirty();
+                if (entry.previous_scope) { entry.previous_scope.markDirty(); }
+            }
+            return True;
+        }
+        return False;
+    }
+
     private nothing removeTop() {
         foreach hash<NcursesUi::ModalFocusState> entry in (modal_stack) {
             entry.widget.markDirty();

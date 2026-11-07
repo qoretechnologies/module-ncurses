@@ -174,6 +174,10 @@ app.run();
     Explicit global handlers run first, so return unhandled for keys that belong
     to the form. Use @ref NcursesUi::Application::pushPopup() "pushPopup()" only
     when outside clicks should dismiss the popup and reach the underlying UI.
+    Owners should use @ref NcursesUi::Application::removeModal() "removeModal(widget)"
+    when releasing a specific popup: it also removes covered scopes while preserving
+    the overlay above them and its eventual focus-restoration target. The owner
+    still hides or destroys its panel. popModal() remains the top-of-stack operation.
 
     This deterministic example exercises a nested text form without an event loop:
 
@@ -434,7 +438,8 @@ request = help.beginRequest(); editor.insert("x");
     including during resize, and presents filterable results
     with scrollable documentation. Up/Down navigate, Enter activates, Tab changes to
     documentation, and Escape dismisses. The application owns popup push/pop and panel
-    destruction through setOnDismiss(). See @c examples/editor-assistance.qr.
+    destruction through setOnDismiss(); use removeModal(popup) so a help overlay
+    above the popup remains intact. See @c examples/editor-assistance.qr.
 
     @section ncursesui_async UI Delivery and Operation State
 

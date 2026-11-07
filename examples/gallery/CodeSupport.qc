@@ -96,7 +96,7 @@ class CodePreview inherits NcursesUi::Widget {
         if (!old) { return; }
         old.setOnDismiss(NOTHING);
         on_exit old.destroyPanel();
-        if (app.getDispatcher().topModal() == old) { app.popModal(); }
+        app.removeModal(old);
     }
     nothing close() { on_exit editor.setHighlighter(NOTHING); closePopup(); }
 }

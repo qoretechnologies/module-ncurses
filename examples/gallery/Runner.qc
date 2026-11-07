@@ -96,7 +96,7 @@ class Runner {
             app.getSession().setCursor(focus && focus.wantsCursor() ? 1 : 0);
         }
     }
-    private nothing dismiss() { app.popModal(); if (popup) { popup.destroyPanel(); } }
+    private nothing dismiss() { if (popup) { on_exit popup.destroyPanel(); app.removeModal(popup); } }
     hash<auto> inspect(*hash<Ncurses::ScreenCapture> frame) {
         checkOpen();
         *NcursesUi::Widget focus = app.getFocusManager().getCurrentFocus();

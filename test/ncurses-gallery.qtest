@@ -35,6 +35,7 @@ class GalleryTest inherits Test {
         addTestCase("real code highlighting completion hints undo and cancellation", \codeEditor());
         addTestCase("code popup cleanup survives failing focus restoration", \codeFailure());
         addTestCase("resizing open code assistance dismisses and restores editing", \codeResize());
+        addTestCase("nested gallery overlays survive assistance anchor loss", \codeNestedResize());
         addTestCase("compact content excludes panel chrome and unrelated editing cursors", \visibleContent());
         addTestCase("story selection search and errors", \registry());
         addTestCase("reset removes modal state and restores deterministic fixtures", \reset());
@@ -174,6 +175,28 @@ class GalleryTest inherits Test {
         app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "\e"});
         assertFalse(runner.capture().state.modal); assertEq("TextEditorWidget", runner.inspect().focus);
         assertEq(original + "x", runner.inspect().text);
+    }
+    codeNestedResize() {
+        foreach string story in (("text-editor.code", "assistance-popup.default")) {
+            Ncurses::TestTerminal terminal(20, 100); NcursesUi::Application app({"test_terminal": terminal}); on_exit app.close();
+            NcursesGallery::Gallery gallery(app, story); on_exit gallery.close();
+            if (story == "text-editor.code") { app.processEvent(NcursesGallery::Registry::key("KEY_F(8)")); }
+            gallery.current().capture();
+            NcursesUi::PanelWidget assistance = cast<NcursesUi::PanelWidget>(app.getDispatcher().topModal());
+            app.processEvent(NcursesGallery::Registry::key("KEY_F(1)"));
+            NcursesUi::Widget help = app.getDispatcher().topModal();
+            assertTrue(assistance != help); assertEq(2, app.getDispatcher().getModalStack().size());
+            terminal.resize(1, 1); app.getSession().resize(1, 1); app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Resize});
+            app.drawAll(); assertEq((help,), app.getDispatcher().getModalStack());
+            assertNothing(assistance.getWindow()); assertFalse(assistance.isVisible());
+            assertTrue(help.containsWidget(app.getFocusManager().getCurrentFocus()));
+            app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "\e"});
+            assertFalse(app.getDispatcher().hasModal());
+            assertEq("TextEditorWidget", gallery.current().inspect().focus);
+            string original = gallery.current().inspect().text;
+            app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "x"});
+            assertTrue(original != gallery.current().capture().state.text);
+        }
     }
     visibleContent() {
         NcursesUi::TestHarness th(8, 30); on_exit th.close();

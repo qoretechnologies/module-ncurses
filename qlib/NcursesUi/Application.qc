@@ -216,6 +216,18 @@ public class Application {
         return dispatcher.popModal();
     }
 
+    /** Removes an owned scope while preserving overlays above it and their focus.
+        The owner must still hide or destroy its native panel.
+        @param widget modal or popup to remove
+        @return True if removed, False if not active
+        @throw MODAL-SCOPE-ERROR during a focus or modal transition
+        @since ncurses 1.0
+    */
+    bool removeModal(NcursesUi::Widget widget) {
+        on_exit { pruneCallbacks(); updateModalCursor(); }
+        return dispatcher.removeModal(widget);
+    }
+
     /** Overrides the cursor visibility restored after the last modal.
         Otherwise the visibility preceding the first modal is restored.
         @param visibility 0 (hidden), 1 (normal), or 2 (very visible)

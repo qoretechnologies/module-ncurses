@@ -164,6 +164,10 @@ modal push/pop and panel destruction. Hiding the editor/popup cancels pending he
 If resize, clipping or editor visibility removes a visible popup's caret anchor,
 positioning invokes its dismissal hook once so ownership can release the modal
 scope and panel; it does not leave an invisible scope trapping keyboard input.
+Owners remove their exact widget with `Application.removeModal()`. When a scope is
+covered, `EventDispatcher` splices that entry out and transfers its saved scope/focus
+to its immediate successor. Active focus and mouse capture stay with the top overlay;
+later dismissal restores the surviving predecessor, not the destroyed popup.
 
 `ActionModel` similarly identifies each operation attempt and explicitly represents
 pending, running, cancelled, failed and completed states. Cancellation invalidates the
