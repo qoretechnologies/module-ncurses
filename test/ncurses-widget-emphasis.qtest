@@ -14,6 +14,7 @@ class WidgetEmphasisTest inherits Test {
         addTestCase("chart defaults to recognizable bars with an explicit ASCII fallback", \chart());
         addTestCase("emphasis survives narrow geometry clipping and recovery", \geometry());
         addTestCase("expanded charts preserve endpoints gaps and finite extreme values", \expanded());
+        addTestCase("chart presentation changes preserve its scrolled reading position", \chartScroll());
         set_return_value(main());
     }
     private int row(Ncurses::Window screen, string text) {
@@ -123,6 +124,37 @@ class WidgetEmphasisTest inherits Test {
         }
         root.addChild(chart); app.drawAll(); row(th.screen(), "Extreme"); row(th.screen(), "missing sample");
         assertEq(0, chart.getScrollY());
+    }
+    chartScroll() {
+        foreach bool colors in ((True, False)) {
+            foreach int height in ((1, 64)) {
+                NcursesUi::TestHarness th(24, 80, {"use_colors": colors}); on_exit th.close();
+                NcursesUi::Application app(th.session()); on_exit app.close();
+                NcursesUi::Widget root(); app.setRoot(root);
+                NcursesUi::TextChart data((1.0, 4.0, NOTHING, 2.0, 8.0), "Values", "ms");
+                NcursesUi::TextChartWidget widget(data); root.addChild(widget);
+                widget.setFrameValues(0, 0, 4, 24); widget.setChartHeight(height); app.drawAll();
+                widget.scrollTo(NcursesUi::ScrollDirection::End); app.drawAll();
+                int offset = widget.getScrollY(); assertTrue(offset > 0);
+                foreach bool enabled in ((False, True)) {
+                    widget.setEnabled(enabled); app.drawAll(); assertEq(offset, widget.getScrollY());
+                    assertEq(!enabled, !!(cell(th, 0).attrs & Ncurses::Attr::Dim));
+                    assertFalse(widget.isDirty());
+                }
+                if (height > 1) {
+                    foreach bool unicode in ((False, True)) {
+                        widget.setUnicode(unicode); app.drawAll(); assertEq(offset, widget.getScrollY());
+                        assertFalse(widget.isDirty());
+                    }
+                }
+                foreach bool enabled in ((False, True)) {
+                    root.setEnabled(enabled); app.drawAll(); assertEq(offset, widget.getScrollY());
+                    assertEq(!enabled, !!(cell(th, 0).attrs & Ncurses::Attr::Dim));
+                    assertFalse(widget.isDirty());
+                }
+                widget.setChart(data); app.drawAll(); assertEq(0, widget.getScrollY());
+            }
+        }
     }
     expanded() {
         NcursesUi::TextChart data((-1e308, 0.0, 1e308, NOTHING), "Range");

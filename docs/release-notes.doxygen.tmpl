@@ -12,6 +12,8 @@
     legends. setUnicode(False) retains an ASCII fallback; setChartHeight(6) enables
     larger bars with six rows of resolution. TextChart::bars() returns expanded
     plain-text charts; the existing sparkline() string API remains ASCII by default.
+    Chart presentation updates retain the scrolled reading position; replacing the
+    data snapshot explicitly returns to its summary.
 
     FormWidget now groups bold field labels, descriptions and validation messages
     above visibly bounded values, with spacing between fields and a non-color focus

@@ -63,6 +63,11 @@ precede explicit baseline acceptance.
     Native boundary tests cover zero/tiny widths, 64-row scrolling, invalid heights,
     finite extremes, constant data and gaps. Browser input reviews compact, ASCII
     and expanded charts in both color modes, including scroll and resize recovery.
+  - PR review found that chart restyling replaced stable line identities and reset
+    a scrolled viewport. Same-size updates now preserve those identities. A failing
+    regression was reproduced, then passed for compact/64-row charts, direct and
+    inherited availability changes, expanded glyph-mode switches and both color
+    modes. Explicit snapshot replacement still returns to the summary.
 - [#5628](https://github.com/qoretechnologies/qore/issues/5628): user review found
   that the form's label/value/help sequence looked like unrelated plain lines, and
   clicking a label or description did not focus its value. The earlier Form

@@ -116,7 +116,9 @@ public class TextChartWidget inherits NcursesUi::ScrollableWidget {
                 : unicode ? "Scale: ▁ min to █ max; ? = missing sample" : "Scale: .:-=+*#@ (min to max); ? = missing sample";
         }
         if (!available) { rows = map "\e[2m" + NcursesUi::TerminalText::plainAnsi($1) + "\e[0m", rows; }
-        lines.setLines(rows);
+        # Preserve reading anchors when only presentation changes.
+        if (lines.lineCount() != rows.size()) { lines.setLines(rows); }
+        else { for (int i = 0; i < rows.size(); ++i) { lines.setLine(i, rows[i]); } }
         int final_columns = max(0, getViewportRect().cols);
         if (chart.getSamples() && columns != final_columns) {
             list<string> bars = chartRows(final_columns);
