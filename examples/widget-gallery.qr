@@ -1,0 +1,44 @@
+#!/usr/bin/env qore
+# Copyright 2026 Qore Technologies, s.r.o.
+%requires ncurses
+%requires NcursesUi
+%requires json
+%include "examples/gallery/Registry.qc"
+%include "examples/gallery/Catalog.qc"
+%include "examples/gallery/Variants.qc"
+%include "examples/gallery/Fixture.qc"
+%include "examples/gallery/Runner.qc"
+%include "examples/gallery/Gallery.qc"
+
+string id = "text-editor.boundaries";
+bool headless = False; bool catalog = False; bool monochrome = False; bool direct = False;
+for (int i = 0; i < ARGV.size(); ++i) {
+    switch (ARGV[i]) {
+        case "--story":
+            if (++i >= ARGV.size()) { throw "GALLERY-ARGUMENT-ERROR", "--story requires a stable story ID"; }
+            id = ARGV[i]; direct = True; break;
+        case "--headless": headless = True; break;
+        case "--catalog": catalog = True; break;
+        case "--monochrome": monochrome = True; break;
+        case "--help":
+            printf("Usage: widget-gallery.qr [--story ID] [--headless] [--catalog] [--monochrome]\nF1 help, F2 search, F3 reset, F4 size presets, F5 next story step, F6 inspect, Ctrl+Q quit.\n");
+            exit(0);
+        default: throw "GALLERY-ARGUMENT-ERROR", "Unknown option: " + ARGV[i];
+    }
+}
+if (catalog) { printf("%s\n", make_json(NcursesGallery::Registry::stories())); exit(0); }
+hash<NcursesGallery::Story> story = NcursesGallery::Registry::find(id);
+*Ncurses::TestTerminal terminal;
+hash<auto> options = {"raw": True, "mouse": True, "bracketed_paste": True, "cursor": 1, "use_colors": !monochrome};
+if (headless) { terminal = new Ncurses::TestTerminal(story.geometry.rows, story.geometry.cols); options.test_terminal = terminal; }
+NcursesUi::Application app(options); on_exit app.close();
+if (headless) {
+    list<hash<auto>> artifacts = ();
+    { NcursesGallery::Runner runner(app, id); on_exit runner.close();
+      foreach hash<NcursesGallery::Step> step in (story.steps) { artifacts += runner.step(); } }
+    app.close(); printf("%s\n", make_json(artifacts));
+} else {
+    NcursesGallery::Gallery gallery(app, id); on_exit gallery.close();
+    if (!direct) { gallery.showNavigation(); }
+    app.run();
+}

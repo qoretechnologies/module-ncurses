@@ -1,0 +1,238 @@
+#!/usr/bin/env qore
+# Copyright 2026 Qore Technologies, s.r.o.
+%modern
+%prepend-module-path "${SCRIPT_DIR}/../qlib"
+%requires ncurses
+%requires NcursesUi
+%requires QUnit
+%try-module json
+%define NoJson
+%endtry
+%include "test/TestHarness.qc"
+%exec-class CaptureTest
+
+class CaptureTest inherits Test {
+    constructor() : Test("CaptureTest", "1.0", \ARGV) {
+        addTestCase("completed physical frame excludes pending changes", \checkpoint());
+        addTestCase("overlapping panels restore backgrounds and preserve stacking", \panels());
+        addTestCase("Unicode cell widths combining marks and exact edges", \unicode());
+        addTestCase("colors attributes and monochrome capabilities", \styles());
+        addTestCase("physical cursor visibility and failed visibility requests", \cursor());
+%ifndef NoJson
+        addTestCase("capture is repeatable serializable and independent", \serialization());
+%endif
+        addTestCase("editor focus scroll selection and subsequent input are observational", \editor());
+        addTestCase("control characters are captured as rendered", \controls());
+        addTestCase("closed sessions and exception cleanup", \cleanup());
+        addTestCase("explicit resize captures the new full screen and rejects invalid sizes", \resize());
+        addTestCase("multiple sessions and unsupported visibility remain isolated", \sessions());
+        addTestCase("application flushes a base-only root and non-panel modal", \application());
+        addTestCase("nested panels clip disappear and restore in composed captures", \nested());
+        set_return_value(main());
+    }
+
+    private string row(hash<Ncurses::ScreenCapture> frame, int y) {
+        string text;
+        for (int x = 0; x < frame.cols; ++x) { text += frame.cells[y * frame.cols + x].text; }
+        return text;
+    }
+
+    checkpoint() {
+        NcursesUi::TestHarness th(5, 12); on_exit th.close();
+        th.screen().drawText(0, 0, "completed"); th.screen().refresh();
+        hash<Ncurses::ScreenCapture> before = th.session().capture();
+        assertEq(1, before.schema); assertEq(5, before.rows); assertEq(12, before.cols);
+        assertEq(60, before.cells.size()); assertEq("completed   ", row(before, 0));
+        th.screen().drawText(0, 0, "pending  "); th.screen().noutrefresh();
+        assertEq(before, th.session().capture());
+        th.session().doupdate(); assertEq("pending     ", row(th.session().capture(), 0));
+        assertEq("pending     ", th.session().snapshot()[0]);
+    }
+
+    panels() {
+        NcursesUi::TestHarness th(6, 16); on_exit th.close();
+        for (int y = 0; y < 6; ++y) { th.screen().drawText(y, 0, strmul("b", 16)); }
+        Ncurses::Panel lower(th.session(), 3, 8, 1, 2);
+        lower.window().drawText(0, 0, "lower123");
+        Ncurses::Panel upper(th.session(), 2, 5, 1, 4);
+        upper.window().drawText(0, 0, "UPPER"); th.screen().noutrefresh(); th.refresh();
+        hash<Ncurses::ScreenCapture> frame = th.session().capture();
+        assertEq("bbloUPPER3bbbbbb", row(frame, 1));
+        hash<Ncurses::Position> lower_cursor = lower.window().cursor();
+        hash<Ncurses::Position> upper_cursor = upper.window().cursor();
+        assertEq(frame, th.session().capture());
+        assertEq(lower_cursor, lower.window().cursor()); assertEq(upper_cursor, upper.window().cursor());
+        lower.top(); th.screen().noutrefresh(); th.refresh(); assertEq("bblower123bbbbbb", row(th.session().capture(), 1));
+        lower.bottom(); th.screen().noutrefresh(); th.refresh(); assertEq(frame, th.session().capture());
+        upper.hide(); th.screen().noutrefresh(); th.refresh(); assertEq("bblower123bbbbbb", row(th.session().capture(), 1));
+        delete upper; lower.hide(); th.screen().noutrefresh(); th.refresh(); assertEq(strmul("b", 16), row(th.session().capture(), 1));
+        delete lower; th.screen().noutrefresh(); th.refresh(); assertEq(strmul("b", 16), row(th.session().capture(), 1));
+    }
+
+    unicode() {
+        NcursesUi::TestHarness th(3, 8); on_exit th.close();
+        th.screen().drawText(0, 0, "界éX界YZ");
+        th.screen().drawText(2, 0, "123456界"); th.screen().noutrefresh(); th.refresh();
+        hash<Ncurses::ScreenCapture> frame = th.session().capture();
+        assertEq("界éX界YZ", row(frame, 0));
+        assertEq("界", frame.cells[0].text); assertEq(2, frame.cells[0].width);
+        assertFalse(frame.cells[0].continuation); assertEq("", frame.cells[1].text);
+        assertTrue(frame.cells[1].continuation); assertEq(0, frame.cells[1].width);
+        assertEq("é", frame.cells[2].text); assertEq(1, frame.cells[2].width);
+        assertEq("Z", frame.cells[7].text); assertEq("界", frame.cells[22].text);
+        assertTrue(frame.cells[23].continuation); assertEq("123456界", row(frame, 2));
+        th.screen().drawText(2, 0, "abcdefgh"); th.screen().noutrefresh(); th.refresh();
+        assertEq("h", th.session().capture().cells[23].text);
+        th.screen().erase(); th.screen().noutrefresh(); th.refresh();
+        foreach hash<Ncurses::ScreenCell> cell in (th.session().capture().cells) {
+            assertEq(" ", cell.text); assertEq(1, cell.width); assertFalse(cell.continuation);
+        }
+    }
+
+    styles() {
+        NcursesUi::TestHarness th(3, 8); on_exit th.close();
+        int attrs = Ncurses::Attr::Bold | Ncurses::Attr::Underline | Ncurses::Attr::Reverse;
+        th.screen().drawText(0, 0, "界", {"fg": 1, "bg": 4, "attrs": attrs}); th.screen().noutrefresh(); th.refresh();
+        hash<Ncurses::ScreenCapture> frame = th.session().capture();
+        assertTrue(frame.colors_enabled); assertEq(256, frame.colors); assertEq("xterm-256color", frame.terminal);
+        assertEq(attrs, frame.cells[0].attrs); assertEq(1, frame.cells[0].fg); assertEq(4, frame.cells[0].bg);
+        assertEq(frame.cells[0].pair, frame.cells[1].pair); assertEq(attrs, frame.cells[1].attrs);
+        assertTrue((frame.supported_attrs & Ncurses::Attr::Bold) != 0); assertEq(-1, frame.cells[7].fg);
+        th.close();
+        NcursesUi::TestHarness mono(3, 8, {"use_colors": False}); on_exit mono.close();
+        mono.screen().drawText(0, 0, "B", {"fg": 1, "attrs": Ncurses::Attr::Bold}); mono.screen().noutrefresh(); mono.refresh();
+        frame = mono.session().capture(); assertFalse(frame.colors_enabled); assertEq(0, frame.colors);
+        assertNothing(frame.cells[0].fg); assertNothing(frame.cells[0].bg);
+        assertEq(Ncurses::Attr::Bold, frame.cells[0].attrs);
+    }
+
+    cursor() {
+        NcursesUi::TestHarness th(5, 12); on_exit th.close();
+        th.screen().drawText(0, 0, "cursor"); th.screen().moveCursor(4, 11);
+        th.session().setCursor(Ncurses::CursorVisibility::Normal); th.screen().noutrefresh(); th.refresh();
+        hash<Ncurses::ScreenCursor> expected = <Ncurses::ScreenCursor>{"y": 4, "x": 11, "visibility": 1};
+        assertEq(expected, th.session().capture().cursor);
+        hash<Ncurses::Position> live = th.screen().cursor(); th.session().capture(); assertEq(live, th.screen().cursor());
+        assertEq(-1, th.session().setCursor(999)); assertEq(expected, th.session().capture().cursor);
+        th.session().setCursor(0); expected.visibility = 0; assertEq(expected, th.session().capture().cursor);
+        th.session().setCursor(2); expected.visibility = 2; assertEq(expected, th.session().capture().cursor);
+        th.screen().moveCursor(1, 3); th.screen().noutrefresh(); th.refresh(); expected.y = 1; expected.x = 3;
+        assertEq(expected, th.session().capture().cursor);
+    }
+
+%ifndef NoJson
+    serialization() {
+        NcursesUi::TestHarness th(4, 12); on_exit th.close();
+        th.screen().drawText(1, 2, "界é"); th.screen().noutrefresh(); th.refresh();
+        hash<Ncurses::ScreenCapture> before = th.session().capture();
+        string json = make_json(before); assertEq(before, parse_json(json));
+        for (int i = 0; i < 5; ++i) { assertEq(json, make_json(th.session().capture())); }
+        before.cells[0].text = "changed"; assertEq(" ", th.session().capture().cells[0].text);
+    }
+%endif
+
+    editor() {
+        NcursesUi::TestHarness th(4, 8, {"cursor": 1}); on_exit th.close();
+        NcursesUi::Application app(th.session()); on_exit app.close();
+        NcursesUi::TextEditorWidget editor(); editor.setShowScrollbar(False); app.setRoot(editor);
+        app.getFocusManager().setFocus(editor); editor.setText(strmul("abcdefgh", 5)); app.drawAll();
+        hash<NcursesUi::EditorSnapshot> buffer = editor.getBuffer().snapshot();
+        int scroll = editor.getScrollY(); assertTrue(scroll > 0);
+        hash<Ncurses::ScreenCapture> before = th.session().capture();
+        assertEq(before, th.session().capture()); assertEq(buffer, editor.getBuffer().snapshot());
+        assertEq(editor, app.getFocusManager().getCurrentFocus()); assertEq(scroll, editor.getScrollY());
+        hash<Ncurses::Position> caret = editor.getCaretScreenPosition();
+        assertEq(caret.y, before.cursor.y); assertEq(caret.x, before.cursor.x); assertEq(1, before.cursor.visibility);
+        app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "Z"}); app.drawAll();
+        assertEq(strmul("abcdefgh", 5) + "Z", editor.getText());
+        assertEq("Z", th.session().capture().cells[before.cursor.y * 8 + before.cursor.x].text);
+    }
+
+    controls() {
+        NcursesUi::TestHarness th(4, 16); on_exit th.close();
+        th.screen().drawText(0, 0, "a\tb"); th.screen().drawText(1, 0, "x\x03y"); th.screen().noutrefresh(); th.refresh();
+        hash<Ncurses::ScreenCapture> frame = th.session().capture();
+        assertEq("a       b       ", row(frame, 0)); assertEq("x^Cy            ", row(frame, 1));
+        foreach hash<Ncurses::ScreenCell> cell in (frame.cells) { assertEq(1, cell.width); }
+    }
+
+    cleanup() {
+        NcursesUi::TestHarness th(3, 8); on_exit th.close();
+        th.screen().drawText(0, 0, "safe"); th.screen().noutrefresh(); th.refresh();
+        assertThrows("CAPTURE-CALLBACK-ERROR", sub () {
+            th.session().withLock(sub () { th.session().capture(); throw "CAPTURE-CALLBACK-ERROR", "expected"; });
+        });
+        assertEq("safe    ", row(th.session().capture(), 0));
+        th.close(); assertThrows("NCURSES-ERROR", sub () { th.session().capture(); });
+        NcursesUi::TestHarness next(2, 2); on_exit next.close(); next.screen().drawText(1, 1, "X"); next.screen().noutrefresh(); next.refresh();
+        assertEq("X", next.session().capture().cells[3].text);
+    }
+
+    resize() {
+        Ncurses::TestTerminal terminal(6, 16);
+        Ncurses::Session session({"test_terminal": terminal, "cursor": 1}); on_exit session.close();
+        NcursesUi::Application app(session); on_exit app.close();
+        NcursesUi::TextEditorWidget editor(); editor.setShowScrollbar(False); app.setRoot(editor);
+        app.getFocusManager().setFocus(editor); editor.setText("abcdef界éghijklmnop"); app.drawAll();
+        hash<NcursesUi::EditorSnapshot> saved = editor.getBuffer().snapshot();
+        foreach hash<Ncurses::Size> size in ((<Ncurses::Size>{"rows": 2, "cols": 4}, <Ncurses::Size>{"rows": 8, "cols": 20})) {
+            terminal.resize(size.rows, size.cols); session.resize(size.rows, size.cols);
+            app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Resize}); app.drawAll();
+            hash<Ncurses::ScreenCapture> frame = session.capture();
+            assertEq(size.rows, frame.rows); assertEq(size.cols, frame.cols);
+            assertEq(size.rows * size.cols, frame.cells.size()); assertEq(saved, editor.getBuffer().snapshot());
+            assertEq(editor, app.getFocusManager().getCurrentFocus());
+            assertTrue(frame.cursor.y >= 0 && frame.cursor.y < size.rows);
+            assertTrue(frame.cursor.x >= 0 && frame.cursor.x < size.cols);
+            assertEq(frame, session.capture());
+        }
+        hash<Ncurses::ScreenCapture> before = session.capture();
+        foreach int invalid in ((0, -1, 32768, 0x100000001)) {
+            assertThrows("NCURSES-ERROR", sub () { session.resize(invalid, 10); });
+            assertThrows("NCURSES-ERROR", sub () { session.resize(10, invalid); });
+            assertEq(before, session.capture());
+        }
+        session.close(); assertThrows("NCURSES-ERROR", sub () { session.resize(2, 2); });
+    }
+
+    sessions() {
+        NcursesUi::TestHarness first(3, 7); on_exit first.close();
+        first.screen().drawText(0, 0, "first"); first.screen().refresh();
+        hash<Ncurses::ScreenCapture> before = first.session().capture();
+        Ncurses::TestTerminal terminal(2, 5, "dumb");
+        Ncurses::Session second({"test_terminal": terminal, "mouse": False}); on_exit second.close();
+        second.screen().drawText(0, 0, "other"); second.screen().refresh();
+        assertEq("other", row(second.capture(), 0)); assertEq(-1, second.capture().cursor.visibility);
+        assertEq(-1, second.setCursor(1)); assertEq(-1, second.capture().cursor.visibility);
+        assertEq(before, first.session().capture()); assertEq("other", row(second.capture(), 0));
+        second.close(); assertEq(before, first.session().capture());
+    }
+
+    application() {
+        NcursesUi::TestHarness th(5, 16); on_exit th.close();
+        NcursesUi::Application app(th.session()); on_exit app.close();
+        NcursesUi::LabelWidget label("base-only root"); app.setRoot(label); app.drawAll();
+        assertEq("base-only root  ", row(th.session().capture(), 0));
+        label.setText("changed root"); app.drawAll(); assertEq("changed root    ", row(th.session().capture(), 0));
+        NcursesUi::LabelWidget overlay("overlay"); overlay.setFrameValues(0, 0, 1, 7); app.pushModal(overlay); app.drawAll();
+        assertEq("overlay root    ", row(th.session().capture(), 0));
+        app.popModal(); app.drawAll(); assertEq("changed root    ", row(th.session().capture(), 0));
+        hash<Ncurses::ScreenCapture> before = th.session().capture(); app.drawAll(); assertEq(before, th.session().capture());
+    }
+    nested() {
+        NcursesUi::TestHarness th(12, 30); on_exit th.close();
+        NcursesUi::PanelWidget outer(th.session()); outer.setFrameValues(1, 2, 9, 24); outer.createPanel(); on_exit outer.destroyPanel();
+        NcursesUi::PanelWidget inner(th.session()); inner.setFrameValues(3, 5, 5, 14); outer.addChild(inner); inner.createPanel(); on_exit inner.destroyPanel();
+        NcursesUi::LabelWidget label("Nested 界é"); label.setFrameValues(4, 6, 1, 12); inner.addChild(label);
+        outer.drawTree(th.screen()); th.refresh(); hash<Ncurses::ScreenCapture> before = th.session().capture();
+        assertTrue(row(before, 4).find("Nested 界é") >= 0);
+        outer.resize(NcursesUi::Geometry::makeRect(1, 2, 3, 8)); outer.drawTree(th.screen()); th.refresh();
+        assertNothing(inner.getWindow()); assertTrue(row(th.session().capture(), 4).find("Nested") < 0);
+        outer.resize(NcursesUi::Geometry::makeRect(1, 2, 9, 24)); outer.drawTree(th.screen()); th.refresh();
+        assertTrue(row(th.session().capture(), 4).find("Nested 界é") >= 0);
+        inner.setFrameValues(3, 5, 0, 0); outer.drawTree(th.screen()); th.refresh();
+        assertNothing(inner.getWindow()); assertTrue(row(th.session().capture(), 4).find("Nested") < 0);
+        inner.setFrameValues(3, 5, 5, 14); outer.drawTree(th.screen()); th.refresh();
+        assertTrue(row(th.session().capture(), 4).find("Nested 界é") >= 0);
+    }
+}

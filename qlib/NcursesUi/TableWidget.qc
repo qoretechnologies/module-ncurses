@@ -102,6 +102,10 @@ public class TableWidget inherits NcursesUi::Widget {
     list<hash<auto>> getRows() { return rows; }
     /** Returns the selection. @return visible row index, or -1 when empty */
     int getSelectedRow() { return selected_row; }
+    /** Returns the first visible data-row index for inspection and scroll assertions.
+        @return zero-based offset into getRows(); excludes the header
+    */
+    int getScrollOffset() { return scroll_offset; }
     /** Returns the selection data. @return selected row, or NOTHING */
     *hash<auto> getSelectedRowData() {
         return selected_row >= 0 && selected_row < rows.size() ? rows[selected_row] : NOTHING;

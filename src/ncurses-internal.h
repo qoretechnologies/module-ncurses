@@ -131,6 +131,8 @@ public:
     bool closed = false;
     bool colors_enabled = false;
     bool use_default_colors = false;
+    // -1 means that no supported visibility request has established the state.
+    int cursor_visibility = -1;
     short next_pair = 1;
     std::map<std::pair<int, int>, short> pair_cache;
     WINDOW* cursor_win = nullptr;
@@ -191,6 +193,7 @@ public:
 
     void close(ExceptionSink* xsink);
     void checkOpen(ExceptionSink* xsink) const;
+    QoreHashNode* capture(ExceptionSink* xsink);
     short getColorPair(int fg, int bg, ExceptionSink* xsink);
     // Caller holds NcursesCallGuard for this session.
     void injectMouse(const MEVENT& event, ExceptionSink* xsink);
@@ -309,6 +312,9 @@ extern const TypedHashDecl* hashdeclSize;
 extern const TypedHashDecl* hashdeclPosition;
 extern const TypedHashDecl* hashdeclMouseEvent;
 extern const TypedHashDecl* hashdeclInputEvent;
+extern const TypedHashDecl* hashdeclScreenCell;
+extern const TypedHashDecl* hashdeclScreenCursor;
+extern const TypedHashDecl* hashdeclScreenCapture;
 extern QoreEnumDecl* enumWrapMode;
 
 #endif

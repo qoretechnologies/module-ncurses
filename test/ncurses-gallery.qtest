@@ -1,0 +1,143 @@
+#!/usr/bin/env qore
+# Copyright 2026 Qore Technologies, s.r.o.
+%modern
+%prepend-module-path "${SCRIPT_DIR}/../qlib"
+%requires ncurses
+%requires NcursesUi
+%requires QUnit
+%include "examples/gallery/Registry.qc"
+%include "examples/gallery/Catalog.qc"
+%include "examples/gallery/Variants.qc"
+%include "examples/gallery/Fixture.qc"
+%include "examples/gallery/Runner.qc"
+%include "examples/gallery/Gallery.qc"
+%exec-class GalleryTest
+class GalleryTest inherits Test {
+    constructor() : Test("GalleryTest", "1.0", \ARGV) {
+        foreach hash<NcursesGallery::Story> story in (NcursesGallery::Registry::stories()) {
+            addTestCase("story " + story.id, storyTest(story));
+        }
+        addTestCase("story selection search and errors", \registry());
+        addTestCase("reset removes modal state and restores deterministic fixtures", \reset());
+        addTestCase("failed callbacks propagate and cleanup permits the next story", \failure());
+        addTestCase("keyboard navigation search direct selection reset help and inspection", \navigation());
+        addTestCase("gallery works at constrained size and resets after resize", \geometry());
+        addTestCase("reset disposes queued work and owned subscriptions", \queuedReset());
+        addTestCase("assistance selected result reflects navigation filtering and cancellation", \assistanceSelection());
+        set_return_value(main());
+    }
+    private code<nothing()> storyTest(hash<NcursesGallery::Story> story) { return sub () { runStory(story); }; }
+    private nothing runStory(hash<NcursesGallery::Story> story) {
+            Ncurses::TestTerminal terminal(story.geometry.rows, story.geometry.cols);
+            Ncurses::Session session({"test_terminal": terminal}); on_exit session.close();
+            NcursesUi::Application app(session); on_exit app.close();
+            NcursesGallery::Runner runner(app, story.id); on_exit runner.close();
+            hash<auto> initial = runner.capture("reset");
+            foreach hash<NcursesGallery::Step> step in (story.steps) {
+                hash<auto> frame = runner.step(); assertEq(step.checkpoint, frame.checkpoint);
+                assertEq(story.id, frame.story); assertEq(frame.frame, session.capture());
+                assertEq(frame.state, runner.inspect());
+            }
+            assertThrows("GALLERY-STEP-ERROR", sub () { runner.step(); });
+            runner.reset(); assertEq(initial, runner.capture("reset"));
+    }
+    registry() {
+        assertEq("table.scrolling", NcursesGallery::Registry::search("TABLE")[0].id);
+        assertEq(0, NcursesGallery::Registry::search("unmatched").size());
+        hash<string, bool> widgets = {};
+        foreach hash<NcursesGallery::Story> story in (NcursesGallery::Registry::search("")) { widgets{story.widget} = True; }
+        assertEq(27, widgets.size());
+        list<hash<NcursesGallery::Story>> copy = NcursesGallery::Registry::stories(); copy[0].id = "changed.id";
+        assertEq("text-editor.boundaries", NcursesGallery::Registry::stories()[0].id);
+        assertThrows("GALLERY-STORY-ERROR", sub () { NcursesGallery::Registry::find("../bad"); });
+        Ncurses::TestTerminal terminal(10, 32); NcursesUi::Application app({"test_terminal": terminal}); on_exit app.close();
+        assertThrows("GALLERY-STORY-ERROR", sub () { NcursesGallery::Runner bad(app, "unknown"); });
+        assertTrue(app.getSession().isOpen());
+    }
+    reset() {
+        Ncurses::TestTerminal terminal(10, 32); NcursesUi::Application app({"test_terminal": terminal}); on_exit app.close();
+        NcursesGallery::Runner runner(app, "completion-popup.overlap"); on_exit runner.close();
+        hash<auto> before = runner.step(); runner.step(); runner.step(); assertFalse(app.getDispatcher().hasModal());
+        runner.reset(); assertEq(before, runner.step());
+        runner.close(); runner.close(); assertFalse(app.getDispatcher().hasModal());
+        assertNothing(app.getFocusManager().getCurrentFocus());
+        assertThrows("GALLERY-CLOSED-ERROR", sub () { runner.capture(); });
+        NcursesGallery::Runner next(app, "table.scrolling"); on_exit next.close();
+        assertEq("TableWidget", next.step().state.focus);
+        hash<auto> changed = next.capture(); changed.state.selected = 99;
+        assertThrows("GALLERY-EXPECTATION-ERROR", sub () { NcursesGallery::Runner::verify(changed, {"selected": 0}); });
+    }
+    failure() {
+        Ncurses::TestTerminal terminal(10, 32); NcursesUi::Application app({"test_terminal": terminal}); on_exit app.close();
+        NcursesGallery::Runner runner(app, "table.scrolling"); on_exit runner.close();
+        NcursesUi::TableWidget table = cast<NcursesUi::TableWidget>(runner.control());
+        table.setOnSelect(sub (int index) { throw "GALLERY-CALLBACK-ERROR", string(index); });
+        runner.step(); assertThrows("GALLERY-CALLBACK-ERROR", sub () { runner.step(); });
+        runner.reset(); assertEq(0, runner.step().state.selected); assertEq(23, runner.step().state.selected);
+    }
+    queuedReset() {
+        Ncurses::TestTerminal terminal(10, 32); NcursesUi::Application app({"test_terminal": terminal}); on_exit app.close();
+        NcursesGallery::Runner runner(app, "table.scrolling"); on_exit runner.close();
+        int deliveries = 0;
+        NcursesUi::UiEventScope scope = app.createEventScope(sub (auto payload) { ++deliveries; }, runner.control());
+        on_exit scope.close();
+        int tick = app.addOwnedTickCallback(sub () { ++deliveries; }, runner.control());
+        assertTrue(scope.post("obsolete")); runner.reset();
+        assertEq(0, app.processPending()); assertEq(0, deliveries);
+        assertFalse(scope.post("late")); assertFalse(app.removeTickCallback(tick));
+        assertEq(0, runner.step().state.selected);
+    }
+    assistanceSelection() {
+        Ncurses::TestTerminal terminal(16, 64); NcursesUi::Application app({"test_terminal": terminal}); on_exit app.close();
+        NcursesGallery::Runner runner(app, "assistance-popup.default"); on_exit runner.close();
+        NcursesUi::AssistancePopupWidget popup = cast<NcursesUi::AssistancePopupWidget>(runner.control());
+        assertEq("name", popup.getSelectedResult().id);
+        app.processEvent(NcursesGallery::Registry::key("KEY_DOWN"));
+        assertEq("signature", popup.getSelectedResult().kind);
+        popup.setFilter("no-match"); assertEq("signature", popup.getSelectedResult().kind);
+        popup.dismiss(); assertNothing(popup.getSelectedResult());
+        assertEq("TextEditorWidget", runner.inspect().focus);
+    }
+    navigation() {
+        Ncurses::TestTerminal terminal(18, 70); NcursesUi::Application app({"test_terminal": terminal}); on_exit app.close();
+        NcursesGallery::Gallery gallery(app, "text-editor.boundaries"); on_exit gallery.close();
+        app.processEvent(NcursesGallery::Registry::key("KEY_F(2)"));
+        assertEq(gallery.navigation().query, app.getFocusManager().getCurrentFocus());
+        app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Paste, "ch": "table.scrolling"}); app.drawAll();
+        assertEq(1, gallery.navigation().choices.getItems().size());
+        app.processEvent(NcursesGallery::Registry::key("KEY_ENTER")); app.drawAll();
+        assertEq("table.scrolling", gallery.current().story().id); assertFalse(app.getDispatcher().hasModal());
+        app.processEvent(NcursesGallery::Registry::key("KEY_END")); assertEq(23, gallery.current().inspect().selected);
+        app.processEvent(NcursesGallery::Registry::key("KEY_F(5)")); assertTrue(app.getDispatcher().hasModal());
+        gallery.closeOverlay(); assertEq(23, gallery.current().inspect().selected);
+        app.processEvent(NcursesGallery::Registry::key("KEY_F(3)")); assertEq(0, gallery.current().inspect().selected);
+        assertThrows("GALLERY-STORY-ERROR", sub () { gallery.select("missing"); }); assertEq("table.scrolling", gallery.current().story().id);
+        foreach string command in (("KEY_F(1)", "KEY_F(6)")) {
+            app.processEvent(NcursesGallery::Registry::key(command)); assertTrue(app.getDispatcher().hasModal());
+            app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "\e"}); app.drawAll();
+            assertFalse(app.getDispatcher().hasModal()); assertEq("TableWidget", gallery.current().inspect().focus);
+        }
+        gallery.showNavigation(); gallery.navigation().query.setText("unmatched"); gallery.navigation().filter("unmatched");
+        assertEq(0, gallery.navigation().choices.getItems().size());
+        app.processEvent(NcursesGallery::Registry::key("KEY_ENTER")); assertTrue(app.getDispatcher().hasModal());
+        gallery.closeOverlay(); gallery.select("completion-popup.overlap");
+        gallery.showNavigation(); gallery.closeOverlay(); assertEq("CompletionPopupWidget", gallery.current().inspect().focus);
+        gallery.close(); assertFalse(app.getDispatcher().hasModal());
+    }
+    geometry() {
+        Ncurses::TestTerminal terminal(8, 32); NcursesUi::Application app({"test_terminal": terminal}); on_exit app.close();
+        NcursesGallery::Gallery gallery(app, "table.scrolling"); on_exit gallery.close();
+        hash<auto> before = gallery.current().capture(); gallery.cycleSize(); gallery.cycleSize();
+        assertEq(12, app.getSession().capture().cols); assertEq(4, app.getSession().capture().rows);
+        gallery.showNavigation(); app.drawAll(); assertEq(12, app.getSession().capture().cols);
+        gallery.reset(); assertEq(before, gallery.current().capture());
+        gallery.cycleSize(); assertEq(32, app.getSession().screen().size().cols);
+        gallery.cycleSize(); assertEq(12, app.getSession().screen().size().cols);
+        app.getSession().resize(1, 1); app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Resize});
+        gallery.showNavigation(); app.drawAll(); assertEq(1, app.getSession().capture().cells.size());
+        gallery.closeOverlay(); gallery.reset(); assertEq(1, gallery.current().capture().frame.cols);
+        gallery.select("text-editor.boundaries"); assertEq(1, gallery.current().capture().frame.rows);
+        app.getSession().resize(8, 32); app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Resize});
+        gallery.select("table.scrolling"); assertEq(before, gallery.current().capture());
+    }
+}

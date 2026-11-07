@@ -215,3 +215,40 @@ reveal, scrollbars and mouse bounds, preserving manual scrolling until selection
 geometry changes. Horizontal ancestor clipping retains the original text suffix.
 Double-click activation takes precedence when a mouse mask contains multiple primary
 click flags. Single-column lists reserve their only cell for content.
+
+## Composed capture and executable widget stories
+
+`Session::capture()` observes ncurses' completed physical-screen image (`curscr`).
+It duplicates that window under the session call guard and reads wide cells from
+that private copy. Live window cursors, pending virtual output, panel stacking and
+application state are untouched. The versioned typed hash records row-major cells,
+leading widths/continuations, attributes, palette indices, capabilities and physical
+cursor coordinates. Successful visibility requests are tracked; unsupported initial
+visibility remains unknown. This is the emitted terminal model, not emulator pixels.
+The caller must finish its draw/refresh checkpoint and associate focus/scroll
+assertions on the UI thread. `snapshot()` remains the legacy base-window text API.
+
+`Session::resize()` synchronously applies known ncurses geometry. Headless drivers
+resize the PTY, apply this method, deliver a Resize event and complete drawing.
+Native gallery presets deliberately change the logical viewport only. Capture
+comparison must use the same locale, terminal capabilities and geometry.
+
+`Application::drawAll()` stages base output before overlays, including when no
+native panel has initialized the panel hook and no editor requests a cursor.
+Non-panel modals stage their shared base output in draw order; native panel widgets
+stage their own windows. This prevents backing-window tests from hiding missing
+physical output and preserves overlay composition.
+
+The development-only `examples/gallery/` registry supplies stable story IDs, public
+API links, fixture data, geometry, input/resize steps, semantic expectations and
+capture checkpoints. `Runner` creates actual NcursesUi widgets, verifies completed
+frames, and owns teardown/reset. `Gallery` adds searchable native navigation,
+contextual help, reset, logical size presets and focus/scroll/cursor inspection.
+No alternate widget implementation is used. Fixed fixture values and timestamps
+make repeated headless runs comparable; file actions never write user files.
+
+`Variants` records the nine review-state dispositions for each widget and creates
+applicable executable scenarios. `tools/widget_catalog.py` derives the Doxygen
+catalog from that same registry and rejects unregistered public widgets, duplicate
+IDs and missing state links. Native tests cover every scenario, repeated captures
+and reset equivalence; CLI tests execute every widget in color and monochrome.

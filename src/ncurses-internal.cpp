@@ -51,6 +51,108 @@ SCREEN* nc_newterm(const char* type, FILE* out, FILE* in) {
     return newterm(const_cast<char*>(type), out, in);
 }
 
+QoreHashNode* NcursesSession::capture(ExceptionSink* xsink) {
+    NcursesCallGuard guard(this);
+    checkOpen(xsink);
+    if (*xsink) {
+        return nullptr;
+    }
+    // mvwin_wch() moves its window cursor. Never call it on a live ncurses screen:
+    // even restoring that cursor could disturb later output or exception paths.
+    std::unique_ptr<WINDOW, decltype(&delwin)> copy(dupwin(curscr), delwin);
+    if (!copy) {
+        xsink->raiseException("NCURSES-ERROR", "cannot copy the physical screen for capture");
+        return nullptr;
+    }
+    int rows, cols, cursor_row, cursor_col;
+    getmaxyx(copy.get(), rows, cols);
+    getyx(copy.get(), cursor_row, cursor_col);
+    ReferenceHolder<QoreHashNode> result(new QoreHashNode(hashdeclScreenCapture, xsink), xsink);
+    if (*xsink) {
+        return nullptr;
+    }
+    ReferenceHolder<QoreHashNode> cursor(new QoreHashNode(hashdeclScreenCursor, xsink), xsink);
+    ReferenceHolder<QoreListNode> cells(new QoreListNode(hashdeclScreenCell->getTypeInfo()), xsink);
+    if (*xsink) {
+        return nullptr;
+    }
+    if (cursor->setKeyValue("y", cursor_row, xsink)
+            || cursor->setKeyValue("x", cursor_col, xsink)
+            || cursor->setKeyValue("visibility", cursor_visibility, xsink)
+            || result->setKeyValue("schema", 1, xsink)
+            || result->setKeyValue("rows", rows, xsink)
+            || result->setKeyValue("cols", cols, xsink)
+            || result->setKeyValue("cursor", cursor.release(), xsink)
+            || result->setKeyValue("terminal", new QoreStringNode(termname(), QCS_UTF8), xsink)
+            || result->setKeyValue("colors_enabled", colors_enabled, xsink)
+            || result->setKeyValue("colors", colors_enabled ? COLORS : 0, xsink)
+            || result->setKeyValue("supported_attrs", static_cast<int64>(term_attrs() & ~A_COLOR), xsink)) {
+        return nullptr;
+    }
+    for (int y = 0; y < rows; ++y) {
+        if (qore_check_cancel(xsink, "capturing the physical terminal screen")) {
+            return nullptr;
+        }
+        int continuation_count = 0;
+        for (int x = 0; x < cols; ++x) {
+            if (!(x % 100) && qore_check_cancel(xsink, "capturing physical terminal cells")) {
+                return nullptr;
+            }
+            cchar_t value;
+            wchar_t chars[CCHARW_MAX + 1] = {};
+            attr_t attrs;
+            short pair;
+            if (mvwin_wch(copy.get(), y, x, &value) == ERR
+                    || getcchar(&value, chars, &attrs, &pair, nullptr) == ERR) {
+                xsink->raiseException("NCURSES-ERROR", "cannot read physical screen cell (%d, %d)", y, x);
+                return nullptr;
+            }
+            bool continuation = continuation_count > 0;
+            int width = continuation ? 0 : std::max(1, wcwidth(chars[0]));
+            if (continuation) {
+                --continuation_count;
+            } else {
+                continuation_count = width - 1;
+            }
+            ReferenceHolder<QoreHashNode> cell(new QoreHashNode(hashdeclScreenCell, xsink), xsink);
+            ReferenceHolder<QoreStringNode> text(new QoreStringNode(QCS_UTF8), xsink);
+            if (*xsink) {
+                return nullptr;
+            }
+            if (!continuation) {
+                for (size_t i = 0; chars[i] && i < CCHARW_MAX; ++i) {
+                    if (text->concatUnicode(chars[i], xsink)) {
+                        return nullptr;
+                    }
+                }
+            }
+            if (cell->setKeyValue("text", text.release(), xsink)
+                    || cell->setKeyValue("width", width, xsink)
+                    || cell->setKeyValue("continuation", continuation, xsink)
+                    || cell->setKeyValue("attrs", static_cast<int64>(attrs & ~A_COLOR), xsink)
+                    || cell->setKeyValue("pair", pair, xsink)) {
+                return nullptr;
+            }
+            if (colors_enabled) {
+                short fg, bg;
+                if (pair_content(pair, &fg, &bg) == ERR) {
+                    xsink->raiseException("NCURSES-ERROR", "cannot read color pair %d", pair);
+                    return nullptr;
+                }
+                if (cell->setKeyValue("fg", fg, xsink) || cell->setKeyValue("bg", bg, xsink)) {
+                    return nullptr;
+                }
+            }
+            cells->push(cell.release(), xsink);
+            if (*xsink) {
+                return nullptr;
+            }
+        }
+    }
+    result->setKeyValue("cells", cells.release(), xsink);
+    return *xsink ? nullptr : result.release();
+}
+
 mmask_t nc_mousemask(mmask_t mask) {
     QoreEnvironmentReadLock env_lock;
     return mousemask(mask, nullptr);

@@ -154,6 +154,7 @@ set(QORE_QJAR_COMMAND true)
 set(MODULE_DOX_INPUT ${CMAKE_BINARY_DIR}/mainpage.dox
     ${CMAKE_BINARY_DIR}/release-notes.dox ${QPP_DOX_SOURCES})
 list(APPEND MODULE_DOX_INPUT
+    ${CMAKE_SOURCE_DIR}/docs/widget-catalog.dox
     ${CMAKE_CURRENT_BINARY_DIR}/guide-ncurses_ansi.dox
     ${CMAKE_CURRENT_BINARY_DIR}/guide-ncurses_api.dox
     ${CMAKE_CURRENT_BINARY_DIR}/guide-ncurses_examples.dox

@@ -139,6 +139,59 @@ hashdecl Qore::Ncurses::Position {
     int x;
 }
 
+//! One physical screen cell in a completed ncurses frame
+/** @since %ncurses 1.0 */
+hashdecl Qore::Ncurses::ScreenCell {
+    //! UTF-8 spacing character and combining marks; empty for a continuation cell
+    string text;
+    //! Display columns occupied by a leading cell; zero for a continuation
+    int width;
+    //! True for a column occupied by the preceding wide character
+    bool continuation;
+    //! ncurses attribute bits, excluding color-pair bits
+    int attrs;
+    //! ncurses color-pair identifier (local to this session)
+    int pair;
+    //! Palette index, or -1 for the terminal default; NOTHING when colors are disabled
+    *int fg;
+    //! Palette index, or -1 for the terminal default; NOTHING when colors are disabled
+    *int bg;
+}
+
+//! Cursor state associated with the physical screen
+/** @since %ncurses 1.0 */
+hashdecl Qore::Ncurses::ScreenCursor {
+    //! Zero-based physical screen row, including when the cursor is hidden
+    int y;
+    //! Zero-based physical screen column, including when the cursor is hidden
+    int x;
+    //! Last supported CursorVisibility request, or -1 when unknown/unsupported
+    int visibility;
+}
+
+//! Serializable, observational capture of ncurses' physical screen
+/** @since %ncurses 1.0 */
+hashdecl Qore::Ncurses::ScreenCapture {
+    //! Capture schema version (1)
+    int schema;
+    //! Physical screen rows
+    int rows;
+    //! Physical screen columns
+    int cols;
+    //! Cells in row-major order; cell (y, x) is cells[y * cols + x]
+    list<hash<ScreenCell>> cells;
+    //! Physical cursor coordinates and visibility
+    hash<ScreenCursor> cursor;
+    //! Terminal type reported by ncurses
+    string terminal;
+    //! Whether this session enabled colors
+    bool colors_enabled;
+    //! Available palette entries (zero when colors are disabled)
+    int colors;
+    //! Terminal-supported video attribute bits, excluding color-pair bits
+    int supported_attrs;
+}
+
 //! Mouse event hashdecl
 /** Mouse event information.
 
@@ -506,7 +559,9 @@ Session::constructor(*hash options) [flags=NAMED_ARGS] {
     }
 
     if (cursor >= 0) {
-        curs_set(cursor);
+        if (curs_set(cursor) != ERR) {
+            s->cursor_visibility = cursor;
+        }
     }
     if (esc_delay >= 0) {
 #ifdef NCURSES_VERSION
@@ -710,7 +765,7 @@ Window Session::screen() {
     return obj;
 }
 
-//! Returns a snapshot of the screen contents
+//! Returns a text snapshot of the base screen window (not the composed display)
 /**
     @param y start row (default 0)
     @param rows number of rows (default full screen)
@@ -768,6 +823,65 @@ list<string> Session::snapshot(*int y, *int rows, *int cols) [flags=NAMED_ARGS] 
     return out.release();
 }
 
+//! Captures the completed composed screen without refreshing or changing live state
+/** Call after Application::drawAll(), or updatePanels() followed by doupdate(),
+    or a completed @ref Qore::Ncurses::Window::refresh() "Window::refresh()" or
+    @ref Qore::Ncurses::Panel::update() "Panel::update()". Pending window or panel changes
+    are deliberately excluded. Serialize the returned hash with the json module for
+    review artifacts; it contains no timestamps, object references, or frame counters.
+
+    Reads a private copy of ncurses' physical-screen image, including overlapping panels,
+    styles, wide-character continuations and the physical cursor. It does not move a live
+    window cursor, refresh, read input, invoke callbacks or change panel order. Call on
+    the UI thread after completing application work to associate the frame with focus
+    and scrolling assertions. It reads the entire screen; there are no crop arguments.
+
+    This is ncurses' record of emitted output, not a query of terminal pixels. Out-of-band
+    terminal writes, emulator fonts, palette RGB values, blink phase and terminal-specific
+    rendering are outside the contract. Widths follow the active locale/ncurses build;
+    combining marks are limited by ncurses' cchar_t capacity. Attributes reflect the
+    physical-screen image; supported_attrs reports terminal capabilities. ACS glyphs
+    retain their alternate-character-set attribute. Cursor visibility is -1 until a
+    supported request is made. Capture before the first completed refresh, or between
+    resize and redraw, is not a completed-frame checkpoint.
+
+    @return structured physical screen capture
+    @throw NCURSES-ERROR the session is closed or the screen cannot be read
+    @since %ncurses 1.0
+*/
+hash<ScreenCapture> Session::capture() [flags=RET_VALUE_ONLY] {
+    return session->capture(xsink);
+}
+
+//! Applies a known terminal geometry synchronously
+/** Updates ncurses' screen buffers after the PTY or terminal has changed size.
+    Unlike Window::resize(), this resizes the complete physical and virtual screen.
+    It does not resize the terminal device itself or invoke application layout. Follow
+    it with an InputType::Resize event delivered to Application::processEvent() and
+    Application::drawAll() before capturing. Headless callers can first call
+    TestTerminal::resize() and then this method, without signals or input polling.
+
+    @param rows positive row count, at most 32767
+    @param cols positive column count, at most 32767
+    @throw NCURSES-ERROR invalid dimensions, closed session, or ncurses resize failure
+    @since %ncurses 1.0
+*/
+nothing Session::resize(int rows, int cols) [flags=NAMED_ARGS] {
+    NcursesCallGuard guard(session);
+    session->checkOpen(xsink);
+    if (*xsink) {
+        return nothing();
+    }
+    if (rows < 1 || rows > 32767 || cols < 1 || cols > 32767) {
+        xsink->raiseException("NCURSES-ERROR", "screen rows and cols must be in 1..32767");
+        return nothing();
+    }
+    if (resizeterm(static_cast<int>(rows), static_cast<int>(cols)) == ERR) {
+        xsink->raiseException("NCURSES-ERROR", "resizeterm() failed");
+    }
+    return nothing();
+}
+
 //! Returns true if colors are enabled
 /**
     @since %ncurses 1.0
@@ -791,7 +905,11 @@ int Session::setCursor(int visibility) [flags=NAMED_ARGS] {
         return nothing();
     }
     NcursesCallGuard guard(session);
-    return curs_set(visibility);
+    int previous = curs_set(visibility);
+    if (previous != ERR) {
+        session->cursor_visibility = visibility;
+    }
+    return previous;
 }
 
 //! Sets the escape sequence delay

@@ -6,6 +6,38 @@
 
     @section ncursesexamplessources Runnable Source Examples
 
+    The interactive @ref ncurses_widget_catalog uses the same fixtures and interaction
+    steps as automated review. Run from the checkout root:
+    @verbatim
+QORE_MODULE_DIR=build-debug:qlib qore --enable-debug --warnings-are-errors examples/widget-gallery.qr
+QORE_MODULE_DIR=build-debug:qlib qore --enable-debug --warnings-are-errors examples/widget-gallery.qr --story completion-popup.overlap
+QORE_MODULE_DIR=build-debug:qlib qore --enable-debug --warnings-are-errors examples/widget-gallery.qr --headless --story table.scrolling
+python3 tools/widget_catalog.py --check
+    @endverbatim
+    F2 searches by ID, widget or purpose. F1 gives contextual key help; F3 rebuilds
+    the initial fixture, F4 cycles logical viewport sizes, F5 runs the next specified
+    step, and F6 displays focus, scroll, selection and cursor state. Ctrl+Q quits.
+    \c --monochrome disables session colors; \c --catalog exports registry metadata as
+    JSON without opening a terminal. Headless execution returns completed captures
+    only after the registry expectations pass. Invalid IDs/options fail before opening
+    a terminal. Size presets change ncurses buffers, not the device's dimensions.
+
+    To add a story, edit \c examples/gallery/Registry.qc (cross-widget scenarios) or
+    \c Catalog.qc and \c Fixture.qc (widget fixtures). Specify a stable ID, API, purpose,
+    immutable fixture data, geometry, interactions, expectations and checkpoints. Add
+    applicable states in \c Variants.qc with an explicit reason for each excluded state.
+    Regenerate the catalog with \c python3 tools/widget_catalog.py and run
+    \c test/ncurses-gallery.qtest and \c test/test_widget_catalog.py before committing.
+    Fixtures use no external services. FileBrowser reads only repository sample files
+    initially; file-operation callbacks demonstrate results without writing files.
+    Progress timestamps are supplied by a fixture ActionModel subclass; timeline dates,
+    data order and contents are fixed. No production widget is reimplemented by the gallery.
+
+    \c examples/composed-capture.qr runs headlessly and prints the full composed
+    cell/style/cursor frame as JSON. Run it with
+    \c QORE_MODULE_DIR=build-debug:qlib to use the development module. See
+    @ref ncursestestingcapture for the completed-frame and terminal capability contract.
+
     Run the supplied programs from the source checkout after building/installing the module:
     @verbatim
 qore --enable-debug examples/dashboard.qr

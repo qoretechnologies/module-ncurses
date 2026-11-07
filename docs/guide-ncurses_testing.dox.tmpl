@@ -4,6 +4,50 @@
 
     @tableofcontents
 
+    @section ncursestestingcapture Composed Frame Capture
+
+    @ref Qore::Ncurses::Session::capture() "Session::capture()" returns typed
+    @ref Qore::Ncurses::ScreenCapture "ScreenCapture" data for the completed physical
+    screen, including overlapping panels. Its cells are in row-major order:
+    \c frame.cells[y*frame.cols+x]. A leading wide cell contains text and its width;
+    each continuation contains empty text, width zero and \c continuation=True.
+    Combining marks remain on their leading cell. Each cell records attributes,
+    the session-local color pair, and foreground/background palette indices (-1
+    for terminal defaults; NOTHING when colors are disabled).
+
+    Finish drawing first: call Application::drawAll(), or queue the base window
+    with Window::noutrefresh(), call Session::updatePanels(), then Session::doupdate().
+    Capture does not flush pending work. Window::refresh() and Panel::update() also
+    complete output. Inspect focus and scrolling on the UI thread at that same
+    checkpoint. Repeated captures do not move live cursors, consume input, change
+    panel order, invoke callbacks or change subsequent drawing.
+
+    The cursor uses zero-based physical screen coordinates, including when hidden.
+    Visibility records the last supported request: 0 hidden, 1 normal, 2 very visible,
+    or -1 unknown/unsupported. A failed request preserves the previously known state.
+    Normal application focus preserves the session cursor setting; modal focus manages
+    its own visibility. Choose \c cursor=1 for an ordinary editor session.
+
+    The hash is directly serializable with \c make_json() from the json module and
+    has schema version 1. Capture records ncurses' emitted-screen model, not pixels
+    read back from an emulator. Pin terminal type and locale for comparisons. Fonts,
+    RGB palette customization, blink phase, unsupported rendition, out-of-band output,
+    and terminal-specific Unicode rendering need real-terminal/browser review.
+    Combining sequences are bounded by ncurses' cchar_t capacity. Attribute masks
+    are ncurses ABI values; \c supported_attrs reports terminal capabilities. ACS
+    cells retain their alternate-character-set attribute.
+
+    \c snapshot() retains its older base-window text behavior; it is not composed
+    capture and should not be used for overlay approval. Run the complete example:
+    @verbatim
+QORE_MODULE_DIR=build-debug:qlib qore --enable-debug --warnings-are-errors examples/composed-capture.qr
+    @endverbatim
+
+    For deterministic resize, change TestTerminal::resize(rows, cols), then call
+    Session::resize(rows, cols), deliver an InputType::Resize event to the application,
+    and draw before capture. Session::resize() changes ncurses buffers; it does not
+    resize the device or run application layout. No signal, delay or polling is required.
+
     @section ncursestestingterminal Headless Drawing and Input Tests
 
     @ref Qore::Ncurses::TestTerminal "TestTerminal" creates a pseudo-terminal with fixed dimensions.
