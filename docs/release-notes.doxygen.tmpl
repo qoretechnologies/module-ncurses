@@ -5,6 +5,22 @@
     @section ncurses_1_0 ncurses Module Version 1.0
     - initial release
 
+    Session::capture() adds typed, serializable physical-screen frames with panel
+    composition, Unicode leading/continuation cells, attributes, palette colors and
+    cursor state. It observes completed output without changing live drawing state.
+    Session::resize() applies known terminal geometry synchronously for deterministic
+    layout and capture checkpoints. Session::terminalSize() reads device dimensions
+    independently of logical viewport presets. The existing base-window snapshot() API is preserved.
+
+    A shared executable story registry supplies the generated widget catalog, searchable
+    native gallery and headless state/interaction checks for all 27 concrete widgets.
+    Gallery controls provide direct selection, reset, contextual help, viewport presets
+    and focus/scroll/cursor inspection. Session::updatePanels() stages base-only output
+    when no native panel is visible, fixing blank terminal frames before libpanel initializes
+    its screen hook while retaining its overlap propagation when panels are present. TableWidget::getScrollOffset() exposes
+    the first visible data row for inspection and behavioral assertions;
+    AssistancePopupWidget::getSelectedResult() exposes the selected result metadata.
+
     Scrollable text prepares wrapping before measuring scroll limits, maps
     source positions to display cells, preserves the viewport anchor on resize,
     and clips styled Unicode text at widget boundaries. Cursor requests can be

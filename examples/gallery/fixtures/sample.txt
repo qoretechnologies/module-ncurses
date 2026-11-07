@@ -1,0 +1,2 @@
+Gallery fixture: Unicode 界 and é.
+This file is read-only sample content for the native file browser.

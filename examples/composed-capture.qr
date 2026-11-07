@@ -1,0 +1,21 @@
+#!/usr/bin/env qore
+# Copyright 2026 Qore Technologies, s.r.o.
+%requires ncurses
+%requires json
+
+# This headless example writes a serializable composed frame to stdout.
+Ncurses::TestTerminal terminal(8, 32, "xterm-256color");
+Ncurses::Session session({"test_terminal": terminal, "cursor": 1});
+on_exit session.close();
+session.screen().drawText(1, 1, "Background: 界 and é");
+Ncurses::Panel popup(session, 3, 18, 2, 6);
+popup.window().box({"attrs": Ncurses::Attr::Bold});
+popup.window().drawText(1, 1, "Composed popup");
+popup.window().moveCursor(1, 4);
+session.screen().noutrefresh();
+session.updatePanels();
+session.doupdate();
+hash<Ncurses::ScreenCapture> frame = session.capture();
+@assert(frame.cells.size() == frame.rows * frame.cols);
+session.close();
+printf("%s\n", make_json(frame));

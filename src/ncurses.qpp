@@ -50,12 +50,18 @@ DLLLOCAL TypedHashDecl* init_hashdecl_Size(QoreNamespace& ns);
 DLLLOCAL TypedHashDecl* init_hashdecl_Position(QoreNamespace& ns);
 DLLLOCAL TypedHashDecl* init_hashdecl_MouseEvent(QoreNamespace& ns);
 DLLLOCAL TypedHashDecl* init_hashdecl_InputEvent(QoreNamespace& ns);
+DLLLOCAL TypedHashDecl* init_hashdecl_ScreenCell(QoreNamespace& ns);
+DLLLOCAL TypedHashDecl* init_hashdecl_ScreenCursor(QoreNamespace& ns);
+DLLLOCAL TypedHashDecl* init_hashdecl_ScreenCapture(QoreNamespace& ns);
 
 const TypedHashDecl* hashdeclStyle = nullptr;
 const TypedHashDecl* hashdeclSize = nullptr;
 const TypedHashDecl* hashdeclPosition = nullptr;
 const TypedHashDecl* hashdeclMouseEvent = nullptr;
 const TypedHashDecl* hashdeclInputEvent = nullptr;
+const TypedHashDecl* hashdeclScreenCell = nullptr;
+const TypedHashDecl* hashdeclScreenCursor = nullptr;
+const TypedHashDecl* hashdeclScreenCapture = nullptr;
 QoreEnumDecl* enumWrapMode = nullptr;
 
 // Module initialization and teardown
@@ -97,6 +103,9 @@ static void ncurses_module_init(QoreModuleInitContext& ctx, ExceptionSink& xsink
     hashdeclPosition = init_hashdecl_Position(NcursesNS);
     hashdeclMouseEvent = init_hashdecl_MouseEvent(NcursesNS);
     hashdeclInputEvent = init_hashdecl_InputEvent(NcursesNS);
+    hashdeclScreenCell = init_hashdecl_ScreenCell(NcursesNS);
+    hashdeclScreenCursor = init_hashdecl_ScreenCursor(NcursesNS);
+    hashdeclScreenCapture = init_hashdecl_ScreenCapture(NcursesNS);
 
     init_enum_CursorVisibility(NcursesNS);
     init_enum_InputType(NcursesNS);

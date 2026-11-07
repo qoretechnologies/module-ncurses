@@ -49,6 +49,8 @@ public class AssistancePopupWidget inherits NcursesUi::PanelWidget {
     nothing setFilter(string text) { filter.setText(NcursesUi::TextEditorWidget::normalizePaste(text)); refresh(); }
     /** Returns displayed result metadata. @return kind/id/label/documentation rows */
     list<hash<auto>> getResults() { refreshIfChanged(); return results.getItems(); }
+    /** Returns the selected result metadata. @return kind/id/label/documentation, or NOTHING for an empty list */
+    *hash<auto> getSelectedResult() { refreshIfChanged(); return results.getSelectedItem(); }
     /** Returns displayed documentation lines. @return selected help, including signature parameters */
     list<string> getDocumentation() { refreshIfChanged(); return doc_lines.getLines(); }
     /** Returns documentation scrolling. @return rows above the viewport */

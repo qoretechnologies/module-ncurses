@@ -60,6 +60,11 @@ for test in test/*.qtest; do
     fi
 done
 
+# Registry/catalog drift and actual gallery CLI coverage share the native fixtures.
+if ! gosu qore:qore python3 test/test_widget_catalog.py build; then
+    FAILED=1
+fi
+
 # ... and they still do once the tests have run
 ${MODULE_SRC_DIR}/test/docker_test/check-loaded-modules.sh ${MODULE_SRC_DIR}/build gosu qore:qore
 exit $FAILED
