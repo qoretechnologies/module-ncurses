@@ -41,6 +41,7 @@ public class PanelWidget inherits NcursesUi::Widget {
     private {
         bool open_requested = False;
         *hash<NcursesUi::Rect> requested_frame;
+        *hash<Ncurses::Size> centered_size;
         #! the ncurses session
         Ncurses::Session session;
         #! the panel (NOTHING when not shown)
@@ -138,7 +139,7 @@ public class PanelWidget inherits NcursesUi::Widget {
         @param frame logical panel geometry
     */
     nothing setFrame(hash<NcursesUi::Rect> frame) {
-        Widget::setFrame(frame); requested_frame = getFrame();
+        Widget::setFrame(frame); requested_frame = getFrame(); centered_size = NOTHING;
     }
 
     /** Sets logical panel geometry. @param y row @param x column @param rows height @param cols width */
@@ -299,10 +300,11 @@ public class PanelWidget inherits NcursesUi::Widget {
     nothing resize(hash<NcursesUi::Rect> r) {
         hash<NcursesUi::Rect> old = getFrame();
         *hash<NcursesUi::Rect> old_requested = requested_frame;
+        *hash<Ncurses::Size> old_centered = centered_size;
         requested_frame = r;
         setFrame(r);
         if (open_requested) {
-            try { createPanel(); } catch (hash<ExceptionInfo> ex) { setFrame(old); requested_frame = old_requested; rethrow; }
+            try { createPanel(); } catch (hash<ExceptionInfo> ex) { setFrame(old); requested_frame = old_requested; centered_size = old_centered; rethrow; }
         }
         hash<NcursesUi::Rect> current = getFrame();
         foreach NcursesUi::Widget child in (getChildren()) {
@@ -325,6 +327,12 @@ public class PanelWidget inherits NcursesUi::Widget {
         @param cols terminal width
     */
     nothing fitToScreen(int rows, int cols) {
+        if (centered_size) {
+            hash<Ncurses::Size> desired_size = centered_size;
+            int height = max(0, min(rows, desired_size.rows)); int width = max(0, min(cols, desired_size.cols));
+            resize(NcursesUi::Geometry::makeRect(max(0, (rows - height) / 2), max(0, (cols - width) / 2), height, width));
+            centered_size = desired_size; layout(); return;
+        }
         hash<NcursesUi::Rect> desired = requested_frame ?? getFrame();
         hash<NcursesUi::Rect> r = desired;
         r.rows = max(0, min(rows, r.rows)); r.cols = max(0, min(cols, r.cols));
@@ -332,6 +340,16 @@ public class PanelWidget inherits NcursesUi::Widget {
         resize(r);
         requested_frame = desired;
         layout();
+    }
+
+    /** Centers a preferred panel size, clamping immediately and on subsequent resizes.
+        Explicit setFrame()/resize() returns to ordinary positioned-panel behavior.
+        @param rows positive preferred height @param cols positive preferred width */
+    nothing setCenteredSize(int rows, int cols) {
+        if (rows < 1 || cols < 1) { throw "PANEL-SIZE-ERROR", "Centered panel dimensions must be positive"; }
+        *hash<Ncurses::Size> old = centered_size; on_error centered_size = old;
+        centered_size = <Ncurses::Size>{"rows": rows, "cols": cols};
+        hash<Ncurses::Size> screen = session.screen().size(); fitToScreen(screen.rows, screen.cols);
     }
 
     /** Draws the panel border and title.

@@ -98,6 +98,25 @@ qrepl
 
 The output pane supports mouse wheel scrolling and keyboard paging (click the output pane, then use the wheel, arrow keys, PgUp/PgDn, Home/End).
 
+`/help` opens scrollable command help at the beginning; Escape returns to the prompt.
+At the continuation prompt, every line is Qore source, including `/commands` and `!!`.
+Press Ctrl-C with no editor selection to cancel unfinished input without resetting the
+program; commands and command completion are available again at `qore>`. Ctrl-C copies
+selected text. Menu commands also require finishing or cancelling pending source first.
+
+`/threads` lists threads in the current program, `/cancel <tid|all>` requests cooperative
+termination, and `/join <tid|all>` waits for them to leave the program. Parsing, `/type`,
+`/load`, and `/reset` require an idle program. When threads are running, qrepl offers
+**Wait**, **Cancel request**, and **Terminate threads**. Completion closes the dialog and
+resumes the pending request automatically; cancelling the request preserves the input.
+Thread termination is cooperative, so code can catch or defer it.
+
+This workflow requires Qore 3.0 with the Program thread coordination APIs and the matching
+QoreRepl module. `NcursesUi::BackgroundTask::cancel()`, `Dialogs::choose()`, and
+`Dialogs::text()` expose the reusable worker cancellation, asynchronous dialog, and
+scrollable help behavior for other applications. Completion uses the application's wake
+queue and a Program condition variable, without periodic thread-list polling.
+
 ## UI Widgets
 
 The `NcursesUi` helper module provides reusable widgets for pop-up menus and browsers:

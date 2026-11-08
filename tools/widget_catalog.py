@@ -33,7 +33,7 @@ def validate(stories, public=None):
     ids = {story['id'] for story in stories}
     if len(ids) != len(stories):
         raise ValueError('Duplicate story IDs')
-    registered = {story['widget'] for story in stories}
+    registered = {story['widget'] for story in stories if not story.get('application')}
     if public != registered:
         raise ValueError(f'Widget inventory mismatch: missing={sorted(public-registered)}, unexpected={sorted(registered-public)}')
     for story in stories:

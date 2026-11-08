@@ -22,7 +22,7 @@
     DEALINGS IN THE SOFTWARE.
 */
 
-%requires qore >= 2.0
+%requires qore >= 3.0
 %requires ncurses
 %requires NcursesReplUi
 
@@ -173,6 +173,13 @@ module NcursesUi {
     a ready-made modal dialog with a message, configurable buttons, and
     keyboard navigation (Tab between buttons, Enter to activate).
 
+    @ref NcursesUi::Dialogs "Dialogs" owns cleanup and restores focus. Use @c text(title, document) for scrollable
+    help that opens at the beginning, and @c choose(title, message, actions, choose, cancel) for asynchronous
+    workflows: the action callback returns @ref False to retain the dialog, and an event callback can call
+    @c dismiss(panel) when work finishes. @ref NcursesUi::BackgroundTask::cancel() "BackgroundTask::cancel()"
+    explicitly requests cooperative worker cancellation without joining from an input handler. Completion still
+    arrives on the UI thread through the application's wake queue; @c close() disposes callbacks and joins work.
+
     Pass the session to the dialog constructor and register callbacks with
     @ref NcursesUi::DialogWidget::setOnButton() "DialogWidget::setOnButton()" and
     @ref NcursesUi::DialogWidget::setOnDismiss() "DialogWidget::setOnDismiss()". The button
@@ -302,6 +309,11 @@ th.injectChar("x");
     - Status bar: same blue background with colored labels
     - Dropdown highlight: \c {"fg": Ncurses::Color::Yellow, "bg": Ncurses::Color::Blue, "attrs": Ncurses::Attr::Bold}
     - Dialog focused button: \c {"fg": Ncurses::Color::Yellow, "bg": Ncurses::Color::Blue, "attrs": Ncurses::Attr::Bold}
+
+    @section ncursesui_release Release Notes
+    Initial 1.0 includes cancellable background tasks, event-driven choice dialogs and scrollable help.
+    These APIs require Qore 3.0. The qrepl frontend uses them to coordinate parsing and reset requests with
+    Program threads while keeping the terminal responsive.
 
     @since ncurses 1.0
 */

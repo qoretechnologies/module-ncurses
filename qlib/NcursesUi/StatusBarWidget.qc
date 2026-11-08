@@ -32,6 +32,8 @@ public namespace NcursesUi {
     - \c text: the text to display
     - \c style: optional hash with fg, bg, attrs keys
     - \c align: "left" (default) or "right"
+    - \c priority: larger values remain visible first when space is limited
+    - \c compact: optional shorter text, expanded when space allows
 
     @since ncurses 1.0
 */
@@ -84,6 +86,7 @@ public class StatusBarWidget inherits NcursesUi::Widget {
         @since ncurses 1.0
     */
     nothing setSegmentSpacing(int spacing) {
+        if (spacing < 0) { throw "STATUS-SPACING-ERROR", "Segment spacing must be nonnegative"; }
         segment_spacing = spacing;
         markDirty();
     }
@@ -93,6 +96,39 @@ public class StatusBarWidget inherits NcursesUi::Widget {
     */
     int getSegmentSpacing() {
         return segment_spacing;
+    }
+
+    /** Selects whole segments in priority order, then expands compact labels when possible.
+        Display order and alignment remain unchanged. Without priority/compact metadata,
+        existing clipping behavior is preserved. The highest-priority segment is clipped
+        only when even its compact label cannot fit.
+        @param columns available terminal cells @return visible segments */
+    list<hash<auto>> fitSegments(int columns) {
+        bool adaptive = False;
+        foreach hash<auto> segment in (segments) {
+            if (exists segment.priority || exists segment.compact) { adaptive = True; break; }
+        }
+        if (!adaptive) { return segments; }
+        if (columns <= 0) { return (); }
+        list<int> order = (); for (int i = 0; i < segments.size(); ++i) { order += i; }
+        order = sort(order, int sub (int a, int b) { return ((segments[b].priority ?? 0) <=> (segments[a].priority ?? 0)) ?: (a <=> b); });
+        hash<string, hash<auto>> chosen = {}; int remaining = columns;
+        foreach int index in (order) {
+            hash<auto> segment = segments[index]; string text = segment.compact ?? segment.text ?? "";
+            int width = TerminalText::displayWidth(text); if (!width) { continue; }
+            int spacing = chosen ? segment_spacing : 0;
+            if (width + spacing <= remaining) { segment.text = text; chosen{index} = segment; remaining -= width + spacing; }
+            else if (!chosen) { segment.text = TerminalText::clipRight(text, remaining); chosen{index} = segment; remaining = 0; }
+        }
+        foreach int index in (order) {
+            if (!exists chosen{index}) { continue; }
+            string full = segments[index].text ?? "";
+            int extra = TerminalText::displayWidth(full) - TerminalText::displayWidth(chosen{index}.text);
+            if (extra <= remaining) { chosen{index}.text = full; remaining -= extra; }
+        }
+        list<hash<auto>> result = ();
+        for (int i = 0; i < segments.size(); ++i) { if (exists chosen{i}) { result += chosen{i}; } }
+        return result;
     }
 
     /** Draws the status bar.
@@ -110,7 +146,7 @@ public class StatusBarWidget inherits NcursesUi::Widget {
         # separate left and right segments
         list<hash<auto>> left_segs = ();
         list<hash<auto>> right_segs = ();
-        foreach hash<auto> seg in (segments) {
+        foreach hash<auto> seg in (fitSegments(width)) {
             if (seg.align == "right") {
                 right_segs += seg;
             } else {

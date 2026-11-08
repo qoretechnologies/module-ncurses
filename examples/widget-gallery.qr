@@ -1,6 +1,7 @@
 #!/usr/bin/env qore
 # Copyright 2026 Qore Technologies, s.r.o.
 %requires ncurses
+%requires NcursesQore
 %requires NcursesUi
 %requires QoreRepl
 %requires astparser >= 3.0
@@ -34,6 +35,7 @@ hash<NcursesGallery::Story> story = NcursesGallery::Registry::find(id);
 *Ncurses::TestTerminal terminal;
 hash<auto> options = {"raw": True, "mouse": True, "bracketed_paste": True, "cursor": 1, "use_colors": !monochrome};
 if (headless) { terminal = new Ncurses::TestTerminal(story.geometry.rows, story.geometry.cols); options.test_terminal = terminal; }
+if (!headless) { options.use_tty = True; }
 NcursesUi::Application app(options); on_exit app.close();
 if (headless) {
     list<hash<auto>> artifacts = ();
@@ -41,7 +43,7 @@ if (headless) {
       foreach hash<NcursesGallery::Step> step in (story.steps) { artifacts += runner.step(); } }
     app.close(); printf("%s\n", make_json(artifacts));
 } else {
-    NcursesGallery::Gallery gallery(app, id); on_exit gallery.close();
+    NcursesGallery::Gallery gallery(app, id, True); on_exit gallery.close();
     if (!direct) { gallery.showNavigation(); }
     app.run();
 }

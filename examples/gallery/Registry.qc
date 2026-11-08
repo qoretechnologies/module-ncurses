@@ -16,6 +16,7 @@ hashdecl Story {
     string api_url;
     string purpose;
     bool catalog = False;
+    bool application = False;
     string state = "default";
     hash<auto> fixture;
     hash<Ncurses::Size> geometry;
@@ -118,9 +119,41 @@ class Registry {
                 <NcursesGallery::Step>{"checkpoint": "accept", "instruction": "Enter inserts the completion and displays signature help.", "event": key("KEY_ENTER"), "expected": {"modal": False, "focus": "TextEditorWidget", "contains": "printf("}},
                 <NcursesGallery::Step>{"checkpoint": "undo", "instruction": "Undo restores the incomplete function name as one edit.", "event": <Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "\x1a"}, "expected": {"text": "# Complete the function name with F8\nint answer = 42;\npri"}}
             )};
+        hash<string, string> app_states = {"default": "qrepl.default", "empty": "qrepl.default", "focused": "qrepl.default",
+            "selected": "qrepl.completion", "disabled": "N/A: the application remains interactive during evaluation",
+            "invalid": "qrepl.error", "loading": "N/A: deterministic worker-gate integration tests cover in-flight execution",
+            "unicode": "qrepl.default", "constrained": "qrepl.constrained"};
+        foreach string scenario in (("default", "completion", "error", "constrained", "files")) {
+            list<hash<NcursesGallery::Step>> steps = ();
+            string draft = scenario == "completion" ? "pri" : scenario == "error" ? "missing_qrepl_function()" : "6 * 7";
+            if (scenario == "constrained") {
+                steps = (<NcursesGallery::Step>{"checkpoint": "paused", "instruction": "Keep paused-output state visible in twelve columns.", "action": "pause-output", "expected": {"contains": "Paused", "following": False}},);
+            } else if (scenario == "files") {
+                steps = (
+                    <NcursesGallery::Step>{"checkpoint": "menu", "instruction": "Alt-F opens File while retaining the draft.", "event": <Ncurses::InputEvent>{"type": Ncurses::InputType::Alt, "ch": "f"}, "expected": {"modal": True}},
+                    <NcursesGallery::Step>{"checkpoint": "load", "instruction": "Highlight Load.", "event": key("KEY_DOWN"), "expected": {"modal": True}},
+                    <NcursesGallery::Step>{"checkpoint": "save", "instruction": "Highlight Save.", "event": key("KEY_DOWN"), "expected": {"modal": True}},
+                    <NcursesGallery::Step>{"checkpoint": "filename", "instruction": "Save asks for a filename with adjacent help.", "event": key("KEY_ENTER"), "expected": {"modal": True, "contains": "Filename"}},
+                    <NcursesGallery::Step>{"checkpoint": "cancel", "instruction": "Escape restores the unchanged draft and focus.", "event": <Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "\e"}, "expected": {"modal": False, "text": draft}}
+                );
+            } else if (scenario == "completion") {
+                steps = (
+                    <NcursesGallery::Step>{"checkpoint": "choices", "instruction": "Tab shows real Qore completions and documentation.", "event": <Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "\t"}, "expected": {"modal": True, "contains": "printf"}},
+                    <NcursesGallery::Step>{"checkpoint": "cancel", "instruction": "Escape restores the draft and its caret.", "event": <Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "\e"}, "expected": {"modal": False, "text": draft}}
+                );
+            } else {
+                steps = (<NcursesGallery::Step>{"checkpoint": "result", "instruction": "Evaluate the draft and capture after the worker completion barrier.", "action": "evaluate",
+                    "expected": {"text": scenario == "error" ? draft : "", "contains": scenario == "error" ? "Error:" : "42", "evaluating": False}},);
+            }
+            result += <NcursesGallery::Story>{"id": "qrepl." + scenario, "widget": "QRepl", "api": "NcursesQore::CodeSupport", "application": True,
+                "state": "scenario", "purpose": "Use the actual qrepl application: " + scenario + ". Evaluation executes Qore in this local session.",
+                "fixture": {"draft": draft}, "geometry": <Ncurses::Size>{"rows": scenario == "constrained" ? 4 : 16, "cols": scenario == "constrained" ? 12 : 72},
+                "keyboard": "qrepl keys are active: Enter evaluates, Tab completes, F1 helps, F6 switches panes, Ctrl-Q exits. Native gallery controls use Alt-1 through Alt-6.",
+                "mouse": "Click menus, editor, transcript and dialog controls.", "states": app_states, "steps": steps};
+        }
         for (int i = 0; i < result.size(); ++i) {
             string file = result[i].widget == "KeyValueWidget" ? "TreeWidget" : result[i].widget == "TextChartWidget" ? "TextChart" : result[i].widget;
-            result[i].api_url = "https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/" + file + ".qc";
+            result[i].api_url = "https://github.com/qoretechnologies/module-ncurses/blob/develop/" + (result[i].application ? "bin/qrepl" : "qlib/NcursesUi/" + file + ".qc");
         }
         cached = result; return result;
     }

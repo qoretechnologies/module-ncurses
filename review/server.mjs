@@ -86,6 +86,14 @@ export async function createBridgeServer({ port = 6007, staticDir, allowedOrigin
             send({ type: 'geometry', ...geometry });
             const native = connection.native = new NativeStory(definition, { geometry, monochrome: message.monochrome === true, qore });
             native.on('terminal', value => send({ type: 'terminal', data: value }));
+            native.on('final', frame => {
+              connection.chain = connection.chain.then(() => send(frame));
+            });
+            native.on('ended', () => {
+              // Send the final command response first. The browser closes only after
+              // its PTY/render barrier, so intentional exit cannot discard that frame.
+              connection.chain = connection.chain.then(() => send({ type: 'ended' }));
+            });
             native.on('geometry', value => send({ type: 'geometry', ...value }));
             native.on('failure', error => { send({ type: 'error', fatal: true, error: error.message }); ws.close(1011, 'Native session failed'); });
             const frame = await native.ready; send({ ...frame, request: message.request });

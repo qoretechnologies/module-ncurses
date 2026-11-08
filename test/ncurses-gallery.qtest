@@ -3,6 +3,7 @@
 %modern
 %prepend-module-path "${SCRIPT_DIR}/../qlib"
 %requires ncurses
+%requires NcursesQore
 %requires NcursesUi
 %try-module astparser >= 3.0
 %define NoAstparser
@@ -46,6 +47,9 @@ class GalleryTest inherits Test {
         addTestCase("assistance selected result reflects navigation filtering and cancellation", \assistanceSelection());
         addTestCase("registered geometry and equal-size device changes are respected", \deviceGeometry());
         addTestCase("nonmodal cursor follows final focus during capture and native event loops", \cursorPolicy());
+        addTestCase("full application stories retain their bindings and release the embedded layout", \appRouting());
+        addTestCase("interactive gallery captures evaluated output and restores streams", \galleryCapture());
+        addTestCase("application gallery protects running work and keeps search shortcuts", \appBusy());
         set_return_value(main());
     }
     private code<nothing()> storyTest(hash<NcursesGallery::Story> story) { return sub () { runStory(story); }; }
@@ -239,7 +243,7 @@ class GalleryTest inherits Test {
         assertEq("table.scrolling", NcursesGallery::Registry::search("TABLE")[0].id);
         assertEq(0, NcursesGallery::Registry::search("unmatched").size());
         hash<string, bool> widgets = {};
-        foreach hash<NcursesGallery::Story> story in (NcursesGallery::Registry::search("")) { widgets{story.widget} = True; }
+        foreach hash<NcursesGallery::Story> story in (NcursesGallery::Registry::search("")) { if (!story.application) { widgets{story.widget} = True; } }
         assertEq(27, widgets.size());
         list<hash<NcursesGallery::Story>> copy = NcursesGallery::Registry::stories(); copy[0].id = "changed.id";
         assertEq("text-editor.boundaries", NcursesGallery::Registry::stories()[0].id);
@@ -359,6 +363,105 @@ class GalleryTest inherits Test {
         assertEq((), popup.getResults()); assertNothing(popup.getSelectedResult());
         assertEq(("No assistance available",), popup.getDocumentation());
     }
+    galleryCapture() {
+        Ncurses::TestTerminal terminal(16, 72); NcursesUi::Application app({"test_terminal": terminal}); on_exit app.close();
+        NcursesGallery::Gallery gallery(app, "qrepl.default", True); on_exit gallery.close();
+        foreach string ch in (("\x15", "stdout.write(\"gallery-\" + \"capture\\n\"); stderr.write(\"captured-\" + \"stderr\\n\");", "\n")) {
+            if (ch.length() > 1) {
+                for (int i = 0; i < ch.length(); ++i) { string character = ch.substr(i, 1); app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": character}); }
+            } else { app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": ch}); }
+        }
+        gallery.current().settle(); hash<auto> artifact = gallery.current().capture();
+        string text = join("", map $1.text, artifact.frame.cells);
+        assertTrue(text.find("gallery-capture") >= 0, text);
+        assertTrue(text.find("captured-stderr") >= 0, text);
+        assertFalse(artifact.state.evaluating); gallery.reset();
+        assertFalse(join("", map $1.text, gallery.current().capture().frame.cells).find("gallery-capture") >= 0);
+        gallery.select("label.default"); assertEq("LabelWidget", gallery.current().control().className());
+    }
+    appRouting() {
+        NcursesUi::TestHarness th(20, 80); on_exit th.close(); NcursesUi::Application app(th.session());
+        NcursesGallery::Gallery gallery(app, "qrepl.default"); on_exit gallery.close();
+        app.processEvent(NcursesGallery::Registry::key("KEY_F(6)")); assertEq("TranscriptWidget", gallery.current().inspect().focus);
+        app.processEvent(NcursesGallery::Registry::key("KEY_F(6)")); assertEq("TextEditorWidget", gallery.current().inspect().focus);
+        app.processEvent(NcursesGallery::Registry::key("KEY_F(1)")); assertTrue(app.getDispatcher().hasModal());
+        app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "\e"});
+        app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Alt, "ch": "2"}); assertTrue(!!gallery.navigation()); gallery.closeOverlay();
+        gallery.select("table.scrolling"); app.processEvent(NcursesGallery::Registry::key("KEY_END")); assertEq(23, gallery.current().inspect().selected);
+        gallery.select("qrepl.completion"); app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "\t"}); assertTrue(app.getDispatcher().hasModal());
+        gallery.reset(); assertFalse(app.getDispatcher().hasModal()); assertEq("pri", gallery.current().inspect().text);
+        foreach string story in (("qrepl.completion", "qrepl.files", "qrepl.default")) {
+            gallery.select(story);
+            foreach hash<NcursesGallery::Step> step in (gallery.current().story().steps) {
+                assertEq(step.checkpoint, gallery.current().step().checkpoint);
+            }
+        }
+        assertEq("", gallery.current().inspect().text); assertFalse(gallery.current().inspect().empty);
+        NcursesUi::TranscriptWidget output = cast<NcursesUi::TranscriptWidget>(app.getRoot().getChildren()[1]);
+        NcursesUi::TextEditorWidget editor = cast<NcursesUi::TextEditorWidget>(app.getRoot().getChildren()[2]);
+        output.clear(); assertTrue(gallery.current().inspect().empty);
+        editor.setText("6 * 7"); assertFalse(gallery.current().inspect().empty);
+        editor.setText(""); output.appendLine("42"); assertFalse(gallery.current().inspect().empty);
+    }
+    appBusy() {
+        NcursesUi::TestHarness th(16, 72); on_exit th.close(); NcursesUi::Application app(th.session());
+        NcursesGallery::Gallery gallery(app, "qrepl.default");
+        hash<PipeInfo> gate = File::getPipe(); bool released = False;
+        on_exit { if (!released) { gate.write.write("release\n"); } gallery.close(); gate.write.close(); gate.read.close(); }
+        NcursesUi::TextEditorWidget editor = cast<NcursesUi::TextEditorWidget>(app.getFocusManager().getCurrentFocus());
+        editor.setText("keep this draft");
+        NcursesUi::TranscriptWidget output = cast<NcursesUi::TranscriptWidget>(app.getRoot().getChildren()[1]);
+        output.appendLine("match one");
+        for (int i = 0; i < 20; ++i) { output.appendLine("between"); }
+        output.appendLine("match two"); output.setSearch("match"); output.findNext(); output.findNext();
+        int last_match_scroll = output.getScrollY();
+        app.processEvent(NcursesGallery::Registry::key("KEY_F(15)"));
+        assertEq(editor, app.getFocusManager().getCurrentFocus()); assertEq("keep this draft", editor.getText());
+        assertTrue(output.getScrollY() < last_match_scroll);
+        app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Alt, "ch": "1"});
+        string help = join("", map $1.text, gallery.current().capture().frame.cells);
+        assertTrue(help.find("Alt-6 Inspect") >= 0);
+        assertTrue(help.find("Escape: close this help.") >= 0);
+        NcursesUi::Widget help_modal = app.getDispatcher().topModal();
+        for (int fn = 1; fn <= 6; ++fn) {
+            app.processEvent(NcursesGallery::Registry::key("KEY_F(" + fn + ")"));
+            assertEq(help_modal, app.getDispatcher().topModal()); assertEq("keep this draft", editor.getText());
+        }
+        app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "\x11"});
+        assertFalse(app.getDispatcher().hasModal());
+        assertThrows("GALLERY-EXPECTATION-ERROR", sub () { gallery.current().step(); });
+        gallery.reset(); editor = cast<NcursesUi::TextEditorWidget>(app.getFocusManager().getCurrentFocus());
+        editor.setText(sprintf("ReadOnlyFile gate(\"/proc/self/fd/%d\"); gate.readLine();", gate.read.getPollableDescriptor()));
+        app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "\n"});
+        assertTrue(gallery.current().isEvaluating());
+        assertThrows("GALLERY-BUSY", sub () { gallery.reset(); });
+        assertThrows("GALLERY-BUSY", sub () { gallery.current().reset(); });
+        assertThrows("GALLERY-BUSY", sub () { gallery.current().step(); });
+        assertThrows("GALLERY-BUSY", sub () { gallery.select("label.default"); });
+        assertEq("qrepl.default", gallery.current().story().id);
+        foreach string shortcut in (("3", "5")) {
+            app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Alt, "ch": shortcut});
+            assertTrue(app.getDispatcher().hasModal());
+            assertTrue(join("", map $1.text, gallery.current().capture().frame.cells).find("Evaluation is still running") >= 0);
+            gallery.closeOverlay(); assertTrue(gallery.current().isEvaluating());
+        }
+        app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Alt, "ch": "2"});
+        assertTrue(!!gallery.navigation()); NcursesGallery::Picker picker = gallery.navigation();
+        app.processEvent(NcursesGallery::Registry::key("KEY_F(3)")); assertEq(picker, gallery.navigation());
+        gallery.navigation().query.setText("label.default");
+        app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "\n"});
+        assertFalse(!!gallery.navigation()); assertEq("qrepl.default", gallery.current().story().id);
+        gallery.closeOverlay(); editor.setText("new draft");
+        app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "!"});
+        assertEq("new draft!", editor.getText());
+        app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Alt, "ch": "4"});
+        assertEq(40, gallery.current().capture().frame.cols); assertTrue(gallery.current().isEvaluating());
+        gate.write.write("release\n"); released = True; gallery.current().settle();
+        assertFalse(gallery.current().isEvaluating()); assertEq("new draft!", editor.getText());
+        gallery.reset(); assertEq("6 * 7", gallery.current().inspect().text);
+        gallery.select("label.default"); assertEq("LabelWidget", gallery.current().control().className());
+    }
+
 }
 
 %else

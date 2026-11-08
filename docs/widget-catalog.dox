@@ -680,5 +680,10 @@ These cases use the same native events for headless assertions and real PTY/brow
 | file-selection.mouse | Exercise the visible mouse target for FileSelectionWidget. Click selects; wheel scrolls. |
 | attachment.mouse | Exercise the visible mouse target for AttachmentWidget. Click a displayed action; wheel scrolls. |
 | text-editor.code | Edit syntax-highlighted Qore code with qrepl completion and signature help. Drafts are not executed. |
+| qrepl.default | Use the actual qrepl application: default. Evaluation executes Qore in this local session. |
+| qrepl.completion | Use the actual qrepl application: completion. Evaluation executes Qore in this local session. |
+| qrepl.error | Use the actual qrepl application: error. Evaluation executes Qore in this local session. |
+| qrepl.constrained | Use the actual qrepl application: constrained. Evaluation executes Qore in this local session. |
+| qrepl.files | Use the actual qrepl application: files. Evaluation executes Qore in this local session. |
 
 */

@@ -5,12 +5,16 @@ import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { fileURLToPath } from 'node:url';
 import fs from 'node:fs/promises';
+import { hostname, networkInterfaces } from 'node:os';
 import { chromium } from '@playwright/test';
 import { registry } from '../native.mjs';
 import { openStory, command, browserArgs } from '../browser.mjs';
 
 test('documented development command serves Storybook and proxies the native session', { timeout: 60000 }, async () => {
-  const child = spawn(process.execPath, ['dev.mjs'], { cwd: fileURLToPath(new URL('../', import.meta.url)), stdio: ['ignore', 'pipe', 'pipe'] });
+  const address = Object.values(networkInterfaces()).flat().find(value => value.family === 'IPv4' && !value.internal)?.address;
+  assert.ok(address, 'LAN-binding coverage needs a non-loopback IPv4 interface');
+  const child = spawn(process.execPath, ['dev.mjs'], { cwd: fileURLToPath(new URL('../', import.meta.url)),
+    env: { ...process.env, STORYBOOK_HOST: '0.0.0.0' }, stdio: ['ignore', 'pipe', 'pipe'] });
   const exited = once(child, 'close'); let output = ''; let browser; let page; const diagnostics = []; const pageErrors = [];
   const ready = new Promise((resolve, reject) => {
     const read = data => { output += data; if (output.includes('Storybook ready!')) { resolve(); } };
@@ -18,7 +22,7 @@ test('documented development command serves Storybook and proxies the native ses
     child.once('error', reject); child.once('close', () => reject(new Error('Development server closed before readiness: ' + output)));
   });
   try {
-    await ready; browser = await chromium.launch({ args: browserArgs }); page = await browser.newPage();
+    await ready; browser = await chromium.launch({ args: [...browserArgs, `--host-resolver-rules=MAP ${hostname()} ${address}`] }); page = await browser.newPage();
     page.on('pageerror', error => pageErrors.push(error.message));
     page.on('console', message => { if (message.type() === 'error') { diagnostics.push(message.text()); } });
     page.on('requestfailed', request => diagnostics.push(`${request.url()}: ${request.failure()?.errorText}`));
@@ -29,7 +33,7 @@ test('documented development command serves Storybook and proxies the native ses
       socket.on('socketerror', error => diagnostics.push(`WS error: ${error}`));
     });
     const story = (await registry()).find(story => story.id === 'table.scrolling');
-    assert.equal((await openStory(page, 'http://127.0.0.1:6006', story)).state.selected, 0);
+    assert.equal((await openStory(page, `http://${hostname()}:6006`, story)).state.selected, 0);
     assert.equal((await command(page, 'input', '\x1bOF')).state.selected, 23);
     const reloaded = page.waitForEvent('framenavigated', frame => frame === page.mainFrame());
     const terminalPath = fileURLToPath(new URL('../terminal.mjs', import.meta.url));

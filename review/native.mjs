@@ -74,7 +74,7 @@ export class NativeStory extends EventEmitter {
     this.child.stdin.on('error', error => { if (!this.closing) { this.fail(error); } });
     this.child.on('error', error => this.fail(error));
     this.child.on('close', (code, signal) => {
-      const expected = this.closing;
+      const expected = this.closing || (this.intentionalExit && code === 0 && !signal);
       this.closing = true;
       clearTimeout(this.startTimer); clearTimeout(this.closeTimer); this.lines.close();
       // Qore inherits the supervisor's isolated process group. This also covers
@@ -114,6 +114,13 @@ export class NativeStory extends EventEmitter {
         }
         break;
       }
+      case 'final': this.emit('final', message); break;
+      case 'idle': {
+        const request = this.pending.get(message.sequence);
+        if (!request) { throw new Error(`Unexpected native sequence ${message.sequence}`); }
+        this.pending.delete(message.sequence); clearTimeout(request.timer); request.resolve(message); break;
+      }
+      case 'ended': this.intentionalExit = true; this.emit('ended'); break;
       case 'exit': this.nativePid = undefined; break;
       default: throw new Error('Unknown native response');
     }
@@ -126,8 +133,13 @@ export class NativeStory extends EventEmitter {
   command(action, values = {}) {
     const operation = this.chain.then(async () => {
       await this.ready;
-      if (this.closing) { throw new Error('Native story is closed'); }
-      if (!['capture', 'input', 'resize', 'reset', 'step'].includes(action)) { throw new Error('Unknown native action'); }
+      if (this.closing || this.intentionalExit) { throw new Error('Native story is closed'); }
+      if (!['capture', 'input', 'resize', 'reset', 'step', 'settle'].includes(action)) { throw new Error('Unknown native action'); }
+      // Check on the UI thread before changing PTY geometry for reset/replay.
+      // A stale browser frame cannot tell whether evaluation has finished.
+      if (this.story.application && (action === 'reset' || action === 'step')) {
+        await this.exchange({ action: 'idle', sequence: ++this.sequence });
+      }
       const command = { action, sequence: ++this.sequence };
       if (action === 'input') {
         const encoding = values.encoding ?? 'utf8';
@@ -142,14 +154,17 @@ export class NativeStory extends EventEmitter {
       if (action === 'resize') { size = dimensions(values); Object.assign(command, size); }
       if (action === 'step') { size = this.story.steps[this.index + 1]?.size; }
       if (size) { command.geometry = dimensions(size); this.geometry = size; this.emit('geometry', size); }
-      const request = deferred();
-      request.timer = setTimeout(() => this.fail(new Error(`Native ${action} deadline exceeded`)), this.timeout);
-      this.pending.set(command.sequence, request);
-      this.child.stdin.write(JSON.stringify(command) + '\n');
-      return await request.promise;
+      return await this.exchange(command);
     });
     this.chain = operation.catch(() => {});
     return operation;
+  }
+  exchange(command) {
+    const request = deferred();
+    request.timer = setTimeout(() => this.fail(new Error(`Native ${command.action} deadline exceeded`)), this.timeout);
+    this.pending.set(command.sequence, request);
+    this.child.stdin.write(JSON.stringify(command) + '\n');
+    return request.promise;
   }
   async close() {
     if (!this.closing) {

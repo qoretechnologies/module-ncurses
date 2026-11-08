@@ -231,6 +231,11 @@ public class Widget {
         markDirty();
     }
 
+    /** Returns the configured padding, independent of the allocated frame.
+        @return padding insets
+    */
+    hash<NcursesUi::Insets> getPadding() { return padding; }
+
     /** Returns the content rectangle (frame minus padding).
         @since ncurses 1.0
     */

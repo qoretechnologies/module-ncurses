@@ -1,5 +1,7 @@
 #!/usr/bin/env qore
+# Copyright 2026 Qore Technologies, s.r.o.
 
+%prepend-module-path "${SCRIPT_DIR}/../qlib"
 %requires ncurses
 %requires NcursesUi
 %requires QUnit
@@ -26,11 +28,62 @@ class NcursesLayoutTest inherits Test {
         addTestCase("SplitLayout minimum size respected", \testSplitMinimumSize());
         addTestCase("SplitLayout resize propagation", \testSplitResize());
         addTestCase("BoxLayout with padding", \testBoxWithPadding());
+        addTestCase("Content flow follows wrapped output and preserves footer position", \contentFlow());
+        addTestCase("Content flow validates configuration before mutating frames", \contentFlowErrors());
 
         set_return_value(main());
     }
 
     # ---- BoxLayout tests ----
+
+    contentFlow() {
+        NcursesUi::Widget root(); root.setFrameValues(2, 3, 12, 8);
+        NcursesUi::TranscriptWidget output(); NcursesUi::Widget input(); NcursesUi::Widget footer();
+        input.setVSizePolicy(NcursesUi::SizePolicy::Fixed); input.setPreferredSize(1, 0);
+        footer.setVSizePolicy(NcursesUi::SizePolicy::Fixed); footer.setPreferredSize(1, 0);
+        root.addChild(output); root.addChild(input); root.addChild(footer);
+        NcursesUi::BoxLayout layout(); layout.setContentFlow(output, input); layout.apply(root);
+        assertEq(0, output.getFrame().rows); assertEq(2, input.getFrame().y); assertEq(13, footer.getFrame().y);
+        output.appendLine("123456789"); layout.apply(root);
+        assertEq(2, output.getFrame().rows); assertEq(4, input.getFrame().y); assertEq(13, footer.getFrame().y);
+        root.setFrameValues(2, 3, 12, 16); layout.apply(root);
+        assertEq(1, output.getFrame().rows); assertEq(3, input.getFrame().y); assertEq(13, footer.getFrame().y);
+        input.setPreferredSize(3, 0); layout.apply(root);
+        assertEq(3, input.getFrame().rows); assertEq(3, input.getFrame().y); assertEq(13, footer.getFrame().y);
+        for (int i = 0; i < 20; ++i) { output.appendLine("row " + i); }
+        layout.apply(root); assertEq(8, output.getFrame().rows); assertEq(10, input.getFrame().y); assertEq(13, footer.getFrame().y);
+        output.clear(); output.setMinimumSize(2, 0); layout.apply(root); assertEq(2, output.getFrame().rows);
+        input.setVisible(False); layout.apply(root); assertEq(11, output.getFrame().rows);
+        input.setVisible(True); output.setVisible(False); layout.apply(root); assertEq(2, input.getFrame().y);
+        output.setVisible(True); layout.setContentFlow(NOTHING, NOTHING); layout.apply(root); assertEq(8, output.getFrame().rows);
+        NcursesUi::BoxLayout spaced(NcursesUi::Orientation::Vertical, 1); spaced.setContentFlow(output, input); spaced.apply(root);
+        assertEq(5, input.getFrame().y); assertEq(13, footer.getFrame().y);
+        root.setFrameValues(0, 0, 1, 1); spaced.apply(root);
+        assertEq(1, output.getFrame().rows); assertEq(0, input.getFrame().rows); assertEq(0, footer.getFrame().rows);
+        root.setFrameValues(0, 0, 0, 0); spaced.apply(root); assertEq(0, output.getFrame().rows);
+    }
+    contentFlowErrors() {
+        NcursesUi::Widget root(); root.setFrameValues(0, 0, 10, 20);
+        NcursesUi::Widget output(); NcursesUi::Widget input(); NcursesUi::Widget outsider();
+        root.addChild(output); root.addChild(input); NcursesUi::BoxLayout layout();
+        layout.setContentFlow(output, input); layout.apply(root);
+        hash<NcursesUi::Rect> before = output.getFrame();
+        assertThrows("LAYOUT-FLOW-ERROR", sub () { layout.setContentFlow(output, NOTHING); });
+        assertThrows("LAYOUT-FLOW-ERROR", sub () { layout.setContentFlow(NOTHING, input); });
+        assertThrows("LAYOUT-FLOW-ERROR", sub () { layout.setContentFlow(output, output); });
+        NcursesUi::BoxLayout horizontal(NcursesUi::Orientation::Horizontal);
+        assertThrows("LAYOUT-FLOW-ERROR", sub () { horizontal.setContentFlow(output, input); });
+        layout.apply(root); assertEq(before, output.getFrame());
+        output.setVSizePolicy(NcursesUi::SizePolicy::Fixed);
+        assertThrows("LAYOUT-FLOW-ERROR", sub () { layout.setContentFlow(output, input); });
+        assertThrows("LAYOUT-FLOW-ERROR", sub () { layout.apply(root); }); assertEq(before, output.getFrame());
+        output.setVSizePolicy(NcursesUi::SizePolicy::Expanding);
+        layout.setContentFlow(output, outsider);
+        assertThrows("LAYOUT-FLOW-ERROR", sub () { layout.apply(root); }); assertEq(before, output.getFrame());
+        layout.setContentFlow(input, output);
+        assertThrows("LAYOUT-FLOW-ERROR", sub () { layout.apply(root); }); assertEq(before, output.getFrame());
+        layout.setContentFlow(NOTHING, NOTHING); layout.apply(root); assertEq(5, output.getFrame().rows);
+    }
 
     testBoxVerticalEqual() {
         NcursesUi::Widget container();

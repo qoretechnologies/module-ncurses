@@ -5,6 +5,8 @@
 %prepend-module-path "${SCRIPT_DIR}/../qlib"
 %requires ncurses
 %requires NcursesUi
+%requires NcursesQore
+%requires QoreRepl
 %requires QUnit
 %include "test/TestHarness.qc"
 %exec-class QReplLiveTest
@@ -21,13 +23,17 @@ class RefilledCaptureFile inherits ReadOnlyFile {
         return bytes;
     }
 }
+class FailingCaptureFile inherits ReadOnlyFile {
+    constructor(ReadOnlyFile source) : ReadOnlyFile("/proc/self/fd/" + source.getPollableDescriptor()) {}
+    *binary readShortBinary(softint size, timeout timeout_ms = -1) { throw "CAPTURE-READ-ERROR", "cannot read producer output"; }
+}
 class QReplLiveTest inherits Test {
     private { Program program(PO_DEFAULT); }
     constructor() : Test("QReplLiveTest", "1.0", \ARGV) {
         string code = ReadOnlyFile::readTextFile(get_script_dir() + "/../bin/qrepl");
         code =~ s/%exec-class QRepl//;
-        code += "\nobject sub createRepl(Ncurses::Session session) { return new QRepl(session, False); }\n";
-        code += "\nobject sub createCapture(ReadOnlyFile input) { return new QReplOutputCapture(input); }\n";
+        code += "\nobject sub createRepl(Ncurses::Session session, *QoreRepl::QoreRepl backend) { return new QRepl(session, False, NOTHING, backend); }\n";
+        code += "\nobject sub createCapture(ReadOnlyFile input, *code<nothing()> notify) { return new QReplOutputCapture(input, notify); }\n";
         *hash<ExceptionInfo> warnings = program.parse(code, "qrepl-live", WARN_ALL);
         if (warnings) { throw "QREPL-PARSE-WARNING", warnings; }
         addTestCase("actual application keeps multiline paste atomic and evaluates on Enter", \paste());
@@ -41,7 +47,79 @@ class QReplLiveTest inherits Test {
         addTestCase("capture barriers retain blank lines, split UTF-8 and large output", \capture());
         addTestCase("capture idle shutdown and EOF terminate without timeouts", \captureShutdown());
         addTestCase("capture services flush and close while a pipe stays continuously readable", \captureFairness());
+        addTestCase("capture wake failures remain visible without abandoning the producer pipe", \captureWakeFailure());
+        addTestCase("fatal capture read failures close the reader and fail producers promptly", \captureReadFailure());
+        addTestCase("live syntax colors and precise completion use evaluated symbols", \codeSupport());
+        addTestCase("evaluation leaves UI responsive and preserves edits made during work", \responsive());
+        addTestCase("evaluation completion preserves the unfinished draft during history navigation", \historyDuringEvaluation());
+        addTestCase("failed initial history navigation allows the first completed command to be recalled", \initialHistoryDuringEvaluation());
+        addTestCase("idle quit commands exit directly, Escape dismisses and Ctrl-D deletes or exits", \navigation());
+        addTestCase("file workflows gather filenames and confirm overwrites", \files());
+        addTestCase("narrow status exposes paused output and file panels remain bounded", \compact());
+        addTestCase("traditional prompt follows output through evaluation clear and overflow", \promptFlow());
+        addTestCase("thread dialog closes on idle events, preserves cancellation and resumes requests", \threadRequests());
+        addTestCase("command help starts with session and thread commands", \commandHelp());
+        addTestCase("quit with background work waits visibly and closes on completion", \quitWithThreads());
+        addTestCase("finish and quit detects background workers started by evaluation", \quitAfterSpawning());
+        addTestCase("continuation lines stay source and Ctrl-C cancels pending input", \continuationCommands());
+        addTestCase("quit from continuation waits for external Program activity", \continuationQuit());
         set_return_value(main());
+    }
+    continuationCommands() {
+        NcursesUi::TestHarness th(28, 100); on_exit th.close();
+        QoreRepl::QoreRepl backend({"history_file": NOTHING});
+        auto client = program.callFunction("createRepl", th.session(), backend); on_exit client.close();
+        NcursesUi::Application app = client.getApplication(); NcursesUi::TextEditorWidget editor = client.getEditor();
+        editor.setText("our int preserved = 42;"); app.processEvent(chr("\n")); client.joinEvaluation();
+        foreach string line in (("?", "/?", "/threads")) {
+            editor.setText(line); app.processEvent(chr("\n")); client.joinEvaluation();
+            assertFalse(app.getDispatcher().hasModal(), "continuation /? must not open command help");
+        }
+        assertFalse(backend.needsMoreInput()); assertEq("/threads", editor.getText());
+        editor.setText("our string literal = \"start"); app.processEvent(chr("\n")); client.joinEvaluation();
+        foreach string line in (("/exit", "clear_output", "!!", "  /threads  ", "end\";")) {
+            editor.setText(line); app.processEvent(chr("\n")); client.joinEvaluation();
+        }
+        assertEq("start\n/exit\nclear_output\n!!\n  /threads  \nend", backend.getProgram().getGlobalVariable("literal"));
+
+        editor.setText("if (True) {"); app.processEvent(chr("\n")); client.joinEvaluation();
+        assertTrue(backend.needsMoreInput());
+        app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Alt, "ch": "e"});
+        app.processEvent(key("KEY_DOWN")); app.processEvent(chr("\n"));
+        assertFalse(client.isEvaluating()); assertTrue(backend.needsMoreInput());
+        assertFalse(app.getDispatcher().hasModal());
+        editor.setText("/preser"); app.processEvent(chr("\t")); assertEq("/preserved", editor.getText());
+        assertFalse(app.getDispatcher().hasModal());
+        app.processEvent(key("KEY_SLEFT")); app.processEvent(chr("\x03"));
+        assertTrue(backend.needsMoreInput()); assertEq("/preserved", editor.getText());
+        editor.setText("unfinished"); app.processEvent(chr("\x03"));
+        assertFalse(backend.needsMoreInput()); assertEq(0, backend.getIndentLevel()); assertEq("", editor.getText());
+        assertEq("qore> ", backend.getPrompt()); assertEq(42, backend.getProgram().getGlobalVariable("preserved"));
+        app.drawAll();
+        assertTrue(th.screen().readText(27, 0, 100).find("Input cancelled") >= 0);
+        editor.setText("/?"); app.processEvent(chr("\n")); client.joinEvaluation();
+        assertTrue(app.getDispatcher().hasModal()); app.processEvent(chr("\x1b"));
+        editor.setText("not submitted"); app.processEvent(chr("\x03")); assertEq("", editor.getText());
+    }
+    continuationQuit() {
+        NcursesUi::TestHarness th(24, 80); on_exit th.close();
+        QoreRepl::QoreRepl backend({"history_file": NOTHING});
+        backend.eval("our Counter entered; our Counter gate;"); Counter entered(1); Counter gate(1);
+        bool released = False; on_exit { if (!released) { gate.dec(); } }
+        Program child = backend.getProgram(); child.setGlobalVarValue("entered", entered); child.setGlobalVarValue("gate", gate);
+        assertFalse(exists backend.eval("if (True) {"));
+        assertFalse(exists child.parse("background sub () { entered.dec(); gate.waitForZero(); }();", "external work", WARN_ALL));
+        child.run(); entered.waitForZero();
+        auto client = program.callFunction("createRepl", th.session(), backend);
+        on_exit { on_exit client.close(); if (!released) { gate.dec(); released = True; } }
+        NcursesUi::Application app = client.getApplication(); client.getEditor().setText("keep input");
+        NcursesUi::UiEventScope begin = app.createEventScope(sub (auto value) {
+            app.processEvent(chr("\x11")); assertTrue(app.getDispatcher().hasModal());
+            gate.dec(); released = True;
+        });
+        on_exit begin.close(); begin.post(NOTHING); app.run();
+        assertFalse(app.isRunning()); assertFalse(app.getDispatcher().hasModal());
+        assertEq("keep input", client.getEditor().getText()); assertTrue(backend.needsMoreInput());
     }
     captureFairness() {
         hash<PipeInfo> pipe = File::getPipe(); RefilledCaptureFile input(pipe.read, pipe.write);
@@ -54,6 +132,101 @@ class QReplLiveTest inherits Test {
         input.close(); assertThrows("NCURSES-CAPTURE-ERROR", int sub () { return Ncurses::Session::pendingOutputBytes(input); });
         ReadOnlyFile unsupported("/dev/null"); on_exit unsupported.close();
         assertThrows("NCURSES-CAPTURE-ERROR", int sub () { return Ncurses::Session::pendingOutputBytes(unsupported); });
+    }
+    threadRequests() {
+        foreach string action in (("natural", "wait", "cancel", "terminate", "close", "edited", "join-wait", "join-cancel", "join-terminate")) {
+            NcursesUi::TestHarness th(24, 80); on_exit th.close();
+            QoreRepl::QoreRepl backend({"history_file": NOTHING});
+            backend.eval("our Counter entered; our Counter gate;");
+            Counter entered(1); Counter gate(1); bool released = False; on_exit { if (!released) { gate.dec(); } }
+            Program child = backend.getProgram(); child.setGlobalVarValue("entered", entered); child.setGlobalVarValue("gate", gate);
+            auto client = program.callFunction("createRepl", th.session(), backend);
+            on_exit { on_exit client.close(); if (!released) { gate.dec(); released = True; } }
+            NcursesUi::Application app = client.getApplication(); NcursesUi::TextEditorWidget editor = client.getEditor();
+            backend.eval("background sub () { try { entered.dec(); gate.waitForZero(); } "
+                "catch (hash<ExceptionInfo> ex) { if (ex.err != \"THREAD-CANCELLED\") { rethrow; } clear_thread_cancel(); } }()");
+            entered.waitForZero();
+            bool joining = action.startsWith("join-"); string request = joining ? "/join all" : "/reset";
+            editor.setText(request); app.processEvent(chr("\n"));
+            assertTrue(app.getDispatcher().hasModal()); assertEq(joining, client.isEvaluating()); assertEq(request, editor.getText());
+            if (action == "close") {
+                client.close(); assertTrue(child.getThreadCount() > 0, "closing the monitor must not cancel user threads");
+                child.cancelThreads(); child.waitForThreads(); continue;
+            }
+            if (action == "cancel" || action == "join-cancel") {
+                app.processEvent(chr("\x1b")); assertFalse(app.getDispatcher().hasModal()); assertEq(request, editor.getText());
+                if (joining) { client.joinEvaluation(); assertTrue(child.getThreadCount() > 0); }
+            } else if (action == "terminate" || action == "join-terminate") {
+                app.processEvent(chr("\t")); app.processEvent(chr("\t")); app.processEvent(chr("\n"));
+            } else {
+                if (action == "wait" || action == "join-wait") { app.processEvent(chr("\n")); assertTrue(app.getDispatcher().hasModal()); }
+                if (action == "edited") { editor.setText("new input while waiting"); }
+                gate.dec(); released = True;
+            }
+            if (action == "cancel" || action == "join-cancel") { gate.dec(); released = True; }
+            client.joinThreadMonitor();
+            client.joinEvaluation();
+            assertFalse(app.getDispatcher().hasModal());
+            if (action == "cancel" || action == "join-cancel") { assertEq(child, backend.getProgram()); assertEq(request, editor.getText()); }
+            else if (joining) { assertEq(child, backend.getProgram()); assertEq("", editor.getText()); }
+            else if (action == "edited") { assertTrue(child != backend.getProgram()); assertEq("new input while waiting", editor.getText()); }
+            else { assertTrue(child != backend.getProgram()); assertEq("", editor.getText()); }
+        }
+    }
+    quitWithThreads() {
+        NcursesUi::TestHarness th(24, 80); on_exit th.close(); QoreRepl::QoreRepl backend({"history_file": NOTHING});
+        backend.eval("our Counter entered; our Counter gate;"); Counter entered(1); Counter gate(1);
+        bool released = False; on_exit { if (!released) { gate.dec(); } }
+        backend.getProgram().setGlobalVarValue("entered", entered); backend.getProgram().setGlobalVarValue("gate", gate);
+        backend.eval("background sub () { entered.dec(); gate.waitForZero(); }()"); entered.waitForZero();
+        auto client = program.callFunction("createRepl", th.session(), backend); on_exit client.close();
+        NcursesUi::Application app = client.getApplication(); client.getEditor().setText("keep input");
+        NcursesUi::UiEventScope begin = app.createEventScope(sub (auto value) {
+            app.processEvent(chr("\x11")); assertTrue(app.getDispatcher().hasModal()); assertTrue(app.isRunning());
+            gate.dec(); released = True;
+        });
+        on_exit begin.close(); begin.post(NOTHING); app.run();
+        assertFalse(app.isRunning()); assertFalse(app.getDispatcher().hasModal());
+        assertEq("keep input", client.getEditor().getText());
+    }
+    quitAfterSpawning() {
+        NcursesUi::TestHarness th(24, 80); on_exit th.close(); QoreRepl::QoreRepl backend({"history_file": NOTHING});
+        backend.eval("our Counter entered; our Counter eval_gate; our Counter bg_entered; our Counter bg_gate;");
+        Counter entered(1); Counter eval_gate(1); Counter bg_entered(1); Counter bg_gate(1);
+        bool eval_released = False; bool bg_released = False;
+        Program child = backend.getProgram(); child.setGlobalVarValue("entered", entered);
+        child.setGlobalVarValue("eval_gate", eval_gate); child.setGlobalVarValue("bg_entered", bg_entered);
+        child.setGlobalVarValue("bg_gate", bg_gate);
+        auto client = program.callFunction("createRepl", th.session(), backend);
+        on_exit { on_exit client.close();
+            if (!eval_released) { eval_gate.dec(); } if (!bg_released) { bg_gate.dec(); } }
+        NcursesUi::Application app = client.getApplication();
+        client.getEditor().setText("entered.dec(); eval_gate.waitForZero(); "
+            "background sub () { bg_entered.dec(); bg_gate.waitForZero(); }()");
+        app.processEvent(chr("\n")); entered.waitForZero(); app.processEvent(chr("\x11"));
+        assertTrue(app.getDispatcher().hasModal()); app.processEvent(chr("\n"));
+        assertFalse(app.getDispatcher().hasModal()); eval_gate.dec(); eval_released = True;
+        bg_entered.waitForZero(); client.joinEvaluation();
+        assertTrue(app.getDispatcher().hasModal(), "quitting must account for newly spawned workers");
+        assertTrue(child.getThreadCount() > 0); app.processEvent(chr("\x1b"));
+        bg_gate.dec(); bg_released = True; client.joinThreadMonitor(); assertFalse(app.getDispatcher().hasModal());
+    }
+    commandHelp() {
+        NcursesUi::TestHarness th(28, 100); on_exit th.close();
+        auto client = program.callFunction("createRepl", th.session()); on_exit client.close();
+        NcursesUi::Application app = client.getApplication(); NcursesUi::TextEditorWidget editor = client.getEditor();
+        foreach string command in (("/help", "/?", "/hel")) {
+            editor.setText(command); app.processEvent(chr("\n")); client.joinEvaluation(); app.drawAll();
+            assertTrue(app.getDispatcher().hasModal());
+            Ncurses::Window window = cast<NcursesUi::PanelWidget>(app.getDispatcher().topModal()).getWindow();
+            string text = "";
+            for (int row = 0; row < window.size().rows; ++row) { text += window.readText(row, 0, window.size().cols) + "\n"; }
+            assertTrue(text.find("/reset") >= 0); assertTrue(text.find("/threads") >= 0); assertTrue(text.find("/cancel") >= 0);
+            assertFalse(text.find("linenoise") >= 0);
+            app.processEvent(key("KEY_END")); app.drawAll(); text = "";
+            for (int row = 0; row < window.size().rows; ++row) { text += window.readText(row, 0, window.size().cols) + "\n"; }
+            assertTrue(text.find("clear_output") >= 0); app.processEvent(chr("\x1b")); assertTrue(editor.hasFocus());
+        }
     }
     capture() {
         hash<PipeInfo> pipe = File::getPipe(); auto reader = program.callFunction("createCapture", pipe.read);
@@ -79,34 +252,57 @@ class QReplLiveTest inherits Test {
         assertEq(("tail\x1b[7m%\x1b[0m",), reader.drain());
         assertThrows("QREPL-CAPTURE-CLOSED", sub () { reader.flush(); });
     }
+    captureWakeFailure() {
+        hash<PipeInfo> pipe = File::getPipe(); Counter notified(1); int calls = 0;
+        auto reader = program.callFunction("createCapture", pipe.read, sub () {
+            ++calls; notified.dec(); throw "CAPTURE-WAKE-ERROR", "cannot wake the terminal";
+        });
+        on_exit { reader.close(); pipe.read.close(); pipe.write.close(); }
+        pipe.write.write("first\n"); notified.waitForZero();
+        assertThrows("CAPTURE-WAKE-ERROR", sub () { reader.flush(); });
+        pipe.write.write(strmul("next\n", 500)); reader.close();
+        assertEq(0, Ncurses::Session::pendingOutputBytes(pipe.read));
+        assertEq(1, calls);
+        assertThrows("CAPTURE-WAKE-ERROR", sub () { reader.drain(); });
+        assertThrows("CAPTURE-WAKE-ERROR", sub () { reader.flush(); });
+    }
+    captureReadFailure() {
+        hash<PipeInfo> pipe = File::getPipe(); FailingCaptureFile input(pipe.read); pipe.read.close();
+        auto reader = program.callFunction("createCapture", input);
+        on_exit { reader.close(); input.close(); pipe.write.close(); }
+        pipe.write.write("unreadable\n");
+        assertThrows("CAPTURE-READ-ERROR", sub () { reader.flush(); }); reader.close();
+        assertFalse(input.isOpen());
+        assertThrows("FILE-WRITE-ERROR", sub () { pipe.write.write("must not block\n"); });
+    }
     private hash<Ncurses::InputEvent> key(string name) { return <Ncurses::InputEvent>{"type": Ncurses::InputType::Key, "name": name}; }
     private hash<Ncurses::InputEvent> chr(string text) { return <Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": text}; }
     paste() {
-        NcursesUi::TestHarness th(16, 40); on_exit th.close(); auto client = program.callFunction("createRepl", th.session());
+        NcursesUi::TestHarness th(16, 40); on_exit th.close(); auto client = program.callFunction("createRepl", th.session()); on_exit client.close();
         NcursesUi::Application app = client.getApplication(); NcursesUi::TextEditorWidget editor = client.getEditor();
         NcursesUi::TranscriptWidget output = client.getTranscript(); int before = output.getBlocks().size();
         app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Paste, "ch": "1 +\r\n2"}); app.drawAll();
         assertEq("1 +\n2", editor.getText()); assertEq(before, output.getBlocks().size()); assertEq(2, editor.getFrame().rows);
         app.processEvent(chr("\x1a")); assertEq("", editor.getText()); app.processEvent(chr("\x19")); assertEq("1 +\n2", editor.getText());
-        app.processEvent(chr("\n")); app.drawAll(); assertEq("", editor.getText());
+        app.processEvent(chr("\n")); client.joinEvaluation(); app.drawAll(); assertEq("", editor.getText());
         assertTrue(output.getTranscriptContent().getLine(output.getTranscriptContent().lineCount() - 1).find("3") >= 0);
         app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Alt, "ch": "\n"}); assertEq("\n", editor.getText());
     }
     failure() {
-        NcursesUi::TestHarness th(12, 40); on_exit th.close(); auto client = program.callFunction("createRepl", th.session());
+        NcursesUi::TestHarness th(12, 40); on_exit th.close(); auto client = program.callFunction("createRepl", th.session()); on_exit client.close();
         NcursesUi::Application app = client.getApplication(); NcursesUi::EditorBuffer buffer = cast<NcursesUi::TextEditorWidget>(client.getEditor()).getBuffer();
         buffer.setText("missing_function_zzz()"); buffer.select(1, 4); hash<NcursesUi::EditorSnapshot> before = buffer.snapshot();
-        app.processEvent(chr("\n")); assertEq(before, buffer.snapshot());
+        app.processEvent(chr("\n")); client.joinEvaluation(); assertEq(before, buffer.snapshot());
         buffer.setText("!missing_history_zzz"); buffer.select(1, 5); before = buffer.snapshot();
-        app.processEvent(chr("\n")); assertEq(before, buffer.snapshot());
+        app.processEvent(chr("\n")); client.joinEvaluation(); assertEq(before, buffer.snapshot());
         buffer.insert("replacement"); assertTrue(buffer.undo()); assertEq(before, buffer.snapshot());
         # A menu command must retain selection and undo too.
         app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Alt, "ch": "h"}); assertEq(before, buffer.snapshot());
     }
     history() {
-        NcursesUi::TestHarness th(12, 40); on_exit th.close(); auto client = program.callFunction("createRepl", th.session());
+        NcursesUi::TestHarness th(12, 40); on_exit th.close(); auto client = program.callFunction("createRepl", th.session()); on_exit client.close();
         NcursesUi::Application app = client.getApplication(); NcursesUi::EditorBuffer b = cast<NcursesUi::TextEditorWidget>(client.getEditor()).getBuffer();
-        b.setText("11 + 22"); app.processEvent(chr("\n")); b.setText("unfinished"); b.select(2, 5);
+        b.setText("11 + 22"); app.processEvent(chr("\n")); client.joinEvaluation(); b.setText("unfinished"); b.select(2, 5);
         hash<NcursesUi::EditorSnapshot> draft = b.snapshot(); app.processEvent(key("KEY_UP")); assertEq("11 + 22", b.getText());
         app.processEvent(key("KEY_DOWN")); assertEq(draft, b.snapshot());
         b.setText("long\ndraft"); b.setCursor(7); draft = b.snapshot(); app.processEvent(chr("\x10")); assertEq("11 + 22", b.getText());
@@ -114,7 +310,7 @@ class QReplLiveTest inherits Test {
         app.processEvent(key("KEY_DOWN")); assertEq(7, b.getCursor());
     }
     output() {
-        NcursesUi::TestHarness th(12, 40); on_exit th.close(); auto client = program.callFunction("createRepl", th.session());
+        NcursesUi::TestHarness th(12, 40); on_exit th.close(); auto client = program.callFunction("createRepl", th.session()); on_exit client.close();
         NcursesUi::Application app = client.getApplication(); NcursesUi::TranscriptWidget output = client.getTranscript();
         for (int i = 0; i < 100; ++i) { output.appendLine("line " + i); } app.drawAll();
         app.processEvent(key("KEY_PPAGE")); app.drawAll(); int row = output.getScrollY(); assertFalse(output.isFollowing());
@@ -124,7 +320,7 @@ class QReplLiveTest inherits Test {
         app.processEvent(key("kEND5")); app.drawAll(); assertTrue(output.isFollowing()); assertEq(0, output.getUnreadCount());
     }
     completion() {
-        NcursesUi::TestHarness th(12, 20); on_exit th.close(); auto client = program.callFunction("createRepl", th.session());
+        NcursesUi::TestHarness th(12, 20); on_exit th.close(); auto client = program.callFunction("createRepl", th.session()); on_exit client.close();
         NcursesUi::Application app = client.getApplication(); NcursesUi::TextEditorWidget editor = client.getEditor();
         editor.setText("                pri"); app.layoutRoot(); app.drawAll();
         hash<NcursesUi::EditorSnapshot> draft = editor.getBuffer().snapshot();
@@ -136,19 +332,19 @@ class QReplLiveTest inherits Test {
         assertEq(draft, editor.getBuffer().snapshot());
     }
     search() {
-        NcursesUi::TestHarness th(12, 40); on_exit th.close(); auto client = program.callFunction("createRepl", th.session());
+        NcursesUi::TestHarness th(12, 40); on_exit th.close(); auto client = program.callFunction("createRepl", th.session()); on_exit client.close();
         NcursesUi::Application app = client.getApplication(); NcursesUi::TextEditorWidget editor = client.getEditor();
         NcursesUi::TranscriptWidget output = client.getTranscript(); output.appendLines(("needle first", "other", "needle last"));
         editor.setText("draft"); app.processEvent(chr("\x13")); assertTrue(app.getDispatcher().hasModal()); app.drawAll();
         foreach string ch in ("needle" =~ x/(.)/g) { app.processEvent(chr(ch)); }
         app.processEvent(chr("\n")); assertFalse(app.getDispatcher().hasModal()); assertTrue(editor.hasFocus());
         assertEq(2, output.getMatches().size()); assertFalse(output.isFollowing()); assertEq("draft", editor.getText());
-        app.processEvent(chr("\x11")); assertTrue(app.getDispatcher().hasModal());
+        app.processEvent(key("KEY_F(1)")); assertTrue(app.getDispatcher().hasModal());
         app.processEvent(chr("\x1b")); assertFalse(app.getDispatcher().hasModal()); assertTrue(editor.hasFocus());
         app.processEvent(chr("\x13")); app.processEvent(chr("\x1b")); assertTrue(editor.hasFocus()); assertEq("draft", editor.getText());
     }
     resize() {
-        NcursesUi::TestHarness th(20, 40); on_exit th.close(); auto client = program.callFunction("createRepl", th.session());
+        NcursesUi::TestHarness th(20, 40); on_exit th.close(); auto client = program.callFunction("createRepl", th.session()); on_exit client.close();
         NcursesUi::Application app = client.getApplication(); NcursesUi::TextEditorWidget editor = client.getEditor();
         editor.setText(strmul("é界 ", 20)); hash<NcursesUi::EditorSnapshot> draft = editor.getBuffer().snapshot();
         foreach hash<Ncurses::Size> size in ((<Ncurses::Size>{"rows": 4, "cols": 8}, <Ncurses::Size>{"rows": 20, "cols": 40})) {
@@ -158,10 +354,193 @@ class QReplLiveTest inherits Test {
         }
     }
     clipboard() {
-        NcursesUi::TestHarness th(12, 40); on_exit th.close(); auto client = program.callFunction("createRepl", th.session());
+        NcursesUi::TestHarness th(12, 40); on_exit th.close(); auto client = program.callFunction("createRepl", th.session()); on_exit client.close();
         NcursesUi::Application app = client.getApplication(); NcursesUi::TextEditorWidget editor = client.getEditor(); editor.setText("a界");
         app.processEvent(key("KEY_SLEFT")); assertEq("界", editor.getBuffer().selectedText());
         app.processEvent(chr("\x18")); assertEq("a", editor.getText()); app.processEvent(chr("\x16")); assertEq("a界", editor.getText());
         app.processEvent(chr("\x1a")); assertEq("a", editor.getText()); app.processEvent(chr("\x19")); assertEq("a界", editor.getText());
     }
+    codeSupport() {
+        NcursesUi::TestHarness th(16, 60); on_exit th.close(); auto client = program.callFunction("createRepl", th.session()); on_exit client.close();
+        NcursesUi::Application app = client.getApplication(); NcursesUi::TextEditorWidget editor = client.getEditor();
+        editor.setText("int answer = 42; # a comment"); app.drawAll();
+        int styled = 0; int cell_index = 0; hash<NcursesUi::Rect> rect = editor.getFrame();
+        foreach hash<Ncurses::ScreenCell> cell in (th.session().capture().cells) {
+            int row = cell_index++ / 60; if (row >= rect.y && row < rect.y + rect.rows && cell.fg >= 0) { ++styled; }
+        }
+        NcursesQore::CodeSupport support(new QoreRepl::QoreRepl({"history_file": NOTHING}));
+        if (support.hasSyntaxHighlighting()) { assertTrue(styled > 0); } else { assertEq(0, styled); }
+        editor.setText("get_qore_library_info()"); editor.getBuffer().setCursor("get_qore_library_in".length()); app.processEvent(chr("\t"));
+        assertEq("get_qore_library_info()", editor.getText());
+        editor.setText("int sub live_unique_completion() { return 7; }"); app.processEvent(chr("\n")); client.joinEvaluation();
+        editor.setText("live_unique_compleXXX()"); editor.getBuffer().setCursor("live_unique_comple".length()); app.processEvent(chr("\t"));
+        assertEq("live_unique_completion()", editor.getText()); app.processEvent(chr("\x1a")); assertEq("live_unique_compleXXX()", editor.getText());
+    }
+    responsive() {
+        NcursesUi::TestHarness th(12, 40); on_exit th.close();
+        Counter entered(1); Counter release(1); bool released = False;
+        Program backend(PO_NEW_STYLE | PO_ALLOW_REPARSE, True);
+        backend.parse("our Counter entered; our Counter release;", "worker gates");
+        backend.setGlobalVarValue("entered", entered); backend.setGlobalVarValue("release", release);
+        QoreRepl::QoreRepl repl({"program": backend, "history_file": NOTHING});
+        auto client = program.callFunction("createRepl", th.session(), repl);
+        on_exit { if (!released) { release.dec(); } client.close(); }
+        NcursesUi::Application app = client.getApplication(); NcursesUi::TextEditorWidget editor = client.getEditor();
+        NcursesUi::TranscriptWidget output = client.getTranscript();
+        editor.setText("entered.dec(); release.waitForZero();"); app.processEvent(chr("\n"));
+        entered.waitForZero(); assertTrue(client.isEvaluating());
+        assertTrue(th.screen().readText(11, 0, 40).find("Evaluating") >= 0);
+        int blocks = output.getBlocks().size(); app.processEvent(chr("\n")); assertEq(blocks, output.getBlocks().size());
+        app.processEvent(chr("\t")); assertFalse(app.getDispatcher().hasModal());
+        app.processEvent(key("KEY_F(6)")); assertTrue(output.hasFocus());
+        app.processEvent(key("KEY_F(6)")); assertTrue(editor.hasFocus());
+        editor.setText(""); app.processEvent(chr("\x04")); assertTrue(app.getDispatcher().hasModal());
+        assertTrue(!!app.getFocusManager().getCurrentFocus());
+        assertTrue(app.getDispatcher().topModal().containsWidget(app.getFocusManager().getCurrentFocus()));
+        app.processEvent(chr("\x1b")); assertFalse(app.getDispatcher().hasModal());
+        assertTrue(client.isEvaluating()); assertTrue(editor.hasFocus());
+        editor.setText("next draft"); app.processEvent(chr("\x03"));
+        assertTrue(client.isEvaluating()); assertEq("next draft", editor.getText());
+        editor.setText("next draft"); app.processEvent(chr("!"));
+        release.dec(); released = True; client.joinEvaluation(); assertFalse(client.isEvaluating()); assertEq("next draft!", editor.getText());
+        editor.setText("1 + 2"); app.processEvent(chr("\n")); client.joinEvaluation(); assertEq("", editor.getText());
+    }
+    historyDuringEvaluation() {
+        NcursesUi::TestHarness th(12, 40); on_exit th.close(); Counter entered(1); Counter release(1); bool released = False;
+        Program backend(PO_NEW_STYLE | PO_ALLOW_REPARSE, True);
+        backend.parse("our Counter entered; our Counter release;", "history worker gates");
+        backend.setGlobalVarValue("entered", entered); backend.setGlobalVarValue("release", release);
+        QoreRepl::QoreRepl repl({"program": backend, "history_file": NOTHING});
+        auto client = program.callFunction("createRepl", th.session(), repl);
+        on_exit { if (!released) { release.dec(); } client.close(); }
+        NcursesUi::Application app = client.getApplication(); NcursesUi::EditorBuffer buffer = client.getEditor().getBuffer();
+        buffer.setText("1 + 2"); app.processEvent(chr("\n")); client.joinEvaluation();
+        string command = "entered.dec(); release.waitForZero();";
+        buffer.setText(command); app.processEvent(chr("\n")); entered.waitForZero();
+        buffer.setText("unfinished 界 draft"); buffer.select(2, 12); hash<NcursesUi::EditorSnapshot> draft = buffer.snapshot();
+        app.processEvent(chr("\x10")); assertEq("1 + 2", buffer.getText());
+        release.dec(); released = True; client.joinEvaluation(); assertEq("1 + 2", buffer.getText());
+        app.processEvent(chr("\x0e")); assertEq(draft, buffer.snapshot());
+        app.processEvent(chr("\x10")); assertEq(command, buffer.getText());
+        app.processEvent(chr("\x0e")); assertEq(draft, buffer.snapshot());
+    }
+    initialHistoryDuringEvaluation() {
+        NcursesUi::TestHarness th(12, 40); on_exit th.close(); Counter entered(1); Counter release(1); bool released = False;
+        Program backend(PO_NEW_STYLE | PO_ALLOW_REPARSE, True);
+        backend.parse("our Counter entered; our Counter release;", "initial history worker gates");
+        backend.setGlobalVarValue("entered", entered); backend.setGlobalVarValue("release", release);
+        QoreRepl::QoreRepl repl({"program": backend, "history_file": NOTHING});
+        auto client = program.callFunction("createRepl", th.session(), repl);
+        on_exit { if (!released) { release.dec(); } client.close(); }
+        NcursesUi::Application app = client.getApplication(); NcursesUi::EditorBuffer buffer = client.getEditor().getBuffer();
+        string command = "entered.dec(); release.waitForZero();";
+        buffer.setText(command); app.processEvent(chr("\n")); entered.waitForZero();
+        buffer.setText("unfinished draft"); buffer.select(2, 12); hash<NcursesUi::EditorSnapshot> draft = buffer.snapshot();
+        app.processEvent(chr("\x10")); assertEq(draft, buffer.snapshot());
+        release.dec(); released = True; client.joinEvaluation(); assertEq(draft, buffer.snapshot());
+        app.processEvent(chr("\x10")); assertEq(command, buffer.getText());
+        app.processEvent(chr("\x0e")); assertEq(draft, buffer.snapshot());
+    }
+    private nothing runningAction(NcursesUi::Application app, code<nothing()> action, bool exits) {
+        NcursesUi::UiEventScope scope = app.createEventScope(sub (auto value) {
+            on_exit app.quit(); assertTrue(app.isRunning()); action(); assertEq(!exits, app.isRunning());
+        });
+        on_exit scope.close(); scope.post(NOTHING); app.run();
+    }
+    navigation() {
+        NcursesUi::TestHarness th(14, 60); on_exit th.close(); auto client = program.callFunction("createRepl", th.session()); on_exit client.close();
+        NcursesUi::Application app = client.getApplication(); NcursesUi::TextEditorWidget editor = client.getEditor();
+        foreach string initial in (("", "unfinished input")) {
+            foreach hash<Ncurses::InputEvent> event in ((chr("\x11"), <Ncurses::InputEvent>{"type": Ncurses::InputType::Alt, "ch": "q"})) {
+                editor.setText(initial); runningAction(app, sub () { app.processEvent(event); }, True);
+                assertFalse(app.getDispatcher().hasModal()); assertFalse(client.isEvaluating());
+            }
+        }
+        editor.setText("abc"); editor.getBuffer().setCursor(1);
+        runningAction(app, sub () { app.processEvent(chr("\x04")); }, False); assertEq("ac", editor.getText());
+        runningAction(app, sub () { app.processEvent(chr("\x1b")); }, False); assertEq("ac", editor.getText());
+        editor.setText(""); runningAction(app, sub () { app.processEvent(chr("\x04")); }, True);
+        app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Alt, "ch": "f"}); assertTrue(app.getDispatcher().hasModal());
+        app.processEvent(chr("\x1b")); assertTrue(editor.hasFocus());
+        app.processEvent(key("KEY_F(1)")); assertTrue(app.getDispatcher().hasModal()); app.processEvent(chr("\x1b"));
+        foreach string command in (("/exit", "/quit", "/q", "  /exit  ")) {
+            # Reproduce the report: only executed expressions precede the quit command.
+            for (int i = 0; i < 6; ++i) { editor.setText("6 * 7"); app.processEvent(chr("\n")); client.joinEvaluation(); assertEq("", editor.getText()); }
+            int blocks = cast<NcursesUi::TranscriptWidget>(client.getTranscript()).getBlocks().size();
+            editor.setText(command); runningAction(app, sub () { app.processEvent(chr("\n")); }, True);
+            assertFalse(app.getDispatcher().hasModal()); assertFalse(client.isEvaluating());
+            assertEq(blocks, cast<NcursesUi::TranscriptWidget>(client.getTranscript()).getBlocks().size());
+        }
+        runningAction(app, sub () {
+            app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Alt, "ch": "f"});
+            app.processEvent(key("KEY_END")); app.processEvent(chr("\n"));
+        }, True);
+        assertFalse(app.getDispatcher().hasModal());
+    }
+    promptFlow() {
+        NcursesUi::TestHarness th(16, 80); on_exit th.close(); auto client = program.callFunction("createRepl", th.session()); on_exit client.close();
+        NcursesUi::Application app = client.getApplication(); NcursesUi::TextEditorWidget editor = client.getEditor();
+        NcursesUi::TranscriptWidget output = client.getTranscript(); app.drawAll();
+        assertEq(output.getFrame().y + output.getTranscriptContent().totalRows(), editor.getFrame().y);
+        assertTrue(editor.getFrame().y < 14);
+        output.clear(); app.layoutRoot(); app.drawAll(); assertEq(1, editor.getFrame().y);
+        for (int i = 0; i < 4; ++i) {
+            editor.setText("6 * 7"); app.layoutRoot(); app.drawAll(); int row = editor.getFrame().y;
+            assertTrue(th.screen().readText(row, 0, 80).find("6 * 7") >= 0);
+            app.processEvent(chr("\n")); client.joinEvaluation(); app.drawAll();
+            assertTrue(th.screen().readText(row, 0, 80).find("6 * 7") >= 0);
+            assertEq("42", trim(th.screen().readText(row + 1, 0, 80)));
+            assertEq(row + 2, editor.getFrame().y); assertEq("", editor.getText());
+        }
+        for (int i = 0; i < 30; ++i) { output.appendLine("line " + i); }
+        app.layoutRoot(); app.drawAll(); assertEq(14, editor.getFrame().y); assertEq("line 29", trim(th.screen().readText(13, 0, 79)));
+        app.processEvent(key("KEY_PPAGE")); app.drawAll(); int anchor = output.getScrollY();
+        editor.setText("next input"); output.appendLine("late output"); app.layoutRoot(); app.drawAll();
+        assertEq(anchor, output.getScrollY()); assertFalse(output.isFollowing());
+        editor.setText("clear_output"); app.processEvent(chr("\n")); app.drawAll();
+        assertEq(1, editor.getFrame().y); assertEq("", trim(th.screen().readText(5, 0, 80)));
+        output.appendLine(strmul("x", 81)); app.layoutRoot(); app.drawAll(); assertEq(3, editor.getFrame().y);
+        editor.setText("one\ntwo"); app.layoutRoot(); app.drawAll(); assertEq(2, editor.getFrame().rows); assertEq(3, editor.getFrame().y);
+    }
+    files() {
+        NcursesUi::TestHarness th(20, 80); on_exit th.close(); auto client = program.callFunction("createRepl", th.session()); on_exit client.close();
+        NcursesUi::Application app = client.getApplication(); NcursesUi::TextEditorWidget editor = client.getEditor();
+        string dir = "/tmp/ncurses-live-files-" + getpid(); mkdir(dir, 0700);
+        string path = dir + "/saved history 界.qr"; on_exit { unlink(path); rmdir(dir); }
+        editor.setText("40 + 2;"); app.processEvent(chr("\n")); client.joinEvaluation(); editor.setText("keep draft");
+        # File -> Save is a real prompt, not a missing-argument command.
+        app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Alt, "ch": "f"});
+        app.processEvent(key("KEY_DOWN")); app.processEvent(key("KEY_DOWN")); app.processEvent(chr("\n"));
+        assertTrue(app.getDispatcher().hasModal()); app.processEvent(chr("\n")); assertTrue(app.getDispatcher().hasModal()); assertFalse(client.isEvaluating());
+        app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Paste, "ch": path}); app.processEvent(chr("\n")); client.joinEvaluation();
+        assertTrue(!!stat(path)); assertTrue(ReadOnlyFile::readTextFile(path).find("40 + 2") >= 0); assertEq("keep draft", editor.getText());
+        string before = ReadOnlyFile::readTextFile(path);
+        app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Alt, "ch": "f"});
+        app.processEvent(key("KEY_DOWN")); app.processEvent(key("KEY_DOWN")); app.processEvent(chr("\n"));
+        app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Paste, "ch": path}); app.processEvent(chr("\n"));
+        assertTrue(app.getDispatcher().topModal() instanceof NcursesUi::DialogWidget); app.processEvent(chr("\x1b"));
+        assertEq(before, ReadOnlyFile::readTextFile(path)); assertEq("keep draft", editor.getText());
+        # File -> Load opens the shared browser with a bounded frame.
+        app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Alt, "ch": "f"}); app.processEvent(key("KEY_DOWN")); app.processEvent(chr("\n"));
+        assertTrue(app.getDispatcher().topModal() instanceof NcursesUi::FileBrowserWidget);
+        NcursesUi::FileBrowserWidget browser = cast<NcursesUi::FileBrowserWidget>(app.getDispatcher().topModal()); browser.navigateTo(dir);
+        NcursesUi::ListWidget list = browser.getFileList();
+        for (int i = 0; i < list.getItems().size(); ++i) { if (list.getItems()[i].path == path) { list.setSelectedIndex(i); break; } }
+        app.drawAll(); app.processEvent(chr("\n")); client.joinEvaluation();
+        assertFalse(app.getDispatcher().hasModal()); assertTrue(editor.hasFocus()); assertEq("keep draft", editor.getText());
+        NcursesUi::TranscriptWidget output = client.getTranscript();
+        assertTrue(join("\n", output.getTranscriptContent().getLines()).find("Loaded") >= 0, join("\n", output.getTranscriptContent().getLines()));
+    }
+    compact() {
+        NcursesUi::TestHarness th(8, 40); on_exit th.close(); auto client = program.callFunction("createRepl", th.session()); on_exit client.close();
+        NcursesUi::Application app = client.getApplication(); NcursesUi::TranscriptWidget output = client.getTranscript();
+        for (int i = 0; i < 30; ++i) { output.appendLine("line " + i); } app.drawAll(); app.processEvent(key("KEY_PPAGE")); app.drawAll();
+        assertFalse(output.isFollowing()); assertTrue(th.screen().readText(7, 0, 40).find("Paused") >= 0);
+        th.screen().resize(4, 12); app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Resize}); app.drawAll();
+        assertTrue(th.screen().readText(3, 0, 12).find("Paused") >= 0);
+        app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Alt, "ch": "o"}); app.drawAll();
+        hash<NcursesUi::Rect> rect = app.getDispatcher().topModal().getFrame(); assertEq(NcursesUi::Geometry::makeRect(0, 0, 4, 12), rect);
+        app.processEvent(chr("\x1b")); assertFalse(app.getDispatcher().hasModal());
+    }
+
 }

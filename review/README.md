@@ -29,6 +29,15 @@ Open <http://127.0.0.1:6006>. The PTY bridge binds to `127.0.0.1:6007`; both por
 must be free. Select a widget/state in the Storybook tree, use its native keyboard
 and mouse controls, paste text, reset, inspect focus/cursor, or change viewport
 size. The status line updates only after native draw and browser rendering finish.
+For review from another LAN machine, start with `STORYBOOK_HOST=0.0.0.0 npm run dev`
+and use the hostname URL printed at startup (for example, `http://supah:6006`).
+The native bridge stays on loopback and is reached through Storybook's proxy;
+the development host and WebSocket origin checks allow the machine's hostname.
+LAN mode is intended for a trusted development network: it has no authentication,
+and every reachable client can use native sessions, including qrepl code execution
+and file access with the server account's permissions. The loopback bridge and
+Origin checks do not authenticate clients connecting through the proxy. Keep the
+default loopback binding when that access is not intended.
 For example, open the editor directly:
 
 <http://127.0.0.1:6006/?path=/story/native-texteditorwidget--boundaries>
@@ -41,7 +50,8 @@ next registered event/model delivery and checks its expected state. Manual input
 immediately disables recorded replay, including while its frame is still rendering;
 reset before replaying recorded steps. The checkpoint button explains this and also
 disables at the end. Focus terminal returns keyboard input to xterm. Live feedback explains empty/disabled/closed states and completed actions. There are no
-external services or user-file mutations in fixtures.
+external services or user-file mutations in the scripted fixtures. Interactive qrepl
+stories execute the Qore code you enter, and their file actions operate on local files.
 
 `NCURSES_BUILD_DIR` selects another local binary build (for example `../build`,
 resolved relative to the invoking working directory). The source Qore modules
@@ -56,6 +66,26 @@ QORE_MODULE_DIR=build-debug:qlib qore --enable-debug --warnings-are-errors \
 QORE_MODULE_DIR=build-debug:qlib qore --enable-debug --warnings-are-errors \
   examples/widget-gallery.qr --headless --story transcript.background-reading
 ```
+
+## Full qrepl application
+
+Open <http://127.0.0.1:6006/?path=/story/native-qrepl--default> for the actual application.
+The completion, error, files and constrained stories cover application wiring as well
+as individual widgets. Enter evaluates, Tab opens completions, F1 shows keys and F6
+switches output/editor. Persistent history is disabled in these embedded sessions.
+In the native gallery, Alt-1 through Alt-6 access gallery controls so qrepl's
+own function keys retain their meaning. Browser toolbar controls work as usual.
+Reset, replay and native story selection report that evaluation is busy instead of
+blocking the UI. Editing and resizing remain available. Replay after manual input
+requires Reset so the recorded scenario cannot execute an altered draft.
+
+Evaluation and output capture run while the real UI event loop continues handling
+input. The PTY tests use an explicit FIFO gate to verify streaming output and editing
+during work. Recorded evaluation steps join their worker before capture; the tooling
+`settle` command provides the same explicit barrier without timed polling. Arbitrary
+Qore evaluation is not advertised as cancellable; finish-and-quit waits for it.
+The final result or error renders before the normal session-end message, including
+when the quit confirmation was acknowledged while the worker was still running.
 
 ## Code and choice examples
 
@@ -256,3 +286,9 @@ or that control's editing caret. Panel chrome and an unrelated background cursor
 cannot satisfy them. Browser glyphs use a transparent WebGL atlas for consistent
 grayscale antialiasing; the terminal theme/background remains opaque. A regression
 compares grayscale and RGB host font profiles without tolerating pixel differences.
+
+Intentional qrepl exit acknowledges the final input frame and drains its terminal
+render barrier before closing the connection normally. **Reset story** starts a
+fresh session after exit. The standalone native gallery opens a dedicated terminal
+handle and enables output capture for application stories; headless runners keep
+capture disabled unless explicitly requested by an integration test.

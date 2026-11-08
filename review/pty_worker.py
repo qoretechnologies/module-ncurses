@@ -141,6 +141,11 @@ async def run(args):
         await tasks[1]
         if process.returncode:
             raise RuntimeError(f'Native process exited with status {process.returncode}')
+        # Drain final terminal bytes before announcing process completion. Our own
+        # slave otherwise keeps EOF from arriving after the native child exits.
+        os.close(slave)
+        slave = None
+        await asyncio.wait_for(asyncio.shield(terminal_done), 3)
         emit({'type': 'exit', 'code': process.returncode})
     finally:
         if input_transport:
@@ -160,7 +165,8 @@ async def run(args):
                 await process.wait()
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
-        os.close(slave)
+        if slave is not None:
+            os.close(slave)
         os.close(master)
 
 

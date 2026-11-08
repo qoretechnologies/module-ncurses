@@ -44,6 +44,17 @@ public class TranscriptWidget inherits NcursesUi::ScrollableWidget {
         *code<nothing(string)> link_handler;
     }
     constructor() { text.setWordWrap(True); setContent(text); }
+    /** Returns the wrapped content height at the current width. @return preferred size */
+    hash<NcursesUi::Rect> getPreferredSize() { return getPreferredSizeForWidth(getFrame().cols); }
+    /** Measures visible wrapped lines before allocating a viewport. Empty content needs no rows.
+        Padding is included; a scrollbar is only needed when the allocated height is smaller.
+        @param columns available columns @return preferred rows and nonnegative columns
+    */
+    hash<NcursesUi::Rect> getPreferredSizeForWidth(int columns) {
+        hash<NcursesUi::Insets> pad = getPadding();
+        text.prepareViewport(max(0, columns - pad.left - pad.right));
+        return NcursesUi::Geometry::makeRect(0, 0, max(0, text.totalRows() + pad.top + pad.bottom), max(0, columns));
+    }
     /** Returns the presentation provider, including stable line identities and collapse indicators. @return transcript content */
     NcursesUi::LineListContent getTranscriptContent() { return text; }
     /** Adds one logical block as a batch. Empty blocks retain one empty line.

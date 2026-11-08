@@ -24,17 +24,49 @@ exact artifact set, geometry/configuration, browser/font versions, hashes and th
 review's acceptance digest. Each PNG has a neighboring `.json.gz` artifact with the
 full native cell/attribute/cursor/focus/scroll state. The
 [review instructions](../review/README.md) reproduce baseline/current/diff reports.
-The current capture contains 1,358 checkpoints from 208 stories. It retains all
-1,344 keys from the previous follow-up and adds six form metadata-focus checkpoints
-and eight ASCII/expanded chart checkpoints. Relative to that follow-up, 209 existing
-checkpoints change in Forms, Progress, Tables and TextChart; the other 1,135 match
-exactly. All 2,716 current artifact hashes and unchanged capture configuration were
-verified before acceptance.
-The earlier renderer follow-up retained 1,098 keys and added 246 interaction/recovery/
-code checkpoints. Native state assertions and the image inspections described below
-precede explicit baseline acceptance.
+The current capture contains 1,388 checkpoints from 213 stories. It retains all
+1,358 keys from the preceding widget follow-up and adds 30 checkpoints for the
+actual qrepl application. Fourteen existing popup checkpoints change to keep the
+source/caret visible and show the shared Qore completion metadata; the other 1,344
+match exactly. All 2,776 current artifact hashes were verified before acceptance.
+The prior Forms/Progress/Table/TextChart follow-up added 14 checkpoints and changed
+209 existing checkpoints; the observations below retain that review evidence.
+Native state assertions and rendered-image inspection precede explicit acceptance.
 
 ## Findings and disposition
+
+- [#5631](https://github.com/qoretechnologies/qore/issues/5631): qrepl now consumes
+  reusable `EditorAssistance`, `BackgroundTask`, `Dialogs`, centered-panel sizing,
+  adaptive status segments and the optional `NcursesQore::CodeSupport` adapter.
+  General editor/workflow APIs do not depend on the Qore evaluator.
+  - The real application is embedded in five executable stories: evaluation,
+    completion, error recovery, a constrained viewport and file workflows. These
+    run the same `bin/qrepl` implementation through a PTY with its continuous event
+    loop, including output arriving between browser commands.
+  - Tab opens live-session completion with signatures and exact replacement ranges;
+    Escape removes the popup and restores the draft/caret. Source coloring remains
+    readable in monochrome. F1 explains keys, F6 switches editor/output, and Alt+F
+    opens the File menu without conflicting with word movement.
+  - Evaluation runs off the UI thread with one outstanding request. A FIFO-gated
+    native-browser test observes streamed output, edits the draft, resizes and
+    cancels a quit confirmation while evaluation is still blocked. Releasing the
+    gate and joining explicitly proves completion preserves the newer draft.
+    Status says Evaluating, Ready, Error or Paused with an unread count; narrow
+    layouts prioritize state over secondary hints. There is no cancellation claim:
+    “Finish and quit” waits for the running evaluator before exit.
+  - Save uses a labeled, validated filename form and overwrite confirmation. Load
+    uses the shared file browser. Mouse/keyboard field behavior, cancel/focus
+    restoration, ordinary-file activation, Unicode paths and actual save/load
+    are covered by the controller and application tests. The upstream backend's
+    missing-terminator export defect was separately authorized for correction in
+    Qore; module tests also exercise complete source on the existing backend.
+  - All 30 new captures (24 distinct images) and all 14 changed existing captures
+    (eight distinct images) were inspected in color and monochrome. The 4×12
+    stress story keeps the editing line or Paused state visible; it does not claim
+    simultaneous access to every menu/status label at that size. The filename
+    prompt keeps its label/help/value/actions grouped and restores the draft on
+    cancel. A browser keyboard review of the actual completion story confirmed
+    opening, legible selection/documentation and a visible source line.
 
 - [#5629](https://github.com/qoretechnologies/qore/issues/5629): user review found
   weak progress emphasis, table headers resembling selection, and an unexplained
@@ -296,3 +328,219 @@ documentation checks and platform CI evidence are linked in the delivery PR and
 central roadmap issues. Acceptance is performed only after reviewing the complete
 capture set and the fixes above; the acceptance command itself cannot establish
 usability or authorize a merge.
+
+PR review additionally identified four delivery/teardown paths requiring coverage.
+The native gallery now enables capture with a dedicated terminal handle; its
+integration test verifies evaluated output enters the transcript through reset and
+story switching. A bounded worker recovery slot reports queue-full/wake failures
+on the UI thread and permits retry; both paths run through the real Application
+loop, including shutdown without callbacks. Intentional browser quit acknowledges
+pending input and drains terminal bytes before normal exit; a browser test verifies
+its final frame, close code 1000 and Reset starting a fresh session. The streaming
+marker has a failure deadline, and a negative test proves a missing marker reaches
+FIFO/process cleanup. These fixes preserve the registered visual checkpoints.
+
+Alpine CI exposed a descriptor-ownership case: reopening inherited stdout/stderr
+through `/proc/self/fd` fails when a runner drops privileges and the pipe belongs
+to its parent. Capture and the browser protocol now duplicate inherited handles
+through `File::redirect()`, without reopening the protected inode. Regression
+coverage denies reopening stdout, stderr and both together, checks capture of
+both streams, and exercises reset/restoration. All three cases failed before the
+fix and pass afterward. Saved descriptors are closed after restoration, including
+error cleanup.
+
+Further review covered running-work and final-result paths. Application gallery
+controls use Alt-1 through Alt-6, retaining Shift-F3 search navigation and the
+draft. The compact gallery help keeps every shortcut and its dismissal instruction
+visible at the registered 16×72 size. Reset/replay/story selection reject active work before any teardown or
+geometry mutation. Ordinary function keys remain within an open Help/Search
+modal, protecting unsaved drafts; the regression covers all six keys. FIFO-gated tests then exercise editing, resizing, cancellation
+and recovery. A dedicated final frame and terminal/render barrier preserve both
+successful and failed results when Finish and quit was accepted before the worker
+completed. Browser tests verify the actual terminal content before normal close.
+Capture notification failures are retained for the caller while the reader keeps
+draining; fatal read failures close the read end so producers fail promptly.
+
+History refresh now uses the shared EditorBuffer API's optional navigation
+preservation. An active browsing snapshot keeps its original draft/selection until
+the user returns or edits, then adopts the latest history update. Tests cover
+duplicates, replaced/empty histories, repeated refreshes, edits, undo, locked
+callbacks and completion while the user browses history. The intentional-quit
+test also handles its event deadline immediately so an earlier input failure
+cannot leave an unhandled rejection.
+An unsuccessful initial history search now leaves browsing inactive, including
+empty, unmatched and oversized entries. Unit coverage and a gated first-evaluation
+regression verify that the next history refresh is immediately available.
+
+The user approved the stories on 2026-11-07 after reviewing the live gallery.
+The complete Ubuntu CI capture from pipeline 63556 has identical semantic and PNG
+hashes for all 1,388 checkpoints. Its sole difference is the renderer fingerprint
+after the reviewed final-frame protocol change; acceptance refreshes that metadata
+using the complete CI artifact set, without changing any accepted visual content.
+
+LAN review is explicitly configurable with `STORYBOOK_HOST=0.0.0.0`. Storybook
+accepts the machine hostname and proxies native sessions to a loopback-only
+bridge with the corresponding allowed origin. The development test connects by
+hostname through a non-loopback IPv4 interface and exercises native input and
+hot reload. The running review server was verified at `http://supah:6006`.
+The user explicitly chose unauthenticated access on their trusted LAN after
+reviewing the native session's code-execution and server-account file access.
+The proxy is therefore intentionally reachable; neither the loopback bridge nor
+Origin validation is represented as client authentication. This access model and
+the loopback default are documented in the startup instructions.
+
+## Completion and runtime follow-up (2026-11-08)
+
+The final review found that namespace completion duplicated `::` when whitespace
+separated the identifier from an existing qualifier. `CodeSupport` now checks
+past spaces, tabs and line breaks for both namespace separators and call
+parentheses, while replacing only the identifier. Sixty additional assertions
+cover preserved suffixes, mixed whitespace, CR/LF, missing separators and undo.
+
+The Alpine crash in pipeline 63560 was a Qore method-cache lifetime defect.
+It was fixed upstream in `ed21c48b19`, which gives class instances non-reused
+identities and invalidates related dispatch caches. Local verification uses the
+installed Qore `d98bb182a1`, which includes that fix. The owner reports that the
+CI base images still need the runtime update; successful local checks do not
+replace the outstanding platform CI gate.
+
+## Traditional prompt and direct idle exit (2026-11-08)
+
+The owner chose a traditional prompt immediately after output. The old expanding
+transcript placed the live editor at the bottom while submitted input appeared at
+the top of the unused output viewport. `BoxLayout::setContentFlow()` now measures
+short content at the available width, places its follower immediately afterward,
+and moves surplus rows after that follower. The status bar keeps its bottom
+position. Overflow retains the original scrollable allocation. This is an opt-in
+library API; ordinary layouts retain their allocation rules. Transcript preferred
+height includes visible wrapped rows and padding. The editor/transcript example
+uses the same API as qrepl.
+
+The idle exit warning was a separate application bug: the quit handler inspected
+the input buffer before removing the typed `/exit`, so the command itself became
+the purported unexecuted “draft.” It also confirmed empty-input exits. All explicit
+idle quit commands now exit immediately. Ctrl-D exits on empty input and otherwise
+deletes forward; Escape only dismisses overlays. Running evaluation still offers
+to finish and then exit because backend cancellation is unavailable. This follows
+the direct exit-command convention documented by [Python](https://docs.python.org/3.12/tutorial/interpreter.html)
+and [Node.js](https://nodejs.org/api/repl.html), while retaining the application's
+existing truthful running-work behavior.
+
+New unit and actual-application coverage checks content measurement, wrapping,
+Unicode, padding, collapsed and empty output, zero geometry, resize, hidden pairs,
+minimum sizes, disabling flow and invalid configuration without frame mutation.
+The real event-loop test executes six expressions before every quit alias,
+including `/exit`, and asserts direct exit without a modal or new evaluation.
+Screen assertions verify that submitted input stays on its original prompt row,
+the result appears below it, and the next prompt follows. Overflow, paused output,
+multiline input, clearing output, shortcuts and File > Quit are covered. All 45
+browser/native tests pass, including direct quit, normal WebSocket closure, Reset,
+and the existing FIFO-gated finish-and-quit success/error scenarios. A gated
+Ctrl-D regression exposed and fixed a focus handoff: opening the busy confirmation
+is a navigation action and must not refocus the editor outside its modal scope.
+Its cancellation restores editor focus and leaves the evaluation running.
+
+The complete 1,388-checkpoint prompt-layout capture has 26 intentional differences, all in
+qrepl: prompt relocation, the completion popup following its new caret, and
+underlying prompt cells exposed around file overlays. All differences are frame
+cells or cursor position; story state and geometry are unchanged. All 20 distinct
+changed images were inspected in color and monochrome; duplicate mounted/cancel
+images were verified by hash. The other 1,362 checkpoints, including constrained
+recovery, are identical. The new complete set is accepted for this requested
+layout. Live browser input also verified `6 * 7` followed by `42` and its next
+prompt, then `/exit` producing “The application exited normally” without a dialog.
+The LAN server remains bound to `0.0.0.0:6006` at `http://supah:6006`.
+
+The final browser review also found that the gallery treated an empty editor as
+an empty application after successful evaluation, despite visible retained output.
+The runner now reports an empty REPL only when both input and transcript are
+empty. Tests cover evaluated output, genuinely empty state, nonempty input,
+restored output and the actual Storybook caption after its result checkpoint.
+The final complete 1,388-checkpoint recapture has identical PNG hashes throughout;
+its only two changes are `state.empty: true → false` at the color and monochrome
+qrepl result checkpoints. Those semantic corrections are reviewed and accepted.
+The browser screenshot confirms the result now retains the live-preview caption.
+
+## qrepl follow-up implementation audit
+
+The audit follows the local `audit-changes` checklist. Evidence below applies to
+this follow-up; earlier native implementation checks remain recorded above.
+
+| Check | Status | Evidence |
+| --- | --- | --- |
+| Core module index and language release notes | N/A | External module; no Qore core registration. |
+| Module release notes | Pass | `NcursesQore.qm` initial release and module release notes describe the shared APIs. |
+| CMake and QMOD registration | Pass | NcursesQore participates in installation, AOT compilation and two-phase docs. |
+| Module structure | Pass | Lowercase intro, `%modern`, separated classes, one module entrypoint, no deprecated includes, 2026 copyrights. |
+| Tests | Pass | Local module paths, executable modern tests, debugging and warnings-as-errors; source and AOT gates below. |
+| Sandboxing | Pass | General controllers perform no filesystem/network I/O; the file-browser adapter delegates existing authorized file operations. Review bridge uses local PTY/control pipes with explicit bounds and cleanup. |
+| Cooperative cancellation | N/A | No C++ changes. BackgroundTask explicitly joins rather than claiming worker cancellation; scopes reject stale delivery. |
+| DataProvider action registration | N/A | No provider actions. |
+| DataProvider types and allowed values | N/A | No provider schemas. |
+| DataProvider descriptions and scheme actions | N/A | No provider/app registration. |
+| FactoryMap and JNI/JAR registration | N/A | No provider factories or JVM dependencies. |
+| Workarounds and stubs | Pass | Shared APIs replace duplicated application/gallery logic; the upstream save defect is fixed in its owner repository. |
+| Exception safety | Pass | Content-flow pair validation runs before frame mutation, and invalid setters retain the previous configuration. Worker failures are typed results; delivery failures surface at join; modal cleanup clears callbacks and destroys panels even on errors. Failure-path tests cover callbacks/providers and disposal. |
+| Thread safety | Pass | Widget ownership stays on the UI thread; one worker owns the evaluator, with scoped wake-driven completion and synchronized capture queues. |
+| Type safety | Pass | Typed callbacks, TaskResult and existing assistance/form schemas; explicit casts pass AOT compilation without warnings. |
+| Performance | Pass | Wake-driven idle loop, serialized background work, bounded control messages, sorted status priorities, no input-handler joins. |
+| Error handling | Pass | Invalid dimensions/spacing, invalid completion cursor, duplicate/closed task start, field validation, worker failure and stale results are tested. |
+| Documentation | Pass | API contracts, runnable embedding example, tool guide, man page, gallery instructions and implemented architecture updated. |
+| QPP namespace/flags and native ownership | N/A | No QPP/C++ changes. |
+| Security | Pass | No arbitrary bridge command endpoint or credentials; loopback by default; the user explicitly chose unauthenticated LAN native-session access. Hostname/origin checks are not authentication; the bridge remains loopback behind the proxy. Fixture teardown and protocol bounds retained. |
+| Correctness | Pass | Exact completion ranges and suffix retention, Unicode, tiny/resize layouts, save/overwrite/cancel/load, draft revision preservation, focus restoration and actual streaming tested. |
+
+Final local gates: 45 QUnit suites, 968 cases / 22,404 assertions; 26 compiled-module
+suites, 640 cases / 8,309 assertions. Documentation/API checks, executable examples,
+widget-catalog drift checks and CI tree-reuse tests pass. Browser/native tooling
+and platform CI results are linked in the delivery PR. No C++ changed, so this
+follow-up does not require a new Valgrind run.
+
+
+## Program threads and serialized parsing — 2026-11-08
+
+Qore develop commit `8c0c17cee7` adds Program-scoped cancellation and condition-driven waits. Parsing stays serialized. QoreRepl rejects blocked requests before mutating history or pending input and provides `/threads`, `/cancel <tid|all>` and `/join <tid|all>`. `/reset` also clears pending multiline input and indentation. Recalled slash commands are expanded before command classification.
+
+The frontend offers Wait, Cancel request and Terminate threads. Natural completion closes the dialog and retries its request; cancelled requests retain input and leave workers running. Join and quit workflows also finish on completion events. A captured Program reference, cancellable monitor worker, scoped UI delivery and revision check protect shutdown, stale events and edits made while waiting. `BackgroundTask::cancel()`, `Dialogs::choose()` and `Dialogs::text()` expose reusable library APIs. `/help` opens at the beginning with correct frontend shortcuts.
+
+Browser review on `http://supah:6006/?path=/story/native-qrepl--default` verified scrollable help, mouse cancellation preserving `/reset`, automatic resumption after natural completion, and keyboard termination followed by successful reset. Storybook remains bound to `0.0.0.0` with the previously approved trusted-LAN access policy. The review server runs against the locally built Qore runtime and matching module; CI base images must receive this core change before module CI can use the APIs.
+
+| Check | Status | Evidence |
+|---|---|---|
+| Module docs registration | N/A | No new module |
+| Release notes | Pass | Native Program coordination in 3.0 new features; structure validator reports zero errors |
+| CMakeLists registration | N/A | Existing modules and test directories |
+| Module structure | Pass | Main .qm directives, typed QC metadata, 2026 copyrights |
+| Test conventions | Pass | Executable qtests, modern mode, repository qlib prepended, debug and warnings-as-errors |
+| Sandboxing | Pass | New QPP methods use THREAD_CONTROL and EMBEDDED_LOGIC; no new filesystem/network operations |
+| Cooperative cancellation | Pass | Interruptible condition waits, bounded cancellation checks in native loops; worker cleanup defers cancellation only while retiring ownership |
+| DP action registration | N/A | No DataProvider changes |
+| DP data types | N/A | No DataProvider changes |
+| DP allowed values | N/A | No DataProvider changes |
+| DP descriptions | N/A | No DataProvider changes |
+| DP scheme-based actions | N/A | No DataProvider changes |
+| FactoryMap | N/A | No new factory |
+| Dependency JARs | N/A | No Java changes |
+| Workarounds / stubs | Pass | Fixes Program lifetime blocking and help-tail presentation at their source; no TODOs or fallback parsing |
+| Exception safety | Pass | Lock RAII, cleanup deferral, captured worker exceptions, modal ownership and cancelled-request preservation |
+| Thread safety | Pass | Program lock protects activity and cancellation wave; worker ownership mutex prevents cancellation of recycled task IDs; widgets stay on UI thread |
+| Type safety | Pass | Typed request metadata and callbacks; native ID bounds and overflow-safe monotonic deadline |
+| Performance | Pass | Condition-driven notification, no UI input-handler joins, scoped cancellation loops linear in thread count |
+| Error handling | Pass | Invalid/foreign IDs, self-waits, self-cancellation, stale requests, timeout and waiter cancellation covered |
+| Documentation | Pass | Program API contracts, QoreRepl examples, implemented coordination design, reusable UI APIs and README |
+| QPP flags / namespaces | Pass | Existing Program namespace; functional domains; wait/cancel operations retain side-effect semantics |
+| Security | Pass | Program-scoped cancellation; no credentials, external communication or access-policy changes |
+| Correctness | Pass | Native tests, source/AOT backend and frontend suites; real terminal/browser review |
+
+
+Validation: 45 QUnit suites, 974 cases / 22,610 assertions; 26 AOT suites, 646 cases / 8,515 assertions; 45 Node/browser tests; five documentation checks, executable guide examples and eight catalog checks. The complete visual run captured 1,388 artifacts with zero differences. Qore source and AOT backend tests pass (86 cases / 738 assertions per mode). Five affected native suites pass Valgrind (40 cases / 1,202 assertions), with zero errors or definite, indirect or possible leaks. Native tests cover self/foreign IDs, bounded waits, cancellation of a waiter, descendants started during a cancellation wave, and subsequent evaluation after idle. Frontend tests also cover finishing an evaluation that starts new background work before quitting; shutdown rechecks Program activity and resumes through the same event-driven dialog.
+
+## Continuation input mode — 2026-11-08
+
+Qore develop commit `4c62f1466f` limits command routing, history expansion and command completion to the primary prompt. Previously, these ran before multiline accumulation and could execute slash commands while earlier source remained pending. At the continuation prompt, all submitted lines now remain literal Qore source, including slash-prefixed lines inside strings and leading division operators. The owner explicitly selected this input policy.
+
+The ncurses frontend follows that policy for typed exit commands and history shortcuts. Ctrl-C cancels pending source without resetting the Program when the editor has no selection; with a selection it retains copy behavior. Menu commands explain that pending input must first be finished or cancelled. The continuation status and keyboard help expose cancellation. Completion preserves a leading division slash. Request classification happens before the evaluation worker starts, and an explicit quit awaiting thread completion resumes quitting directly instead of inserting `/exit` into pending source.
+
+Local validation: 45 QUnit suites, 976 cases / 22,641 assertions; 26 compiled suites, 648 cases / 8,546 assertions; all 46 Node/browser tests. Backend source and AOT gates each passed 105 cases / 891 assertions, including action sessions, WebSocket behavior, save/load and thread coordination. The browser keyboard regression verifies real Ctrl-C input, slash continuation, cancellation and restored command mode. All 30 qrepl visual captures are unchanged. Documentation checks, executable guide examples and eight catalog tests pass. No C++ changed, so no additional Valgrind run is required.
+
+The implementation audit covers the same checklist above: source classification, exception-safe pending-input handling, serialized backend access, typed request metadata, literal whitespace preservation, command recovery, menu behavior and exit with external Program activity pass; module registration, native/QPP changes, DataProvider registration and JNI dependencies are not applicable. API documentation, release notes, the tool guide and man page describe the implemented policy.

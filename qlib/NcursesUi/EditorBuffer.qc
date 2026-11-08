@@ -22,6 +22,7 @@ public class EditorBuffer {
         list<hash<NcursesUi::EditorSnapshot>> undo_stack = ();
         list<hash<NcursesUi::EditorSnapshot>> redo_stack = ();
         list<string> history = ();
+        *list<string> pending_history;
         int history_index = -1;
         *hash<NcursesUi::EditorSnapshot> draft;
         bool locked = False;
@@ -53,7 +54,7 @@ public class EditorBuffer {
     */
     nothing setText(string text) {
         checkUnlocked(); validate(text); buffer.setText(text); anchor = NOTHING;
-        undo_stack = (); redo_stack = (); draft = NOTHING; history_index = -1; ++revision;
+        undo_stack = (); redo_stack = (); finishHistory(); ++revision;
     }
     /** Moves to a grapheme boundary, optionally extending a selection.
         @param offset character offset @param selecting True to retain the selection anchor
@@ -95,7 +96,7 @@ public class EditorBuffer {
         if (next.getText() == getText() && !exists anchor && next.getCursor() == getCursor()) { return; }
         hash<NcursesUi::EditorSnapshot> before = snapshot();
         undo_stack += before; trimUndo(); redo_stack = ();
-        buffer = next; anchor = NOTHING; draft = NOTHING; history_index = -1; ++revision;
+        buffer = next; anchor = NOTHING; finishHistory(); ++revision;
     }
     /** Deletes selection or the adjacent grapheme. @param forward True for Delete, False for Backspace */
     nothing erase(bool forward = False) {
@@ -172,22 +173,41 @@ public class EditorBuffer {
     nothing submit(code<nothing(string)> submit) {
         checkUnlocked(); locked = True; on_exit locked = False; submit(getText());
     }
-    /** Sets searchable history in oldest-first order. @param entries previous submitted texts */
-    nothing setHistory(list<string> entries) { checkUnlocked(); history = entries; history_index = -1; draft = NOTHING; }
+    /** Sets searchable history in oldest-first order.
+        @param entries previous submitted texts
+        @param preserve_navigation retain an active browsing snapshot and its unfinished
+        draft; the latest update becomes searchable when browsing ends by returning to
+        the draft or editing/replacing the current text. False resets browsing immediately.
+        @par Example
+        @code{.py}
+NcursesUi::EditorBuffer editor();
+editor.setHistory(("previous command",));
+editor.setText("unfinished draft");
+editor.historyMove();
+editor.setHistory(("previous command", "completed background command"), True);
+editor.historyMove(True); # restores the unfinished draft; refreshed history is now available
+        @endcode
+    */
+    nothing setHistory(list<string> entries, bool preserve_navigation = False) {
+        checkUnlocked();
+        if (preserve_navigation && exists draft) { pending_history = entries; return; }
+        history = entries; pending_history = NOTHING; history_index = -1; draft = NOTHING;
+    }
     /** Searches backward/forward through history, preserving the unfinished draft and selection.
         @param forward True to move toward the draft @param query literal substring filter
         @return True when a history entry or the draft is restored
+        @note An unsuccessful initial search does not enter browsing mode or defer history updates.
     */
     bool historyMove(bool forward = False, string query = "") {
         checkUnlocked();
-        if (history_index < 0) {
-            if (forward) { return False; }
-            draft = snapshot(); history_index = history.size();
-        }
-        int next = history_index + (forward ? 1 : -1);
+        bool starting = history_index < 0;
+        if (starting && forward) { return False; }
+        int next = (starting ? history.size() : history_index) + (forward ? 1 : -1);
         while (next >= 0 && next < history.size()) {
             if (history[next].find(query) >= 0) {
-                validate(history[next]); buffer.setText(history[next]); anchor = NOTHING; history_index = next; ++revision;
+                validate(history[next]);
+                if (starting) { draft = snapshot(); }
+                buffer.setText(history[next]); anchor = NOTHING; history_index = next; ++revision;
                 return True;
             }
             next += forward ? 1 : -1;
@@ -197,7 +217,11 @@ public class EditorBuffer {
     }
     private nothing restore(hash<NcursesUi::EditorSnapshot> state) {
         validate(state.text); buffer.setText(state.text); buffer.setCursor(state.cursor); anchor = state.anchor;
-        draft = NOTHING; history_index = -1; ++revision;
+        finishHistory(); ++revision;
+    }
+    private nothing finishHistory() {
+        if (exists pending_history) { history = pending_history; pending_history = NOTHING; }
+        draft = NOTHING; history_index = -1;
     }
     private nothing checkUnlocked() { if (locked) { throw "EDITOR-BUSY-ERROR", "An editor callback cannot mutate its draft"; } }
     private nothing validate(string text) {

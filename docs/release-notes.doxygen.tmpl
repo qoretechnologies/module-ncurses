@@ -5,6 +5,28 @@
     @section ncurses_1_0 ncurses Module Version 1.0
     - initial release
 
+    Reusable EditorAssistance, BackgroundTask and Dialogs controllers own popup/focus
+    cleanup, worker result delivery and adaptive confirmation/prompt/file workflows.
+    NcursesQore provides an optional language adapter using a caller's live QoreRepl
+    session. StatusBarWidget supports priority and compact labels; PanelWidget supports
+    clamped centered sizing, and FormWidget supports application-specific action labels.
+    qrepl adopts these APIs for syntax highlighting, exact completion ranges, help,
+    real file selection/save prompts, consistent quitting and responsive evaluation.
+    Output streams during work and edits made during evaluation survive its result.
+    Capture preserves inherited output handles even after a runner drops privileges.
+    EditorBuffer::setHistory() can preserve an active history-browsing snapshot and
+    unfinished draft during background updates; qrepl uses this when evaluation completes.
+    The backend does not expose safe cancellation; quit can wait for completion.
+    The active prompt now follows output using BoxLayout::setContentFlow(), which
+    places a follower after the preferred content height and leaves spare rows after
+    it while preserving later footer positions. TranscriptWidget measures wrapped
+    content and padding for this layout. Idle quit commands exit immediately; Ctrl-D
+    exits on empty input and Escape only dismisses overlays. Only a running evaluation
+    offers a finish-and-quit confirmation.
+    Five full-application stories exercise the actual qrepl code through its event loop.
+    Their empty-state feedback includes retained output, so an empty prompt after
+    evaluation is not presented as an empty application.
+
     ProgressWidget uses semantic state colors, emphasized fill/counts and focused
     actions while retaining plain-text inspection. TableWidget headers use bold
     underlining, distinct from reverse-video data selection in color and monochrome.
@@ -53,7 +75,8 @@
     Top-scope cleanup also completes when a mouse-capture-loss callback throws;
     the original failure propagates after attempting focus restoration.
     Code completion replaces the full token
-    around the caret and preserves an existing call parenthesis. Compact dialogs prioritize the wrapped message
+    around the caret and preserves existing call parentheses and namespace separators,
+    including intervening spaces, tabs and line breaks. Compact dialogs prioritize the wrapped message
     over decorative padding while retaining actions.
     PanelWidget::setBorderEdges() supports independent edges; content padding is now
     additional to border insets and is preserved when borders change. Existing default

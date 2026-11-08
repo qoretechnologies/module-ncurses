@@ -16,6 +16,7 @@
 %requires QoreRepl
 %requires NcursesReplUi
 %requires NcursesUi
+%requires NcursesQore
 
 %modern
 
@@ -39,7 +40,24 @@ class QRepl {
         #! the application
         NcursesUi::Application app;
         #! the REPL engine
-        QoreRepl::QoreRepl repl();
+        QoreRepl::QoreRepl repl;
+        NcursesQore::CodeSupport code_support;
+        NcursesUi::EditorAssistance assistance;
+        NcursesUi::BackgroundTask evaluation;
+        NcursesUi::BackgroundTask thread_monitor;
+        NcursesUi::Dialogs dialogs;
+        *NcursesUi::DialogWidget thread_dialog;
+        *NcursesUi::DialogWidget evaluation_dialog;
+        *string pending_request;
+        bool pending_submitted = False;
+        bool pending_quit = False;
+        int pending_revision = 0;
+        bool more_input = False;
+        bool quit_after_evaluation = False;
+        bool owns_app = True;
+        bool closed = False;
+        int tick_subscription;
+        int last_hint_cursor = -1;
         #! current prompt
         string current_prompt;
         #! base prompt width (for aligning continuation prompts)
@@ -62,8 +80,6 @@ class QRepl {
         NcursesUi::EditorBuffer buffer = editor.getBuffer();
         #! command history
         QoreHistory::History history();
-        #! output scroll position tracking
-        int output_scroll = 0;
         #! last status text
         string last_status = "Ready";
         #! last execution error
@@ -79,9 +95,6 @@ class QRepl {
         *QReplOutputCapture capture_reader;
         bool use_tty_enabled = False;
 
-        #! time tracking
-        string time_text = "";
-        int last_tick = 0;
 
         #! Alt+key → command map built from menu item hotkeys
         hash<string, string> alt_commands = {};
@@ -3885,18 +3898,26 @@ class QRepl {
     # Sets up the UI layout (menu bar, output pane, status bar), initializes
     # the REPL engine and output capture, displays the welcome message, and
     # starts the main event loop.
-    constructor(*Ncurses::Session session, bool start = True) {
+    constructor(*Ncurses::Session session, bool start = True, *NcursesUi::Application application, *QoreRepl::QoreRepl evaluator, bool capture = False) {
         if (!session) { parse_args(); }
         persistent_history = !session;
 
+        repl = evaluator ?? new QoreRepl::QoreRepl({"history_file": NOTHING});
+        code_support = new NcursesQore::CodeSupport(repl);
         current_prompt = repl.getPrompt();
+        more_input = repl.needsMoreInput();
         base_prompt_width = display_prompt(current_prompt).length();
 
         Ncurses::Session s = session ?? make_session();
-        app = new NcursesUi::Application(s);
+        app = application ?? new NcursesUi::Application(s); owns_app = !application;
+        dialogs = new NcursesUi::Dialogs(app);
+        evaluation = new NcursesUi::BackgroundTask(app, "evaluate", "Evaluate Qore");
+        thread_monitor = new NcursesUi::BackgroundTask(app, "threads", "Wait for Program threads");
+        assistance = new NcursesUi::EditorAssistance(app, editor,
+            hash<NcursesUi::AssistanceResponse> sub (hash<NcursesUi::AssistanceRequest> request) { return code_support.complete(request); });
 
-        init_ui();
-        if (!session) { init_output_capture(); }
+        init_ui(); app.setReadTimeout(-1, 25);
+        if (!session || capture) { if (capture) { use_tty_enabled = True; } init_output_capture(); }
 
         # load persistent history
         if (persistent_history && exists ENV.HOME) {
@@ -3905,18 +3926,12 @@ class QRepl {
 
         refresh_history();
         push_output("Qore Ncurses REPL (QoreRepl backend)");
-        hash<auto> qore_info = get_qore_library_info();
-        *string qore_version = qore_info{"VersionString"};
-        if (qore_version) {
-            output_title = "REPL for Qore " + qore_version;
-        }
-        push_output("Enter: evaluate | Alt-Enter: newline | Ctrl-S: search output | Ctrl+Q: quit");
+        output_title = "Qore REPL";
+        push_output("Enter: evaluate | Tab: complete | F1: help | Ctrl-Q: quit");
 
         # start the first prompt line
         new_prompt_line();
 
-        time_text = now().format("HH:mm:SS");
-        last_tick = clock_getmillis();
 
         if (start) { set_return_value(run()); }
     }
@@ -3926,7 +3941,17 @@ class QRepl {
     NcursesUi::TextEditorWidget getEditor() { return editor; }
     NcursesUi::TranscriptWidget getTranscript() { return output_widget; }
 
-    private nothing refresh_history() { buffer.setHistory(map $1.text, history.getItems()); }
+    # Deterministic embedding/test barrier; interactive handlers never join a worker.
+    nothing joinEvaluation() { evaluation.join(); app.processPending(); }
+    # Test/embedding barrier only; the UI itself receives an event without joining.
+    nothing joinThreadMonitor() { thread_monitor.join(); app.processPending(); }
+    hash<NcursesUi::EventResult> processEvent(hash<Ncurses::InputEvent> event) { return handle_global_key(event); }
+    bool isEvaluating() { return evaluation.isRunning(); }
+    nothing close() { close_session(); }
+
+    private nothing refresh_history() {
+        list<string> entries = map $1.text, history.getItems(); buffer.setHistory(entries, True);
+    }
 
     private nothing parse_args() {
         int i = 0;
@@ -3935,7 +3960,8 @@ class QRepl {
             if (arg == "-h" || arg == "--help") {
                 printf("qrepl - full-screen Qore REPL (ncurses UI)\n");
                 printf("Usage: qrepl [--help|-h]\n");
-                printf("Enter=eval, Alt-Enter=newline, Ctrl-P/N=history, Ctrl-R=filtered history\n");
+                printf("Enter=eval, Alt-Enter=newline, Tab=completion/help, F1=key help\n");
+                printf("Ctrl-P/N=history, Ctrl-R=filtered history, Ctrl-Q/Alt-Q=quit\n");
                 printf("Ctrl-S=search output, F3/Shift-F3=next/previous match, F6=output/editor\n");
                 printf("PageUp/Down=scroll output, Ctrl-End=latest, Ctrl-Z/Y=undo/redo\n");
                 printf("Ctrl: ^A home, ^E end, ^K kill-to-end, ^U kill-to-start, ^W word-back\n");
@@ -3988,7 +4014,8 @@ class QRepl {
             {"label": "Timing", "command": "/timing"},
         ));
         menu_bar.addMenu("Help", (
-            {"label": "Help", "command": "/help"},
+            {"label": "Keyboard Help", "command": "ui_help", "hotkey": "Alt+H"},
+            {"label": "Qore Commands", "command": "/help"},
             {"separator": True},
             {"label": "About", "command": "about", "hotkey": "Alt+A"},
         ));
@@ -4013,6 +4040,7 @@ class QRepl {
         # Independent output and draft viewports preserve reading position during edits.
         output_widget.setRetentionLimit(10000);
         editor.setAutoHeight(1, 6);
+        editor.setHighlighter(string sub (string source) { return code_support.highlight(source); });
         editor.setVSizePolicy(NcursesUi::SizePolicy::Fixed);
         editor.setClipboard(sub (string text) { clipboard = text; }, string sub () { return clipboard; });
         output_widget.setOnCopy(sub (string text) { clipboard = text; });
@@ -4030,18 +4058,19 @@ class QRepl {
 
         # layout: vertical box
         NcursesUi::BoxLayout layout(NcursesUi::Orientation::Vertical);
+        layout.setContentFlow(output_widget, editor);
         app.setRootLayout(layout);
         app.setRoot(root);
 
         app.getFocusManager().setFocus(editor);
 
         # global key handler
-        app.setGlobalKeyHandler(hash<NcursesUi::EventResult> sub (hash<Ncurses::InputEvent> ev) {
-            return handle_global_key(ev);
-        });
+        if (owns_app) {
+            app.setGlobalKeyHandler(hash<NcursesUi::EventResult> sub (hash<Ncurses::InputEvent> ev) { return processEvent(ev); });
+        }
 
         # tick callback for periodic updates
-        app.addTickCallback(sub () {
+        tick_subscription = app.addOwnedTickCallback(sub () {
             on_tick();
         });
     }
@@ -4076,12 +4105,17 @@ class QRepl {
     private hash<auto> start_output_capture() {
         hash<PipeInfo> pipe = File::getPipe();
         File stdout_restore(); File stderr_restore();
-        stdout_restore.open2("/proc/self/fd/1", O_WRONLY);
-        stderr_restore.open2("/proc/self/fd/2", O_WRONLY);
-        QReplOutputCapture reader(pipe.read);
+        # Reserve owned descriptors, then duplicate the inherited streams with
+        # dup2 via redirect(). Reopening /proc/self/fd can fail after a runner
+        # drops privileges, even though the inherited descriptors are writable.
+        stdout_restore.open2("/dev/null", O_WRONLY); stdout_restore.redirect(stdout);
+        stderr_restore.open2("/dev/null", O_WRONLY); stderr_restore.redirect(stderr);
+        Ncurses::Session terminal = app.getSession();
+        QReplOutputCapture reader(pipe.read, sub () { terminal.wakeup(); });
         on_error {
-            stdout.redirect(stdout_restore); stderr.redirect(stderr_restore);
-            reader.close(); pipe.write.close(); pipe.read.close();
+            on_exit pipe.read.close(); on_exit pipe.write.close(); on_exit reader.close();
+            on_exit stderr.redirect(stderr_restore);
+            stdout.redirect(stdout_restore);
         }
         stdout.redirect(pipe.write); stderr.redirect(pipe.write); capture_reader = reader;
         return {"pipe": pipe, "stdout_restore": stdout_restore, "stderr_restore": stderr_restore};
@@ -4101,123 +4135,155 @@ class QRepl {
 
     private nothing push_output(string line) { output_widget.appendLine(line); }
 
-    private nothing push_output_lines(string text, string prefix = "") {
-        output_widget.appendLines(map prefix + $1, split("\n", text, False, True));
-    }
-
-    /** Updates the draft's prompt and bounded layout without changing transcript position. */
+    /** Places the bounded input immediately after the transcript. */
     private nothing update_prompt_line() {
         editor.setPrompt(display_prompt(current_prompt));
         string text = buffer.getText();
-        if (text != last_hint_input) {
-            last_hint_input = text; update_hints(); update_status();
+        if (text != last_hint_input || buffer.getCursor() != last_hint_cursor) {
+            last_hint_input = text; last_hint_cursor = buffer.getCursor(); update_hints(); update_status();
         }
         app.layoutRoot();
     }
 
     private nothing new_prompt_line() { update_prompt_line(); }
 
-    # Keep the complete draft, selection and undo intact on evaluation/expansion failure.
+    # Evaluation owns the backend until its completion reaches the UI thread.
+    # The submitted revision protects edits made while the worker runs.
     private nothing on_input_submit() {
-        string text = buffer.getText();
-        if (text == "") { return; }
-        if (text.size() >= 2 && text[0] == "!") {
+        if (evaluation.isRunning()) { return; }
+        string text = buffer.getText(); if (text == "") { return; }
+        if (!more_input && text.size() >= 2 && text[0] == "!") {
             *string expanded = history.expand(text);
-            if (!exists expanded) {
-                push_output(text + ": event not found"); last_status = "Error"; update_status(); return;
-            }
+            if (!exists expanded) { push_output(text + ": event not found"); last_status = "Error"; update_status(); return; }
             text = expanded;
         }
-        if (text == "clear_output") {
-            output_widget.clear(); buffer.setText(""); last_status = "Cleared";
-            update_status(); new_prompt_line(); return;
-        }
-        output_widget.appendBlock(split("\n", display_prompt(current_prompt) + text, False, True), "input");
-        exec_line(text, current_prompt, display_prompt(current_prompt));
-        if (capture_reader) { capture_reader.flush(); } drain_pending_output();
-        if (!last_exec_error) {
-            history.add(text); refresh_history(); buffer.setText("");
-            if (repl.needsMoreInput() && repl.getIndentLevel() > 0) {
-                buffer.setText(strmul("    ", repl.getIndentLevel()));
-            }
-        }
-        new_prompt_line();
+        if (!more_input && trim(text) =~ /^\/(quit|exit|q)$/) { request_quit(); return; }
+        if (!more_input && text == "clear_output") { output_widget.clear(); buffer.setText(""); last_status = "Cleared"; update_status(); new_prompt_line(); return; }
+        start_evaluation(text, True);
     }
 
-    private bool exec_line(string line, string prompt, string shown_prompt) {
-        last_exec_error = NOTHING;
-        last_status = "Evaluating...";
-        update_status();
-
-        *hash<auto> result;
-        try {
-            result = repl.eval(line);
-        } catch (hash<ExceptionInfo> ex) {
-            # flush C stdio buffers to pipe before handling error
-            flush_capture();
-            string err_msg = QoreRepl::QoreRepl::formatError(ex);
-            push_output_lines(err_msg, "  ");
-            last_status = "Error";
-            last_exec_error = err_msg;
-            current_prompt = repl.getPrompt();
-            update_status();
-            return False;
+    private nothing start_evaluation(string text, bool submitted = False, *int original_revision) {
+        if (evaluation.isRunning()) { return; }
+        if (!submitted && more_input) {
+            last_status = "Cancel input with Ctrl-C before using commands"; update_status(); return;
         }
-        # flush C stdio buffers to ensure print() output reaches the capture pipe
-        flush_capture();
-
-        # NOTHING means continuation (incomplete input) - update prompt and wait for more
-        if (!exists result) {
-            current_prompt = repl.getPrompt();
-            last_status = "...";
-            update_status();
-            return False;
+        hash<QoreRepl::ReplRequestInfo> request = repl.inspectRequest(text);
+        if (request.requires_idle && repl.getProgram().getThreadCount()) {
+            wait_for_threads(text, submitted, original_revision); return;
         }
-
-        if (result.exit) {
-            last_status = "Exit";
-            update_status();
-            app.quit();
-            return True;
+        assistance.close(); current_hint = NOTHING;
+        int revision = original_revision ?? buffer.getRevision();
+        output_widget.appendBlock(split("\n", display_prompt(current_prompt) + text, False, True), "input");
+        last_status = "Evaluating..."; last_exec_error = NOTHING; update_status(); app.layoutRoot(); app.drawAll();
+        evaluation.start(auto sub () {
+            *hash<auto> result;
+            try { result = repl.eval(text); }
+            catch (hash<ExceptionInfo> ex) { result = {"error": ex}; }
+            # The reader acknowledges a finite producer prefix before the result is posted.
+            flush_capture(); if (capture_reader) { capture_reader.flush(); }
+            hash<auto> outcome = {"prompt": repl.getPrompt(), "more": repl.needsMoreInput(), "indent": repl.getIndentLevel(),
+                "continuation": !exists result, "exit": result.exit, "timing": result.timing,
+                "help": result.help, "blocked": result.error.err == "REPL-THREADS-ACTIVE"};
+            if (result.error) { outcome.error = QoreRepl::QoreRepl::formatError(result.error); }
+            else if (exists result.value) { outcome.text = result.is_eval ? sprintf("%y", result.value) : string(result.value); }
+            return outcome;
+        }, sub (hash<NcursesUi::TaskResult> completed) { finish_evaluation(text, submitted, revision, completed); });
+        if (request.command == "/join" && repl.getProgram().getThreadCount()) {
+            evaluation_dialog = dialogs.choose("Waiting for threads", "The join request is waiting for Program activity to finish.\n"
+                "Cancel stops waiting and leaves the threads running.", ("Wait", "Cancel request", "Terminate threads"),
+                bool sub (int index) {
+                    if (index == 1) { evaluation.cancel("Join request cancelled"); }
+                    else if (index == 2) { repl.cancelThreads(); }
+                    return False;
+                }, sub () { evaluation.cancel("Join request cancelled"); });
         }
+    }
 
+    private nothing finish_evaluation(string text, bool submitted, int revision, hash<NcursesUi::TaskResult> completed) {
+        if (evaluation_dialog) { dialogs.dismiss(evaluation_dialog); evaluation_dialog = NOTHING; }
+        drain_pending_output();
+        hash<auto> result = completed.error ? {"error": QoreRepl::QoreRepl::formatError(completed.error)} : completed.value;
+        if (result.blocked) { wait_for_threads(text, submitted, revision); return; }
+        current_prompt = result.prompt ?? current_prompt; more_input = !!result.more;
+        last_exec_error = result.error;
         if (result.error) {
-            string err_msg = QoreRepl::QoreRepl::formatError(result.error);
-            push_output_lines(err_msg, "  ");
-            last_status = "Error";
-            last_exec_error = err_msg;
-        } else if (exists result.value) {
-            if (result.is_eval) {
-                # evaluated expression - format as Qore value
-                push_output("  " + sprintf("%y", result.value));
-            } else {
-                # command output (e.g. /help) - display as plain text
-                push_output_lines(string(result.value), "  ");
-            }
-            last_status = "OK";
-            last_exec_error = NOTHING;
+            output_widget.appendBlock(split("\n", "Error: " + result.error, False, True), "error"); last_status = "Error";
         } else {
-            last_status = "OK";
-            last_exec_error = NOTHING;
+            if (result.help) {
+                dialogs.text("Qore commands", repl.getHelpText(False) + "\nNcurses interface:\n"
+                    "  clear_output       Clear the output area\n"
+                    "  F1                 Keyboard help\n"
+                    "  Ctrl-C             Cancel input (copy if text is selected)\n"
+                    "  Up/Down, PgUp/PgDn  Scroll this help\n"
+                    "  Home/End           Beginning/end of help\n"
+                    "  Escape             Close help\n");
+            } else if (exists result.text) { output_widget.appendBlock(split("\n", string(result.text), False, True), "result"); }
+            if (result.timing) { push_output("[" + result.timing + "]"); }
+            last_status = result.continuation ? "Continue; Ctrl-C: cancel" : "OK";
+            if (submitted && !result.exit) {
+                history.add(text); refresh_history();
+                if (buffer.getRevision() == revision) { buffer.setText(more_input ? strmul("    ", int(result.indent)) : ""); }
+            }
         }
+        update_hints(); update_prompt_line(); update_status();
+        if (quit_after_evaluation) { quit_after_evaluation = False; request_quit(); }
+        else if (result.exit) { request_quit(); }
+    }
 
-        if (result.timing) {
-            push_output(sprintf("  [%s]", result.timing));
+    private nothing cancel_pending_request() {
+        pending_request = NOTHING; pending_quit = False;
+        if (thread_dialog) { dialogs.dismiss(thread_dialog); thread_dialog = NOTHING; }
+        last_status = "Request cancelled; threads continue"; update_status();
+    }
+
+    private nothing wait_for_threads(string text, bool submitted, *int revision, bool quitting = False) {
+        pending_request = text; pending_submitted = submitted;
+        pending_quit = quitting;
+        pending_revision = revision ?? buffer.getRevision();
+        if (!thread_dialog) {
+            thread_dialog = dialogs.choose("Running threads", "This Program is still running code. Parsing, loading "
+                "and resetting must wait.\nThe request resumes automatically when all threads finish.\n"
+                "Terminate requests cooperative cancellation; code may defer it.",
+                ("Wait", "Cancel request", "Terminate threads"), bool sub (int index) {
+                    if (index == 1) { cancel_pending_request(); return True; }
+                    if (index == 2) { repl.cancelThreads(); last_status = "Termination requested; waiting for threads"; }
+                    else { last_status = "Waiting for threads"; }
+                    update_status(); return False;
+                }, sub () { cancel_pending_request(); });
         }
-
-        current_prompt = repl.getPrompt();
-        update_status();
-        return False;
+        last_status = "Waiting for threads"; update_status();
+        if (!thread_monitor.isRunning()) {
+            Program watched = repl.getProgram();
+            thread_monitor.start(auto sub () { return watched.waitForThreads(); }, sub (hash<NcursesUi::TaskResult> completed) {
+                if (closed) { return; }
+                *string request = pending_request; bool request_submitted = pending_submitted;
+                bool resume_quit = pending_quit; pending_quit = False;
+                int request_revision = pending_revision; pending_request = NOTHING;
+                if (thread_dialog) { dialogs.dismiss(thread_dialog); thread_dialog = NOTHING; }
+                if (completed.error) {
+                    last_status = "Thread wait failed";
+                    push_output(QoreRepl::QoreRepl::formatError(completed.error)); update_status(); return;
+                }
+                if (resume_quit) { request_quit(); }
+                else if (exists request) { start_evaluation(request, request_submitted, request_revision); }
+                else { last_status = "Threads finished"; update_status(); }
+            });
+        }
     }
 
     # Routes menu commands to their handlers (file browser, about dialog,
     # clear output, quit). For REPL commands, saves the input buffer state,
     # executes the command, waits for output capture, and restores the buffer.
     private nothing handle_menu_command(string cmd) {
-        if (cmd == "file_browser") {
+        if (more_input && cmd.startsWith("/") && cmd != "/quit") {
+            last_status = "Cancel input with Ctrl-C before using commands"; update_status(); return;
+        }
+        if (cmd == "file_browser" || cmd == "/load") {
             show_file_browser();
             return;
         }
+        if (cmd == "/save") { show_save_dialog(); return; }
+        if (cmd == "ui_help") { show_help(); return; }
         if (cmd == "about") {
             show_about_dialog();
             return;
@@ -4231,19 +4297,9 @@ class QRepl {
             new_prompt_line();
             return;
         }
-        if (cmd == "/quit") {
-            last_status = "Exit";
-            update_status();
-            app.quit();
-            return;
-        }
-
-        # Menu commands leave the draft, selection and undo stack unchanged.
-        string prompt = current_prompt;
-        string shown_prompt = display_prompt(prompt);
-        output_widget.appendBlock((shown_prompt + cmd,), "input");
-        exec_line(cmd, prompt, shown_prompt);
-        if (capture_reader) { capture_reader.flush(); } drain_pending_output(); new_prompt_line();
+        if (cmd == "/quit") { request_quit(); return; }
+        # Menu evaluation never changes the draft, selection or undo history.
+        start_evaluation(cmd);
     }
 
     private hash<NcursesUi::EventResult> handle_global_key(hash<Ncurses::InputEvent> ev) {
@@ -4252,11 +4308,18 @@ class QRepl {
         bool editing = True;
         if (ev.type == Ncurses::InputType::Char && (ch == "\x1b" || ch == "\x11")) {
             if (menu_bar.isDropdownOpen()) { menu_bar.closeMenu(); }
-            else { show_quit_dialog(); }
+            else if (ch == "\x11") { request_quit(); }
             editing = False;
+        } else if (ev.type == Ncurses::InputType::Char && ch == "\x03" && editor.hasFocus()
+                && buffer.selectedText() == "") {
+            if (!evaluation.isRunning()) {
+                assistance.close(); repl.reset(); more_input = False; current_prompt = repl.getPrompt();
+                buffer.setText(""); last_exec_error = NOTHING; last_status = "Input cancelled";
+            }
         } else if (ev.type == Ncurses::InputType::Char && ch == "\x0c") { root.markDirty(); editing = False; }
         else if (ev.type == Ncurses::InputType::Char && ch == "\x13") { show_search(False); editing = False; }
         else if (ev.type == Ncurses::InputType::Char && ch == "\x12") { show_search(True); editing = False; }
+        else if (ev.type == Ncurses::InputType::Key && name == "KEY_F(1)") { show_help(); editing = False; }
         else if (ev.type == Ncurses::InputType::Key && name == "KEY_F(6)") {
             app.getFocusManager().setFocus(output_widget.hasFocus() ? editor : output_widget); editing = False;
         } else if (ev.type == Ncurses::InputType::Key && (name == "KEY_F(3)" || name == "KEY_F(15)")) {
@@ -4284,11 +4347,12 @@ class QRepl {
         } else if (ev.type == Ncurses::InputType::Char && (ch == "\x0b" || ch == "\x15")) { buffer.killToBoundary(ch == "\x0b"); }
         else if (ev.type == Ncurses::InputType::Char && ch == "\x17") { buffer.eraseWord(False); }
         else if (ev.type == Ncurses::InputType::Char && (ch == "\x02" || ch == "\x06")) { buffer.moveHorizontal(ch == "\x06"); }
-        else if (ev.type == Ncurses::InputType::Char && ch == "\x04") { buffer.erase(True); }
-        else if (ev.type == Ncurses::InputType::Key && (name == "kLFT3" || name == "kLFT5" || name == "kRIT3" || name == "kRIT5")) {
+        else if (ev.type == Ncurses::InputType::Char && ch == "\x04") {
+            if (buffer.getText() == "") { request_quit(); editing = False; } else { buffer.erase(True); }
+        } else if (ev.type == Ncurses::InputType::Key && (name == "kLFT3" || name == "kLFT5" || name == "kRIT3" || name == "kRIT5")) {
             buffer.moveWord(name == "kRIT3" || name == "kRIT5");
         } else if (ev.type == Ncurses::InputType::Key && name == "kDC5") { buffer.eraseWord(True); }
-        else if (ev.type == Ncurses::InputType::Alt && (ch.lwr() == "b" || ch.lwr() == "f")) { buffer.moveWord(ch.lwr() == "f"); }
+        else if (ev.type == Ncurses::InputType::Alt && ch.lwr() == "b") { buffer.moveWord(False); }
         else if (ev.type == Ncurses::InputType::Alt && ch.lwr() == "d") { buffer.eraseWord(True); }
         else if (ev.type == Ncurses::InputType::Alt && ch != "\n" && ch != "\r") {
             *string cmd = alt_commands{ch.lwr()};
@@ -4296,7 +4360,7 @@ class QRepl {
             editing = False;
         } else {
             handled = editor.processEvent(ev).handled;
-            if (handled && ev.type == Ncurses::InputType::Char && ch == "}" && repl.needsMoreInput()) {
+            if (handled && ev.type == Ncurses::InputType::Char && ch == "}" && more_input) {
                 NcursesReplUi::InputBuffer dedent(); dedent.setText(buffer.getText());
                 if (dedent.autoDedent("    ")) { buffer.replace(0, buffer.getText().length(), dedent.getText()); }
             }
@@ -4309,170 +4373,64 @@ class QRepl {
     }
 
     private nothing show_search(bool history_search) {
-        QReplSearchPanel panel(app.getSession(), history_search ? "History contains" : "Search output");
-        panel.setOnSubmit(sub (string query) {
-            if (history_search) { buffer.historyMove(False, query); }
-            else { output_widget.setSearch(query); output_widget.findNext(); }
-            app.popModal(); panel.destroyPanel(); update_prompt_line(); update_status();
-        });
-        panel.setOnDismiss(sub () { app.popModal(); panel.destroyPanel(); });
-        hash<Ncurses::Size> size = app.getSession().screen().size();
-        panel.setFrameValues(max(0, (size.rows - 3) / 2), max(0, (size.cols - 60) / 2), min(3, size.rows), min(60, size.cols));
-        panel.createPanel(); app.pushModal(panel);
+        dialogs.prompt(history_search ? "Search history" : "Search output",
+            <NcursesUi::FormField>{"name": "query", "label": "Find", "help": "Enter text to find; Escape cancels.", "default_value": ""},
+            sub (auto value) {
+                if (history_search) { buffer.historyMove(False, string(value)); }
+                else { output_widget.setSearch(string(value)); output_widget.findNext(); }
+                update_prompt_line(); update_status();
+            }, "Find");
     }
 
-    /** Updates the inline hint text based on the current buffer content.
-        Calls repl.getHints() and stores the result for display in the prompt line.
-    */
     private nothing update_hints() {
-        string input = buffer.getText();
-        if (input == "") {
-            current_hint = NOTHING;
-            return;
-        }
-        try {
-            current_hint = repl.getHints(input);
-        } catch (hash<ExceptionInfo> ex) {
-            @debug("update_hints: %s: %s", ex.err, ex.desc);
-            current_hint = NOTHING;
-        }
+        current_hint = NOTHING;
+        if (evaluation.isRunning()) { return; }
+        string prefix = buffer.getText().substr(0, buffer.getCursor());
+        if (prefix == "") { return; }
+        try { current_hint = code_support.hint(prefix); }
+        catch (hash<ExceptionInfo> ex) { @debug("Qore hints: %s", ex.desc); }
     }
 
-    /** Handles Tab key for code completion.
-
-        Gets completion details from QoreRepl, and either auto-inserts
-        the single completion or shows a popup for multiple completions.
-    */
     private nothing handle_tab_completion() {
-        string input = buffer.getText().substr(0, buffer.getCursor());
-        if (input == "") {
-            return;
-        }
-
-        *list<hash<auto>> completions;
-        try {
-            completions = repl.getCompletionDetails(input);
-        } catch (hash<ExceptionInfo> ex) {
-            # completion not available - ignore
-            return;
-        }
-
-        if (!exists completions || !completions.size()) {
-            return;
-        }
-
-        # find the word start for replacement
-        int word_start = input.length();
-        while (word_start > 0) {
-            string ch = input.substr(word_start - 1, 1);
-            if (ch == " " || ch == "\t" || ch == "(" || ch == ")" || ch == ","
-                    || ch == ";" || ch == "{" || ch == "}" || ch == ":"
-                    || ch == "." || ch == "=" || ch == "+" || ch == "-"
-                    || ch == "*" || ch == "/" || ch == "!" || ch == "<"
-                    || ch == ">" || ch == "&" || ch == "|" || ch == "^"
-                    || ch == "~" || ch == "?" || ch == "@" || ch == "#"
-                    || ch == "%" || ch == "[" || ch == "]") {
-                break;
-            }
-            word_start -= 1;
-        }
-        string prefix = input.substr(word_start);
-
-        if (completions.size() == 1) {
-            # single completion - auto-insert
-            insert_completion(completions[0], word_start, prefix);
-            return;
-        }
-
-        # multiple completions - show popup
-        show_completion_popup(completions, word_start, prefix);
+        if (evaluation.isRunning()) { return; }
+        try { assistance.request(True); }
+        catch (hash<ExceptionInfo> ex) { last_status = "Help unavailable"; update_status(); }
     }
 
-    /** Inserts a completion into the buffer, replacing the prefix.
-        @param item the completion item
-        @param word_start the position where the prefix starts
-        @param prefix the current prefix being replaced
-    */
-    private nothing insert_completion(hash<auto> item, int word_start, string prefix) {
-        string label = item.label ?? "";
-        if (label == "") {
-            return;
+    private nothing request_quit() {
+        if (!evaluation.isRunning()) {
+            if (repl.getProgram().getThreadCount()) { wait_for_threads("/exit", False, NOTHING, True); return; }
+            app.quit(); return;
         }
-
-        # build the replacement text
-        string replacement = label;
-        if (item.isCallable) {
-            if (item.hasKey("noArgsOnly") && item.noArgsOnly) {
-                replacement += "()";
-            } else {
-                replacement += "(";
-            }
-        } else if (item.kind == "namespace") {
-            replacement += "::";
-        }
-
-        buffer.replace(word_start, word_start + prefix.length(), replacement);
-        update_prompt_line();
+        evaluation_dialog = dialogs.confirm("Quit", "Evaluation is running. Quit when it finishes?", sub () {
+            if (evaluation.isRunning()) { quit_after_evaluation = True; update_status(); }
+            else { app.quit(); }
+        }, "Finish and quit");
     }
 
-    /** Shows a completion popup with multiple items.
-        @param completions the list of completion items
-        @param word_start the position where the prefix starts
-        @param prefix the current prefix
-    */
-    private nothing show_completion_popup(list<hash<auto>> completions, int word_start, string prefix) {
-        Ncurses::Session sess = app.getSession();
-        hash<Ncurses::Size> sz = sess.screen().size();
-
-        NcursesUi::CompletionPopupWidget popup(sess, completions);
-
-        *hash<Ncurses::Position> caret = editor.getCaretScreenPosition();
-        if (!caret) { return; }
-        popup.positionAt(caret.y, caret.x, sz.rows, sz.cols);
-
-        popup.setOnSelect(sub (hash<auto> item) {
-            app.popModal();
-            popup.destroyPanel();
-            insert_completion(item, word_start, prefix);
-        });
-
-        popup.setOnDismiss(sub () {
-            app.popModal();
-            popup.destroyPanel();
-        });
-
-        popup.createPanel();
-        app.pushModal(popup);
+    private nothing show_help() {
+        dialogs.message("Keyboard help", "Enter: evaluate; Alt-Enter: newline\nTab: completion/signature help; popup Tab: documentation\n"
+            + "Ctrl-P/N or single-line Up/Down: history\nCtrl-R: search history; Ctrl-S: search output\nF3 / Shift-F3: next / previous match\n"
+            + "F6: switch editor/output; PageUp/Down: read output\nCtrl-End: latest output; Ctrl-Z/Y: undo/redo\nCtrl-Left/Right: word movement; Alt-F: File menu\n"
+            + "Ctrl-C: cancel input, or copy selected text\nCtrl-Q / Alt-Q / empty Ctrl-D: quit; Escape: dismiss\n"
+            + "At the continuation prompt, all input is Qore source. Cancel it before using commands.\n"
+            + "Evaluation keeps the UI responsive. New submissions and assistance wait for it to finish.");
     }
 
-    private nothing show_quit_dialog() {
-        @debug("show_quit_dialog called");
-        Ncurses::Session sess = app.getSession();
-        hash<Ncurses::Size> sz = sess.screen().size();
-
-        NcursesUi::DialogWidget dlg = NcursesUi::DialogWidget::confirm(
-            sess, "Quit", "Exit the REPL?",
-            sub (int idx, string label) {
-                if (idx == 0) {
-                    # OK - quit
-                    app.popModal();
-                    dlg.destroyPanel();
-                    last_status = "Exit";
-                    update_status();
-                    app.quit();
-                } else {
-                    # Cancel - dismiss
-                    app.popModal();
-                    dlg.destroyPanel();
-                }
-            });
-        dlg.setOnDismiss(sub () {
-            app.popModal();
-            dlg.destroyPanel();
-        });
-        dlg.centerOn(sz.rows, sz.cols);
-        dlg.createPanel();
-        app.pushModal(dlg);
+    private nothing show_save_dialog() {
+        if (evaluation.isRunning()) { dialogs.message("Evaluation running", "Save is available when evaluation finishes."); return; }
+        dialogs.prompt("Save session history", <NcursesUi::FormField>{"name": "path", "label": "Filename", "required": True,
+            "help": "Save evaluated commands as a Qore file.", "default_value": "",
+            "validate": *string sub (auto value) {
+                string path = string(value);
+                if (trim(path) == "") { return "Enter a filename."; }
+                if (path != trim(path) || path =~ /[\r\n\x00]/) { return "Use a path without surrounding whitespace or control characters."; }
+                return NOTHING;
+            }}, sub (auto value) {
+                string path = string(value);
+                if (stat(path)) { dialogs.confirm("Replace file", "Replace " + path + "?", sub () { start_evaluation("/save " + path); }, "Replace"); }
+                else { start_evaluation("/save " + path); }
+            }, "Save");
     }
 
     /** Opens the About dialog with animated Qore spinning coin. */
@@ -4482,6 +4440,7 @@ class QRepl {
 
         # build version info lines for the right side
         list<string> info_lines = AboutDialogWidget::buildVersionInfo();
+        if (sz.rows < 12 || sz.cols < 50) { dialogs.message("About Qore REPL", join("\n", info_lines)); return; }
 
         # dialog dimensions: border(2) + padding(2) + art + gap(2) + info area
         int info_width = 0;
@@ -4510,7 +4469,7 @@ class QRepl {
             app.popModal();
             dlg.destroyPanel();
             # restore default read timeout
-            app.setReadTimeout(100, 25);
+            app.setReadTimeout(-1, 25);
         });
         dlg.createPanel();
         app.pushModal(dlg);
@@ -4520,80 +4479,30 @@ class QRepl {
     }
 
     private nothing on_tick() {
-        # drain captured output
-        if (capture_enabled) {
-            drain_pending_output();
-        }
-
-        # update time every second
-        int now_ms = clock_getmillis();
-        if (now_ms - last_tick >= 1000) {
-            last_tick = now_ms;
-            time_text = now().format("HH:mm:SS");
-            update_status();
-        }
+        if (capture_enabled) { drain_pending_output(); }
+        update_prompt_line(); update_status();
     }
 
     private nothing update_status() {
-        hash<auto> status_style = {"fg": Ncurses::Color::White, "bg": Ncurses::Color::Blue};
-        hash<auto> time_style = {"fg": Ncurses::Color::White, "bg": Ncurses::Color::Blue};
-        hash<auto> hint_style = {"fg": Ncurses::Color::Cyan, "bg": Ncurses::Color::Blue,
-            "attrs": Ncurses::Attr::Dim};
-
-        int color = status_color(last_status);
-        hash<auto> label_style = {"fg": color, "bg": Ncurses::Color::Blue,
-            "attrs": Ncurses::Attr::Bold};
-
-        list<hash<auto>> segs = (
-            {"text": pad_status_label(last_status), "style": label_style},
-            {"text": " " + output_title + " ", "style": status_style},
+        hash<auto> normal = {"fg": Ncurses::Color::White, "bg": Ncurses::Color::Blue};
+        hash<auto> emphasis = {"fg": Ncurses::Color::Yellow, "bg": Ncurses::Color::Blue, "attrs": Ncurses::Attr::Bold};
+        list<hash<auto>> segments = (
+            {"text": quit_after_evaluation ? "Finishing, then quit" : last_status, "compact": evaluation.isRunning() ? "Running" : last_status,
+                "priority": evaluation.isRunning() ? 110 : 80, "style": {"fg": status_color(last_status), "bg": Ncurses::Color::Blue, "attrs": Ncurses::Attr::Bold}},
+            {"text": output_widget.hasFocus() ? "Output [F6: editor]" : "Editor [Tab: help]", "compact": output_widget.hasFocus() ? "Output" : "Editor", "priority": 60, "style": normal}
         );
-
         if (!output_widget.isFollowing()) {
-            segs += {"text": " Paused (" + output_widget.getUnreadCount() + " new) Ctrl-End: latest ", "style": hint_style};
+            segments += {"text": "Paused +" + output_widget.getUnreadCount() + " [Ctrl-End: latest]",
+                "compact": "Paused +" + output_widget.getUnreadCount(), "priority": 100, "style": emphasis};
         }
-        # show hint in status bar when available
-        if (exists current_hint && current_hint != "") {
-            segs += {"text": current_hint + " ", "style": hint_style};
-        } else {
-            segs += {"text": " Lines: " + output_content.lineCount() + " ", "style": status_style};
-        }
-
-        segs += (
-            {"text": time_text + " ", "align": "right", "style": time_style},
-            {"text": mouse_enabled ? "Mouse:ON  " : "Mouse:OFF ", "align": "right", "style": status_style},
-        );
-        status_bar.setSegments(segs);
+        if (current_hint) { segments += {"text": current_hint, "priority": 40, "style": emphasis}; }
+        segments += ({"text": "F1: keys", "priority": 20, "style": normal}, {"text": output_title, "priority": 0, "align": "right", "style": normal});
+        if (status_bar.getSegments() != segments) { status_bar.setSegments(segments); }
     }
 
-    /** Opens the split-pane file browser modal. */
     private nothing show_file_browser() {
-        Ncurses::Session sess = app.getSession();
-        hash<Ncurses::Size> sz = sess.screen().size();
-
-        # size to ~80% of screen, centered
-        int fb_rows = max(10, sz.rows * 80 / 100);
-        int fb_cols = max(40, sz.cols * 80 / 100);
-        int fb_y = (sz.rows - fb_rows) / 2;
-        int fb_x = (sz.cols - fb_cols) / 2;
-
-        NcursesUi::FileBrowserWidget fb(sess, getcwd());
-        fb.setFrame(NcursesUi::Geometry::makeRect(fb_y, fb_x, fb_rows, fb_cols));
-        fb.setClosable(True);
-
-        fb.setOnLoad(sub (hash<auto> item) {
-            app.popModal();
-            fb.destroyPanel();
-            handle_menu_command("/load " + item.path);
-        });
-
-        fb.setOnDismiss(sub () {
-            app.popModal();
-            fb.destroyPanel();
-        });
-
-        fb.createPanel();
-        app.pushModal(fb);
+        if (evaluation.isRunning()) { dialogs.message("Evaluation running", "Load is available when evaluation finishes."); return; }
+        dialogs.openFile(getcwd(), sub (string path) { start_evaluation("/load " + path); });
     }
 
     private int run() {
@@ -4623,6 +4532,15 @@ class QRepl {
     }
 
     private nothing close_session() {
+        if (closed) { return; } closed = True;
+        app.removeTickCallback(tick_subscription); if (!owns_app) { app.setRootLayout(NOTHING); } if (owns_app) { app.setGlobalKeyHandler(NOTHING); }
+        on_exit { if (owns_app) { app.close(); } }
+        on_exit restore_output();
+        on_exit dialogs.close();
+        on_exit assistance.close();
+        on_exit editor.setHighlighter(NOTHING);
+        on_exit { thread_monitor.cancel("REPL closed"); thread_monitor.close(); }
+        evaluation.close();
         # save persistent history
         if (persistent_history && exists ENV.HOME) {
             try {
@@ -4632,36 +4550,23 @@ class QRepl {
             }
         }
 
-        if (capture_enabled) {
-            capture_enabled = False;
-            try {
-                Ncurses::Session session = app.getSession();
-                stdout.redirect(output_capture.stdout_restore); session.redirectStdout(output_capture.stdout_restore);
-                stderr.redirect(output_capture.stderr_restore); session.redirectStderr(output_capture.stderr_restore);
-            } catch (hash<ExceptionInfo> ex) {
-                stderr.printf("qrepl: restoring output failed: %s\n", ex.desc);
-            }
-            if (capture_reader) { capture_reader.close(); capture_reader = NOTHING; }
-            output_capture.pipe.write.close(); output_capture.pipe.read.close();
-        }
-        try {
-            app.close();
-        } catch (hash<ExceptionInfo> ex) {
-            # ignore
-        }
     }
 
-    /** Pads a status label to a fixed width so the status bar layout stays stable.
-        @param label the status text (e.g. "OK", "Error", "Evaluating...")
-        @param width the fixed width including surrounding spaces (default 17 for " Evaluating... ")
-        @return the padded string
-    */
-    private static string pad_status_label(string label, int width = 17) {
-        string text = " " + label + " ";
-        if (text.length() < width) {
-            text += strmul(" ", width - text.length());
+    private nothing restore_output() {
+        if (!capture_enabled) { return; } capture_enabled = False;
+        on_exit output_capture.stdout_restore.close();
+        on_exit output_capture.stderr_restore.close();
+        on_exit output_capture.pipe.read.close();
+        on_exit output_capture.pipe.write.close();
+        on_exit { if (capture_reader) { capture_reader.close(); capture_reader = NOTHING; } }
+        # Restore both Qore handles even when the native session was already closed.
+        on_exit stderr.redirect(output_capture.stderr_restore);
+        stdout.redirect(output_capture.stdout_restore);
+        Ncurses::Session session = app.getSession();
+        if (session.isOpen()) {
+            on_exit session.redirectStderr(output_capture.stderr_restore);
+            session.redirectStdout(output_capture.stdout_restore);
         }
-        return text;
     }
 
     private static int status_color(string status) {
@@ -4864,12 +4769,7 @@ class AboutDialogWidget inherits NcursesUi::PanelWidget {
 
     hash<NcursesUi::EventResult> processEvent(hash<Ncurses::InputEvent> ev) {
         if (ev.type == Ncurses::InputType::Char) {
-            int code = ord(ev.ch ?? "");
-            if (code == 0x1b || code == 0x0a || code == 0x20) {
-                # Escape, Enter, or Space — dismiss
-                dismiss();
-                return <NcursesUi::EventResult>{"handled": True, "action": "dismiss"};
-            }
+            dismiss(); return <NcursesUi::EventResult>{"handled": True, "action": "dismiss"};
         } else if (ev.type == Ncurses::InputType::Mouse) {
             int bs = ev.mouse.button_state;
             if (bs & Ncurses::BUTTON1_CLICKED || bs & Ncurses::BUTTON1_PRESSED) {
@@ -4893,21 +4793,6 @@ class AboutDialogWidget inherits NcursesUi::PanelWidget {
     }
 }
 
-# Small composable input panel used by output and history search.
-class QReplSearchPanel inherits NcursesUi::PanelWidget {
-    private { NcursesUi::TextInputWidget input(); *code<nothing()> dismiss; }
-    constructor(Ncurses::Session session, string title) : PanelWidget(session, title) { addChild(input); }
-    nothing setOnSubmit(code<nothing(string)> callback) { input.setOnSubmit(callback); }
-    nothing setOnDismiss(code<nothing()> callback) { dismiss = callback; }
-    nothing layout() { input.setFrame(contentRect()); }
-    hash<NcursesUi::EventResult> processEvent(hash<Ncurses::InputEvent> event) {
-        if (event.type == Ncurses::InputType::Char && event.ch == "\x1b") {
-            if (dismiss) { dismiss(); } return <NcursesUi::EventResult>{"handled": True};
-        }
-        return PanelWidget::processEvent(event);
-    }
-}
-
 # Owns a pipe reader thread. Producers flush stdio before flush(); UI methods are
 # serialized by the caller. The worker never accesses terminal widgets.
 class QReplOutputCapture {
@@ -4919,6 +4804,7 @@ class QReplOutputCapture {
         Condition changed();
         int requested = 0;
         int acknowledged = 0;
+        *code<nothing()> notify;
         bool stopping = False;
         bool finished = False;
         *hash<ExceptionInfo> failure;
@@ -4926,8 +4812,8 @@ class QReplOutputCapture {
         # Worker-owned bytes: decode only complete logical lines, preserving split UTF-8.
         binary tail = binary();
     }
-    constructor(ReadOnlyFile input) {
-        self.input = input;
+    constructor(ReadOnlyFile input, *code<nothing()> on_output) {
+        self.input = input; notify = on_output;
         on_error active.dec();
         background run();
     }
@@ -4992,9 +4878,21 @@ class QReplOutputCapture {
                     mutex.lock(); on_exit mutex.unlock(); pending += complete;
                     acknowledged = request; changed.broadcast();
                 }
+                if (complete && notify) {
+                    try { notify(); }
+                    catch (hash<ExceptionInfo> ex) {
+                        # A UI wake failure must not abandon the producer's pipe.
+                        # Retain the error for the caller while continuing to drain
+                        # until evaluation finishes and cleanup closes the reader.
+                        mutex.lock(); on_exit mutex.unlock(); failure = ex; notify = NOTHING;
+                    }
+                }
                 if (stop || eof) { break; }
             }
         } catch (hash<ExceptionInfo> ex) {
+            # An unreadable pipe cannot service producers; close its read end so
+            # writers fail instead of blocking forever on a pipe nobody drains.
+            on_exit input.close();
             mutex.lock(); on_exit mutex.unlock(); failure = ex;
         }
     }

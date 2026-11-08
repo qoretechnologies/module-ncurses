@@ -141,6 +141,7 @@ set(QORE_DOX_TMPL_SRC
 
 set(QMOD
     qlib/NcursesReplUi.qm
+    qlib/NcursesQore/NcursesQore.qm
 )
 
 set(SCRIPTS
@@ -171,6 +172,7 @@ qore_user_modules("${QMOD}")
 install(PROGRAMS ${SCRIPTS} DESTINATION ${CMAKE_INSTALL_BINDIR})
 qore_external_user_module("qlib/NcursesReplUi.qm" "")
 qore_external_user_module("qlib/NcursesUi/NcursesUi.qm" "")
+qore_external_user_module("qlib/NcursesQore/NcursesQore.qm" "")
 
 qore_dist("${PROJECT_VERSION}")
 
@@ -189,7 +191,7 @@ if (DOXYGEN_FOUND)
     add_custom_target(QORE_MOD_DOX_FILES DEPENDS ${QORE_DOX_SRC})
     add_dependencies(docs-module QORE_MOD_DOX_FILES)
 
-    qore_binary_module_two_phase_docs(${module_name} "NcursesReplUi;NcursesUi")
+    qore_binary_module_two_phase_docs(${module_name} "NcursesReplUi;NcursesUi;NcursesQore")
 endif()
 
 # link libraries

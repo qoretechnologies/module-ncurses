@@ -11,12 +11,17 @@ class Runner {
         *NcursesUi::CompletionPopupWidget popup;
         *NcursesGallery::Fixture fixture;
         *NcursesGallery::CodePreview code_preview;
+        *Program repl_program;
+        *object repl;
+        bool capture_output;
         bool closed = False;
+        bool interacted = False;
+        bool replaying = False;
         int checkpoint_index = -1;
         hash<Ncurses::Size> initial_size;
     }
-    constructor(NcursesUi::Application application, string id) {
-        app = application; definition = Registry::find(id);
+    constructor(NcursesUi::Application application, string id, bool capture = False) {
+        app = application; definition = Registry::find(id); capture_output = capture;
         initial_size = app.getSession().screen().size();
         try { reset(); } catch (hash<ExceptionInfo> ex) { close(); rethrow; }
     }
@@ -24,9 +29,13 @@ class Runner {
     NcursesUi::Application application() { return app; }
     *NcursesUi::Widget control() { return widget; }
     int checkpointIndex() { return checkpoint_index; }
+    bool isEvaluating() { return repl && repl.isEvaluating(); }
+    nothing requireIdle() {
+        if (isEvaluating()) { throw "GALLERY-BUSY", "Evaluation is still running. Reset, replay and story selection are available after it finishes."; }
+    }
     private nothing checkOpen() { if (closed) { throw "GALLERY-CLOSED-ERROR", "The story has been closed"; } }
     private nothing release() {
-        on_exit { popup = NOTHING; fixture = NOTHING; code_preview = NOTHING; table = NOTHING; editor = NOTHING; widget = NOTHING; }
+        on_exit { repl = NOTHING; repl_program = NOTHING; popup = NOTHING; fixture = NOTHING; code_preview = NOTHING; table = NOTHING; editor = NOTHING; widget = NOTHING; }
         on_exit {
             if (app.getSession().isOpen()) {
                 app.setRoot(new NcursesUi::Widget());
@@ -35,6 +44,7 @@ class Runner {
         }
         on_exit {
             on_exit { if (popup) { popup.setOnSelect(NOTHING); popup.setOnDismiss(NOTHING); popup.destroyPanel(); } }
+            if (repl) { repl.close(); }
             if (fixture) { fixture.close(); }
             if (code_preview) { code_preview.close(); }
         }
@@ -42,10 +52,19 @@ class Runner {
     }
     nothing close() { if (closed) { return; } closed = True; release(); }
     nothing reset(*hash<Ncurses::Size> reset_size) {
-        checkOpen(); on_error close(); release(); checkpoint_index = -1;
+        checkOpen(); requireIdle(); on_error close(); release(); checkpoint_index = -1; interacted = False;
         if (reset_size) { initial_size = reset_size; }
         app.getSession().resize(initial_size.rows, initial_size.cols);
         app.getSession().setCursor(1);
+        if (definition.application) {
+            repl_program = new Program(PO_DEFAULT);
+            string source = ReadOnlyFile::readTextFile(get_script_dir() + "/../bin/qrepl"); source =~ s/%exec-class QRepl//;
+            source += "\nobject sub galleryRepl(NcursesUi::Application app, bool capture) { return new QRepl(app.getSession(), False, app, NOTHING, capture); }\n";
+            *hash<ExceptionInfo> warnings = repl_program.parse(source, "qrepl-story", WARN_ALL);
+            if (warnings) { throw "GALLERY-QREPL-WARNING", warnings; }
+            repl = repl_program.callFunction("galleryRepl", app, capture_output);
+            editor = repl.getEditor(); widget = app.getRoot(); editor.setText(definition.fixture.draft); app.layoutRoot(); app.drawAll(); syncCursor(); return;
+        }
         if (definition.catalog) {
             fixture = new NcursesGallery::Fixture(app, definition); widget = fixture.control(); syncCursor(); return;
         }
@@ -97,12 +116,20 @@ class Runner {
         }
     }
     private nothing dismiss() { if (popup) { on_exit popup.destroyPanel(); app.removeModal(popup); } }
+    nothing settle() { if (repl) { repl.joinEvaluation(); } }
+    hash<NcursesUi::EventResult> handleEvent(hash<Ncurses::InputEvent> event) {
+        if (repl && !replaying) { interacted = True; }
+        return repl ? repl.processEvent(event) : <NcursesUi::EventResult>{};
+    }
     hash<auto> inspect(*hash<Ncurses::ScreenCapture> frame) {
         checkOpen();
         *NcursesUi::Widget focus = app.getFocusManager().getCurrentFocus();
         hash<auto> state = {"focus": focus ? focus.className() : "", "modal": app.getDispatcher().hasModal(), "enabled": widget.isEnabled()};
+        if (repl) { state.evaluating = repl.isEvaluating(); state.following = repl.getTranscript().isFollowing(); }
         if (fixture) { state += fixture.inspect(); }
         if (editor) { state.text = editor.getText(); state.scroll = editor.getScrollY(); state.empty = editor.getText() == ""; state.has_selection = editor.getBuffer().selectedText() != ""; }
+        # A full REPL includes its transcript, even after evaluation clears the input.
+        if (repl) { state.empty = state.empty && !repl.getTranscript().getTranscriptContent().lineCount(); }
         if (table) { state.selected = table.getSelectedRow(); state.scroll = table.getScrollOffset(); state.empty = !table.getRows(); state.has_selection = table.getSelectedRow() == 1; }
         if (popup && app.getDispatcher().hasModal()) { state.selected = popup.getHighlightIndex(); state.empty = !popup.getItems(); state.has_selection = popup.getHighlightIndex() == 1; }
         if (definition.state == "constrained") {
@@ -131,17 +158,25 @@ class Runner {
             && NcursesUi::Geometry::rectContains(focus.contentRect(), frame.cursor.y, frame.cursor.x);
     }
     hash<auto> step() {
-        checkOpen();
+        checkOpen(); requireIdle();
+        if (definition.application && interacted) { throw "GALLERY-EXPECTATION-ERROR", "Reset the story before replaying recorded checkpoints after manual input."; }
+        replaying = True; on_exit replaying = False;
         if (checkpoint_index + 1 >= definition.steps.size()) { throw "GALLERY-STEP-ERROR", "All story steps are complete"; }
         hash<NcursesGallery::Step> step = definition.steps[checkpoint_index + 1];
         if (step.size) {
             app.getSession().resize(step.size.rows, step.size.cols);
             app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Resize});
         }
-        if (step.event) { app.processEvent(step.event); }
+        if (step.event && !(repl && repl.processEvent(step.event).handled)) { app.processEvent(step.event); }
         if (step.action) {
-            if (!fixture) { throw "GALLERY-ACTION-ERROR", "This story has no model action"; }
-            fixture.perform(step.action);
+            if (repl) {
+                if (step.action == "evaluate") { repl.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "\n"}); repl.joinEvaluation(); }
+                else if (step.action == "pause-output") {
+                    for (int i = 0; i < 30; ++i) { repl.getTranscript().appendLine("Review line " + i); }
+                    app.drawAll(); repl.processEvent(Registry::key("KEY_PPAGE"));
+                } else { throw "GALLERY-ACTION-ERROR", "Unknown application action"; }
+            } else if (!fixture) { throw "GALLERY-ACTION-ERROR", "This story has no model action"; }
+            else { fixture.perform(step.action); }
         }
         hash<auto> artifact = capture(step.checkpoint);
         verify(artifact, step.expected); ++checkpoint_index; return artifact;

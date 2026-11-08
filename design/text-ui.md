@@ -77,7 +77,16 @@ Links are indexed by source identity. Search results are cached by content revis
 
 ## qrepl integration
 
-The draft occupies a separate bounded editor viewport below retained output. Failed
+Input occupies a separate bounded editor viewport immediately after retained output.
+`BoxLayout::setContentFlow(output, editor)` caps the expanding transcript at its
+wrapped preferred height while short, moving unused rows after the editor. Later
+status widgets keep their normal positions; overflow retains the full allocation.
+Both widgets must be adjacent direct children in a vertical layout. Hidden pairs
+use normal layout, and disabling content flow restores the default allocation.
+`TranscriptWidget` measures visible wrapped rows including padding before layout.
+Idle `/exit`, `/quit`, `/q`, Ctrl-Q, Alt-Q and File > Quit exit directly, even with
+unfinished input. Ctrl-D exits on empty input and otherwise deletes forward. Escape
+only dismisses overlays. Running work still offers to finish before quitting. Failed
 evaluation/history expansion preserves text, selection and undo. Menu commands leave
 the draft untouched. Completion uses the editor's visible screen caret. Clipboard
 bindings use an application-local string, without a desktop dependency.
@@ -92,6 +101,10 @@ publication of complete lines and the unterminated tail. Producer stdio is flush
 requesting the barrier. Byte accumulation preserves UTF-8 split across reads and
 blank lines; malformed complete text is represented with its hexadecimal bytes.
 Shutdown notifies and joins the worker before releasing pipe resources.
+Notification failures are reported without stopping pipe drainage; fatal reads
+close the reader so a producer cannot block on an abandoned pipe. Inherited output
+descriptors are duplicated with `File::redirect()` rather than reopened, preserving
+access after privilege changes and the original open-file description on restore.
 
 Ordinary Enter CR is normalized to LF by native event decoding. Paste payloads and
 Alt input preserve literal CR, so enabling nonl() for paste does not change widget
@@ -327,3 +340,49 @@ Replacement providers and setText format before committing. Interactive edits re
 in the model if formatting fails, allowing recovery by replacing/disabling the provider.
 The gallery uses astparser highlights and QoreRepl completion/hints without evaluating
 drafts or persisting history. General widgets do not require either provider.
+
+
+### Shared workflow controllers
+
+`EditorAssistance` owns a buffer-bound `AssistanceModel` and its popup, including
+placement around the caret, empty-result feedback, dismissal, error cleanup and
+focus restoration. `NcursesQore::CodeSupport` is a separate optional language
+adapter accepting the application's existing `QoreRepl` instance. Source styling
+uses an independent optional astparser; completions never evaluate draft source.
+Completion replaces the identifier around the caret and checks beyond whitespace
+for existing call parentheses or namespace separators. The whitespace and suffix
+stay outside the replacement range, so accepting and undoing completion preserve them.
+The application serializes assistance and evaluation against that live backend.
+
+`BackgroundTask` owns one worker and a UI-event scope. It remains busy through
+completion delivery, catches worker exceptions as typed result data, and releases
+callbacks before joining during disposal. A single protected recovery slot retains
+queue/wake failures; a wake and owned UI tick deliver that failure once, allowing
+retry without an interactive join. Headless embedders can dispatch recovery explicitly
+through `processPending()`. It exposes the existing `ActionModel`
+for state/progress views. Joining is for tests and shutdown; worker execution is
+not cancellable unless the underlying operation supplies a separate mechanism.
+qrepl retains the submitted buffer revision and only clears an unchanged draft on
+success. Capture workers wake the event loop when complete output lines arrive.
+`EditorBuffer::setHistory(entries, True)` preserves active history navigation and
+the original draft/selection while retaining the newest history update separately.
+Returning to the draft or editing ends the browsing snapshot and applies that
+update. Completion can therefore append history without discarding a draft the
+user saved by navigating backward while evaluation was still running.
+
+`Dialogs` composes existing forms, dialogs and file browsers, owning dismissal and
+focus restoration. Validation remains in `FormModel`; acceptance semantics remain
+application callbacks. `PanelWidget::setCenteredSize()` clamps floating panels and
+restores preferred size on regrowth. Status segments can declare priority and a
+compact label; allocation favors important state while retaining display order.
+
+Full-application gallery entries load `bin/qrepl` itself with a supplied Application
+and disabled persistent history. The browser bridge uses the actual event loop and
+posts control commands from a reader worker; explicit input fences and worker joins
+are completion barriers. Program output has a separate capture pipe from bridge
+protocol output. Regular widget stories keep their existing deterministic bridge.
+Application reset, replay and story replacement reject busy work before changing
+state or geometry. Native gallery controls use Alt-1 through Alt-6 to preserve
+application function keys. Session exit publishes a separate final capture with a
+terminal fence; the browser renders it before closing, even when no input command
+is pending when evaluation completes.

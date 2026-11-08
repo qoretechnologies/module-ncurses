@@ -27,6 +27,14 @@
     geometry is computed with that layout. @ref NcursesUi::EventDispatcher "EventDispatcher"
     routes input; @ref NcursesUi::FocusManager "FocusManager" handles focus traversal.
 
+    For a console whose prompt follows short output, call
+    @ref NcursesUi::BoxLayout::setContentFlow() "layout.setContentFlow(transcript, editor)"
+    with adjacent children in a vertical layout. The expanding transcript receives
+    its wrapped preferred height up to its normal allocation; unused rows move after
+    the editor so a later status bar stays at the bottom. Overflow uses the normal
+    scrollable viewport. Pass NOTHING for both arguments to restore ordinary layout.
+    See the runnable <tt>examples/editor-transcript.qr</tt> example.
+
     @section ncurses_ui_app List and Status Application
 
     This complete program places an expanding list above a one-row status bar. Arrow keys

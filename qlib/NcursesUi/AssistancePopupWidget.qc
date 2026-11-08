@@ -64,7 +64,9 @@ public class AssistancePopupWidget inherits NcursesUi::PanelWidget {
     bool positionAtCaret(int rows, int columns) {
         *hash<Ncurses::Position> anchor = editor.getCaretScreenPosition();
         if (!anchor || rows <= 0 || columns <= 0) { if (isVisible()) { dismiss(); } return False; }
-        setVisible(True); int height = min(maximum_rows, rows); int width = min(maximum_cols, columns);
+        setVisible(True);
+        int above = max(0, anchor.y); int below = max(0, rows - anchor.y - 1);
+        int height = min(maximum_rows, max(1, max(above, below))); int width = min(maximum_cols, columns);
         setHasBorder(height >= 3 && width >= 3);
         int y = anchor.y + 1; if (y + height > rows) { y = anchor.y - height; }
         hash<NcursesUi::Rect> rect = NcursesUi::Geometry::makeRect(max(0, min(y, rows - height)), max(0, min(anchor.x, columns - width)), height, width);

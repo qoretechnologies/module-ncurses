@@ -40,10 +40,11 @@ class Gallery {
         *hash<Ncurses::Size> overlay_size;
         int preset = 0;
         bool closed = False;
+        bool capture_output;
         *int cursor_tick;
     }
-    constructor(NcursesUi::Application application, string id) {
-        app = application; available = app.getSession().terminalSize();
+    constructor(NcursesUi::Application application, string id, bool capture = False) {
+        app = application; capture_output = capture; available = app.getSession().terminalSize();
         app.setReadTimeout(-1, 25);
         try {
             select(id);
@@ -63,14 +64,15 @@ class Gallery {
     }
     nothing select(string id) {
         Registry::find(id); # Validate before replacing the current story.
+        if (runner) { runner.requireIdle(); }
         observeGeometry();
         closeOverlay();
         if (runner) { runner.close(); runner = NOTHING; }
         hash<Ncurses::Size> size = storySize(id);
         app.getSession().resize(size.rows, size.cols); preset = 0;
-        runner = new NcursesGallery::Runner(app, id);
+        runner = new NcursesGallery::Runner(app, id, capture_output);
     }
-    nothing reset() { observeGeometry(); closeOverlay(); runner.reset(storySize(runner.story().id)); preset = 0; }
+    nothing reset() { runner.requireIdle(); observeGeometry(); closeOverlay(); runner.reset(storySize(runner.story().id)); preset = 0; }
     nothing closeOverlay() {
         on_exit {
             if (overlay_size) {
@@ -97,7 +99,10 @@ class Gallery {
     }
     nothing showNavigation() {
         closeOverlay(); expandOverlay(); on_error closeOverlay();
-        picker = new NcursesGallery::Picker(app.getSession(), sub (string id) { select(id); });
+        picker = new NcursesGallery::Picker(app.getSession(), sub (string id) {
+            try { select(id); }
+            catch (hash<ExceptionInfo> ex) { if (ex.err != "GALLERY-BUSY") { rethrow; } showHelp(False, ex.desc); }
+        });
         hash<Ncurses::Size> size = app.getSession().screen().size();
         picker.setBorderEdges(size.rows >= 5 && size.cols >= 12 ? NcursesUi::BorderEdges::Horizontal : NcursesUi::BorderEdges::None);
         picker.setFrameValues(0, 0, size.rows, size.cols); picker.layout(); picker.createPanel(); app.pushModal(picker);
@@ -106,8 +111,12 @@ class Gallery {
     nothing showHelp(bool inspect = False, *string notice) {
         closeOverlay(); hash<auto> state = runner.capture();
         expandOverlay(); on_error closeOverlay();
-        string message = runner.story().purpose + "\n\n" + runner.story().keyboard + "\n" + runner.story().mouse
-            + "\n\nF1 Help | F2 Search | F3 Reset | F4 Size | F5 Next step | F6 Inspect | Ctrl+Q Quit";
+        string message = runner.story().application
+            ? "Alt-1 Help   Alt-2 Search   Alt-3 Reset\nAlt-4 Size   Alt-5 Next step   Alt-6 Inspect\n\n"
+                + "qrepl: Enter evaluate; Tab complete; F1 help; F6 panes.\n"
+                + "F3 / Shift-F3: next / previous output search match.\nCtrl-Q: quit. Escape: close this help."
+            : runner.story().purpose + "\n\n" + runner.story().keyboard + "\n" + runner.story().mouse
+                + "\n\nF1 Help | F2 Search | F3 Reset | F4 Size | F5 Next step | F6 Inspect | Ctrl+Q Quit";
         if (inspect) {
             message = sprintf("Story: %s\nFocus: %s\nModal: %y\nScroll: %y\nSelection: %y\nCursor: row %d, col %d, visibility %d\nFrame: %dx%d\nCheckpoint: %d/%d",
                 runner.story().id, state.state.focus, state.state.modal, state.state.scroll, state.state.selected,
@@ -128,7 +137,26 @@ class Gallery {
         app.getSession().resize(rows, cols); app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Resize}); app.drawAll();
     }
     private hash<NcursesUi::EventResult> handle(hash<Ncurses::InputEvent> event) {
+        try { return handleImpl(event); }
+        catch (hash<ExceptionInfo> ex) {
+            if (ex.err != "GALLERY-BUSY") { rethrow; }
+            showHelp(False, ex.desc); return <NcursesUi::EventResult>{"handled": True};
+        }
+    }
+    private hash<NcursesUi::EventResult> handleImpl(hash<Ncurses::InputEvent> event) {
         observeGeometry();
+        if (runner.story().application) {
+            if (event.type == Ncurses::InputType::Alt && event.ch =~ /^[1-6]$/) {
+                event = Registry::key("KEY_F(" + event.ch + ")");
+            } else if (!picker && !info) { return runner.handleEvent(event); }
+            else if (event.type == Ncurses::InputType::Char && event.ch == "\x11") {
+                closeOverlay(); return runner.handleEvent(event);
+            } else if (!(event.type == Ncurses::InputType::Char && event.ch == "\e")) {
+                # Ordinary function keys belong to the active modal, not to the
+                # gallery's unmodified shortcuts for widget-only stories.
+                return <NcursesUi::EventResult>{};
+            }
+        }
         if (event.type == Ncurses::InputType::Char && event.ch == "\x11") { app.quit(); }
         else if (event.type == Ncurses::InputType::Char && event.ch == "\e" && (picker || info)) { closeOverlay(); }
         else if (event.type == Ncurses::InputType::Key) {
@@ -138,11 +166,11 @@ class Gallery {
                 case "KEY_F(3)": reset(); break;
                 case "KEY_F(4)": cycleSize(); break;
                 case "KEY_F(5)":
-                    closeOverlay(); if (runner.checkpointIndex() + 1 < runner.story().steps.size()) {
+                    runner.requireIdle(); closeOverlay(); if (runner.checkpointIndex() + 1 < runner.story().steps.size()) {
                         try { runner.step(); }
                         catch (hash<ExceptionInfo> ex) {
                             if (ex.err != "GALLERY-EXPECTATION-ERROR") { rethrow; }
-                            showHelp(False, "The current state differs from the scripted scenario. Press F3 to reset, then F5 to replay.");
+                            showHelp(False, "The current state differs from the scripted scenario. Reset the story, then replay its checkpoints.");
                         }
                     }
                     else { showHelp(True); }

@@ -1,0 +1,25 @@
+#! @file NcursesQore.qm Qore language adapter for terminal editors
+/* Copyright 2026 Qore Technologies, s.r.o. SPDX-License-Identifier: MIT */
+%modern
+%requires NcursesUi
+%requires QoreRepl
+%try-module astparser >= 3.0
+%define NCURSES_QORE_NO_ASTPARSER
+%endtry
+module NcursesQore {
+    version = "1.0";
+    desc = "Qore language support for terminal editors";
+    author = "Qore Technologies, s.r.o.";
+    license = "MIT";
+}
+/** @mainpage NcursesQore Module
+    @section ncursesqoreintro Introduction
+    CodeSupport adapts an existing QoreRepl session to NcursesUi's highlighting
+    and precise assistance APIs. It never evaluates draft source. Construct it
+    with the application's evaluator so newly defined symbols remain available.
+    Serialize completion/hints with evaluator execution. Syntax highlighting uses
+    an independent astparser instance, or plain source when astparser is unavailable.
+    @section ncursesqorerelease Release notes
+    Initial 1.0 release: source-preserving syntax styles, range-aware completion
+    and signature help for existing REPL sessions.
+*/

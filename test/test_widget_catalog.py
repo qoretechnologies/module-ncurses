@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -30,13 +31,15 @@ class CatalogTest(unittest.TestCase):
     def test_generated_catalog_matches_registry(self):
         catalog.validate(self.stories)
         self.assertEqual((ROOT / 'docs/widget-catalog.dox').read_text(), catalog.render(self.stories))
-        self.assertEqual(27, len({s['widget'] for s in self.stories}))
+        self.assertEqual(27, len({s['widget'] for s in self.stories if not s.get('application')}))
         self.assertGreater(len(self.stories), 150)
         self.assertTrue(all(s['steps'][0]['expected'] for s in self.stories))
         self.assertEqual(25, len([s for s in self.stories if s['state'] == 'mouse']))
-        scenarios = {s['id'] for s in self.stories if s['state'] == 'scenario'}
+        scenarios = {s['id'] for s in self.stories if s['state'] == 'scenario' and not s.get('application')}
         self.assertEqual(7, len(scenarios))
         self.assertTrue({'text-chart.ascii', 'text-chart.expanded'} <= scenarios)
+        self.assertEqual({'qrepl.default', 'qrepl.completion', 'qrepl.error', 'qrepl.files', 'qrepl.constrained'},
+                         {s['id'] for s in self.stories if s.get('application')})
 
     def test_missing_mouse_scenario_fails(self):
         with self.assertRaisesRegex(ValueError, 'Missing mouse scenarios'):
@@ -103,6 +106,23 @@ class CatalogTest(unittest.TestCase):
                         repeat = subprocess.run(args, cwd=ROOT, env=self.env, capture_output=True, text=True, timeout=30)
                         self.assertEqual(0, repeat.returncode, repeat.stderr)
                         self.assertEqual(frames, json.loads(repeat.stdout))
+
+    def test_gallery_captures_inherited_streams_without_reopen_permission(self):
+        # Inherited descriptors remain writable when their backing inode cannot
+        # be opened again, as with root-owned CI pipes after dropping privileges.
+        for restricted in ((1,), (2,), (1, 2)):
+            with self.subTest(restricted=restricted), tempfile.TemporaryFile() as output, tempfile.TemporaryFile() as errors:
+                for number, stream in ((1, output), (2, errors)):
+                    if number in restricted:
+                        os.fchmod(stream.fileno(), 0)
+                run = subprocess.run(['qore', '--enable-debug', '--warnings-are-errors',
+                                      'test/ncurses-gallery.qtest', '--include=interactive gallery captures*'],
+                                     cwd=ROOT, env=self.env, stdout=output, stderr=errors, timeout=30)
+                output.seek(0)
+                errors.seek(0)
+                log = (output.read() + errors.read()).decode()
+                self.assertEqual(0, run.returncode, log)
+                self.assertRegex(log, r'\([1-9][0-9]* assertions\)')
 
 
 if __name__ == '__main__':

@@ -14,7 +14,9 @@ editor.setVSizePolicy(NcursesUi::SizePolicy::Fixed);
 NcursesUi::StatusBarWidget status();
 status.setSegments(({"text": "Enter: send | Alt-Enter: newline | Ctrl-Q: quit | PageUp/Down: output"},));
 root.addChild(output); root.addChild(editor); root.addChild(status);
-app.setRootLayout(new NcursesUi::BoxLayout(NcursesUi::Orientation::Vertical)); app.setRoot(root);
+NcursesUi::BoxLayout layout(NcursesUi::Orientation::Vertical);
+layout.setContentFlow(output, editor);
+app.setRootLayout(layout); app.setRoot(root);
 app.getFocusManager().setFocus(editor);
 editor.setOnSubmit(sub (string text) {
     output.appendBlock(split("\n", text, False, True), "input");

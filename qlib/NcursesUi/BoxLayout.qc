@@ -46,6 +46,8 @@ public class BoxLayout {
         int orientation;
         #! spacing between children
         int spacing;
+        *NcursesUi::Widget flow_content;
+        *NcursesUi::Widget flow_follower;
     }
 
     /** Creates a new BoxLayout.
@@ -72,6 +74,32 @@ public class BoxLayout {
         return spacing;
     }
 
+    /** Places a follower immediately after short content in a vertical layout.
+        The expanding content receives at most its normal allocation, shrinking to
+        its width-dependent preferred height (respecting its minimum). Unused rows
+        move after the follower, so later children such as status bars stay in place.
+        Overflow keeps the normal allocation. Hidden pairs use ordinary layout.
+        @param content expanding content widget, or NOTHING to disable
+        @param follower the immediately following child, or NOTHING to disable
+        @throw LAYOUT-FLOW-ERROR for an incomplete pair, identical widgets, a horizontal
+        layout, or non-expanding content; apply() also validates direct-child adjacency
+        before changing frames
+        @par Example
+        @code{.py}
+        NcursesUi::BoxLayout layout();
+        layout.setContentFlow(transcript, editor);
+        layout.apply(root);
+        @endcode
+    */
+    nothing setContentFlow(*NcursesUi::Widget content, *NcursesUi::Widget follower) {
+        if (!!content != !!follower || (content && (content == follower
+                || orientation != NcursesUi::Orientation::Vertical
+                || content.getVSizePolicy() != NcursesUi::SizePolicy::Expanding))) {
+            throw "LAYOUT-FLOW-ERROR", "Content flow requires distinct content and follower widgets in a vertical layout with expanding content";
+        }
+        flow_content = content; flow_follower = follower;
+    }
+
     /** Applies this layout to a container widget's children.
 
         Reads the container's content rect and distributes space along
@@ -82,6 +110,15 @@ public class BoxLayout {
     */
     nothing apply(NcursesUi::Widget container) {
         list<NcursesUi::Widget> kids = container.getChildren();
+        if (flow_content) {
+            bool adjacent = False;
+            for (int i = 0; i + 1 < kids.size(); ++i) {
+                if (kids[i] == flow_content && kids[i + 1] == flow_follower) { adjacent = True; break; }
+            }
+            if (!adjacent || flow_content.getVSizePolicy() != NcursesUi::SizePolicy::Expanding) {
+                throw "LAYOUT-FLOW-ERROR", "Content flow requires adjacent direct children and expanding content";
+            }
+        }
         if (!kids.size()) {
             return;
         }
@@ -138,6 +175,8 @@ public class BoxLayout {
 
         int cur_y = area.y;
         int idx = 0;
+        int flow_gap = 0;
+        bool flowing = flow_content && flow_content.isVisible() && flow_follower.isVisible();
         foreach NcursesUi::Widget child in (visible) {
             int policy = child.getVSizePolicy();
             int child_rows;
@@ -155,8 +194,14 @@ public class BoxLayout {
             }
 
             child_rows = min(child_rows, max(0, area.y + area.rows - cur_y));
+            if (flowing && child == flow_content) {
+                int preferred = max(0, max(child.getMinimumSize().rows, child.getPreferredSizeForWidth(area.cols).rows));
+                flow_gap = max(0, child_rows - preferred);
+                child_rows -= flow_gap;
+            }
             child.setFrame(NcursesUi::Geometry::makeRect(cur_y, area.x, child_rows, area.cols));
             cur_y += child_rows;
+            if (flowing && child == flow_follower) { cur_y += flow_gap; }
             idx += 1;
             if (idx < visible.size()) {
                 cur_y = min(area.y + area.rows, cur_y + spacing);
