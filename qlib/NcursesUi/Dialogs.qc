@@ -1,6 +1,22 @@
 #! @file Dialogs.qc Owned confirmation, prompt and file-selection workflows
 /* Copyright 2026 Qore Technologies, s.r.o. SPDX-License-Identifier: MIT */
 public namespace NcursesUi {
+/** @internal Scrollable help document owned by Dialogs. */
+class TextPanel inherits NcursesUi::PanelWidget {
+    private { NcursesUi::TranscriptWidget viewer(); *code<nothing()> on_dismiss; }
+    constructor(NcursesUi::Application app, string title, string text) : PanelWidget(app.getSession(), title) {
+        viewer.appendBlock(NcursesUi::TerminalText::styledLines(text), "help");
+        viewer.setFollowTail(False); viewer.setScrollY(0); viewer.setWordWrap(True); addChild(viewer);
+    }
+    nothing setOnDismiss(*code<nothing()> callback) { on_dismiss = callback; }
+    nothing layout() { viewer.setFrame(contentRect()); viewer.layout(); }
+    hash<NcursesUi::EventResult> processEvent(hash<Ncurses::InputEvent> event) {
+        if (event.type == Ncurses::InputType::Char && event.ch == "\x1b") {
+            if (on_dismiss) { on_dismiss(); } return <NcursesUi::EventResult>{"handled": True};
+        }
+        return viewer.processEvent(event);
+    }
+}
 /** @internal Form composition used by Dialogs; field focus/validation are provided by FormWidget. */
 class PromptPanel inherits NcursesUi::PanelWidget {
     private { NcursesUi::FormWidget form; }
@@ -28,6 +44,27 @@ public class Dialogs {
     private { NcursesUi::Application app; list<NcursesUi::PanelWidget> panels = (); }
     /** Binds an application. @param application UI owner */
     constructor(NcursesUi::Application application) { app = application; }
+    /** Opens a scrollable document at the beginning. Escape closes; navigation keys scroll.
+        @param title heading @param text document @return owned panel */
+    NcursesUi::PanelWidget text(string title, string text) {
+        NcursesUi::TextPanel panel(app, title + " — Esc: close", text);
+        panel.setOnDismiss(sub () { dismiss(panel); }); panel.setCenteredSize(24, 88); show(panel); return panel;
+    }
+    /** Offers several actions, allowing an asynchronous workflow to retain its dialog.
+        @param title heading @param message explanation @param actions button labels
+        @param choose returns true to dismiss after handling an action
+        @param cancel runs on Escape @return owned dialog, also dismissible on an external event
+        @throw DIALOG-ACTIONS-ERROR if no actions are supplied
+    */
+    NcursesUi::DialogWidget choose(string title, string message, list<string> actions,
+            code<bool(int)> choose, code<nothing()> cancel) {
+        if (!actions) { throw "DIALOG-ACTIONS-ERROR", "At least one action is required"; }
+        NcursesUi::DialogWidget panel(app.getSession(), title, message, actions);
+        panel.setOnButton(sub (int index, string label) { if (choose(index)) { dismiss(panel); } });
+        panel.setOnDismiss(sub () { dismiss(panel); cancel(); });
+        hash<Ncurses::Size> screen = app.getSession().screen().size(); panel.centerOn(screen.rows, screen.cols);
+        show(panel); return panel;
+    }
     /** Shows information with a single Close action. @param title heading @param message body @return dialog */
     NcursesUi::DialogWidget message(string title, string message) {
         NcursesUi::DialogWidget panel(app.getSession(), title, message, ("Close",));
@@ -95,6 +132,8 @@ public class Dialogs {
             browser.setOnLoad(NOTHING); browser.setOnFileActivate(NOTHING); browser.setOnDismiss(NOTHING);
         } else if (panel instanceof NcursesUi::PromptPanel) {
             NcursesUi::FormWidget form = cast<NcursesUi::PromptPanel>(panel).getForm(); form.setOnSubmit(NOTHING); form.setOnCancel(NOTHING);
+        } else if (panel instanceof NcursesUi::TextPanel) {
+            cast<NcursesUi::TextPanel>(panel).setOnDismiss(NOTHING);
         }
     }
 }

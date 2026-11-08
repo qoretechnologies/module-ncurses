@@ -44,7 +44,13 @@ class QRepl {
         NcursesQore::CodeSupport code_support;
         NcursesUi::EditorAssistance assistance;
         NcursesUi::BackgroundTask evaluation;
+        NcursesUi::BackgroundTask thread_monitor;
         NcursesUi::Dialogs dialogs;
+        *NcursesUi::DialogWidget thread_dialog;
+        *NcursesUi::DialogWidget evaluation_dialog;
+        *string pending_request;
+        bool pending_submitted = False;
+        int pending_revision = 0;
         bool more_input = False;
         bool quit_after_evaluation = False;
         bool owns_app = True;
@@ -3904,6 +3910,7 @@ class QRepl {
         app = application ?? new NcursesUi::Application(s); owns_app = !application;
         dialogs = new NcursesUi::Dialogs(app);
         evaluation = new NcursesUi::BackgroundTask(app, "evaluate", "Evaluate Qore");
+        thread_monitor = new NcursesUi::BackgroundTask(app, "threads", "Wait for Program threads");
         assistance = new NcursesUi::EditorAssistance(app, editor,
             hash<NcursesUi::AssistanceResponse> sub (hash<NcursesUi::AssistanceRequest> request) { return code_support.complete(request); });
 
@@ -3934,6 +3941,8 @@ class QRepl {
 
     # Deterministic embedding/test barrier; interactive handlers never join a worker.
     nothing joinEvaluation() { evaluation.join(); app.processPending(); }
+    # Test/embedding barrier only; the UI itself receives an event without joining.
+    nothing joinThreadMonitor() { thread_monitor.join(); app.processPending(); }
     hash<NcursesUi::EventResult> processEvent(hash<Ncurses::InputEvent> event) { return handle_global_key(event); }
     bool isEvaluating() { return evaluation.isRunning(); }
     nothing close() { close_session(); }
@@ -4151,10 +4160,13 @@ class QRepl {
         start_evaluation(text, True);
     }
 
-    private nothing start_evaluation(string text, bool submitted = False) {
+    private nothing start_evaluation(string text, bool submitted = False, *int original_revision) {
         if (evaluation.isRunning()) { return; }
+        if (repl.inspectRequest(text).requires_idle && repl.getProgram().getThreadCount()) {
+            wait_for_threads(text, submitted, original_revision); return;
+        }
         assistance.close(); current_hint = NOTHING;
-        int revision = buffer.getRevision();
+        int revision = original_revision ?? buffer.getRevision();
         output_widget.appendBlock(split("\n", display_prompt(current_prompt) + text, False, True), "input");
         last_status = "Evaluating..."; last_exec_error = NOTHING; update_status(); app.layoutRoot(); app.drawAll();
         evaluation.start(auto sub () {
@@ -4164,22 +4176,41 @@ class QRepl {
             # The reader acknowledges a finite producer prefix before the result is posted.
             flush_capture(); if (capture_reader) { capture_reader.flush(); }
             hash<auto> outcome = {"prompt": repl.getPrompt(), "more": repl.needsMoreInput(), "indent": repl.getIndentLevel(),
-                "continuation": !exists result, "exit": result.exit, "timing": result.timing};
+                "continuation": !exists result, "exit": result.exit, "timing": result.timing,
+                "help": result.help, "blocked": result.error.err == "REPL-THREADS-ACTIVE"};
             if (result.error) { outcome.error = QoreRepl::QoreRepl::formatError(result.error); }
             else if (exists result.value) { outcome.text = result.is_eval ? sprintf("%y", result.value) : string(result.value); }
             return outcome;
         }, sub (hash<NcursesUi::TaskResult> completed) { finish_evaluation(text, submitted, revision, completed); });
+        if (repl.inspectRequest(text).command == "/join" && repl.getProgram().getThreadCount()) {
+            evaluation_dialog = dialogs.choose("Waiting for threads", "The join request is waiting for Program activity to finish.\n"
+                "Cancel stops waiting and leaves the threads running.", ("Wait", "Cancel request", "Terminate threads"),
+                bool sub (int index) {
+                    if (index == 1) { evaluation.cancel("Join request cancelled"); }
+                    else if (index == 2) { repl.cancelThreads(); }
+                    return False;
+                }, sub () { evaluation.cancel("Join request cancelled"); });
+        }
     }
 
     private nothing finish_evaluation(string text, bool submitted, int revision, hash<NcursesUi::TaskResult> completed) {
+        if (evaluation_dialog) { dialogs.dismiss(evaluation_dialog); evaluation_dialog = NOTHING; }
         drain_pending_output();
         hash<auto> result = completed.error ? {"error": QoreRepl::QoreRepl::formatError(completed.error)} : completed.value;
+        if (result.blocked) { wait_for_threads(text, submitted, revision); return; }
         current_prompt = result.prompt ?? current_prompt; more_input = !!result.more;
         last_exec_error = result.error;
         if (result.error) {
             output_widget.appendBlock(split("\n", "Error: " + result.error, False, True), "error"); last_status = "Error";
         } else {
-            if (exists result.text) { output_widget.appendBlock(split("\n", string(result.text), False, True), "result"); }
+            if (result.help) {
+                dialogs.text("Qore commands", repl.getHelpText(False) + "\nNcurses interface:\n"
+                    "  clear_output       Clear the output area\n"
+                    "  F1                 Keyboard help\n"
+                    "  Up/Down, PgUp/PgDn  Scroll this help\n"
+                    "  Home/End           Beginning/end of help\n"
+                    "  Escape             Close help\n");
+            } else if (exists result.text) { output_widget.appendBlock(split("\n", string(result.text), False, True), "result"); }
             if (result.timing) { push_output("[" + result.timing + "]"); }
             last_status = result.continuation ? "Continue..." : "OK";
             if (submitted && !result.exit) {
@@ -4188,8 +4219,46 @@ class QRepl {
             }
         }
         update_hints(); update_prompt_line(); update_status();
-        if (quit_after_evaluation) { app.quit(); }
+        if (quit_after_evaluation) { quit_after_evaluation = False; request_quit(); }
         else if (result.exit) { request_quit(); }
+    }
+
+    private nothing cancel_pending_request() {
+        pending_request = NOTHING;
+        if (thread_dialog) { dialogs.dismiss(thread_dialog); thread_dialog = NOTHING; }
+        last_status = "Request cancelled; threads continue"; update_status();
+    }
+
+    private nothing wait_for_threads(string text, bool submitted, *int revision) {
+        pending_request = text; pending_submitted = submitted;
+        pending_revision = revision ?? buffer.getRevision();
+        if (!thread_dialog) {
+            thread_dialog = dialogs.choose("Running threads", "This Program is still running code. Parsing, loading "
+                "and resetting must wait.\nThe request resumes automatically when all threads finish.\n"
+                "Terminate requests cooperative cancellation; code may defer it.",
+                ("Wait", "Cancel request", "Terminate threads"), bool sub (int index) {
+                    if (index == 1) { cancel_pending_request(); return True; }
+                    if (index == 2) { repl.cancelThreads(); last_status = "Termination requested; waiting for threads"; }
+                    else { last_status = "Waiting for threads"; }
+                    update_status(); return False;
+                }, sub () { cancel_pending_request(); });
+        }
+        last_status = "Waiting for threads"; update_status();
+        if (!thread_monitor.isRunning()) {
+            Program watched = repl.getProgram();
+            thread_monitor.start(auto sub () { return watched.waitForThreads(); }, sub (hash<NcursesUi::TaskResult> completed) {
+                if (closed) { return; }
+                *string request = pending_request; bool request_submitted = pending_submitted;
+                int request_revision = pending_revision; pending_request = NOTHING;
+                if (thread_dialog) { dialogs.dismiss(thread_dialog); thread_dialog = NOTHING; }
+                if (completed.error) {
+                    last_status = "Thread wait failed";
+                    push_output(QoreRepl::QoreRepl::formatError(completed.error)); update_status(); return;
+                }
+                if (exists request) { start_evaluation(request, request_submitted, request_revision); }
+                else { last_status = "Threads finished"; update_status(); }
+            });
+        }
     }
 
     # Routes menu commands to their handlers (file browser, about dialog,
@@ -4310,8 +4379,11 @@ class QRepl {
     }
 
     private nothing request_quit() {
-        if (!evaluation.isRunning()) { app.quit(); return; }
-        dialogs.confirm("Quit", "Evaluation is running. Quit when it finishes?", sub () {
+        if (!evaluation.isRunning()) {
+            if (repl.getProgram().getThreadCount()) { wait_for_threads("/exit", False); return; }
+            app.quit(); return;
+        }
+        evaluation_dialog = dialogs.confirm("Quit", "Evaluation is running. Quit when it finishes?", sub () {
             if (evaluation.isRunning()) { quit_after_evaluation = True; update_status(); }
             else { app.quit(); }
         }, "Finish and quit");
@@ -4446,6 +4518,7 @@ class QRepl {
         on_exit dialogs.close();
         on_exit assistance.close();
         on_exit editor.setHighlighter(NOTHING);
+        on_exit { thread_monitor.cancel("REPL closed"); thread_monitor.close(); }
         evaluation.close();
         # save persistent history
         if (persistent_history && exists ENV.HOME) {

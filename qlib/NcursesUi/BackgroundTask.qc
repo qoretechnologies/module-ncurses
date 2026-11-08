@@ -8,7 +8,7 @@ hashdecl TaskDeliveryFailure { hash<NcursesUi::ActionRequest> token; hash<Except
     Start and callbacks belong to the UI thread; work must never access widgets.
     A task remains busy until its completion is delivered, preventing overlapping
     evaluator/resource access. close() discards callbacks and joins work; it does
-    not cancel the underlying operation. No cancellation control is advertised.
+    not cancel the underlying operation. cancel() explicitly requests cooperative cancellation.
     Call join() only for deterministic testing or shutdown, never in input handlers.
 */
 public class BackgroundTask {
@@ -25,6 +25,10 @@ public class BackgroundTask {
         *code<nothing(hash<NcursesUi::TaskResult>)> on_finished;
         Mutex failure_mutex();
         *hash<NcursesUi::TaskDeliveryFailure> delivery_failure;
+        Mutex worker_mutex();
+        int worker_tid = 0;
+        bool worker_done = True;
+        *string cancellation;
     }
     /** Creates a task. @param app UI owner @param id stable action ID @param label operation label */
     constructor(NcursesUi::Application app, string id, string label) {
@@ -66,8 +70,20 @@ public class BackgroundTask {
         if (busy) { throw "UI-TASK-BUSY", "Task is already running"; }
         model.reset(); hash<NcursesUi::ActionRequest> token = model.begin();
         busy = True; on_finished = finished; workers.inc();
+        { worker_mutex.lock(); on_exit worker_mutex.unlock(); cancellation = NOTHING; worker_done = False; }
         try { background runWork(work, token); }
         catch (hash<ExceptionInfo> ex) { workers.dec(); busy = False; on_finished = NOTHING; model.fail(token, ex.desc); rethrow; }
+    }
+    /** Requests cancellation without blocking the UI. Work may catch or defer cancellation.
+        @param reason explanation delivered to work @return whether unfinished work accepted the request
+        @note Completion is still delivered normally as TaskResult; close() retains its explicit join semantics.
+    */
+    bool cancel(string reason = "Task cancelled") {
+        checkThread(); if (closed || !busy) { return False; }
+        worker_mutex.lock(); on_exit worker_mutex.unlock();
+        if (worker_done) { return False; }
+        cancellation = reason;
+        return worker_tid ? cancel_thread(worker_tid, reason) : True;
     }
     /** Joins the worker without dispatching callbacks. Call Application::processPending() afterward.
         @throw worker delivery error if the application's queue could not accept/wake */
@@ -84,7 +100,17 @@ public class BackgroundTask {
     private nothing checkThread() { if (gettid() != ui_thread) { throw "UI-THREAD-ERROR", "Task lifecycle belongs to its UI thread"; } }
     private nothing runWork(code<auto()> work, hash<NcursesUi::ActionRequest> token) {
         on_exit workers.dec(); hash<NcursesUi::TaskResult> result = <NcursesUi::TaskResult>{};
-        try { result.value = work(); } catch (hash<ExceptionInfo> ex) { result.error = ex; }
+        try {
+            # Publish ownership only inside the catch/cleanup scope. The same mutex protects
+            # cancellation and retirement, so a recycled thread ID can never be targeted.
+            on_exit defer_thread_cancel(sub () {
+                worker_mutex.lock(); on_exit worker_mutex.unlock(); worker_tid = 0; worker_done = True; clear_thread_cancel();
+            });
+            { worker_mutex.lock(); on_exit worker_mutex.unlock();
+                if (exists cancellation) { throw "THREAD-CANCELLED", cancellation; }
+                worker_tid = gettid(); }
+            result.value = work();
+        } catch (hash<ExceptionInfo> ex) { result.error = ex; }
         try { delivery.post({"token": token, "result": result}); }
         catch (hash<ExceptionInfo> ex) {
             { failure_mutex.lock(); on_exit failure_mutex.unlock();

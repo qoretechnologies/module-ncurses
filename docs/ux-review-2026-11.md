@@ -495,3 +495,42 @@ suites, 640 cases / 8,309 assertions. Documentation/API checks, executable examp
 widget-catalog drift checks and CI tree-reuse tests pass. Browser/native tooling
 and platform CI results are linked in the delivery PR. No C++ changed, so this
 follow-up does not require a new Valgrind run.
+
+
+## Program threads and serialized parsing — 2026-11-08
+
+Qore develop commit `8c0c17cee7` adds Program-scoped cancellation and condition-driven waits. Parsing stays serialized. QoreRepl rejects blocked requests before mutating history or pending input and provides `/threads`, `/cancel <tid|all>` and `/join <tid|all>`. `/reset` also clears pending multiline input and indentation. Recalled slash commands are expanded before command classification.
+
+The frontend offers Wait, Cancel request and Terminate threads. Natural completion closes the dialog and retries its request; cancelled requests retain input and leave workers running. Join and quit workflows also finish on completion events. A captured Program reference, cancellable monitor worker, scoped UI delivery and revision check protect shutdown, stale events and edits made while waiting. `BackgroundTask::cancel()`, `Dialogs::choose()` and `Dialogs::text()` expose reusable library APIs. `/help` opens at the beginning with correct frontend shortcuts.
+
+Browser review on `http://supah:6006/?path=/story/native-qrepl--default` verified scrollable help, mouse cancellation preserving `/reset`, automatic resumption after natural completion, and keyboard termination followed by successful reset. Storybook remains bound to `0.0.0.0` with the previously approved trusted-LAN access policy. The review server runs against the locally built Qore runtime and matching module; CI base images must receive this core change before module CI can use the APIs.
+
+| Check | Status | Evidence |
+|---|---|---|
+| Module docs registration | N/A | No new module |
+| Release notes | Pass | Native Program coordination in 3.0 new features; structure validator reports zero errors |
+| CMakeLists registration | N/A | Existing modules and test directories |
+| Module structure | Pass | Main .qm directives, typed QC metadata, 2026 copyrights |
+| Test conventions | Pass | Executable qtests, modern mode, repository qlib prepended, debug and warnings-as-errors |
+| Sandboxing | Pass | New QPP methods use THREAD_CONTROL and EMBEDDED_LOGIC; no new filesystem/network operations |
+| Cooperative cancellation | Pass | Interruptible condition waits, bounded cancellation checks in native loops; worker cleanup defers cancellation only while retiring ownership |
+| DP action registration | N/A | No DataProvider changes |
+| DP data types | N/A | No DataProvider changes |
+| DP allowed values | N/A | No DataProvider changes |
+| DP descriptions | N/A | No DataProvider changes |
+| DP scheme-based actions | N/A | No DataProvider changes |
+| FactoryMap | N/A | No new factory |
+| Dependency JARs | N/A | No Java changes |
+| Workarounds / stubs | Pass | Fixes Program lifetime blocking and help-tail presentation at their source; no TODOs or fallback parsing |
+| Exception safety | Pass | Lock RAII, cleanup deferral, captured worker exceptions, modal ownership and cancelled-request preservation |
+| Thread safety | Pass | Program lock protects activity and cancellation wave; worker ownership mutex prevents cancellation of recycled task IDs; widgets stay on UI thread |
+| Type safety | Pass | Typed request metadata and callbacks; native ID bounds and overflow-safe monotonic deadline |
+| Performance | Pass | Condition-driven notification, no UI input-handler joins, scoped cancellation loops linear in thread count |
+| Error handling | Pass | Invalid/foreign IDs, self-waits, self-cancellation, stale requests, timeout and waiter cancellation covered |
+| Documentation | Pass | Program API contracts, QoreRepl examples, implemented coordination design, reusable UI APIs and README |
+| QPP flags / namespaces | Pass | Existing Program namespace; functional domains; wait/cancel operations retain side-effect semantics |
+| Security | Pass | Program-scoped cancellation; no credentials, external communication or access-policy changes |
+| Correctness | Pass | Native tests, source/AOT backend and frontend suites; real terminal/browser review |
+
+
+Validation: 45 QUnit suites, 974 cases / 22,610 assertions; 26 AOT suites, 646 cases / 8,515 assertions; 45 Node/browser tests; five documentation checks, executable guide examples and eight catalog checks. The complete visual run captured 1,388 artifacts with zero differences. Qore source and AOT backend tests pass (86 cases / 738 assertions per mode). Five affected native suites pass Valgrind (40 cases / 1,202 assertions), with zero errors or definite, indirect or possible leaks. Native tests cover self/foreign IDs, bounded waits, cancellation of a waiter, descendants started during a cancellation wave, and subsequent evaluation after idle. Frontend tests also cover finishing an evaluation that starts new background work before quitting; shutdown rechecks Program activity and resumes through the same event-driven dialog.

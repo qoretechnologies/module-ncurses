@@ -26,7 +26,8 @@ The prompt follows the latest output; once the screen fills, output scrolls abov
 Show completion choices and signature help for the current session.
 .TP
 .B F1
-Show keyboard help. Use /help for Qore commands.
+Show keyboard help. Use /help or /? for scrollable Qore command help, starting at the beginning.
+Arrows, PageUp/PageDown and Home/End scroll; Escape closes the help.
 .TP
 .B F6
 Switch between the editor and output. In output, Home pauses following and End
@@ -46,6 +47,15 @@ Exit on empty input; otherwise delete the character after the cursor.
 .TP
 .B Esc
 Dismiss the current menu or dialog without exiting.
+.SH BACKGROUND THREADS
+/threads lists IDs and names in the current Program. /cancel <tid|all> requests
+cooperative termination; /join <tid|all> waits for threads to leave the Program.
+Parsing, /type, /load, /reset and exit require an idle Program. While threads are
+active, choose Wait, Cancel request or Terminate threads. Completion closes the
+dialog and resumes the request automatically. Cancel preserves input and leaves
+the threads running. Cancellation can be caught or deferred by evaluated code.
+This workflow requires Qore 3.0 with Program thread coordination and its matching
+QoreRepl module.
 .SH ENVIRONMENT
 .TP
 .B TERM

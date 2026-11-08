@@ -37,7 +37,8 @@ qrepl
     provides documentation and signatures; Tab switches to its help pane. Escape
     dismisses it, and an accepted completion is one undoable edit.
 
-    Use F1 for keyboard help and <tt>/help</tt> for console commands. Ctrl-Q, Alt-Q,
+    Use F1 for keyboard help and <tt>/help</tt> (also <tt>/?</tt>) for a scrollable command reference that opens
+    at the beginning. Arrows, PageUp/PageDown and Home/End navigate it; Escape closes it. Ctrl-Q, Alt-Q,
     File > Quit and typed <tt>/exit</tt>, <tt>/quit</tt> or <tt>/q</tt> exit immediately
     while idle, including when input is unfinished. Ctrl-D exits on empty input and
     otherwise deletes forward. Escape dismisses menus or dialogs without quitting.
@@ -56,6 +57,18 @@ qrepl
     held until completion. Edits made during evaluation are not cleared by its result.
     Quit during execution offers to finish and then exit; it does not claim to cancel
     arbitrary Qore code. Output arrives through a capture reader and wakes the UI.
+
+    Background threads belong to the evaluated Program. <tt>/threads</tt> lists their IDs and names;
+    <tt>/cancel &lt;tid|all&gt;</tt> requests cooperative cancellation, and <tt>/join &lt;tid|all&gt;</tt> waits
+    for them to leave the Program. These commands work without parsing new Qore code. Parsing, <tt>/type</tt>,
+    <tt>/load</tt>, reset and exit requests detect active Program threads and offer Wait, Cancel request and
+    Terminate threads. Cancel retains the input and leaves background work running. Completion wakes the UI,
+    closes the dialog and resumes the request even if no button has been chosen. Termination is cooperative;
+    a thread can catch or defer cancellation. Join requests also offer cancellation of the wait itself.
+
+    The matching Qore 3.0 runtime and QoreRepl module provide Program-scoped cancellation and condition-driven
+    waits. Parsing remains serialized. Other applications can reuse <tt>BackgroundTask::cancel()</tt>,
+    <tt>Dialogs::choose()</tt> and <tt>Dialogs::text()</tt> for cancellable work, event-owned dialogs and help.
 
     @section ncursestoolscontrollers Reusable UI Workflows
 
