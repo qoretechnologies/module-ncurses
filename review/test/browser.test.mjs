@@ -406,8 +406,7 @@ test('qrepl quit renders its final frame, closes normally and Reset starts a new
     await terminal.evaluate(element => element.ready);
     const result = await terminal.evaluate(async element => {
       const closed = new Promise(resolve => element.socket.addEventListener('close', event => resolve(event.code), { once: true }));
-      await element.input('\x11');
-      const frame = await element.input('\r');
+      const frame = await element.input('\x11');
       return { code: await closed, modal: frame.state.modal, error: element.status.dataset.error, status: element.status.textContent };
     });
     assert.equal(result.code, 1000); assert.equal(result.modal, false); assert.equal(result.error, undefined);

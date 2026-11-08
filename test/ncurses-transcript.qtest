@@ -26,11 +26,25 @@ class TranscriptTest inherits Test {
         addTestCase("stream retention visits only expired identities and updates collapsed suffixes", \incrementalRetention());
         addTestCase("mouse selection retains its anchor when crossing and scrollbars pause following", \mouseReading());
         addTestCase("collapsed indicators never enter source selection search or links", \collapseSource());
+        addTestCase("preferred height measures wrapping padding collapse and empty content", \preferredHeight());
         set_return_value(main());
     }
     private hash<Ncurses::InputEvent> click(int row, int col, bool extend = False) {
         return <Ncurses::InputEvent>{"type": Ncurses::InputType::Mouse,
             "mouse": <Ncurses::MouseEvent>{"y": row, "x": col, "button_state": Ncurses::BUTTON1_CLICKED | (extend ? Ncurses::BUTTON_SHIFT : 0)}};
+    }
+    preferredHeight() {
+        NcursesUi::TranscriptWidget w(); assertEq(0, w.getPreferredSizeForWidth(10).rows);
+        w.appendLine("123456789"); assertEq(1, w.getPreferredSizeForWidth(9).rows); assertEq(2, w.getPreferredSizeForWidth(8).rows);
+        w.setPadding(<NcursesUi::Insets>{"top": 1, "bottom": 2, "left": 1, "right": 1});
+        assertEq(5, w.getPreferredSizeForWidth(10).rows); assertEq(4, w.getPreferredSizeForWidth(11).rows);
+        w.setFrameValues(0, 0, 1, 11); assertEq(4, w.getPreferredSize().rows);
+        hash<NcursesUi::Insets> copy = w.getPadding(); copy.top = 9; assertEq(1, w.getPadding().top);
+        w.clear(); assertEq(3, w.getPreferredSizeForWidth(0).rows); assertEq(0, w.getPreferredSizeForWidth(-1).cols);
+        w.setPadding(<NcursesUi::Insets>{}); int block = w.appendBlock(("short", "second", "third"));
+        assertEq(3, w.getPreferredSizeForWidth(40).rows); w.setCollapsed(block, True); assertEq(1, w.getPreferredSizeForWidth(40).rows);
+        w.setCollapsed(block, False); assertEq(3, w.getPreferredSizeForWidth(40).rows);
+        w.clear(); w.appendLine("界界é"); assertEq(1, w.getPreferredSizeForWidth(5).rows); assertEq(2, w.getPreferredSizeForWidth(4).rows);
     }
     mouseReading() {
         NcursesUi::TestHarness th(8, 30); on_exit th.close(); NcursesUi::TranscriptWidget w(); w.setFrameValues(0, 0, 3, 20);

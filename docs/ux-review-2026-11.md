@@ -404,6 +404,53 @@ installed Qore `d98bb182a1`, which includes that fix. The owner reports that the
 CI base images still need the runtime update; successful local checks do not
 replace the outstanding platform CI gate.
 
+## Traditional prompt and direct idle exit (2026-11-08)
+
+The owner chose a traditional prompt immediately after output. The old expanding
+transcript placed the live editor at the bottom while submitted input appeared at
+the top of the unused output viewport. `BoxLayout::setContentFlow()` now measures
+short content at the available width, places its follower immediately afterward,
+and moves surplus rows after that follower. The status bar keeps its bottom
+position. Overflow retains the original scrollable allocation. This is an opt-in
+library API; ordinary layouts retain their allocation rules. Transcript preferred
+height includes visible wrapped rows and padding. The editor/transcript example
+uses the same API as qrepl.
+
+The idle exit warning was a separate application bug: the quit handler inspected
+the input buffer before removing the typed `/exit`, so the command itself became
+the purported unexecuted “draft.” It also confirmed empty-input exits. All explicit
+idle quit commands now exit immediately. Ctrl-D exits on empty input and otherwise
+deletes forward; Escape only dismisses overlays. Running evaluation still offers
+to finish and then exit because backend cancellation is unavailable. This follows
+the direct exit-command convention documented by [Python](https://docs.python.org/3.12/tutorial/interpreter.html)
+and [Node.js](https://nodejs.org/api/repl.html), while retaining the application's
+existing truthful running-work behavior.
+
+New unit and actual-application coverage checks content measurement, wrapping,
+Unicode, padding, collapsed and empty output, zero geometry, resize, hidden pairs,
+minimum sizes, disabling flow and invalid configuration without frame mutation.
+The real event-loop test executes six expressions before every quit alias,
+including `/exit`, and asserts direct exit without a modal or new evaluation.
+Screen assertions verify that submitted input stays on its original prompt row,
+the result appears below it, and the next prompt follows. Overflow, paused output,
+multiline input, clearing output, shortcuts and File > Quit are covered. All 45
+browser/native tests pass, including direct quit, normal WebSocket closure, Reset,
+and the existing FIFO-gated finish-and-quit success/error scenarios. A gated
+Ctrl-D regression exposed and fixed a focus handoff: opening the busy confirmation
+is a navigation action and must not refocus the editor outside its modal scope.
+Its cancellation restores editor focus and leaves the evaluation running.
+
+The complete 1,388-checkpoint capture has 26 intentional differences, all in
+qrepl: prompt relocation, the completion popup following its new caret, and
+underlying prompt cells exposed around file overlays. All differences are frame
+cells or cursor position; story state and geometry are unchanged. All 20 distinct
+changed images were inspected in color and monochrome; duplicate mounted/cancel
+images were verified by hash. The other 1,362 checkpoints, including constrained
+recovery, are identical. The new complete set is accepted for this requested
+layout. Live browser input also verified `6 * 7` followed by `42` and its next
+prompt, then `/exit` producing “The application exited normally” without a dialog.
+The LAN server remains bound to `0.0.0.0:6006` at `http://supah:6006`.
+
 ## qrepl follow-up implementation audit
 
 The audit follows the local `audit-changes` checklist. Evidence below applies to
@@ -423,7 +470,7 @@ this follow-up; earlier native implementation checks remain recorded above.
 | DataProvider descriptions and scheme actions | N/A | No provider/app registration. |
 | FactoryMap and JNI/JAR registration | N/A | No provider factories or JVM dependencies. |
 | Workarounds and stubs | Pass | Shared APIs replace duplicated application/gallery logic; the upstream save defect is fixed in its owner repository. |
-| Exception safety | Pass | Worker failures are typed results; delivery failures surface at join; modal cleanup clears callbacks and destroys panels even on errors. Failure-path tests cover callbacks/providers and disposal. |
+| Exception safety | Pass | Content-flow pair validation runs before frame mutation, and invalid setters retain the previous configuration. Worker failures are typed results; delivery failures surface at join; modal cleanup clears callbacks and destroys panels even on errors. Failure-path tests cover callbacks/providers and disposal. |
 | Thread safety | Pass | Widget ownership stays on the UI thread; one worker owns the evaluator, with scoped wake-driven completion and synchronized capture queues. |
 | Type safety | Pass | Typed callbacks, TaskResult and existing assistance/form schemas; explicit casts pass AOT compilation without warnings. |
 | Performance | Pass | Wake-driven idle loop, serialized background work, bounded control messages, sorted status priorities, no input-handler joins. |
@@ -433,8 +480,8 @@ this follow-up; earlier native implementation checks remain recorded above.
 | Security | Pass | No arbitrary bridge command endpoint or credentials; loopback by default; the user explicitly chose unauthenticated LAN native-session access. Hostname/origin checks are not authentication; the bridge remains loopback behind the proxy. Fixture teardown and protocol bounds retained. |
 | Correctness | Pass | Exact completion ranges and suffix retention, Unicode, tiny/resize layouts, save/overwrite/cancel/load, draft revision preservation, focus restoration and actual streaming tested. |
 
-Final local gates: 45 QUnit suites, 964 cases / 22,248 assertions; 26 compiled-module
-suites, 636 cases / 8,153 assertions. Documentation/API checks, executable examples,
+Final local gates: 45 QUnit suites, 968 cases / 22,399 assertions; 26 compiled-module
+suites, 640 cases / 8,304 assertions. Documentation/API checks, executable examples,
 widget-catalog drift checks and CI tree-reuse tests pass. Browser/native tooling
 and platform CI results are linked in the delivery PR. No C++ changed, so this
 follow-up does not require a new Valgrind run.

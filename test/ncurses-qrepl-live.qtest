@@ -53,9 +53,10 @@ class QReplLiveTest inherits Test {
         addTestCase("evaluation leaves UI responsive and preserves edits made during work", \responsive());
         addTestCase("evaluation completion preserves the unfinished draft during history navigation", \historyDuringEvaluation());
         addTestCase("failed initial history navigation allows the first completed command to be recalled", \initialHistoryDuringEvaluation());
-        addTestCase("quit shortcuts and menus share confirmation, File mnemonic is reachable", \navigation());
+        addTestCase("idle quit commands exit directly, Escape dismisses and Ctrl-D deletes or exits", \navigation());
         addTestCase("file workflows gather filenames and confirm overwrites", \files());
         addTestCase("narrow status exposes paused output and file panels remain bounded", \compact());
+        addTestCase("traditional prompt follows output through evaluation clear and overflow", \promptFlow());
         set_return_value(main());
     }
     captureFairness() {
@@ -181,7 +182,7 @@ class QReplLiveTest inherits Test {
         foreach string ch in ("needle" =~ x/(.)/g) { app.processEvent(chr(ch)); }
         app.processEvent(chr("\n")); assertFalse(app.getDispatcher().hasModal()); assertTrue(editor.hasFocus());
         assertEq(2, output.getMatches().size()); assertFalse(output.isFollowing()); assertEq("draft", editor.getText());
-        app.processEvent(chr("\x11")); assertTrue(app.getDispatcher().hasModal());
+        app.processEvent(key("KEY_F(1)")); assertTrue(app.getDispatcher().hasModal());
         app.processEvent(chr("\x1b")); assertFalse(app.getDispatcher().hasModal()); assertTrue(editor.hasFocus());
         app.processEvent(chr("\x13")); app.processEvent(chr("\x1b")); assertTrue(editor.hasFocus()); assertEq("draft", editor.getText());
     }
@@ -236,6 +237,11 @@ class QReplLiveTest inherits Test {
         app.processEvent(chr("\t")); assertFalse(app.getDispatcher().hasModal());
         app.processEvent(key("KEY_F(6)")); assertTrue(output.hasFocus());
         app.processEvent(key("KEY_F(6)")); assertTrue(editor.hasFocus());
+        editor.setText(""); app.processEvent(chr("\x04")); assertTrue(app.getDispatcher().hasModal());
+        assertTrue(!!app.getFocusManager().getCurrentFocus());
+        assertTrue(app.getDispatcher().topModal().containsWidget(app.getFocusManager().getCurrentFocus()));
+        app.processEvent(chr("\x1b")); assertFalse(app.getDispatcher().hasModal());
+        assertTrue(client.isEvaluating()); assertTrue(editor.hasFocus());
         editor.setText("next draft"); app.processEvent(chr("!"));
         release.dec(); released = True; client.joinEvaluation(); assertFalse(client.isEvaluating()); assertEq("next draft!", editor.getText());
         editor.setText("1 + 2"); app.processEvent(chr("\n")); client.joinEvaluation(); assertEq("", editor.getText());
@@ -276,18 +282,66 @@ class QReplLiveTest inherits Test {
         app.processEvent(chr("\x10")); assertEq(command, buffer.getText());
         app.processEvent(chr("\x0e")); assertEq(draft, buffer.snapshot());
     }
+    private nothing runningAction(NcursesUi::Application app, code<nothing()> action, bool exits) {
+        NcursesUi::UiEventScope scope = app.createEventScope(sub (auto value) {
+            on_exit app.quit(); assertTrue(app.isRunning()); action(); assertEq(!exits, app.isRunning());
+        });
+        on_exit scope.close(); scope.post(NOTHING); app.run();
+    }
     navigation() {
         NcursesUi::TestHarness th(14, 60); on_exit th.close(); auto client = program.callFunction("createRepl", th.session()); on_exit client.close();
-        NcursesUi::Application app = client.getApplication(); NcursesUi::TextEditorWidget editor = client.getEditor(); editor.setText("draft");
-        foreach hash<Ncurses::InputEvent> event in ((chr("\x11"), <Ncurses::InputEvent>{"type": Ncurses::InputType::Alt, "ch": "q"})) {
-            app.processEvent(event); assertTrue(app.getDispatcher().hasModal());
-            NcursesUi::DialogWidget dialog = cast<NcursesUi::DialogWidget>(app.getDispatcher().topModal());
-            assertTrue(join(" ", dialog.getMessageLines()).find("discard") >= 0); app.processEvent(chr("\x1b")); assertEq("draft", editor.getText()); assertTrue(editor.hasFocus());
+        NcursesUi::Application app = client.getApplication(); NcursesUi::TextEditorWidget editor = client.getEditor();
+        foreach string initial in (("", "unfinished input")) {
+            foreach hash<Ncurses::InputEvent> event in ((chr("\x11"), <Ncurses::InputEvent>{"type": Ncurses::InputType::Alt, "ch": "q"})) {
+                editor.setText(initial); runningAction(app, sub () { app.processEvent(event); }, True);
+                assertFalse(app.getDispatcher().hasModal()); assertFalse(client.isEvaluating());
+            }
         }
+        editor.setText("abc"); editor.getBuffer().setCursor(1);
+        runningAction(app, sub () { app.processEvent(chr("\x04")); }, False); assertEq("ac", editor.getText());
+        runningAction(app, sub () { app.processEvent(chr("\x1b")); }, False); assertEq("ac", editor.getText());
+        editor.setText(""); runningAction(app, sub () { app.processEvent(chr("\x04")); }, True);
         app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Alt, "ch": "f"}); assertTrue(app.getDispatcher().hasModal());
         app.processEvent(chr("\x1b")); assertTrue(editor.hasFocus());
         app.processEvent(key("KEY_F(1)")); assertTrue(app.getDispatcher().hasModal()); app.processEvent(chr("\x1b"));
-        editor.setText("/quit"); app.processEvent(chr("\n")); assertTrue(app.getDispatcher().hasModal()); assertFalse(client.isEvaluating()); app.processEvent(chr("\x1b"));
+        foreach string command in (("/exit", "/quit", "/q", "  /exit  ")) {
+            # Reproduce the report: only executed expressions precede the quit command.
+            for (int i = 0; i < 6; ++i) { editor.setText("6 * 7"); app.processEvent(chr("\n")); client.joinEvaluation(); assertEq("", editor.getText()); }
+            int blocks = cast<NcursesUi::TranscriptWidget>(client.getTranscript()).getBlocks().size();
+            editor.setText(command); runningAction(app, sub () { app.processEvent(chr("\n")); }, True);
+            assertFalse(app.getDispatcher().hasModal()); assertFalse(client.isEvaluating());
+            assertEq(blocks, cast<NcursesUi::TranscriptWidget>(client.getTranscript()).getBlocks().size());
+        }
+        runningAction(app, sub () {
+            app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Alt, "ch": "f"});
+            app.processEvent(key("KEY_END")); app.processEvent(chr("\n"));
+        }, True);
+        assertFalse(app.getDispatcher().hasModal());
+    }
+    promptFlow() {
+        NcursesUi::TestHarness th(16, 80); on_exit th.close(); auto client = program.callFunction("createRepl", th.session()); on_exit client.close();
+        NcursesUi::Application app = client.getApplication(); NcursesUi::TextEditorWidget editor = client.getEditor();
+        NcursesUi::TranscriptWidget output = client.getTranscript(); app.drawAll();
+        assertEq(output.getFrame().y + output.getTranscriptContent().totalRows(), editor.getFrame().y);
+        assertTrue(editor.getFrame().y < 14);
+        output.clear(); app.layoutRoot(); app.drawAll(); assertEq(1, editor.getFrame().y);
+        for (int i = 0; i < 4; ++i) {
+            editor.setText("6 * 7"); app.layoutRoot(); app.drawAll(); int row = editor.getFrame().y;
+            assertTrue(th.screen().readText(row, 0, 80).find("6 * 7") >= 0);
+            app.processEvent(chr("\n")); client.joinEvaluation(); app.drawAll();
+            assertTrue(th.screen().readText(row, 0, 80).find("6 * 7") >= 0);
+            assertEq("42", trim(th.screen().readText(row + 1, 0, 80)));
+            assertEq(row + 2, editor.getFrame().y); assertEq("", editor.getText());
+        }
+        for (int i = 0; i < 30; ++i) { output.appendLine("line " + i); }
+        app.layoutRoot(); app.drawAll(); assertEq(14, editor.getFrame().y); assertEq("line 29", trim(th.screen().readText(13, 0, 79)));
+        app.processEvent(key("KEY_PPAGE")); app.drawAll(); int anchor = output.getScrollY();
+        editor.setText("next input"); output.appendLine("late output"); app.layoutRoot(); app.drawAll();
+        assertEq(anchor, output.getScrollY()); assertFalse(output.isFollowing());
+        editor.setText("clear_output"); app.processEvent(chr("\n")); app.drawAll();
+        assertEq(1, editor.getFrame().y); assertEq("", trim(th.screen().readText(5, 0, 80)));
+        output.appendLine(strmul("x", 81)); app.layoutRoot(); app.drawAll(); assertEq(3, editor.getFrame().y);
+        editor.setText("one\ntwo"); app.layoutRoot(); app.drawAll(); assertEq(2, editor.getFrame().rows); assertEq(3, editor.getFrame().y);
     }
     files() {
         NcursesUi::TestHarness th(20, 80); on_exit th.close(); auto client = program.callFunction("createRepl", th.session()); on_exit client.close();

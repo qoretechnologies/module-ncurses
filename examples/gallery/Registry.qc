@@ -148,7 +148,7 @@ class Registry {
             result += <NcursesGallery::Story>{"id": "qrepl." + scenario, "widget": "QRepl", "api": "NcursesQore::CodeSupport", "application": True,
                 "state": "scenario", "purpose": "Use the actual qrepl application: " + scenario + ". Evaluation executes Qore in this local session.",
                 "fixture": {"draft": draft}, "geometry": <Ncurses::Size>{"rows": scenario == "constrained" ? 4 : 16, "cols": scenario == "constrained" ? 12 : 72},
-                "keyboard": "qrepl keys are active: Enter evaluates, Tab completes, F1 helps, F6 switches panes, Ctrl-Q confirms quit. Native gallery controls use Alt-1 through Alt-6.",
+                "keyboard": "qrepl keys are active: Enter evaluates, Tab completes, F1 helps, F6 switches panes, Ctrl-Q exits. Native gallery controls use Alt-1 through Alt-6.",
                 "mouse": "Click menus, editor, transcript and dialog controls.", "states": app_states, "steps": steps};
         }
         for (int i = 0; i < result.size(); ++i) {

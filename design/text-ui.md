@@ -77,7 +77,16 @@ Links are indexed by source identity. Search results are cached by content revis
 
 ## qrepl integration
 
-The draft occupies a separate bounded editor viewport below retained output. Failed
+Input occupies a separate bounded editor viewport immediately after retained output.
+`BoxLayout::setContentFlow(output, editor)` caps the expanding transcript at its
+wrapped preferred height while short, moving unused rows after the editor. Later
+status widgets keep their normal positions; overflow retains the full allocation.
+Both widgets must be adjacent direct children in a vertical layout. Hidden pairs
+use normal layout, and disabling content flow restores the default allocation.
+`TranscriptWidget` measures visible wrapped rows including padding before layout.
+Idle `/exit`, `/quit`, `/q`, Ctrl-Q, Alt-Q and File > Quit exit directly, even with
+unfinished input. Ctrl-D exits on empty input and otherwise deletes forward. Escape
+only dismisses overlays. Running work still offers to finish before quitting. Failed
 evaluation/history expansion preserves text, selection and undo. Menu commands leave
 the draft untouched. Completion uses the editor's visible screen caret. Clipboard
 bindings use an application-local string, without a desktop dependency.

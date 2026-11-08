@@ -20,6 +20,7 @@ Print usage information and exit.
 Press Enter to evaluate Qore expressions. Evaluation runs in the background;
 output continues to arrive while the editor and menus remain usable.
 The status bar shows whether evaluation is running or output following is paused.
+The prompt follows the latest output; once the screen fills, output scrolls above it.
 .TP
 .B Tab
 Show completion choices and signature help for the current session.
@@ -35,9 +36,16 @@ resumes following new output.
 Open the File menu. Load selects a source file; Save prompts for a filename and
 confirms before overwriting an existing file.
 .TP
-.B Ctrl+Q or Esc
-Open the quit confirmation. Running evaluation finishes before exit; this does
-not cancel the evaluated code.
+.B /exit, /quit, /q, Ctrl+Q or Alt+Q
+Exit immediately while idle. File > Quit does the same. Unfinished input does
+not require saving. During evaluation, a confirmation offers to finish and then
+exit; this does not cancel the evaluated code.
+.TP
+.B Ctrl+D
+Exit on empty input; otherwise delete the character after the cursor.
+.TP
+.B Esc
+Dismiss the current menu or dialog without exiting.
 .SH ENVIRONMENT
 .TP
 .B TERM

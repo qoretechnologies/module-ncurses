@@ -17,6 +17,12 @@
     EditorBuffer::setHistory() can preserve an active history-browsing snapshot and
     unfinished draft during background updates; qrepl uses this when evaluation completes.
     The backend does not expose safe cancellation; quit can wait for completion.
+    The active prompt now follows output using BoxLayout::setContentFlow(), which
+    places a follower after the preferred content height and leaves spare rows after
+    it while preserving later footer positions. TranscriptWidget measures wrapped
+    content and padding for this layout. Idle quit commands exit immediately; Ctrl-D
+    exits on empty input and Escape only dismisses overlays. Only a running evaluation
+    offers a finish-and-quit confirmation.
     Five full-application stories exercise the actual qrepl code through its event loop.
 
     ProgressWidget uses semantic state colors, emphasized fill/counts and focused

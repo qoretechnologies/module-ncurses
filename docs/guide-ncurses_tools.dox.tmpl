@@ -13,32 +13,36 @@ qrepl --help
 qrepl
     @endverbatim
 
-    Enter evaluates the draft; Alt-Enter inserts a hard newline. Up/Down navigate
-    history for a single-line draft and move visually within multiline input.
+    Enter evaluates the input; Alt-Enter inserts a hard newline. Up/Down navigate
+    history for a single-line input and move visually within multiline input.
     Ctrl-P/N always navigate history; Ctrl-R opens a literal history search.
-    The unfinished draft and selection return after moving past the newest entry.
-    Errors retain the draft. Ctrl-Z/Y undo/redo; Shift-arrows select text.
+    The unfinished input and selection return after moving past the newest entry.
+    Errors retain the input. Ctrl-Z/Y undo/redo; Shift-arrows select text.
     Ctrl-C/X/V use an application-local clipboard shared with transcript selection.
     This does not modify the desktop clipboard. Ctrl-A/E move to the hard-line
     boundaries; Ctrl-K/U delete toward a hard-line boundary; Ctrl-W deletes a word.
 
-    PageUp/PageDown scroll output independently of the draft. Scrolling up pauses
+    PageUp/PageDown scroll output independently of the input. Scrolling up pauses
     following; the status bar reports unread lines. Ctrl-End or View > Latest Output
-    resumes following. F6 switches focus between draft and output; focused output
+    resumes following. F6 switches focus between input and output; focused output
     supports arrows/Home/End, Shift-click selection and Ctrl-C copy. Ctrl-S or
     View > Search Output opens literal search. F3/Shift-F3 visit next/previous matches.
     Bracketed paste inserts one undoable operation without evaluating embedded newlines.
-    Output retains the latest 10,000 logical lines; the editor grows to six rows and
-    then scrolls within its allocation. Syntax highlighting uses the optional astparser
+    The prompt follows the latest output, starting near the top of an empty console.
+    Once the available area fills, output scrolls above the prompt. The status bar
+    stays at the bottom. Output retains the latest 10,000 logical lines; the editor
+    grows to six rows and then scrolls within its allocation. Syntax highlighting uses the optional astparser
     module. Tab completion uses the live session, replaces the full token around the
     caret, and preserves existing parentheses or namespace separators. The popup
     provides documentation and signatures; Tab switches to its help pane. Escape
     dismisses it, and an accepted completion is one undoable edit.
 
     Use F1 for keyboard help and <tt>/help</tt> for console commands. Ctrl-Q, Alt-Q,
-    File > Quit and typed quit commands use the same confirmation. Alt-F opens File;
-    Ctrl-Left/Right move by word. File > Load opens the browser; File > Save asks for
-    a filename and confirms replacement of an existing file. Cancel restores the draft.
+    File > Quit and typed <tt>/exit</tt>, <tt>/quit</tt> or <tt>/q</tt> exit immediately
+    while idle, including when input is unfinished. Ctrl-D exits on empty input and
+    otherwise deletes forward. Escape dismisses menus or dialogs without quitting.
+    Alt-F opens File; Ctrl-Left/Right move by word. File > Load opens the browser; File > Save asks for
+    a filename and confirms replacement of an existing file. Cancel restores the input.
     Paused/unread output and execution state take priority over secondary status text.
     Alt-key menu shortcuts provide file, edit, view and help actions. Command history
     is persisted in <tt>~/.qore-repl-history</tt>. Output capture preserves complete

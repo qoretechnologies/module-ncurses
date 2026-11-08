@@ -114,7 +114,7 @@ class Gallery {
         string message = runner.story().application
             ? "Alt-1 Help   Alt-2 Search   Alt-3 Reset\nAlt-4 Size   Alt-5 Next step   Alt-6 Inspect\n\n"
                 + "qrepl: Enter evaluate; Tab complete; F1 help; F6 panes.\n"
-                + "F3 / Shift-F3: next / previous output search match.\nCtrl-Q: confirm quit. Escape: close this help."
+                + "F3 / Shift-F3: next / previous output search match.\nCtrl-Q: quit. Escape: close this help."
             : runner.story().purpose + "\n\n" + runner.story().keyboard + "\n" + runner.story().mouse
                 + "\n\nF1 Help | F2 Search | F3 Reset | F4 Size | F5 Next step | F6 Inspect | Ctrl+Q Quit";
         if (inspect) {

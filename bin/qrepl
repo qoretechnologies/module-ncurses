@@ -4047,6 +4047,7 @@ class QRepl {
 
         # layout: vertical box
         NcursesUi::BoxLayout layout(NcursesUi::Orientation::Vertical);
+        layout.setContentFlow(output_widget, editor);
         app.setRootLayout(layout);
         app.setRoot(root);
 
@@ -4123,7 +4124,7 @@ class QRepl {
 
     private nothing push_output(string line) { output_widget.appendLine(line); }
 
-    /** Updates the draft's prompt and bounded layout without changing transcript position. */
+    /** Places the bounded input immediately after the transcript. */
     private nothing update_prompt_line() {
         editor.setPrompt(display_prompt(current_prompt));
         string text = buffer.getText();
@@ -4145,7 +4146,7 @@ class QRepl {
             if (!exists expanded) { push_output(text + ": event not found"); last_status = "Error"; update_status(); return; }
             text = expanded;
         }
-        if (trim(text) =~ /^\/(quit|exit|q)$/) { show_quit_dialog(); return; }
+        if (trim(text) =~ /^\/(quit|exit|q)$/) { request_quit(); return; }
         if (text == "clear_output") { output_widget.clear(); buffer.setText(""); last_status = "Cleared"; update_status(); new_prompt_line(); return; }
         start_evaluation(text, True);
     }
@@ -4155,7 +4156,7 @@ class QRepl {
         assistance.close(); current_hint = NOTHING;
         int revision = buffer.getRevision();
         output_widget.appendBlock(split("\n", display_prompt(current_prompt) + text, False, True), "input");
-        last_status = "Evaluating..."; last_exec_error = NOTHING; update_status(); app.drawAll();
+        last_status = "Evaluating..."; last_exec_error = NOTHING; update_status(); app.layoutRoot(); app.drawAll();
         evaluation.start(auto sub () {
             *hash<auto> result;
             try { result = repl.eval(text); }
@@ -4188,7 +4189,7 @@ class QRepl {
         }
         update_hints(); update_prompt_line(); update_status();
         if (quit_after_evaluation) { app.quit(); }
-        else if (result.exit) { show_quit_dialog(); }
+        else if (result.exit) { request_quit(); }
     }
 
     # Routes menu commands to their handlers (file browser, about dialog,
@@ -4214,7 +4215,7 @@ class QRepl {
             new_prompt_line();
             return;
         }
-        if (cmd == "/quit") { show_quit_dialog(); return; }
+        if (cmd == "/quit") { request_quit(); return; }
         # Menu evaluation never changes the draft, selection or undo history.
         start_evaluation(cmd);
     }
@@ -4225,7 +4226,7 @@ class QRepl {
         bool editing = True;
         if (ev.type == Ncurses::InputType::Char && (ch == "\x1b" || ch == "\x11")) {
             if (menu_bar.isDropdownOpen()) { menu_bar.closeMenu(); }
-            else { show_quit_dialog(); }
+            else if (ch == "\x11") { request_quit(); }
             editing = False;
         } else if (ev.type == Ncurses::InputType::Char && ch == "\x0c") { root.markDirty(); editing = False; }
         else if (ev.type == Ncurses::InputType::Char && ch == "\x13") { show_search(False); editing = False; }
@@ -4258,8 +4259,9 @@ class QRepl {
         } else if (ev.type == Ncurses::InputType::Char && (ch == "\x0b" || ch == "\x15")) { buffer.killToBoundary(ch == "\x0b"); }
         else if (ev.type == Ncurses::InputType::Char && ch == "\x17") { buffer.eraseWord(False); }
         else if (ev.type == Ncurses::InputType::Char && (ch == "\x02" || ch == "\x06")) { buffer.moveHorizontal(ch == "\x06"); }
-        else if (ev.type == Ncurses::InputType::Char && ch == "\x04") { buffer.erase(True); }
-        else if (ev.type == Ncurses::InputType::Key && (name == "kLFT3" || name == "kLFT5" || name == "kRIT3" || name == "kRIT5")) {
+        else if (ev.type == Ncurses::InputType::Char && ch == "\x04") {
+            if (buffer.getText() == "") { request_quit(); editing = False; } else { buffer.erase(True); }
+        } else if (ev.type == Ncurses::InputType::Key && (name == "kLFT3" || name == "kLFT5" || name == "kRIT3" || name == "kRIT5")) {
             buffer.moveWord(name == "kRIT3" || name == "kRIT5");
         } else if (ev.type == Ncurses::InputType::Key && name == "kDC5") { buffer.eraseWord(True); }
         else if (ev.type == Ncurses::InputType::Alt && ch.lwr() == "b") { buffer.moveWord(False); }
@@ -4307,21 +4309,19 @@ class QRepl {
         catch (hash<ExceptionInfo> ex) { last_status = "Help unavailable"; update_status(); }
     }
 
-    private nothing show_quit_dialog() {
-        bool running = evaluation.isRunning();
-        string message = running ? "Evaluation is running. Quit when it finishes?" :
-            (buffer.getText() != "" ? "Exit the REPL and discard the current draft?" : "Exit the REPL?");
-        dialogs.confirm("Quit", message, sub () {
+    private nothing request_quit() {
+        if (!evaluation.isRunning()) { app.quit(); return; }
+        dialogs.confirm("Quit", "Evaluation is running. Quit when it finishes?", sub () {
             if (evaluation.isRunning()) { quit_after_evaluation = True; update_status(); }
             else { app.quit(); }
-        }, running ? "Finish and quit" : "Quit");
+        }, "Finish and quit");
     }
 
     private nothing show_help() {
         dialogs.message("Keyboard help", "Enter: evaluate; Alt-Enter: newline\nTab: completion/signature help; popup Tab: documentation\n"
             + "Ctrl-P/N or single-line Up/Down: history\nCtrl-R: search history; Ctrl-S: search output\nF3 / Shift-F3: next / previous match\n"
             + "F6: switch editor/output; PageUp/Down: read output\nCtrl-End: latest output; Ctrl-Z/Y: undo/redo\nCtrl-Left/Right: word movement; Alt-F: File menu\n"
-            + "Ctrl-Q or Alt-Q: quit; Escape: close a dialog\nEvaluation keeps the UI responsive. New submissions and assistance wait for it to finish.");
+            + "Ctrl-Q / Alt-Q / empty Ctrl-D: quit; Escape: dismiss\nEvaluation keeps the UI responsive. New submissions and assistance wait for it to finish.");
     }
 
     private nothing show_save_dialog() {

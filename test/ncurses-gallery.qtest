@@ -422,9 +422,7 @@ class GalleryTest inherits Test {
             assertEq(help_modal, app.getDispatcher().topModal()); assertEq("keep this draft", editor.getText());
         }
         app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "\x11"});
-        NcursesUi::DialogWidget quit = cast<NcursesUi::DialogWidget>(app.getDispatcher().topModal());
-        assertTrue(join(" ", quit.getMessageLines()).find("discard") >= 0);
-        app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Char, "ch": "\e"});
+        assertFalse(app.getDispatcher().hasModal());
         assertThrows("GALLERY-EXPECTATION-ERROR", sub () { gallery.current().step(); });
         gallery.reset(); editor = cast<NcursesUi::TextEditorWidget>(app.getFocusManager().getCurrentFocus());
         editor.setText(sprintf("ReadOnlyFile gate(\"/proc/self/fd/%d\"); gate.readLine();", gate.read.getPollableDescriptor()));

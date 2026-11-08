@@ -125,21 +125,21 @@ test('missing streaming marker reaches FIFO and process cleanup', { timeout: 150
 });
 
 
-test('intentional qrepl quit acknowledges its input and closes without failure', { timeout: 15000 }, async () => {
+test('intentional qrepl quit acknowledges its input and closes without failure', { timeout: 20000 }, async () => {
   const story = (await registry()).find(story => story.id === 'qrepl.default');
-  const native = new NativeStory(story);
-  const failures = []; native.on('failure', error => failures.push(error));
-  try {
-    await native.ready;
-    const dialog = await native.command('input', { data: '\x11' });
-    assert.equal(dialog.artifact.state.modal, true);
-    const ended = once(native, 'ended', { signal: AbortSignal.timeout(5000) });
-    ended.catch(() => {}); // A failed input still enters cleanup before this deadline rejects.
-    const frame = await native.command('input', { data: '\r' });
-    assert.equal(frame.artifact.state.modal, false);
-    await ended;
-    assert.equal((await native.closed).code, 0);
-    assert.deepEqual(failures, []);
-    await assert.rejects(native.command('capture'), /closed/);
-  } finally { await native.close(); }
+  for (const data of ['\x15/exit\r', '\x11', '\x15\x04']) {
+    const native = new NativeStory(story);
+    const failures = []; native.on('failure', error => failures.push(error));
+    try {
+      await native.ready;
+      const ended = once(native, 'ended', { signal: AbortSignal.timeout(5000) });
+      ended.catch(() => {}); // A failed input still enters cleanup before this deadline rejects.
+      const frame = await native.command('input', { data });
+      assert.equal(frame.artifact.state.modal, false);
+      await ended;
+      assert.equal((await native.closed).code, 0);
+      assert.deepEqual(failures, []);
+      await assert.rejects(native.command('capture'), /closed/);
+    } finally { await native.close(); }
+  }
 });
