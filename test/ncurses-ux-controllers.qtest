@@ -172,6 +172,24 @@ class ControllersTest inherits Test {
         buffer.setText("get_qore_library_info()"); buffer.setCursor("get_qore_library_in".length());
         hash<NcursesUi::AssistanceRequest> request = model.beginRequest(); model.complete(request, support.complete(request));
         model.applyCompletion(model.getCompletions()[0].id); assertEq("get_qore_library_info()", buffer.getText());
+        foreach string spacing in (("", " ", "\t", "\r", "\n", "\r\n", " \n\t")) {
+            string source = "QoRE" + spacing + "::get_qore_library_info()";
+            buffer.setText(source); buffer.setCursor(2);
+            hash<NcursesUi::AssistanceRequest> qualified = model.beginRequest();
+            model.complete(qualified, support.complete(qualified));
+            assertTrue(model.applyCompletion("Qore")); assertEq("Qore" + spacing + "::get_qore_library_info()", buffer.getText());
+            assertTrue(buffer.undo()); assertEq(source, buffer.getText());
+            source = "ux_test_unique_funcTION" + spacing + "()";
+            buffer.setText(source); buffer.setCursor("ux_test_unique_func".length());
+            qualified = model.beginRequest(); model.complete(qualified, support.complete(qualified));
+            assertTrue(model.applyCompletion("ux_test_unique_function"));
+            assertEq("ux_test_unique_function" + spacing + "()", buffer.getText());
+            assertTrue(buffer.undo()); assertEq(source, buffer.getText());
+        }
+        buffer.setText("QoRE "); buffer.setCursor(2);
+        request = model.beginRequest(); model.complete(request, support.complete(request));
+        assertTrue(model.applyCompletion("Qore")); assertEq("Qore:: ", buffer.getText());
+        assertTrue(buffer.undo()); assertEq("QoRE ", buffer.getText());
     }
     assistance() {
         NcursesUi::TestHarness th(12, 40); on_exit th.close(); NcursesUi::Application app(th.session()); NcursesUi::TextEditorWidget editor();

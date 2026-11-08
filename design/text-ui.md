@@ -340,6 +340,9 @@ placement around the caret, empty-result feedback, dismissal, error cleanup and
 focus restoration. `NcursesQore::CodeSupport` is a separate optional language
 adapter accepting the application's existing `QoreRepl` instance. Source styling
 uses an independent optional astparser; completions never evaluate draft source.
+Completion replaces the identifier around the caret and checks beyond whitespace
+for existing call parentheses or namespace separators. The whitespace and suffix
+stay outside the replacement range, so accepting and undoing completion preserve them.
 The application serializes assistance and evaluation against that live backend.
 
 `BackgroundTask` owns one worker and a UI-event scope. It remains busy through

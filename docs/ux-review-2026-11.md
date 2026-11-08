@@ -389,6 +389,21 @@ The proxy is therefore intentionally reachable; neither the loopback bridge nor
 Origin validation is represented as client authentication. This access model and
 the loopback default are documented in the startup instructions.
 
+## Completion and runtime follow-up (2026-11-08)
+
+The final review found that namespace completion duplicated `::` when whitespace
+separated the identifier from an existing qualifier. `CodeSupport` now checks
+past spaces, tabs and line breaks for both namespace separators and call
+parentheses, while replacing only the identifier. Sixty additional assertions
+cover preserved suffixes, mixed whitespace, CR/LF, missing separators and undo.
+
+The Alpine crash in pipeline 63560 was a Qore method-cache lifetime defect.
+It was fixed upstream in `ed21c48b19`, which gives class instances non-reused
+identities and invalidates related dispatch caches. Local verification uses the
+installed Qore `d98bb182a1`, which includes that fix. The owner reports that the
+CI base images still need the runtime update; successful local checks do not
+replace the outstanding platform CI gate.
+
 ## qrepl follow-up implementation audit
 
 The audit follows the local `audit-changes` checklist. Evidence below applies to
@@ -418,8 +433,8 @@ this follow-up; earlier native implementation checks remain recorded above.
 | Security | Pass | No arbitrary bridge command endpoint or credentials; loopback by default; the user explicitly chose unauthenticated LAN native-session access. Hostname/origin checks are not authentication; the bridge remains loopback behind the proxy. Fixture teardown and protocol bounds retained. |
 | Correctness | Pass | Exact completion ranges and suffix retention, Unicode, tiny/resize layouts, save/overwrite/cancel/load, draft revision preservation, focus restoration and actual streaming tested. |
 
-Final local gates: 45 QUnit suites, 964 cases / 22,188 assertions; 26 compiled-module
-suites, 636 cases / 8,093 assertions. Documentation/API checks, executable examples,
+Final local gates: 45 QUnit suites, 964 cases / 22,248 assertions; 26 compiled-module
+suites, 636 cases / 8,153 assertions. Documentation/API checks, executable examples,
 widget-catalog drift checks and CI tree-reuse tests pass. Browser/native tooling
 and platform CI results are linked in the delivery PR. No C++ changed, so this
 follow-up does not require a new Valgrind run.

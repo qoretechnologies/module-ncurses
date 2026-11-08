@@ -47,7 +47,10 @@ public class CodeSupport {
     }
     /** Returns signature help at the end of a source prefix. @param source prefix through caret @return hint */
     string hint(string source) { return repl.getHints(source) ?? ""; }
-    /** Returns precise completions and signatures without evaluating source. @param request immutable editor snapshot @return provider response */
+    /** Returns precise completions and signatures without evaluating source.
+        Existing call parentheses and namespace separators are preserved, including intervening whitespace.
+        @param request immutable editor snapshot @return provider response
+    */
     hash<NcursesUi::AssistanceResponse> complete(hash<NcursesUi::AssistanceRequest> request) {
         if (request.cursor < 0 || request.cursor > request.text.length()) {
             throw "QORE-ASSISTANCE-ERROR", "Completion cursor is outside the source";
@@ -57,13 +60,13 @@ public class CodeSupport {
         if (prefix.startsWith("/") && start == 1) { start = 0; }
         int end = request.cursor;
         while (end < request.text.length() && request.text.substr(end, 1) =~ /[A-Za-z_0-9]/) { ++end; }
-        int call_start = end;
-        while (call_start < request.text.length() && request.text.substr(call_start, 1) =~ /[ \t]/) { ++call_start; }
+        int suffix_start = end;
+        while (suffix_start < request.text.length() && request.text.substr(suffix_start, 1) =~ /[ \t\r\n]/) { ++suffix_start; }
         list<hash<NcursesUi::CompletionItem>> items = ();
         foreach hash<QoreCodeCompletion::CompletionItem> item in (repl.getCompletionDetails(prefix)) {
             string insertion = item.label;
-            if (item.isCallable && request.text.substr(call_start, 1) != "(") { insertion += item.noArgsOnly ? "()" : "("; }
-            else if (item.kind == "namespace" && request.text.substr(end, 2) != "::") { insertion += "::"; }
+            if (item.isCallable && request.text.substr(suffix_start, 1) != "(") { insertion += item.noArgsOnly ? "()" : "("; }
+            else if (item.kind == "namespace" && request.text.substr(suffix_start, 2) != "::") { insertion += "::"; }
             items += <NcursesUi::CompletionItem>{"id": item.label, "label": item.label, "text": insertion,
                 "range": <NcursesUi::SourceRange>{"start": start, "end": end},
                 "detail": item.detail ?? "", "documentation": item.documentation ?? item.detail ?? ""};
