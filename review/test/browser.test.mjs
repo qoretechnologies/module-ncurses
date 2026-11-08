@@ -404,6 +404,10 @@ test('qrepl quit renders its final frame, closes normally and Reset starts a new
     await page.goto(`http://127.0.0.1:${server.port}/iframe.html?id=native-qrepl--default&viewMode=story`);
     const terminal = page.locator('ncurses-native-terminal');
     await terminal.evaluate(element => element.ready);
+    const evaluated = await command(page, 'step');
+    assert.equal(evaluated.state.text, ''); assert.equal(evaluated.state.empty, false);
+    assert.ok(evaluated.frame.cells.map(cell => cell.text).join('').includes('42'));
+    assert.doesNotMatch(await page.locator('.native-feedback').textContent(), /Empty state/);
     const result = await terminal.evaluate(async element => {
       const closed = new Promise(resolve => element.socket.addEventListener('close', event => resolve(event.code), { once: true }));
       const frame = await element.input('\x11');

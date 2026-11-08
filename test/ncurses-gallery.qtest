@@ -396,6 +396,12 @@ class GalleryTest inherits Test {
                 assertEq(step.checkpoint, gallery.current().step().checkpoint);
             }
         }
+        assertEq("", gallery.current().inspect().text); assertFalse(gallery.current().inspect().empty);
+        NcursesUi::TranscriptWidget output = cast<NcursesUi::TranscriptWidget>(app.getRoot().getChildren()[1]);
+        NcursesUi::TextEditorWidget editor = cast<NcursesUi::TextEditorWidget>(app.getRoot().getChildren()[2]);
+        output.clear(); assertTrue(gallery.current().inspect().empty);
+        editor.setText("6 * 7"); assertFalse(gallery.current().inspect().empty);
+        editor.setText(""); output.appendLine("42"); assertFalse(gallery.current().inspect().empty);
     }
     appBusy() {
         NcursesUi::TestHarness th(16, 72); on_exit th.close(); NcursesUi::Application app(th.session());

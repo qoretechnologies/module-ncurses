@@ -128,6 +128,8 @@ class Runner {
         if (repl) { state.evaluating = repl.isEvaluating(); state.following = repl.getTranscript().isFollowing(); }
         if (fixture) { state += fixture.inspect(); }
         if (editor) { state.text = editor.getText(); state.scroll = editor.getScrollY(); state.empty = editor.getText() == ""; state.has_selection = editor.getBuffer().selectedText() != ""; }
+        # A full REPL includes its transcript, even after evaluation clears the input.
+        if (repl) { state.empty = state.empty && !repl.getTranscript().getTranscriptContent().lineCount(); }
         if (table) { state.selected = table.getSelectedRow(); state.scroll = table.getScrollOffset(); state.empty = !table.getRows(); state.has_selection = table.getSelectedRow() == 1; }
         if (popup && app.getDispatcher().hasModal()) { state.selected = popup.getHighlightIndex(); state.empty = !popup.getItems(); state.has_selection = popup.getHighlightIndex() == 1; }
         if (definition.state == "constrained") {

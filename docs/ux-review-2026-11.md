@@ -440,7 +440,7 @@ Ctrl-D regression exposed and fixed a focus handoff: opening the busy confirmati
 is a navigation action and must not refocus the editor outside its modal scope.
 Its cancellation restores editor focus and leaves the evaluation running.
 
-The complete 1,388-checkpoint capture has 26 intentional differences, all in
+The complete 1,388-checkpoint prompt-layout capture has 26 intentional differences, all in
 qrepl: prompt relocation, the completion popup following its new caret, and
 underlying prompt cells exposed around file overlays. All differences are frame
 cells or cursor position; story state and geometry are unchanged. All 20 distinct
@@ -450,6 +450,16 @@ recovery, are identical. The new complete set is accepted for this requested
 layout. Live browser input also verified `6 * 7` followed by `42` and its next
 prompt, then `/exit` producing “The application exited normally” without a dialog.
 The LAN server remains bound to `0.0.0.0:6006` at `http://supah:6006`.
+
+The final browser review also found that the gallery treated an empty editor as
+an empty application after successful evaluation, despite visible retained output.
+The runner now reports an empty REPL only when both input and transcript are
+empty. Tests cover evaluated output, genuinely empty state, nonempty input,
+restored output and the actual Storybook caption after its result checkpoint.
+The final complete 1,388-checkpoint recapture has identical PNG hashes throughout;
+its only two changes are `state.empty: true → false` at the color and monochrome
+qrepl result checkpoints. Those semantic corrections are reviewed and accepted.
+The browser screenshot confirms the result now retains the live-preview caption.
 
 ## qrepl follow-up implementation audit
 
@@ -480,8 +490,8 @@ this follow-up; earlier native implementation checks remain recorded above.
 | Security | Pass | No arbitrary bridge command endpoint or credentials; loopback by default; the user explicitly chose unauthenticated LAN native-session access. Hostname/origin checks are not authentication; the bridge remains loopback behind the proxy. Fixture teardown and protocol bounds retained. |
 | Correctness | Pass | Exact completion ranges and suffix retention, Unicode, tiny/resize layouts, save/overwrite/cancel/load, draft revision preservation, focus restoration and actual streaming tested. |
 
-Final local gates: 45 QUnit suites, 968 cases / 22,399 assertions; 26 compiled-module
-suites, 640 cases / 8,304 assertions. Documentation/API checks, executable examples,
+Final local gates: 45 QUnit suites, 968 cases / 22,404 assertions; 26 compiled-module
+suites, 640 cases / 8,309 assertions. Documentation/API checks, executable examples,
 widget-catalog drift checks and CI tree-reuse tests pass. Browser/native tooling
 and platform CI results are linked in the delivery PR. No C++ changed, so this
 follow-up does not require a new Valgrind run.

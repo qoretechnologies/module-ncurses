@@ -12239,7 +12239,7 @@
       "story": "qrepl.default",
       "widget": "QRepl",
       "hashes": {
-        "json.gz": "255205fd85ea07bbc58608ac11bdb574887d808e169cec0ce86799a58e3057ce",
+        "json.gz": "747bb724e066948d10d0e39d3bf4aaf2c1ad54a843d22537cdf02aee52b9ac38",
         "png": "392b1dcf3d2c7e170b06640f8ebb67060cc1eec2139de1e5d64cc3163843b0f7"
       }
     },
@@ -12257,7 +12257,7 @@
       "story": "qrepl.default",
       "widget": "QRepl",
       "hashes": {
-        "json.gz": "119780317c1b7702fb393a87536deb0d00a4d51998e38cfa2a57c0837cb85b47",
+        "json.gz": "3b9d7dd0f14988f6416f2f6a6b0aeb2c63d61d19b3b36b01e3fb0089ed06cc0d",
         "png": "08b090cff31a71ea7324284c6737fda8034ec0ec47f0a3d7de3d30c2a25b7b7e"
       }
     },
@@ -12526,6 +12526,6 @@
   "acceptance": {
     "reviewer": "Codex",
     "evidence": "docs/ux-review-2026-11.md",
-    "evidence_sha256": "4e28efef053f5cb9d87235bf9045f87eb70cf711ebfdc68a7bbfc924ddb26a45"
+    "evidence_sha256": "9f70c3128654eaa1d47d4ec4b32c28b321a5b55aca4ba466d134f69ff93c98f2"
   }
 }

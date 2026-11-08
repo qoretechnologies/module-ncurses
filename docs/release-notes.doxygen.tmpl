@@ -24,6 +24,8 @@
     exits on empty input and Escape only dismisses overlays. Only a running evaluation
     offers a finish-and-quit confirmation.
     Five full-application stories exercise the actual qrepl code through its event loop.
+    Their empty-state feedback includes retained output, so an empty prompt after
+    evaluation is not presented as an empty application.
 
     ProgressWidget uses semantic state colors, emphasized fill/counts and focused
     actions while retaining plain-text inspection. TableWidget headers use bold
