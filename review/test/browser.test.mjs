@@ -395,6 +395,35 @@ test('glyph rasterization is identical with grayscale and RGB host font profiles
 });
 
 
+test('qrepl continuation treats slash lines as source and Ctrl-C restores command mode', { timeout: 30000 }, async () => {
+  const server = await createBridgeServer({ port: 0, staticDir: fileURLToPath(new URL('../storybook-static/', import.meta.url)) });
+  const browser = await chromium.launch({ args: browserArgs });
+  try {
+    const page = await browser.newPage();
+    await openStory(page, `http://127.0.0.1:${server.port}`, server.stories.find(story => story.id === 'qrepl.default'));
+    const settle = () => page.locator('ncurses-native-terminal').evaluate(element => element.request('settle'));
+    await page.getByRole('textbox', { name: 'Terminal input', exact: true }).focus();
+    await page.keyboard.press('Control+c');
+    assert.equal((await command(page, 'capture')).state.text, '');
+    for (const line of ['?', '/?']) {
+      await page.keyboard.type(line); await page.keyboard.press('Enter');
+      const frame = await settle();
+      assert.equal(frame.state.modal, false);
+      assert.ok(frame.frame.cells.map(cell => cell.text).join('').includes('Continue; Ctrl-C: cancel'));
+    }
+    await page.keyboard.press('Control+c');
+    let frame = await command(page, 'capture');
+    assert.equal(frame.state.text, '');
+    assert.ok(frame.frame.cells.map(cell => cell.text).join('').includes('Input cancelled'));
+    await page.keyboard.type('/threads'); await page.keyboard.press('Enter');
+    frame = await settle();
+    assert.ok(frame.frame.cells.map(cell => cell.text).join('').includes('No running threads'));
+    await page.keyboard.type('/?'); await page.keyboard.press('Enter');
+    assert.equal((await settle()).state.modal, true);
+    await page.keyboard.press('Escape'); await command(page, 'capture');
+  } finally { await browser.close(); await server.close(); }
+});
+
 test('qrepl quit renders its final frame, closes normally and Reset starts a new session', { timeout: 30000 }, async () => {
   const server = await createBridgeServer({ port: 0, staticDir: fileURLToPath(new URL('../storybook-static/', import.meta.url)) });
   const browser = await chromium.launch({ args: browserArgs });

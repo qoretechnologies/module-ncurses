@@ -99,6 +99,11 @@ qrepl
 The output pane supports mouse wheel scrolling and keyboard paging (click the output pane, then use the wheel, arrow keys, PgUp/PgDn, Home/End).
 
 `/help` opens scrollable command help at the beginning; Escape returns to the prompt.
+At the continuation prompt, every line is Qore source, including `/commands` and `!!`.
+Press Ctrl-C with no editor selection to cancel unfinished input without resetting the
+program; commands and command completion are available again at `qore>`. Ctrl-C copies
+selected text. Menu commands also require finishing or cancelling pending source first.
+
 `/threads` lists threads in the current program, `/cancel <tid|all>` requests cooperative
 termination, and `/join <tid|all>` waits for them to leave the program. Parsing, `/type`,
 `/load`, and `/reset` require an idle program. When threads are running, qrepl offers

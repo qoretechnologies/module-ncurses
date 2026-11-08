@@ -57,7 +57,7 @@ public class CodeSupport {
         }
         string prefix = request.text.substr(0, request.cursor); int start = request.cursor;
         while (start > 0 && prefix.substr(start - 1, 1) =~ /[A-Za-z_0-9]/) { --start; }
-        if (prefix.startsWith("/") && start == 1) { start = 0; }
+        if (!repl.needsMoreInput() && prefix.startsWith("/") && start == 1) { start = 0; }
         int end = request.cursor;
         while (end < request.text.length() && request.text.substr(end, 1) =~ /[A-Za-z_0-9]/) { ++end; }
         int suffix_start = end;

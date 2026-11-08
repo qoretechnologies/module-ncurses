@@ -56,6 +56,11 @@ dialog and resumes the request automatically. Cancel preserves input and leaves
 the threads running. Cancellation can be caught or deferred by evaluated code.
 This workflow requires Qore 3.0 with Program thread coordination and its matching
 QoreRepl module.
+.SH MULTILINE INPUT
+At the continuation prompt, every line is Qore source, including slash-prefixed
+lines and history shortcuts. Commands are available at the primary qore> prompt.
+Press Ctrl+C with no editor selection to cancel unfinished input and return to
+that prompt without resetting the Program. With selected text, Ctrl+C copies it.
 .SH ENVIRONMENT
 .TP
 .B TERM

@@ -61,7 +61,65 @@ class QReplLiveTest inherits Test {
         addTestCase("command help starts with session and thread commands", \commandHelp());
         addTestCase("quit with background work waits visibly and closes on completion", \quitWithThreads());
         addTestCase("finish and quit detects background workers started by evaluation", \quitAfterSpawning());
+        addTestCase("continuation lines stay source and Ctrl-C cancels pending input", \continuationCommands());
+        addTestCase("quit from continuation waits for external Program activity", \continuationQuit());
         set_return_value(main());
+    }
+    continuationCommands() {
+        NcursesUi::TestHarness th(28, 100); on_exit th.close();
+        QoreRepl::QoreRepl backend({"history_file": NOTHING});
+        auto client = program.callFunction("createRepl", th.session(), backend); on_exit client.close();
+        NcursesUi::Application app = client.getApplication(); NcursesUi::TextEditorWidget editor = client.getEditor();
+        editor.setText("our int preserved = 42;"); app.processEvent(chr("\n")); client.joinEvaluation();
+        foreach string line in (("?", "/?", "/threads")) {
+            editor.setText(line); app.processEvent(chr("\n")); client.joinEvaluation();
+            assertFalse(app.getDispatcher().hasModal(), "continuation /? must not open command help");
+        }
+        assertFalse(backend.needsMoreInput()); assertEq("/threads", editor.getText());
+        editor.setText("our string literal = \"start"); app.processEvent(chr("\n")); client.joinEvaluation();
+        foreach string line in (("/exit", "clear_output", "!!", "  /threads  ", "end\";")) {
+            editor.setText(line); app.processEvent(chr("\n")); client.joinEvaluation();
+        }
+        assertEq("start\n/exit\nclear_output\n!!\n  /threads  \nend", backend.getProgram().getGlobalVariable("literal"));
+
+        editor.setText("if (True) {"); app.processEvent(chr("\n")); client.joinEvaluation();
+        assertTrue(backend.needsMoreInput());
+        app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Alt, "ch": "e"});
+        app.processEvent(key("KEY_DOWN")); app.processEvent(chr("\n"));
+        assertFalse(client.isEvaluating()); assertTrue(backend.needsMoreInput());
+        assertFalse(app.getDispatcher().hasModal());
+        editor.setText("/preser"); app.processEvent(chr("\t")); assertEq("/preserved", editor.getText());
+        assertFalse(app.getDispatcher().hasModal());
+        app.processEvent(key("KEY_SLEFT")); app.processEvent(chr("\x03"));
+        assertTrue(backend.needsMoreInput()); assertEq("/preserved", editor.getText());
+        editor.setText("unfinished"); app.processEvent(chr("\x03"));
+        assertFalse(backend.needsMoreInput()); assertEq(0, backend.getIndentLevel()); assertEq("", editor.getText());
+        assertEq("qore> ", backend.getPrompt()); assertEq(42, backend.getProgram().getGlobalVariable("preserved"));
+        app.drawAll();
+        assertTrue(th.screen().readText(27, 0, 100).find("Input cancelled") >= 0);
+        editor.setText("/?"); app.processEvent(chr("\n")); client.joinEvaluation();
+        assertTrue(app.getDispatcher().hasModal()); app.processEvent(chr("\x1b"));
+        editor.setText("not submitted"); app.processEvent(chr("\x03")); assertEq("", editor.getText());
+    }
+    continuationQuit() {
+        NcursesUi::TestHarness th(24, 80); on_exit th.close();
+        QoreRepl::QoreRepl backend({"history_file": NOTHING});
+        backend.eval("our Counter entered; our Counter gate;"); Counter entered(1); Counter gate(1);
+        bool released = False; on_exit { if (!released) { gate.dec(); } }
+        Program child = backend.getProgram(); child.setGlobalVarValue("entered", entered); child.setGlobalVarValue("gate", gate);
+        assertFalse(exists backend.eval("if (True) {"));
+        assertFalse(exists child.parse("background sub () { entered.dec(); gate.waitForZero(); }();", "external work", WARN_ALL));
+        child.run(); entered.waitForZero();
+        auto client = program.callFunction("createRepl", th.session(), backend);
+        on_exit { on_exit client.close(); if (!released) { gate.dec(); released = True; } }
+        NcursesUi::Application app = client.getApplication(); client.getEditor().setText("keep input");
+        NcursesUi::UiEventScope begin = app.createEventScope(sub (auto value) {
+            app.processEvent(chr("\x11")); assertTrue(app.getDispatcher().hasModal());
+            gate.dec(); released = True;
+        });
+        on_exit begin.close(); begin.post(NOTHING); app.run();
+        assertFalse(app.isRunning()); assertFalse(app.getDispatcher().hasModal());
+        assertEq("keep input", client.getEditor().getText()); assertTrue(backend.needsMoreInput());
     }
     captureFairness() {
         hash<PipeInfo> pipe = File::getPipe(); RefilledCaptureFile input(pipe.read, pipe.write);
@@ -341,6 +399,8 @@ class QReplLiveTest inherits Test {
         assertTrue(app.getDispatcher().topModal().containsWidget(app.getFocusManager().getCurrentFocus()));
         app.processEvent(chr("\x1b")); assertFalse(app.getDispatcher().hasModal());
         assertTrue(client.isEvaluating()); assertTrue(editor.hasFocus());
+        editor.setText("next draft"); app.processEvent(chr("\x03"));
+        assertTrue(client.isEvaluating()); assertEq("next draft", editor.getText());
         editor.setText("next draft"); app.processEvent(chr("!"));
         release.dec(); released = True; client.joinEvaluation(); assertFalse(client.isEvaluating()); assertEq("next draft!", editor.getText());
         editor.setText("1 + 2"); app.processEvent(chr("\n")); client.joinEvaluation(); assertEq("", editor.getText());

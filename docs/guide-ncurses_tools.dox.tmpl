@@ -18,7 +18,9 @@ qrepl
     Ctrl-P/N always navigate history; Ctrl-R opens a literal history search.
     The unfinished input and selection return after moving past the newest entry.
     Errors retain the input. Ctrl-Z/Y undo/redo; Shift-arrows select text.
-    Ctrl-C/X/V use an application-local clipboard shared with transcript selection.
+    Ctrl-C copies selected text; without an editor selection it cancels unfinished input and returns to
+    the primary prompt, preserving the Program. Ctrl-X/V cut and paste through the application-local clipboard
+    shared with transcript selection.
     This does not modify the desktop clipboard. Ctrl-A/E move to the hard-line
     boundaries; Ctrl-K/U delete toward a hard-line boundary; Ctrl-W deletes a word.
 
@@ -40,7 +42,10 @@ qrepl
     Use F1 for keyboard help and <tt>/help</tt> (also <tt>/?</tt>) for a scrollable command reference that opens
     at the beginning. Arrows, PageUp/PageDown and Home/End navigate it; Escape closes it. Ctrl-Q, Alt-Q,
     File > Quit and typed <tt>/exit</tt>, <tt>/quit</tt> or <tt>/q</tt> exit immediately
-    while idle, including when input is unfinished. Ctrl-D exits on empty input and
+    while idle. Typed commands work only at the primary <tt>qore&gt;</tt> prompt. At the continuation prompt,
+    every line is Qore source, including slash-prefixed lines and history shortcuts such as <tt>!!</tt>.
+    Press Ctrl-C to cancel unfinished source before entering a command; menu commands also require this step.
+    Ctrl-D exits on empty input and
     otherwise deletes forward. Escape dismisses menus or dialogs without quitting.
     Alt-F opens File; Ctrl-Left/Right move by word. File > Load opens the browser; File > Save asks for
     a filename and confirms replacement of an existing file. Cancel restores the input.
