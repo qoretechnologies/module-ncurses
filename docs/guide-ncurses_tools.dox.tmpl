@@ -67,9 +67,24 @@ qrepl
     <tt>/cancel &lt;tid|all&gt;</tt> requests cooperative cancellation, and <tt>/join &lt;tid|all&gt;</tt> waits
     for them to leave the Program. These commands work without parsing new Qore code. Parsing, <tt>/type</tt>,
     <tt>/load</tt>, reset and exit requests detect active Program threads and offer Wait, Cancel request and
-    Terminate threads. Cancel retains the input and leaves background work running. Completion wakes the UI,
-    closes the dialog and resumes the request even if no button has been chosen. Termination is cooperative;
-    a thread can catch or defer cancellation. Join requests also offer cancellation of the wait itself.
+    Terminate threads. Cancel retains the input and leaves background work running. When the Program becomes idle,
+    the session's \c program-idle event closes the dialog and resumes the request even if no button has been chosen.
+    Termination is cooperative; a thread can catch or defer cancellation. Join requests also offer cancellation of
+    the wait itself.
+
+    Background threads are reported as they start, are asked to cancel and end, also when they were started by code
+    outside the REPL's evaluations: notices appear in the output as their own blocks without changing the input, its
+    cursor or the reading position, and the status bar shows <tt>Threads: N</tt> (<tt>TN</tt> when narrow) while
+    threads run. The notices follow the session's level (see the QoreRepl module's thread notices):
+
+    |!Level|!Notices
+    |\c all|every start, cancellation request and end
+    |\c summary|starts, ends and cancellation requests grouped, failures one by one (the default)
+    |\c failures|only threads that failed, were interrupted or could not start, and errors in a thread's cleanup
+    |\c off|none
+
+    Set it with <tt>qrepl --thread-notices=&lt;level&gt;</tt>, with <tt>/notify &lt;level&gt;</tt> (<tt>/notify</tt>
+    alone shows it) or with View > Thread Notices; View > Threads lists the running threads.
 
     The matching Qore 3.0 runtime and QoreRepl module provide Program-scoped cancellation and condition-driven
     waits. Parsing remains serialized. Other applications can reuse <tt>BackgroundTask::cancel()</tt>,

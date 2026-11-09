@@ -23,6 +23,9 @@
     content and padding for this layout. Idle quit commands exit immediately; Ctrl-D
     exits on empty input and Escape only dismisses overlays. Only a running evaluation
     offers a finish-and-quit confirmation.
+    qrepl reports background threads with notices in the output and a <tt>Threads: N</tt> status, from the
+    QoreRepl session's events; their level is set with <tt>--thread-notices</tt>, <tt>/notify</tt> or View > Thread
+    Notices, and a request waiting for threads resumes on the Program's idle event.
     Five full-application stories exercise the actual qrepl code through its event loop.
     Their empty-state feedback includes retained output, so an empty prompt after
     evaluation is not presented as an empty application.
