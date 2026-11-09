@@ -63,6 +63,9 @@ class QReplLiveTest inherits Test {
         addTestCase("finish and quit detects background workers started by evaluation", \quitAfterSpawning());
         addTestCase("continuation lines stay source and Ctrl-C cancels pending input", \continuationCommands());
         addTestCase("quit from continuation waits for external Program activity", \continuationQuit());
+        addTestCase("thread notices keep the draft and the status shows the running threads", \threadNotices());
+        addTestCase("thread notice levels from /notify and the View menu", \threadNoticeLevels());
+        addTestCase("thread notice command-line option", \threadNoticeOption());
         set_return_value(main());
     }
     continuationCommands() {
@@ -121,6 +124,88 @@ class QReplLiveTest inherits Test {
         assertFalse(app.isRunning()); assertFalse(app.getDispatcher().hasModal());
         assertEq("keep input", client.getEditor().getText()); assertTrue(backend.needsMoreInput());
     }
+    # returns the text of the notice blocks of the transcript
+    private list<string> noticeTexts(object client) {
+        NcursesUi::TranscriptWidget transcript = client.getTranscript();
+        return (map transcript.getBlockText($1.id), transcript.getBlocks(), $1.kind == "notice") ?? ();
+    }
+    # returns the status bar's text
+    private string statusText(NcursesUi::TestHarness th, NcursesUi::Application app, int row, int cols) {
+        app.drawAll(); return th.screen().readText(row, 0, cols);
+    }
+    threadNotices() {
+        NcursesUi::TestHarness th(24, 100); on_exit th.close();
+        QoreRepl::QoreRepl backend({"history_file": NOTHING});
+        backend.eval("our Counter entered; our Counter gate; our *int last_tid;");
+        Counter entered(1); Counter gate(1); bool released = False; on_exit { if (!released) { gate.dec(); } }
+        Program child = backend.getProgram(); child.setGlobalVarValue("entered", entered); child.setGlobalVarValue("gate", gate);
+        auto client = program.callFunction("createRepl", th.session(), backend);
+        on_exit { on_exit client.close(); if (!released) { gate.dec(); released = True; } }
+        NcursesUi::Application app = client.getApplication(); NcursesUi::TextEditorWidget editor = client.getEditor();
+        editor.setText("keep this draft"); editor.getBuffer().setCursor(4);
+        assertEq(0, client.getRunningThreads());
+        assertEq(-1, statusText(th, app, 23, 100).find("Threads:"));
+
+        # a thread started by code outside the UI's evaluations
+        backend.eval("last_tid = background sub () { entered.dec(); gate.waitForZero(); }()"); entered.waitForZero();
+        int tid = child.getGlobalVariable("last_tid");
+        client.waitForSessionEvents(bool sub () { return client.getRunningThreads() == 1; });
+        assertTrue(statusText(th, app, 23, 100).find("Threads: 1") >= 0);
+        assertEq(("Thread " + tid + " started",), noticeTexts(client));
+        assertEq("keep this draft", editor.getText()); assertEq(4, editor.getBuffer().getCursor()); assertTrue(editor.hasFocus());
+
+        # a narrow status bar shows the compact count
+        th.screen().resize(24, 30); app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Resize});
+        assertTrue(statusText(th, app, 23, 30).find("T1") >= 0);
+        th.screen().resize(24, 100); app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Resize});
+
+        gate.dec(); released = True;
+        client.waitForSessionEvents(bool sub () { return client.getRunningThreads() == 0; });
+        list<string> notices = noticeTexts(client);
+        assertEq(2, notices.size()); assertRegex("^Thread " + tid + " finished \\(", notices[1]);
+        assertEq(-1, statusText(th, app, 23, 100).find("Threads:"));
+        assertEq("keep this draft", editor.getText()); assertEq(4, editor.getBuffer().getCursor());
+    }
+    threadNoticeLevels() {
+        NcursesUi::TestHarness th(24, 100); on_exit th.close();
+        QoreRepl::QoreRepl backend({"history_file": NOTHING});
+        auto client = program.callFunction("createRepl", th.session(), backend); on_exit client.close();
+        NcursesUi::Application app = client.getApplication(); NcursesUi::TextEditorWidget editor = client.getEditor();
+        editor.setText("/notify failures"); app.processEvent(chr("\n")); client.joinEvaluation();
+        assertEq("failures", backend.getThreadNoticeLevel());
+        # a completed thread gives no notice at this level, a failed one does
+        editor.setText("background sub () {}(); background sub () { throw \"TEST-ERROR\", \"failed\"; }();");
+        app.processEvent(chr("\n")); client.joinEvaluation();
+        client.waitForSessionEvents(bool sub () { return client.getRunningThreads() == 0 && noticeTexts(client); });
+        list<string> notices = noticeTexts(client);
+        assertEq(1, notices.size()); assertRegex("TEST-ERROR", notices[0]); assertNRegex("finished \\(", notices[0]);
+
+        # View > Thread Notices... offers the levels; the third one is "failures", the first "all"
+        app.processEvent(<Ncurses::InputEvent>{"type": Ncurses::InputType::Alt, "ch": "v"});
+        for (int i = 0; i < 10; ++i) { app.processEvent(key("KEY_DOWN")); }
+        app.processEvent(chr("\n"));
+        assertTrue(app.getDispatcher().hasModal());
+        app.processEvent(chr("\n"));
+        assertFalse(app.getDispatcher().hasModal());
+        assertEq("all", backend.getThreadNoticeLevel());
+        editor.setText("background sub () {}();"); app.processEvent(chr("\n")); client.joinEvaluation();
+        # the start and the end can arrive in one batch or in two, so in one notice block or in two
+        code<string()> later_notices = string sub () { return join("\n", noticeTexts(client)[1..]); };
+        client.waitForSessionEvents(bool sub () { return client.getRunningThreads() == 0
+            && later_notices() =~ /finished/; });
+        assertRegex("^Thread ([0-9]+) started\nThread \\1 finished \\(", later_notices());
+    }
+    threadNoticeOption() {
+        string qore = is_file("/proc/self/exe") ? realpath("/proc/self/exe") : "qore";
+        string qrepl = get_script_dir() + "/../bin/qrepl";
+        int rc;
+        string out = backquote(sprintf("'%s' '%s' --thread-notices=sometimes 2>&1", qore, qrepl), \rc);
+        assertRegex("invalid --thread-notices level \"sometimes\"", out);
+        assertEq(2, rc);
+        out = backquote(sprintf("'%s' '%s' --help 2>&1", qore, qrepl), \rc);
+        assertEq(0, rc);
+        assertRegex("--thread-notices=<level>: background thread notices: all, summary, failures, off", out);
+    }
     captureFairness() {
         hash<PipeInfo> pipe = File::getPipe(); RefilledCaptureFile input(pipe.read, pipe.write);
         on_exit { input.close(); pipe.read.close(); pipe.write.close(); }
@@ -164,7 +249,7 @@ class QReplLiveTest inherits Test {
                 gate.dec(); released = True;
             }
             if (action == "cancel" || action == "join-cancel") { gate.dec(); released = True; }
-            client.joinThreadMonitor();
+            client.joinThreadEvents();
             client.joinEvaluation();
             assertFalse(app.getDispatcher().hasModal());
             if (action == "cancel" || action == "join-cancel") { assertEq(child, backend.getProgram()); assertEq(request, editor.getText()); }
@@ -209,7 +294,7 @@ class QReplLiveTest inherits Test {
         bg_entered.waitForZero(); client.joinEvaluation();
         assertTrue(app.getDispatcher().hasModal(), "quitting must account for newly spawned workers");
         assertTrue(child.getThreadCount() > 0); app.processEvent(chr("\x1b"));
-        bg_gate.dec(); bg_released = True; client.joinThreadMonitor(); assertFalse(app.getDispatcher().hasModal());
+        bg_gate.dec(); bg_released = True; client.joinThreadEvents(); assertFalse(app.getDispatcher().hasModal());
     }
     commandHelp() {
         NcursesUi::TestHarness th(28, 100); on_exit th.close();

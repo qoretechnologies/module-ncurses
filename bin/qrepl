@@ -44,7 +44,6 @@ class QRepl {
         NcursesQore::CodeSupport code_support;
         NcursesUi::EditorAssistance assistance;
         NcursesUi::BackgroundTask evaluation;
-        NcursesUi::BackgroundTask thread_monitor;
         NcursesUi::Dialogs dialogs;
         *NcursesUi::DialogWidget thread_dialog;
         *NcursesUi::DialogWidget evaluation_dialog;
@@ -52,6 +51,25 @@ class QRepl {
         bool pending_submitted = False;
         bool pending_quit = False;
         int pending_revision = 0;
+
+        #! the session events received by the listener and not yet processed on the UI thread
+        list<hash<QoreRepl::ReplEvent>> session_events = ();
+        #! protects session_events, session_events_posted and session_events_delivered
+        Mutex session_event_lock();
+        #! signalled when the listener has posted session events
+        Condition session_event_cond();
+        #! True while a delivery of session_events is posted to the UI thread
+        bool session_events_posted = False;
+        #! True when the listener has posted session events since joinThreadEvents() last processed them
+        bool session_events_delivered = False;
+        #! the UI thread's receiver of session events
+        *NcursesUi::UiEventScope session_event_scope;
+        #! the ID of the session's event listener
+        *int session_listener_id;
+        #! the number of background threads running in the session's Program
+        int running_threads = 0;
+        #! the thread notice level given with --thread-notices
+        *string thread_notice_level;
         bool more_input = False;
         bool quit_after_evaluation = False;
         bool owns_app = True;
@@ -3912,11 +3930,12 @@ class QRepl {
         app = application ?? new NcursesUi::Application(s); owns_app = !application;
         dialogs = new NcursesUi::Dialogs(app);
         evaluation = new NcursesUi::BackgroundTask(app, "evaluate", "Evaluate Qore");
-        thread_monitor = new NcursesUi::BackgroundTask(app, "threads", "Wait for Program threads");
         assistance = new NcursesUi::EditorAssistance(app, editor,
             hash<NcursesUi::AssistanceResponse> sub (hash<NcursesUi::AssistanceRequest> request) { return code_support.complete(request); });
 
         init_ui(); app.setReadTimeout(-1, 25);
+        if (thread_notice_level) { repl.setThreadNoticeLevel(thread_notice_level); }
+        start_session_events();
         if (!session || capture) { if (capture) { use_tty_enabled = True; } init_output_capture(); }
 
         # load persistent history
@@ -3943,8 +3962,27 @@ class QRepl {
 
     # Deterministic embedding/test barrier; interactive handlers never join a worker.
     nothing joinEvaluation() { evaluation.join(); app.processPending(); }
-    # Test/embedding barrier only; the UI itself receives an event without joining.
-    nothing joinThreadMonitor() { thread_monitor.join(); app.processPending(); }
+    # Test/embedding barrier only: processes the session's events until no request waits for the Program to become
+    # idle; the UI itself receives them as events without blocking.
+    nothing joinThreadEvents() {
+        waitForSessionEvents(bool sub () { return !exists pending_request && !pending_quit && !thread_dialog; });
+    }
+    # Test/embedding barrier only: processes the session's events on the calling (UI) thread until the condition is
+    # True; it blocks until the session delivers more events while the condition is False.
+    nothing waitForSessionEvents(code<bool()> condition) {
+        while (True) {
+            {
+                session_event_lock.lock(); on_exit session_event_lock.unlock();
+                session_events_delivered = False;
+            }
+            app.processPending();
+            if (condition()) { return; }
+            session_event_lock.lock(); on_exit session_event_lock.unlock();
+            while (!session_events_delivered) { session_event_cond.wait(session_event_lock); }
+        }
+    }
+    # Returns the number of background threads running in the session's Program, as shown in the status bar.
+    int getRunningThreads() { return running_threads; }
     hash<NcursesUi::EventResult> processEvent(hash<Ncurses::InputEvent> event) { return handle_global_key(event); }
     bool isEvaluating() { return evaluation.isRunning(); }
     nothing close() { close_session(); }
@@ -3959,13 +3997,24 @@ class QRepl {
             string arg = ARGV[i];
             if (arg == "-h" || arg == "--help") {
                 printf("qrepl - full-screen Qore REPL (ncurses UI)\n");
-                printf("Usage: qrepl [--help|-h]\n");
+                printf("Usage: qrepl [--help|-h] [--thread-notices=<level>]\n");
+                printf("--thread-notices=<level>: background thread notices: %s (default: %s)\n",
+                    QoreRepl::ThreadNoticeLevels.join(", "), QoreRepl::DefaultThreadNoticeLevel);
                 printf("Enter=eval, Alt-Enter=newline, Tab=completion/help, F1=key help\n");
                 printf("Ctrl-P/N=history, Ctrl-R=filtered history, Ctrl-Q/Alt-Q=quit\n");
                 printf("Ctrl-S=search output, F3/Shift-F3=next/previous match, F6=output/editor\n");
                 printf("PageUp/Down=scroll output, Ctrl-End=latest, Ctrl-Z/Y=undo/redo\n");
                 printf("Ctrl: ^A home, ^E end, ^K kill-to-end, ^U kill-to-start, ^W word-back\n");
                 thread_exit;
+            }
+            if (arg =~ /^--thread-notices=/) {
+                string level = (arg =~ x/^--thread-notices=(.*)$/)[0] ?? "";
+                if (!inlist(level, QoreRepl::ThreadNoticeLevels)) {
+                    stderr.printf("qrepl: invalid --thread-notices level %y; expecting one of: %s\n", level,
+                        QoreRepl::ThreadNoticeLevels.join(", "));
+                    exit(2);
+                }
+                thread_notice_level = level;
             }
             ++i;
         }
@@ -4012,6 +4061,9 @@ class QRepl {
             {"separator": True},
             {"label": "History", "command": "/history"},
             {"label": "Timing", "command": "/timing"},
+            {"separator": True},
+            {"label": "Threads", "command": "/threads"},
+            {"label": "Thread Notices...", "command": "thread_notices"},
         ));
         menu_bar.addMenu("Help", (
             {"label": "Keyboard Help", "command": "ui_help", "hotkey": "Alt+H"},
@@ -4252,23 +4304,103 @@ class QRepl {
                 }, sub () { cancel_pending_request(); });
         }
         last_status = "Waiting for threads"; update_status();
-        if (!thread_monitor.isRunning()) {
-            Program watched = repl.getProgram();
-            thread_monitor.start(auto sub () { return watched.waitForThreads(); }, sub (hash<NcursesUi::TaskResult> completed) {
-                if (closed) { return; }
-                *string request = pending_request; bool request_submitted = pending_submitted;
-                bool resume_quit = pending_quit; pending_quit = False;
-                int request_revision = pending_revision; pending_request = NOTHING;
-                if (thread_dialog) { dialogs.dismiss(thread_dialog); thread_dialog = NOTHING; }
-                if (completed.error) {
-                    last_status = "Thread wait failed";
-                    push_output(QoreRepl::QoreRepl::formatError(completed.error)); update_status(); return;
-                }
-                if (resume_quit) { request_quit(); }
-                else if (exists request) { start_evaluation(request, request_submitted, request_revision); }
-                else { last_status = "Threads finished"; update_status(); }
-            });
+        # the request resumes on the session's program-idle event; a Program that has become idle before the dialog
+        # opened sends none, so the request resumes now (start_evaluation() checks the Program again)
+        if (!repl.getProgram().getThreadCount() && repl.isProgramIdle()) { resume_pending_request(); }
+    }
+
+    # Resumes the request that waits for the Program to become idle, if any.
+    private nothing resume_pending_request() {
+        if (!exists pending_request && !pending_quit) { return; }
+        *string request = pending_request; bool request_submitted = pending_submitted;
+        bool resume_quit = pending_quit; pending_quit = False;
+        int request_revision = pending_revision; pending_request = NOTHING;
+        if (thread_dialog) { dialogs.dismiss(thread_dialog); thread_dialog = NOTHING; }
+        if (resume_quit) { request_quit(); }
+        else if (exists request) { start_evaluation(request, request_submitted, request_revision); }
+    }
+
+    # Adds the session's event listener, which runs on the session's delivery thread and posts its events to the UI
+    # thread; it also receives the activity events, as a waiting request resumes when the Program becomes idle.
+    private nothing start_session_events() {
+        session_event_scope = app.createEventScope(sub (auto unused) { process_session_events(); });
+        session_listener_id = repl.addEventListener(sub (hash<QoreRepl::ReplEvent> ev) { queue_session_event(ev); },
+            True);
+        running_threads = repl.getBackgroundThreads().size();
+    }
+
+    # Removes the session's event listener and its UI receiver; the session itself belongs to its owner.
+    private nothing stop_session_events() {
+        if (session_listener_id) { repl.removeEventListener(session_listener_id); session_listener_id = NOTHING; }
+        if (session_event_scope) { session_event_scope.close(); session_event_scope = NOTHING; }
+    }
+
+    # Called on the session's delivery thread: queues the event, and posts one delivery for each batch to the UI
+    # thread.
+    private nothing queue_session_event(hash<QoreRepl::ReplEvent> ev) {
+        bool post;
+        {
+            session_event_lock.lock(); on_exit session_event_lock.unlock();
+            session_events += ev;
+            post = !session_events_posted;
+            session_events_posted = True;
         }
+        if (post) {
+            *NcursesUi::UiEventScope scope = session_event_scope;
+            try {
+                if (scope) { scope.post(NOTHING); }
+            } catch (hash<ExceptionInfo> ex) {
+                # the next event posts the batch again
+                session_event_lock.lock(); on_exit session_event_lock.unlock();
+                session_events_posted = False;
+                rethrow;
+            }
+        }
+        session_event_lock.lock(); on_exit session_event_lock.unlock();
+        session_events_delivered = True;
+        session_event_cond.broadcast();
+    }
+
+    # Processes a batch of the session's events on the UI thread: thread notices, the thread count, and a request
+    # waiting for the Program to become idle.
+    private nothing process_session_events() {
+        list<hash<QoreRepl::ReplEvent>> events;
+        {
+            session_event_lock.lock(); on_exit session_event_lock.unlock();
+            events = session_events;
+            session_events = ();
+            session_events_posted = False;
+        }
+        if (closed || !events) { return; }
+        *bool idle;
+        foreach hash<QoreRepl::ReplEvent> ev in (events) {
+            running_threads = ev.running;
+            if (ev.event == "program-idle" || ev.event == "program-busy" || ev.event == "program-replaced") {
+                idle = ev.idle;
+            }
+        }
+        list<string> notices = repl.getThreadNotices(events);
+        if (notices) {
+            # the threads' captured output comes before the notices of their end
+            drain_pending_output();
+            output_widget.appendBlock(notices, "notice");
+        }
+        update_status();
+        if (idle) { resume_pending_request(); }
+    }
+
+    # Sets the level of thread notices.
+    private nothing show_thread_notice_dialog() {
+        list<string> labels = map $1[0].upr() + $1.substr(1), QoreRepl::ThreadNoticeLevels;
+        dialogs.choose("Thread notices", "Notices about background threads in the output (current level: "
+            + repl.getThreadNoticeLevel() + ").\nAll: every start, cancellation request and end; Summary: starts, ends and "
+            "cancellation requests grouped, failures one by one; Failures: only failed threads and cleanup errors; "
+            "Off: none.", labels,
+            bool sub (int index) {
+                repl.setThreadNoticeLevel(QoreRepl::ThreadNoticeLevels[index]);
+                last_status = "Thread notices: " + QoreRepl::ThreadNoticeLevels[index]; update_status();
+                return True;
+            }, sub () {});
     }
 
     # Routes menu commands to their handlers (file browser, about dialog,
@@ -4289,6 +4421,7 @@ class QRepl {
             return;
         }
         if (cmd == "search_output") { show_search(False); return; }
+        if (cmd == "thread_notices") { show_thread_notice_dialog(); return; }
         if (cmd == "latest_output") { output_widget.returnToLatest(); update_status(); return; }
         if (cmd == "clear_output") {
             output_widget.clear();
@@ -4495,6 +4628,10 @@ class QRepl {
             segments += {"text": "Paused +" + output_widget.getUnreadCount() + " [Ctrl-End: latest]",
                 "compact": "Paused +" + output_widget.getUnreadCount(), "priority": 100, "style": emphasis};
         }
+        if (running_threads > 0) {
+            segments += {"text": "Threads: " + running_threads, "compact": "T" + running_threads, "priority": 90,
+                "style": emphasis};
+        }
         if (current_hint) { segments += {"text": current_hint, "priority": 40, "style": emphasis}; }
         segments += ({"text": "F1: keys", "priority": 20, "style": normal}, {"text": output_title, "priority": 0, "align": "right", "style": normal});
         if (status_bar.getSegments() != segments) { status_bar.setSegments(segments); }
@@ -4539,7 +4676,7 @@ class QRepl {
         on_exit dialogs.close();
         on_exit assistance.close();
         on_exit editor.setHighlighter(NOTHING);
-        on_exit { thread_monitor.cancel("REPL closed"); thread_monitor.close(); }
+        on_exit stop_session_events();
         evaluation.close();
         # save persistent history
         if (persistent_history && exists ENV.HOME) {
