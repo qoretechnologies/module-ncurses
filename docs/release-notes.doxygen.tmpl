@@ -12,11 +12,13 @@
     clamped centered sizing, and FormWidget supports application-specific action labels.
     qrepl adopts these APIs for syntax highlighting, exact completion ranges, help,
     real file selection/save prompts, consistent quitting and responsive evaluation.
+    Submitted Qore source retains the editor's syntax colors in the transcript, including
+    multiline strings. Copy and search retain plain source text; slash commands remain unstyled.
     Output streams during work and edits made during evaluation survive its result.
     Capture preserves inherited output handles even after a runner drops privileges.
     EditorBuffer::setHistory() can preserve an active history-browsing snapshot and
     unfinished draft during background updates; qrepl uses this when evaluation completes.
-    The backend does not expose safe cancellation; quit can wait for completion.
+    Thread cancellation is cooperative; quit can wait for running work to finish.
     The active prompt now follows output using BoxLayout::setContentFlow(), which
     places a follower after the preferred content height and leaves spare rows after
     it while preserving later footer positions. TranscriptWidget measures wrapped

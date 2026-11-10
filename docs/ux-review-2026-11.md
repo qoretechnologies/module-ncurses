@@ -544,3 +544,44 @@ The ncurses frontend follows that policy for typed exit commands and history sho
 Local validation: 45 QUnit suites, 976 cases / 22,641 assertions; 26 compiled suites, 648 cases / 8,546 assertions; all 46 Node/browser tests. Backend source and AOT gates each passed 105 cases / 891 assertions, including action sessions, WebSocket behavior, save/load and thread coordination. The browser keyboard regression verifies real Ctrl-C input, slash continuation, cancellation and restored command mode. All 30 qrepl visual captures are unchanged. Documentation checks, executable guide examples and eight catalog tests pass. No C++ changed, so no additional Valgrind run is required.
 
 The implementation audit covers the same checklist above: source classification, exception-safe pending-input handling, serialized backend access, typed request metadata, literal whitespace preservation, command recovery, menu behavior and exit with external Program activity pass; module registration, native/QPP changes, DataProvider registration and JNI dependencies are not applicable. API documentation, release notes, the tool guide and man page describe the implemented policy.
+
+## Submitted qrepl syntax — 2026-11-10
+
+Issue [#5740](https://github.com/qoretechnologies/qore/issues/5740) reported that
+`background sub () { sleep(10); }()` appeared uncolored in the transcript. Live
+editor highlighting was already active. The submission path appended raw source,
+so the transcript lost the language adapter's styles.
+
+qrepl now formats submitted Qore source with `NcursesQore::CodeSupport` and uses
+`TerminalText::styledLines()` to retain multiline token styles. Formatting finishes
+before submission changes UI state; evaluation receives the original source. Slash
+commands retain their ordinary presentation. Copy and literal search use plain
+source, including Unicode combining characters and hard newlines.
+
+The exact reported expression was reviewed in the real native PTY/browser before
+and after Enter: keywords are magenta, the function name is blue, and the number is
+yellow in both places. The native test also types it character by character and
+checks number color while the expression is still incomplete. Submission tests
+cover background code without a timed fixture, multiline Unicode strings,
+malformed source, commands, selection/copy, search and monochrome rendering.
+
+The complete 1,388-checkpoint capture changes only these three reviewed images:
+
+- [Default result, color](../review/baselines/qrepl.default.color.registered.result.png):
+  the submitted `6` and `7` retain their yellow styling.
+- [Error result, color](../review/baselines/qrepl.error.color.registered.result.png):
+  the submitted function name retains the same blue/bold styling as the draft.
+- [Error result, monochrome](../review/baselines/qrepl.error.mono.registered.result.png):
+  the submitted function name retains its bold cue.
+
+Every semantic difference is a token foreground, color-pair or attribute change.
+Text, cursor, geometry, focus and scrolling are unchanged; the other 1,385 captures
+are byte-identical. These three image changes were inspected and deliberately
+accepted by the agent; this is not a participant study.
+
+Validation: 45 source suites (981 cases / 22,785 assertions), 26 compiled suites
+(653 cases / 8,690 assertions), all 46 browser/tooling tests, eight catalog checks,
+five documentation checks and the runnable guide examples pass. The development
+server test initially collided with the existing Storybook process on its documented
+ports; after that process was stopped, the isolated rerun passed. Storybook was
+restored on `0.0.0.0:6006` for review at `http://supah:6006/`. No C++ changed.

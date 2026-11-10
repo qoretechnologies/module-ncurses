@@ -33,8 +33,11 @@ qrepl
     The prompt follows the latest output, starting near the top of an empty console.
     Once the available area fills, output scrolls above the prompt. The status bar
     stays at the bottom. Output retains the latest 10,000 logical lines; the editor
-    grows to six rows and then scrolls within its allocation. Syntax highlighting uses the optional astparser
-    module. Tab completion uses the live session, replaces the full token around the
+    grows to six rows and then scrolls within its allocation. Syntax highlighting updates while typing,
+    including incomplete expressions, and remains on submitted Qore source in the transcript. It uses the
+    optional astparser module; without that module, source remains plain text. Multiline source retains its
+    styles across line breaks, while transcript copying and searching use the original text. Slash commands
+    retain their ordinary text presentation. Tab completion uses the live session, replaces the full token around the
     caret, and preserves existing parentheses or namespace separators. The popup
     provides documentation and signatures; Tab switches to its help pane. Escape
     dismisses it, and an accepted completion is one undoable edit.
