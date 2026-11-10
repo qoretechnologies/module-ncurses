@@ -12239,8 +12239,8 @@
       "story": "qrepl.default",
       "widget": "QRepl",
       "hashes": {
-        "json.gz": "747bb724e066948d10d0e39d3bf4aaf2c1ad54a843d22537cdf02aee52b9ac38",
-        "png": "392b1dcf3d2c7e170b06640f8ebb67060cc1eec2139de1e5d64cc3163843b0f7"
+        "json.gz": "bdf5752c8e124e73195a9c46f0e793ade0a7ef16a1ab3adeca94c0b96795af30",
+        "png": "c98cbff2f8db5d0a98f30da81382ddba90a7871f8a172a4d2a11cc7598a1b5f8"
       }
     },
     {
@@ -12329,8 +12329,8 @@
       "story": "qrepl.error",
       "widget": "QRepl",
       "hashes": {
-        "json.gz": "205149aef1fbacc42b4b82f4741d75c4bfde941829c7ee6b8998a8e317f7596c",
-        "png": "fb4f8690dd47a25d710a928adf4a6aae77d9144865e9a34db2395fbdc9442481"
+        "json.gz": "ed21627a8f9712f2f76b67a8038aec05acd94deb65719718216cba65f4d2f44f",
+        "png": "b3d4e12070296c471ae0644adb5933667802e866a0b7d977c663bbe9d714c8c4"
       }
     },
     {
@@ -12347,8 +12347,8 @@
       "story": "qrepl.error",
       "widget": "QRepl",
       "hashes": {
-        "json.gz": "ca6afa172da8b8ae1398f6c2e8c2904634ba682d9673fb4350e88d1b64eeb063",
-        "png": "9f45d3ba353a47fe46e8873579143e3acf835ee896d9d655dd6c6f262130d03f"
+        "json.gz": "14d0842f67abc914a09379a89e7ffc8188b87298c7bb84dfc97e7d00afe31f91",
+        "png": "e0a0304b9be3977adfbace5529e71b1ad7177eadd3016a9313dc279b7553273b"
       }
     },
     {
@@ -12526,6 +12526,6 @@
   "acceptance": {
     "reviewer": "Codex",
     "evidence": "docs/ux-review-2026-11.md",
-    "evidence_sha256": "9f70c3128654eaa1d47d4ec4b32c28b321a5b55aca4ba466d134f69ff93c98f2"
+    "evidence_sha256": "5a0ac512009fa56242bdc47425558f7b75cbbccb8d72bdd8ac465e9f74a67172"
   }
 }

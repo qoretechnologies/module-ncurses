@@ -50,6 +50,8 @@ class QReplLiveTest inherits Test {
         addTestCase("capture wake failures remain visible without abandoning the producer pipe", \captureWakeFailure());
         addTestCase("fatal capture read failures close the reader and fail producers promptly", \captureReadFailure());
         addTestCase("live syntax colors and precise completion use evaluated symbols", \codeSupport());
+        addTestCase("typing incomplete Qore source paints syntax colors before submission", \typedSyntax());
+        addTestCase("submitted Qore source retains syntax colors and plain text semantics", \submittedSyntax());
         addTestCase("evaluation leaves UI responsive and preserves edits made during work", \responsive());
         addTestCase("evaluation completion preserves the unfinished draft during history navigation", \historyDuringEvaluation());
         addTestCase("failed initial history navigation allows the first completed command to be recalled", \initialHistoryDuringEvaluation());
@@ -460,6 +462,68 @@ class QReplLiveTest inherits Test {
         editor.setText("int sub live_unique_completion() { return 7; }"); app.processEvent(chr("\n")); client.joinEvaluation();
         editor.setText("live_unique_compleXXX()"); editor.getBuffer().setCursor("live_unique_comple".length()); app.processEvent(chr("\t"));
         assertEq("live_unique_completion()", editor.getText()); app.processEvent(chr("\x1a")); assertEq("live_unique_compleXXX()", editor.getText());
+    }
+    typedSyntax() {
+        NcursesUi::TestHarness th(24, 120); on_exit th.close();
+        auto client = program.callFunction("createRepl", th.session()); on_exit client.close();
+        NcursesUi::Application app = client.getApplication(); NcursesUi::TextEditorWidget editor = client.getEditor();
+        NcursesQore::CodeSupport support(new QoreRepl::QoreRepl({"history_file": NOTHING}));
+        string source = "background sub () { sleep(10); }()";
+        string typed;
+        for (int i = 0; i < source.length(); ++i) {
+            string ch = source.substr(i, 1);
+            app.processEvent(chr(ch)); typed += ch; app.drawAll();
+            assertEq(typed, editor.getText());
+            assertEq(typed.length(), editor.getBuffer().getCursor());
+            if (typed.find("10") >= 0) {
+                hash<NcursesUi::Rect> rect = editor.getViewportRect();
+                hash<Ncurses::ScreenCapture> frame = th.session().capture();
+                assertEq(support.hasSyntaxHighlighting() ? 3 : -1,
+                    frame.cells[rect.y * frame.cols + rect.x + 6 + source.find("10")].fg,
+                    "the number is yellow while the expression is still incomplete");
+            }
+        }
+        assertFalse(client.isEvaluating());
+        assertEq(2, client.getTranscript().getBlocks().size(), "typing adds no submitted block");
+    }
+    submittedSyntax() {
+        foreach bool colors in ((True, False)) {
+            foreach string source in (("background sub () { return 10; }()", "string text = \"界é\nsecond\";\n# comment", "int = 42;", "/threads")) {
+                NcursesUi::TestHarness th(24, 120, {"use_colors": colors}); on_exit th.close();
+                QoreRepl::QoreRepl backend({"history_file": NOTHING});
+                NcursesQore::CodeSupport support(backend);
+                auto client = program.callFunction("createRepl", th.session(), backend);
+                # Background evaluation finishes through a native completion barrier, without a timed fixture.
+                on_exit { on_exit client.close(); backend.getProgram().waitForThreads(); }
+                NcursesUi::Application app = client.getApplication(); NcursesUi::TextEditorWidget editor = client.getEditor();
+                NcursesUi::TranscriptWidget output = client.getTranscript();
+                editor.setText(source); app.processEvent(chr("\n")); client.joinEvaluation(); app.drawAll();
+                list<hash<NcursesUi::TranscriptBlockInfo>> inputs = (map $1, output.getBlocks(), $1.kind == "input");
+                assertEq(1, inputs.size()); hash<NcursesUi::TranscriptBlockInfo> block = inputs[0];
+                assertEq("qore> " + source, output.getBlockText(block.id));
+                list<string> lines = split("\n", "qore> " + source, False, True);
+                output.select(<NcursesUi::TextAnchor>{"line_id": block.line_ids[0], "offset": 6},
+                    <NcursesUi::TextAnchor>{"line_id": block.line_ids[-1], "offset": lines[-1].length()});
+                assertEq(source, output.getSelectedText(), "copy contains source only, without ANSI codes");
+                hash<NcursesUi::TextAnchor> start = <NcursesUi::TextAnchor>{"line_id": block.line_ids[0], "offset": 0};
+                output.select(start, start);
+                output.setSearch(source.startsWith("background") ? "return" : source.startsWith("string") ? "second" : source.startsWith("int") ? "42" : "/threads");
+                assertEq(1, output.getMatches().size(), "search finds the literal source through its styles");
+                output.setSearch(""); app.drawAll();
+                hash<NcursesUi::Rect> rect = output.getViewportRect();
+                hash<Ncurses::ScreenCapture> frame = th.session().capture();
+                int row = rect.y + output.getTranscriptContent().displayRowForLine(
+                    output.getTranscriptContent().lineForId(block.line_ids[0])) - output.getScrollY();
+                int expected = source.startsWith("background") ? 5 : source.startsWith("/") ? -1 : source.startsWith("int") ? 3 : 6;
+                int offset = source.startsWith("int") ? source.find("42") : 0;
+                assertEq(colors ? (support.hasSyntaxHighlighting() ? expected : -1) : NOTHING,
+                    frame.cells[row * frame.cols + rect.x + 6 + offset].fg, "submitted syntax retains its token color");
+                if (source.startsWith("string")) {
+                    assertEq(colors ? (support.hasSyntaxHighlighting() ? 2 : -1) : NOTHING,
+                        frame.cells[(row + 1) * frame.cols + rect.x].fg, "multiline strings retain color after a newline");
+                }
+            }
+        }
     }
     responsive() {
         NcursesUi::TestHarness th(12, 40); on_exit th.close();

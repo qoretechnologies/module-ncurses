@@ -4223,9 +4223,11 @@ class QRepl {
         if (request.requires_idle && repl.getProgram().getThreadCount()) {
             wait_for_threads(text, submitted, original_revision); return;
         }
+        string styled = request.command ? text : code_support.highlight(text);
+        list<string> input_lines = NcursesUi::TerminalText::styledLines(display_prompt(current_prompt) + styled);
         assistance.close(); current_hint = NOTHING;
         int revision = original_revision ?? buffer.getRevision();
-        output_widget.appendBlock(split("\n", display_prompt(current_prompt) + text, False, True), "input");
+        output_widget.appendBlock(input_lines, "input");
         last_status = "Evaluating..."; last_exec_error = NOTHING; update_status(); app.layoutRoot(); app.drawAll();
         evaluation.start(auto sub () {
             *hash<auto> result;
