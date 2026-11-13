@@ -170,17 +170,30 @@ visibility remains a session setting.
 
 ## CI verification after merges
 
-For pushes to `develop`, the `tree-already-tested` preflight checks whether the
-current commit or an immediate parent with the identical Git tree already has a
-successful module pipeline. It requires successful `test-ubuntu` and
-`test-alpine` jobs. When that evidence is available, the platform jobs report
-success to GitHub with a link to the earlier pipeline and finish before building
-or testing. GitLab still creates the preflight and lightweight platform jobs.
+For `develop` pipelines started by a push or by an upstream pipeline (GitLab
+source `pipeline`, for example after a Qore change), the `tree-already-tested`
+preflight checks whether the current commit or an immediate parent with the
+identical Git tree already has a successful module pipeline. It requires
+successful `test-ubuntu` and `test-alpine` jobs.
+
+The tree is not the only test input: the jobs also test against the Qore
+installation and system packages of their CI images. Before building anything,
+every platform job therefore records a fingerprint of its image in the
+`ci-environment.txt` artifact (`test/docker_test/ci-environment.py`). It hashes
+the architecture, `/etc/os-release`, the installed packages (dpkg, apk or rpm),
+`qore -V` and the content of the qore binary, libqore and all Qore module
+directories, including `QORE_MODULE_DIR`. The preflight only accepts a pipeline
+whose two platform jobs both recorded a fingerprint. Each platform job then
+skips only when its own image has the same fingerprint as the earlier job. In
+that case it reports success to GitHub with a link to the earlier pipeline and
+finishes before building or testing. A changed image, a missing or expired
+artifact, or an image that cannot be fingerprinted runs the full job. GitLab
+still creates the preflight and lightweight platform jobs.
 
 Feature branches, tags, scheduled pipelines and pipelines started manually run
 the full tests. Set `QORE_CI_FORCE_FULL=1` to require full verification on a
-`develop` push, for example after updating the test images or dependencies
-without changing this repository's tree.
+`develop` pipeline, for example after a dependency changed that the fingerprint
+does not cover, such as packages that Playwright installs while the job runs.
 
 The preflight first uses `CI_JOB_TOKEN`. If the server refuses pipeline reads,
 configure the masked CI variable `QORE_CI_READ_API_TOKEN` with a token that has
@@ -189,11 +202,14 @@ invalid responses and incomplete platform results retain the full pipeline.
 This follows Qore's successful-tree reuse mechanism introduced in commit
 `22a9b5c721`, with explicit validation of the module's two platform jobs.
 
-The deterministic preflight and status-reporting tests run on both CI platforms
-before the module build. To run them locally:
+The deterministic preflight, fingerprint and status-reporting tests run on both
+CI platforms before the module build; each job also fingerprints its actual
+image and fails if that is not possible. To run them locally:
 
 ```bash
 python3 test/test_tree_tested.py
+python3 test/test_ci_environment.py
+python3 test/docker_test/ci-environment.py --manifest   # inspect this system's inputs
 ```
 
 ## License

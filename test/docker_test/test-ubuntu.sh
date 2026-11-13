@@ -26,6 +26,10 @@ echo "export QORE_GID=999" >> ${ENV_FILE}
 export MAKE_JOBS=4
 
 python3 "${MODULE_SRC_DIR}/test/test_tree_tested.py"
+python3 "${MODULE_SRC_DIR}/test/test_ci_environment.py"
+# tree-tested-skip.sh falls back to a full job when the image cannot be fingerprinted;
+# fail visibly instead, because successful-tree reuse could then never apply.
+python3 "${MODULE_SRC_DIR}/test/docker_test/ci-environment.py"
 
 # build module and install
 echo && echo "-- building module --"

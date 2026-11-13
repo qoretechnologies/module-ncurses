@@ -5,10 +5,15 @@
 
 Based on qore commit 22a9b5c721's tree-already-tested.sh. Python is available in
 both module CI images and lets us validate API JSON and platform job evidence.
+
+A candidate pipeline also needs the image fingerprint that each platform job
+recorded in its ci-environment.txt artifact (see ci-environment.py). Both are
+exported; each platform job skips only when its own image has the same fingerprint.
 """
 
 import json
 import os
+import re
 from http.client import HTTPException
 from pathlib import Path
 import subprocess
@@ -18,6 +23,10 @@ from urllib.request import Request, urlopen
 
 
 REQUIRED_JOBS = frozenset(("test-ubuntu", "test-alpine"))
+ENVIRONMENT_ARTIFACT = "ci-environment.txt"
+FINGERPRINT = re.compile(r"[0-9a-f]{64}\n?")
+# Upstream Qore pipelines trigger develop pipelines with the source "pipeline".
+ELIGIBLE_SOURCES = frozenset(("push", "pipeline"))
 
 
 class EvidenceUnavailable(Exception):
@@ -34,16 +43,28 @@ class GitLabApi:
             if env.get(token)
         ]
 
-    def read(self, path):
+    def fetch(self, path, parse):
         # Do not print exceptions, URLs with credentials, response bodies or tokens.
         for headers in self.headers:
             try:
                 request = Request(self.base + path, headers=headers)
                 with urlopen(request, timeout=15) as response:
-                    return json.load(response)
+                    return parse(response)
             except (OSError, URLError, HTTPException, ValueError):
                 continue
         raise EvidenceUnavailable("cannot read valid pipeline evidence")
+
+    def read(self, path):
+        return self.fetch(path, json.load)
+
+    def read_fingerprint(self, path):
+        """Return a recorded image fingerprint; anything else is not evidence."""
+        def parse(response):
+            data = response.read(1024).decode("ascii")
+            if not FINGERPRINT.fullmatch(data):
+                raise ValueError("invalid fingerprint")
+            return data.strip()
+        return self.fetch(path, parse)
 
 
 def git(*args):
@@ -54,12 +75,30 @@ def git(*args):
 
 def eligible(env):
     return (env.get("CI_COMMIT_BRANCH") == "develop"
-            and env.get("CI_PIPELINE_SOURCE") == "push"
+            and env.get("CI_PIPELINE_SOURCE") in ELIGIBLE_SOURCES
             and env.get("QORE_CI_FORCE_FULL") != "1")
 
 
 def positive_id(value):
     return type(value) is int and value > 0
+
+
+def job_fingerprints(project, platform_jobs, api):
+    """Return each platform job's recorded fingerprint, or None if any is unavailable.
+
+    Older pipelines and expired artifacts have none. Such a pipeline is not evidence,
+    but an older pipeline for the same tree may still be.
+    """
+    fingerprints = {}
+    for job in platform_jobs:
+        if not positive_id(job.get("id")):
+            return None
+        try:
+            fingerprints[job["name"]] = api.read_fingerprint(
+                f"/projects/{project}/jobs/{job['id']}/artifacts/{ENVIRONMENT_ARTIFACT}")
+        except EvidenceUnavailable:
+            return None
+    return fingerprints
 
 
 def find_evidence(env, api):
@@ -107,7 +146,9 @@ def find_evidence(env, api):
             if (len(platform_jobs) == len(REQUIRED_JOBS)
                     and {job["name"] for job in platform_jobs} == REQUIRED_JOBS
                     and all(job.get("status") == "success" for job in platform_jobs)):
-                return pipeline_id, commit, tree
+                fingerprints = job_fingerprints(project, platform_jobs, api)
+                if fingerprints is not None:
+                    return pipeline_id, commit, tree, fingerprints
     return None
 
 
@@ -117,7 +158,7 @@ def main():
     out.write_text("QORE_TREE_TESTED_CHECKED=1\n")
     env = os.environ
     if not eligible(env):
-        print("full verification requested: running the full pipeline")
+        print("ineligible pipeline or full verification requested: running the full pipeline")
         return
     try:
         evidence = find_evidence(env, GitLabApi(env))
@@ -128,11 +169,13 @@ def main():
     if evidence is None:
         print("no successful platform pipeline for this tree: running the full pipeline")
         return
-    pipeline, commit, tree = evidence
+    pipeline, commit, tree, fingerprints = evidence
     out.write_text("QORE_TREE_TESTED_CHECKED=1\n"
                    f"QORE_TREE_TESTED_IN={pipeline}\n"
                    f"QORE_TREE_TESTED_SHA={commit}\n"
-                   f"QORE_TREE_TESTED_TREE={tree}\n")
+                   f"QORE_TREE_TESTED_TREE={tree}\n"
+                   + "".join(f"QORE_TREE_TESTED_ENV_{name.upper().replace('-', '_')}={value}\n"
+                             for name, value in sorted(fingerprints.items())))
     print(f"tree {tree} passed both platform jobs in pipeline {pipeline} on {commit}")
 
 

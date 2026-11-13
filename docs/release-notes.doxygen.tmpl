@@ -128,7 +128,10 @@
     source positions to display cells, preserves the viewport anchor on resize,
     and clips styled Unicode text at widget boundaries. Cursor requests can be
     released without disturbing a newer request from another widget. Develop
-    pipelines reuse successful platform tests for identical Git trees.
+    pipelines, including those triggered by upstream Qore pipelines, reuse
+    successful platform tests for identical Git trees only when each platform's
+    CI image fingerprint (Qore installation, modules and system packages) is also
+    unchanged. Browser story replays run as separately bounded tests per story.
 
     Focus routing reaches nested controls, modal scopes preserve Tab traversal
     and restore eligible prior focus, and explicit popups support outside-click
