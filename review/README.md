@@ -122,9 +122,11 @@ npm run review -- --filter completion-popup
 
 `npm test` covers the PTY protocol, browser input/lifecycle, registry parity,
 rendering/font bounds, missing story registration, artifact comparison, missing/corrupt baselines, failed
-capture and deliberate acceptance. It replays all default and mouse stories using
+capture and deliberate acceptance. It replays all default, mouse and compact stories using
 real terminal bytes and compares their focus, scroll, cursor and composed cells
-with the same native checkpoints. The native QUnit suite runs every registered
+with the same native checkpoints. Each replayed story is a separate test with
+its own page and a 60-second deadline, so adding stories does not consume a
+shared time budget and a slow or stalled story is reported by its ID. The native QUnit suite runs every registered
 story, including background delivery and cancellation/stale-result scenarios.
 
 The complete visual matrix runs every registered state/checkpoint in color and

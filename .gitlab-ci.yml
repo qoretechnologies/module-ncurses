@@ -16,7 +16,9 @@ default:
 variables:
   REPO_NAME: module-ncurses
 
-# Reuse successful tests only for a push to develop with an identical Git tree.
+# Reuse successful tests only for a develop push or an upstream-triggered develop
+# pipeline with an identical Git tree; each platform job also requires an identical
+# image fingerprint (ci-environment.txt, recorded by tree-tested-skip.sh).
 # Missing/incomplete API evidence retains both full platform jobs.
 tree-already-tested:
   stage: .pre
@@ -25,7 +27,7 @@ tree-already-tested:
   variables:
     GIT_DEPTH: "3"
   rules:
-    - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "push" && $QORE_CI_FORCE_FULL != "1"'
+    - if: '$CI_COMMIT_BRANCH == "develop" && ($CI_PIPELINE_SOURCE == "push" || $CI_PIPELINE_SOURCE == "pipeline") && $QORE_CI_FORCE_FULL != "1"'
   script:
     - python3 test/docker_test/tree-already-tested.py
   artifacts:
@@ -40,6 +42,7 @@ test-ubuntu:
     when: always
     expire_in: 14 days
     paths:
+      - ci-environment.txt
       - review/artifacts/
       - review/baselines/
   script:
@@ -60,6 +63,11 @@ test-alpine:
   stage: test
   needs: [{job: tree-already-tested, optional: true}]
   image: $CI_REGISTRY/infrastructure/qore-test-base/qore-test-base:develop-alpine
+  artifacts:
+    when: always
+    expire_in: 14 days
+    paths:
+      - ci-environment.txt
   script:
     - |
         if test/docker_test/test-alpine.sh; then

@@ -6,6 +6,10 @@ review/storybook-static/
 review/artifacts/
 review/test-results/
 review/__pycache__/
+# CI tree-reuse evidence written by test/docker_test
+ci-environment.txt
+ci-environment.txt.tmp
+tree-tested.env
 *~
 src/*.dox.h
 src/qc_*.cpp
