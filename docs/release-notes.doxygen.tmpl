@@ -194,7 +194,8 @@
     transcript mouse anchors, scrollbar following and collapse source text are covered
     by regressions. Its capture worker uses explicit flush and
     shutdown acknowledgement, preserves blank lines and split UTF-8, and reports
-    invalid output bytes without sending malformed strings to the renderer.
+    invalid output bytes in hexadecimal. Capture continues after malformed output
+    on Qore versions that raise <tt>INVALID-ENCODING</tt> during regex matching.
 
     FormModel/FormWidget add typed metadata, field/form validation, inline errors,
     draft-preserving submission, cancellation generations and first-error focus.

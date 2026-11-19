@@ -5037,7 +5037,17 @@ class QReplOutputCapture {
     }
     private static string decode(binary data) {
         string text = binary_to_string(data, "UTF-8");
-        if (!(text =~ /\A(?:\X)*\z/)) { return "[invalid UTF-8 output: " + data.toHex() + "]"; }
-        return text;
+        # PCRE validates the entire UTF-8 subject before matching the start anchor.
+        # Older Qore returns False for malformed bytes. Newer Qore raises INVALID-ENCODING.
+        try {
+            if (text =~ /\A/) {
+                return text;
+            }
+        } catch (hash<ExceptionInfo> ex) {
+            if (ex.err != "INVALID-ENCODING") {
+                rethrow;
+            }
+        }
+        return "[invalid UTF-8 output: " + data.toHex() + "]";
     }
 }
