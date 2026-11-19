@@ -128,6 +128,14 @@ int start_idx = NcursesReplUi::ScrollCalc::scrollStart(100, 20, 5);
     @endcode
 
     @since ncurses 1.0
+
+    @subpage ncursesrepluireleasenotes
+*/
+
+/** @page ncursesrepluireleasenotes NcursesReplUi Release Notes
+
+    @section ncursesrepluiv10 NcursesReplUi Module Version 1.0
+    - initial release
 */
 
 public namespace NcursesReplUi {

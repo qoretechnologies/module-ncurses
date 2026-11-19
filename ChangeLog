@@ -1,27 +1,4 @@
-2026-02-08  Qore Technologies
-
-	* version 2.0.0: complete redesign with a modern, thread-safe API
-	  - new C++ API: Session, Window, Panel, TestTerminal, Ansi classes
-	    with typed events, styles, ANSI SGR rendering, and sandbox support
-	  - NcursesUi toolkit module: widget tree with parent-child focus
-	    management, BoxLayout/SplitLayout layout managers, EventDispatcher
-	    with modal stack and mouse hit-testing, 22 standard widget classes
-	    (ListWidget, TextInputWidget, ScrollableWidget, MenuBarWidget,
-	    DropdownMenuWidget, StatusBarWidget, DialogWidget, FileBrowserWidget,
-	    ComboBoxWidget, CheckboxWidget, RadioGroupWidget, TableWidget,
-	    PanelWidget, and more)
-	  - NcursesReplUi helper module: InputBuffer, History, LayoutCalc,
-	    ScrollCalc for building REPL-style UIs
-	  - qrepl full-screen REPL with menus (Alt+key hotkeys), file browser,
-	    output capture via File::getPipe(), scrollable output, animated
-	    About dialog with spinning Qore coin
-	  - CMake build system replacing autotools
-	  - Doxygen documentation with mainpage overviews, examples, and
-	    cross-references for all three module layers
-	  - 9 test suites with 290+ test cases covering C++ module, widgets,
-	    layouts, event dispatch, scrolling, UI components, integration
-	    scenarios, and qrepl application
-	  - interrupt and sandbox compliance (QDOM_TERMINAL_IO)
+See docs/release-notes.doxygen.tmpl for the current release history.
 
 2010-06-15 18:49  david_nichols
 

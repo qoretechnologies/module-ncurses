@@ -13,13 +13,25 @@ module NcursesQore {
     license = "MIT";
 }
 /** @mainpage NcursesQore Module
-    @section ncursesqoreintro Introduction
+    @section ncursesqoreintro NcursesQore Module Introduction
     CodeSupport adapts an existing QoreRepl session to NcursesUi's highlighting
     and precise assistance APIs. It never evaluates draft source. Construct it
     with the application's evaluator so newly defined symbols remain available.
     Serialize completion/hints with evaluator execution. Syntax highlighting uses
     an independent astparser instance, or plain source when astparser is unavailable.
-    @section ncursesqorerelease Release notes
-    Initial 1.0 release: source-preserving syntax styles, range-aware completion
-    and signature help for existing REPL sessions.
+
+    @par Usage notes
+    The adapter preserves source text while styling it and provides replacement ranges and signature help from the active REPL session.
+
+
+
+    @anchor ncursesqorerelease
+
+    @subpage ncursesqorereleasenotes
+*/
+
+/** @page ncursesqorereleasenotes NcursesQore Release Notes
+
+    @section ncursesqorev10 NcursesQore Module Version 1.0
+    - initial release
 */

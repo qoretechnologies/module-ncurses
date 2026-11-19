@@ -73,6 +73,20 @@ module NcursesUi {
 %requires NcursesUi
     @endcode
 
+    @par Usage notes
+    Cancellable tasks, choice dialogs and scrollable help require Qore 3.0. The qrepl frontend uses them to keep input responsive during parsing and reset requests.
+
+    @section ncursesuidocumentation Documentation
+
+    - @subpage ncursesuiarchitecture
+    - @subpage ncursesuiwidgetguide
+    - @anchor ncursesui_release @subpage ncursesuireleasenotes
+*/
+
+/** @page ncursesuiarchitecture Widget Architecture
+
+    @tableofcontents
+
     @section ncursesui_arch Architecture
 
     @subsection ncursesui_tree Widget Tree
@@ -185,6 +199,11 @@ module NcursesUi {
     @ref NcursesUi::DialogWidget::setOnDismiss() "DialogWidget::setOnDismiss()". The button
     callback receives its index and label. See @ref ncurses_ui_panels "Panel Widgets and Modal Dialogs"
     for a complete example, including modal removal and session cleanup.
+*/
+
+/** @page ncursesuiwidgetguide Widgets, Testing and Styling
+
+    @tableofcontents
 
     @section ncursesui_widgets Standard Widgets
 
@@ -309,13 +328,12 @@ th.injectChar("x");
     - Status bar: same blue background with colored labels
     - Dropdown highlight: \c {"fg": Ncurses::Color::Yellow, "bg": Ncurses::Color::Blue, "attrs": Ncurses::Attr::Bold}
     - Dialog focused button: \c {"fg": Ncurses::Color::Yellow, "bg": Ncurses::Color::Blue, "attrs": Ncurses::Attr::Bold}
+*/
 
-    @section ncursesui_release Release Notes
-    Initial 1.0 includes cancellable background tasks, event-driven choice dialogs and scrollable help.
-    These APIs require Qore 3.0. The qrepl frontend uses them to coordinate parsing and reset requests with
-    Program threads while keeping the terminal responsive.
+/** @page ncursesuireleasenotes NcursesUi Release Notes
 
-    @since ncurses 1.0
+    @section ncursesuiv10 NcursesUi Module Version 1.0
+    - initial release
 */
 
 #! main namespace for the NcursesUi toolkit

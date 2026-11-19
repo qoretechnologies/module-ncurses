@@ -22,7 +22,7 @@ Use @ref ncursestestingcapture for the capture contract and limitations.
 Editor/table/popup stories exercise their composition; dedicated layout, focus and capture suites cover boundaries.
 
 @section catalog_text_editor_boundaries TextEditorWidget
-API: @ref NcursesUi::TextEditorWidget "TextEditorWidget". [Source](https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/TextEditorWidget.qc)
+API: @ref NcursesUi::TextEditorWidget "TextEditorWidget". <a href="https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/TextEditorWidget.qc">Source</a>
 
 Edit at exact-width boundaries and retain the caret through resize.
 
@@ -45,7 +45,7 @@ Initial geometry: 4 rows × 8 columns.
 Checkpoints: initial: Inspect the caret after five exact-width lines.; paste: Paste a wide glyph and combining character.; shrink: Shrink the viewport while editing.; undo: Undo the complete paste.
 
 @section catalog_table_scrolling TableWidget
-API: @ref NcursesUi::TableWidget "TableWidget". [Source](https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/TableWidget.qc)
+API: @ref NcursesUi::TableWidget "TableWidget". <a href="https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/TableWidget.qc">Source</a>
 
 Keep the last selected row visible through keyboard, mouse and resize.
 
@@ -68,7 +68,7 @@ Initial geometry: 8 rows × 32 columns.
 Checkpoints: initial: Inspect the first row and column headers.; last: Press End to reach the last row.; shrink: Shrink; the selected row remains on screen.; first: Press Home to return to the first row.
 
 @section catalog_completion_popup_overlap CompletionPopupWidget
-API: @ref NcursesUi::CompletionPopupWidget "CompletionPopupWidget". [Source](https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/CompletionPopupWidget.qc)
+API: @ref NcursesUi::CompletionPopupWidget "CompletionPopupWidget". <a href="https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/CompletionPopupWidget.qc">Source</a>
 
 Review an overlapping popup and restoration of the editor's focus, pixels and cursor.
 
@@ -91,7 +91,7 @@ Initial geometry: 10 rows × 32 columns.
 Checkpoints: initial: Inspect the popup above the editor background.; next: Move to the second completion.; dismiss: Press Escape; return to the unchanged draft.
 
 @section catalog_label_default LabelWidget
-API: @ref NcursesUi::LabelWidget "LabelWidget". [Source](https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/LabelWidget.qc)
+API: @ref NcursesUi::LabelWidget "LabelWidget". <a href="https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/LabelWidget.qc">Source</a>
 
 Read a wrapped label with adjacent explanatory text.
 
@@ -114,7 +114,7 @@ Initial geometry: 16 rows × 64 columns.
 Checkpoints: initial: Read a wrapped label with adjacent explanatory text.
 
 @section catalog_text_input_default TextInputWidget
-API: @ref NcursesUi::TextInputWidget "TextInputWidget". [Source](https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/TextInputWidget.qc)
+API: @ref NcursesUi::TextInputWidget "TextInputWidget". <a href="https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/TextInputWidget.qc">Source</a>
 
 Edit a labeled single-line value without losing Unicode characters.
 
@@ -137,7 +137,7 @@ Initial geometry: 16 rows × 64 columns.
 Checkpoints: initial: Edit a labeled single-line value without losing Unicode characters.; interaction: Home/End and arrows move; Backspace deletes a grapheme; Enter submits.
 
 @section catalog_transcript_default TranscriptWidget
-API: @ref NcursesUi::TranscriptWidget "TranscriptWidget". [Source](https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/TranscriptWidget.qc)
+API: @ref NcursesUi::TranscriptWidget "TranscriptWidget". <a href="https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/TranscriptWidget.qc">Source</a>
 
 Read output with stable scroll position and search highlights.
 
@@ -160,7 +160,7 @@ Initial geometry: 16 rows × 64 columns.
 Checkpoints: initial: Read output with stable scroll position and search highlights.; interaction: Arrows/page keys scroll; Home/End reach history boundaries.
 
 @section catalog_code_view_default CodeViewWidget
-API: @ref NcursesUi::CodeViewWidget "CodeViewWidget". [Source](https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/CodeViewWidget.qc)
+API: @ref NcursesUi::CodeViewWidget "CodeViewWidget". <a href="https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/CodeViewWidget.qc">Source</a>
 
 Inspect syntax-styled source and its plain-text representation.
 
@@ -183,7 +183,7 @@ Initial geometry: 16 rows × 64 columns.
 Checkpoints: initial: Inspect syntax-styled source and its plain-text representation.; interaction: Arrow/page keys scroll; source remains read-only.
 
 @section catalog_button_default ButtonWidget
-API: @ref NcursesUi::ButtonWidget "ButtonWidget". [Source](https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/ButtonWidget.qc)
+API: @ref NcursesUi::ButtonWidget "ButtonWidget". <a href="https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/ButtonWidget.qc">Source</a>
 
 Activate a clearly labeled action once per input.
 
@@ -206,7 +206,7 @@ Initial geometry: 16 rows × 64 columns.
 Checkpoints: initial: Activate a clearly labeled action once per input.; interaction: Enter or Space activates; Tab moves focus.
 
 @section catalog_checkbox_default CheckboxWidget
-API: @ref NcursesUi::CheckboxWidget "CheckboxWidget". [Source](https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/CheckboxWidget.qc)
+API: @ref NcursesUi::CheckboxWidget "CheckboxWidget". <a href="https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/CheckboxWidget.qc">Source</a>
 
 Toggle an option with a mark that does not depend on color.
 
@@ -229,7 +229,7 @@ Initial geometry: 16 rows × 64 columns.
 Checkpoints: initial: Toggle an option with a mark that does not depend on color.; interaction: Space toggles; Tab moves focus.
 
 @section catalog_radio_group_default RadioGroupWidget
-API: @ref NcursesUi::RadioGroupWidget "RadioGroupWidget". [Source](https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/RadioGroupWidget.qc)
+API: @ref NcursesUi::RadioGroupWidget "RadioGroupWidget". <a href="https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/RadioGroupWidget.qc">Source</a>
 
 Move highlight independently of the committed radio selection.
 
@@ -252,7 +252,7 @@ Initial geometry: 16 rows × 64 columns.
 Checkpoints: initial: Move highlight independently of the committed radio selection.; interaction: Up/Down move highlight; Space commits; Home/End reach choices.
 
 @section catalog_combo_box_default ComboBoxWidget
-API: @ref NcursesUi::ComboBoxWidget "ComboBoxWidget". [Source](https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/ComboBoxWidget.qc)
+API: @ref NcursesUi::ComboBoxWidget "ComboBoxWidget". <a href="https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/ComboBoxWidget.qc">Source</a>
 
 Filter choices while retaining a visible editing caret.
 
@@ -275,7 +275,7 @@ Initial geometry: 16 rows × 64 columns.
 Checkpoints: initial: Filter choices while retaining a visible editing caret.; interaction: Type to filter; Down opens choices; Enter accepts; Escape closes.
 
 @section catalog_described_choice_default DescribedChoiceWidget
-API: @ref NcursesUi::DescribedChoiceWidget "DescribedChoiceWidget". [Source](https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/DescribedChoiceWidget.qc)
+API: @ref NcursesUi::DescribedChoiceWidget "DescribedChoiceWidget". <a href="https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/DescribedChoiceWidget.qc">Source</a>
 
 Choose an option: the filled circle marks selection; the highlighted title follows keyboard focus.
 
@@ -298,7 +298,7 @@ Initial geometry: 16 rows × 64 columns.
 Checkpoints: initial: Choose an option: the filled circle marks selection; the highlighted title follows keyboard focus.; interaction: Up/Down moves focus; Space, Enter or a click selects. Unavailable choices are skipped.
 
 @section catalog_form_default FormWidget
-API: @ref NcursesUi::FormWidget "FormWidget". [Source](https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/FormWidget.qc)
+API: @ref NcursesUi::FormWidget "FormWidget". <a href="https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/FormWidget.qc">Source</a>
 
 Each field groups a bold label, help and a bounded value. Click the label or help to focus its value.
 
@@ -321,7 +321,7 @@ Initial geometry: 16 rows × 64 columns.
 Checkpoints: initial: Each field groups a bold label, help and a bounded value. Click the label or help to focus its value.
 
 @section catalog_list_default ListWidget
-API: @ref NcursesUi::ListWidget "ListWidget". [Source](https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/ListWidget.qc)
+API: @ref NcursesUi::ListWidget "ListWidget". <a href="https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/ListWidget.qc">Source</a>
 
 Navigate labeled rows with an unambiguous current selection.
 
@@ -344,7 +344,7 @@ Initial geometry: 16 rows × 64 columns.
 Checkpoints: initial: Navigate labeled rows with an unambiguous current selection.; interaction: Arrows, Home/End and page keys move selection; Enter activates.
 
 @section catalog_tree_default TreeWidget
-API: @ref NcursesUi::TreeWidget "TreeWidget". [Source](https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/TreeWidget.qc)
+API: @ref NcursesUi::TreeWidget "TreeWidget". <a href="https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/TreeWidget.qc">Source</a>
 
 Expand structured values using familiar directional navigation.
 
@@ -367,7 +367,7 @@ Initial geometry: 16 rows × 64 columns.
 Checkpoints: initial: Expand structured values using familiar directional navigation.; interaction: Right expands, Left collapses, Up/Down select, Enter activates.
 
 @section catalog_key_value_default KeyValueWidget
-API: @ref NcursesUi::KeyValueWidget "KeyValueWidget". [Source](https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/TreeWidget.qc)
+API: @ref NcursesUi::KeyValueWidget "KeyValueWidget". <a href="https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/TreeWidget.qc">Source</a>
 
 Inspect labeled scalar values and nested details.
 
@@ -390,7 +390,7 @@ Initial geometry: 16 rows × 64 columns.
 Checkpoints: initial: Inspect labeled scalar values and nested details.
 
 @section catalog_text_chart_default TextChartWidget
-API: @ref NcursesUi::TextChartWidget "TextChartWidget". [Source](https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/TextChart.qc)
+API: @ref NcursesUi::TextChartWidget "TextChartWidget". <a href="https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/TextChart.qc">Source</a>
 
 Read samples from left to right: taller bars mean larger values; ? is a missing sample. The summary gives exact values.
 
@@ -413,7 +413,7 @@ Initial geometry: 16 rows × 64 columns.
 Checkpoints: initial: Read samples from left to right: taller bars mean larger values; ? is a missing sample. The summary gives exact values.
 
 @section catalog_menu_bar_default MenuBarWidget
-API: @ref NcursesUi::MenuBarWidget "MenuBarWidget". [Source](https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/MenuBarWidget.qc)
+API: @ref NcursesUi::MenuBarWidget "MenuBarWidget". <a href="https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/MenuBarWidget.qc">Source</a>
 
 Discover menu commands and disabled choices.
 
@@ -436,7 +436,7 @@ Initial geometry: 16 rows × 64 columns.
 Checkpoints: initial: Discover menu commands and disabled choices.; interaction: Alt+F opens File; arrows navigate; Escape closes.
 
 @section catalog_dropdown_menu_default DropdownMenuWidget
-API: @ref NcursesUi::DropdownMenuWidget "DropdownMenuWidget". [Source](https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/DropdownMenuWidget.qc)
+API: @ref NcursesUi::DropdownMenuWidget "DropdownMenuWidget". <a href="https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/DropdownMenuWidget.qc">Source</a>
 
 Navigate an overlapping command menu while skipping disabled entries.
 
@@ -459,7 +459,7 @@ Initial geometry: 16 rows × 64 columns.
 Checkpoints: initial: Navigate an overlapping command menu while skipping disabled entries.; interaction: Up/Down select enabled commands; Enter activates; Escape dismisses.
 
 @section catalog_dialog_default DialogWidget
-API: @ref NcursesUi::DialogWidget "DialogWidget". [Source](https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/DialogWidget.qc)
+API: @ref NcursesUi::DialogWidget "DialogWidget". <a href="https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/DialogWidget.qc">Source</a>
 
 Read an explanation and deliberately choose an action.
 
@@ -482,7 +482,7 @@ Initial geometry: 16 rows × 64 columns.
 Checkpoints: initial: Read an explanation and deliberately choose an action.; interaction: Tab selects actions; Enter activates; Escape dismisses. Up/Down or Page keys scroll a long message.
 
 @section catalog_assistance_popup_default AssistancePopupWidget
-API: @ref NcursesUi::AssistancePopupWidget "AssistancePopupWidget". [Source](https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/AssistancePopupWidget.qc)
+API: @ref NcursesUi::AssistancePopupWidget "AssistancePopupWidget". <a href="https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/AssistancePopupWidget.qc">Source</a>
 
 Read ranked completion help anchored to the editor caret.
 
@@ -505,7 +505,7 @@ Initial geometry: 16 rows × 64 columns.
 Checkpoints: initial: Read ranked completion help anchored to the editor caret.; interaction: Type filters; Tab reaches documentation; Enter applies; Escape cancels.
 
 @section catalog_status_bar_default StatusBarWidget
-API: @ref NcursesUi::StatusBarWidget "StatusBarWidget". [Source](https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/StatusBarWidget.qc)
+API: @ref NcursesUi::StatusBarWidget "StatusBarWidget". <a href="https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/StatusBarWidget.qc">Source</a>
 
 Read compact key help and state without requiring color.
 
@@ -528,7 +528,7 @@ Initial geometry: 16 rows × 64 columns.
 Checkpoints: initial: Read compact key help and state without requiring color.
 
 @section catalog_progress_default ProgressWidget
-API: @ref NcursesUi::ProgressWidget "ProgressWidget". [Source](https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/ProgressWidget.qc)
+API: @ref NcursesUi::ProgressWidget "ProgressWidget". <a href="https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/ProgressWidget.qc">Source</a>
 
 Start a controlled operation: emphasized fill and exact counts show progress; state text and color identify the outcome.
 
@@ -551,7 +551,7 @@ Initial geometry: 16 rows × 64 columns.
 Checkpoints: initial: Start a controlled operation: emphasized fill and exact counts show progress; state text and color identify the outcome.; interaction: Enter starts/retries; C or Escape cancels an active operation.
 
 @section catalog_timeline_default TimelineWidget
-API: @ref NcursesUi::TimelineWidget "TimelineWidget". [Source](https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/TimelineWidget.qc)
+API: @ref NcursesUi::TimelineWidget "TimelineWidget". <a href="https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/TimelineWidget.qc">Source</a>
 
 Review timestamped operation history and expand event details.
 
@@ -574,7 +574,7 @@ Initial geometry: 16 rows × 64 columns.
 Checkpoints: initial: Review timestamped operation history and expand event details.; interaction: Up/Down select events; Enter/Space toggles details.
 
 @section catalog_file_browser_default FileBrowserWidget
-API: @ref NcursesUi::FileBrowserWidget "FileBrowserWidget". [Source](https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/FileBrowserWidget.qc)
+API: @ref NcursesUi::FileBrowserWidget "FileBrowserWidget". <a href="https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/FileBrowserWidget.qc">Source</a>
 
 Browse repository-owned sample files and a bounded text preview.
 
@@ -597,7 +597,7 @@ Initial geometry: 16 rows × 64 columns.
 Checkpoints: initial: Browse repository-owned sample files and a bounded text preview.; interaction: Arrows select; Enter/Tab opens a directory; Shift+Tab goes back; F7 switches panes; Escape dismisses.
 
 @section catalog_file_selection_default FileSelectionWidget
-API: @ref NcursesUi::FileSelectionWidget "FileSelectionWidget". [Source](https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/FileSelectionWidget.qc)
+API: @ref NcursesUi::FileSelectionWidget "FileSelectionWidget". <a href="https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/FileSelectionWidget.qc">Source</a>
 
 Select fixture metadata without modifying files.
 
@@ -620,7 +620,7 @@ Initial geometry: 16 rows × 64 columns.
 Checkpoints: initial: Select fixture metadata without modifying files.; interaction: Arrows highlight; Space selects; Enter opens through the fixture handler.
 
 @section catalog_attachment_default AttachmentWidget
-API: @ref NcursesUi::AttachmentWidget "AttachmentWidget". [Source](https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/AttachmentWidget.qc)
+API: @ref NcursesUi::AttachmentWidget "AttachmentWidget". <a href="https://github.com/qoretechnologies/module-ncurses/blob/develop/qlib/NcursesUi/AttachmentWidget.qc">Source</a>
 
 Read attachment metadata, text preview and explicit operation feedback.
 

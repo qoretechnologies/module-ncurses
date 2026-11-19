@@ -25,7 +25,7 @@
     @ref Qore::Ncurses::Ansi "Ansi" handles colored tool output, while
     @ref Qore::Ncurses::TestTerminal "TestTerminal" supports automated tests without an
     interactive terminal. Terminal operations participate in %Qore sandbox and interruption checks.
-    This is the module's initial 1.0 release. License terms are included in \c COPYING
+    License terms are included in \c COPYING
     in the source distribution.
 
     Load the binary API with <tt>%requires ncurses</tt>. A minimal program and its terminal
@@ -33,31 +33,33 @@
 
     @section ncursesdocumentation Documentation
 
-    - @anchor ncurses_quickstart @ref ncurses_quickstartguide "Quick Start": create a session, draw
+    - @anchor ncurses_quickstart @subpage ncurses_quickstartguide "Quick Start": create a session, draw
       a greeting, handle input, and restore the terminal on both normal and exceptional exits.
-    - @anchor ncurses_mouse @ref ncurses_mouseguide "Mouse Support": enable reporting, interpret
+    - @anchor ncurses_mouse @subpage ncurses_mouseguide "Mouse Support": enable reporting, interpret
       coordinates and button masks, and handle mouse, keyboard, and resize events in one loop.
-    - @anchor ncurses_styles @ref ncurses_stylesguide "Style System": combine foreground/background
+    - @anchor ncurses_styles @subpage ncurses_stylesguide "Style System": combine foreground/background
       colors and attributes, preserve borders, and choose wrapping behavior, with a styled-screen example.
-    - @anchor ncurses_ansi @ref ncurses_ansiguide "ANSI SGR Text": render colored output, measure
+    - @anchor ncurses_ansi @subpage ncurses_ansiguide "ANSI SGR Text": render colored output, measure
       display width, parse styled segments, and wrap text without counting escape sequences.
-    - @anchor ncurses_ui_widgets @ref ncurses_ui_widgetsguide "UI Widget Toolkit": build a list/status
+    - @anchor ncurses_ui_widgets @subpage ncurses_ui_widgetsguide "UI Widget Toolkit": build a list/status
       application with layout, focus, a quit handler, and modal dialog callbacks.
-    - @ref ncurses_widget_catalog "Widget Story Catalog": discover all public widgets,
+    - @subpage ncurses_widget_catalog "Widget Story Catalog": discover all public widgets,
       their supported review states, and the shared native/headless gallery.
-    - @anchor ncurses_testing @ref ncurses_testingguide "Automated Testing": create a headless terminal,
+    - @anchor ncurses_testing @subpage ncurses_testingguide "Automated Testing": create a headless terminal,
       inject typed events, assert screen contents, and test widgets without timing-dependent input.
-    - @anchor ncurses_tools @ref ncurses_toolsguide "Tools and REPL Helpers": run \c qrepl, learn its
+    - @anchor ncurses_tools @subpage ncurses_toolsguide "Tools and REPL Helpers": run \c qrepl, learn its
       controls, and use the input-buffer and history APIs in your own console.
-    - @anchor ncurses_examples @ref ncurses_examplesguide "Examples": run the supplied dashboard,
+    - @anchor ncurses_examples @subpage ncurses_examplesguide "Examples": run the supplied dashboard,
       panels, and threaded-input demos, and follow a complete overlapping-panel example.
-    - @anchor ncurses_api @ref ncurses_apiguide "API Overview": find lifecycle, drawing, input,
+    - @anchor ncurses_api @subpage ncurses_apiguide "API Overview": find lifecycle, drawing, input,
       style, and refresh APIs, including an example of batching screen updates.
     - @anchor ncursesreleasenotes_link @anchor ncursesreleasenotes_intro
-      @ref ncursesreleasenotes "Release Notes": module version history.
+      @subpage ncursesreleasenotes "Release Notes": module version history.
 
     @section ncursesqlibmodules Qore User Modules
 
+    - @ref ncursesqoreintro "NcursesQore" supplies Qore syntax highlighting, completion and signature help
+      for editors connected to a live REPL session.
     - @ref ncursesuiintro "NcursesUi": widget tree, layouts, event dispatch, focus management,
       standard controls, and Unicode-aware terminal text helpers.
     - @ref ncursesrepluiintro "NcursesReplUi": input editing with
