@@ -76,7 +76,7 @@ public class PanelWidget inherits NcursesUi::Widget {
         @param edges bitwise combination of BorderEdges values
         @throw PANEL-BORDER-ERROR for unknown edge bits
         @par Example
-        @code
+        @code{.py}
         panel.setBorderEdges(NcursesUi::BorderEdges::Horizontal);
         panel.setPadding(NcursesUi::Geometry::makeInsets(0, 0, 1, 1));
         @endcode

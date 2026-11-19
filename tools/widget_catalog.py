@@ -85,7 +85,7 @@ def render(stories):
         if story['state'] != 'default':
             continue
         lines += [f'@section catalog_{story["id"].replace(".", "_").replace("-", "_")} {story["widget"]}',
-                  f'API: @ref {story["api"]} "{story["widget"]}". [Source]({story["api_url"]})', '', story['purpose'], '',
+                  f'API: @ref {story["api"]} "{story["widget"]}". <a href="{story["api_url"]}">Source</a>', '', story['purpose'], '',
                   f'Keyboard: {story["keyboard"]}', f'Mouse: {story["mouse"]}', '',
                   '| State | Story or reason |', '| --- | --- |']
         lines += [f'| {state} | {story["states"][state]} |' for state in STATES]
