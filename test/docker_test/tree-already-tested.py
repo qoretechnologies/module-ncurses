@@ -11,6 +11,7 @@ recorded in its ci-environment.txt artifact (see ci-environment.py). Both are
 exported; each platform job skips only when its own image has the same fingerprint.
 """
 
+from itertools import chain
 import json
 import os
 import re
@@ -20,6 +21,8 @@ import subprocess
 from urllib.error import URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
+
+from squash_head import squash_head
 
 
 REQUIRED_JOBS = frozenset(("test-ubuntu", "test-alpine"))
@@ -120,7 +123,12 @@ def find_evidence(env, api):
         except subprocess.CalledProcessError:
             continue
 
-    for commit in candidates:
+    def squash_candidate():
+        tip = squash_head(head, tree)
+        if tip and tip not in candidates:
+            yield tip
+
+    for commit in chain(candidates, squash_candidate()):
         query = urlencode({"sha": commit, "status": "success", "per_page": 20})
         pipelines = api.read(f"/projects/{project}/pipelines?{query}")
         if not isinstance(pipelines, list):
