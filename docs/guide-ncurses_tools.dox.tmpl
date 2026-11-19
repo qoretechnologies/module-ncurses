@@ -55,7 +55,9 @@ qrepl
     Paused/unread output and execution state take priority over secondary status text.
     Alt-key menu shortcuts provide file, edit, view and help actions. Command history
     is persisted in <tt>~/.qore-repl-history</tt>. Output capture preserves complete
-    lines and marks unterminated output with a reversed percent sign. Capture workers
+    lines and marks unterminated output with a reversed percent sign. A line containing
+    malformed UTF-8 appears in hexadecimal (for example, <tt>[invalid UTF-8 output: ff]</tt>).
+    Capture continues with the next line. Capture workers
     enqueue text only; widget mutation and drawing stay on the UI thread. Each worker
     drain uses a finite byte-count snapshot, so continuously produced output cannot
     starve flush or shutdown. Ordinary Enter remains LF even with paste enabled.

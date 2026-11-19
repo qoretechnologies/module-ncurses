@@ -45,6 +45,7 @@ class QReplLiveTest inherits Test {
         addTestCase("small terminal resize retains draft and visible caret", \resize());
         addTestCase("selection clipboard and undo are connected to application bindings", \clipboard());
         addTestCase("capture barriers retain blank lines, split UTF-8 and large output", \capture());
+        addTestCase("capture reports malformed UTF-8 lines and unterminated output and keeps reading", \captureInvalidUtf8());
         addTestCase("capture idle shutdown and EOF terminate without timeouts", \captureShutdown());
         addTestCase("capture services flush and close while a pipe stays continuously readable", \captureFairness());
         addTestCase("capture wake failures remain visible without abandoning the producer pipe", \captureWakeFailure());
@@ -328,9 +329,25 @@ class QReplLiveTest inherits Test {
         pipe.write.write(strmul("one 界 é\n", 20000)); reader.flush();
         list<string> lines = reader.drain(); assertEq(20000, lines.size());
         assertEq(strmul("one 界 é\n", 20000), join("\n", lines) + "\n");
-        pipe.write.write(<ff0a>); reader.flush(); assertEq(("[invalid UTF-8 output: ff]",), reader.drain());
-        pipe.write.write("recover\n"); reader.flush(); assertEq(("recover",), reader.drain());
         reader.close(); reader.close(); assertThrows("QREPL-CAPTURE-CLOSED", sub () { reader.flush(); });
+    }
+    captureInvalidUtf8() {
+        hash<PipeInfo> pipe = File::getPipe();
+        auto reader = program.callFunction("createCapture", pipe.read);
+        on_exit { reader.close(); pipe.read.close(); pipe.write.close(); }
+
+        # Illegal byte, truncated character, then a valid line in the same write.
+        pipe.write.write(<ff0ae7950ae7958c0a>);
+        reader.flush();
+        assertEq(("[invalid UTF-8 output: ff]", "[invalid UTF-8 output: e795]", "界"), reader.drain());
+
+        # Check the entire unterminated tail, including bytes after an embedded NUL.
+        pipe.write.write(<610080>);
+        reader.flush();
+        assertEq(("[invalid UTF-8 output: 610080]\x1b[7m%\x1b[0m",), reader.drain());
+        pipe.write.write("recover\n");
+        reader.flush();
+        assertEq(("recover",), reader.drain());
     }
     captureShutdown() {
         hash<PipeInfo> pipe = File::getPipe(); auto reader = program.callFunction("createCapture", pipe.read);
