@@ -430,7 +430,7 @@ class TreeTestedTest(unittest.TestCase):
             with self.subTest(patch=patch):
                 output, args = self.run_skip(dict(self.skip_env(), **patch))
                 self.assertNotIn("FULL_JOB", output)
-                self.assertEqual("success", json.loads(args[args.index("-d") + 1])["state"])
+                self.assertIsNone(args)
 
     def test_changed_image_runs_full(self):
         for patch in ({"FAKE_FINGERPRINT": "c3" * 32},
@@ -470,30 +470,26 @@ class TreeTestedTest(unittest.TestCase):
         env["QORE_CI_ENV_FILE"] = str(env_file)
         output, args = self.run_skip(env)
         self.assertNotIn("FULL_JOB", output)
-        self.assertIsNotNone(args)
+        self.assertIsNone(args)
         # Without a skip, the variables set by the environment file stay in the subshell.
         output, _ = self.run_skip(dict(env, QORE_CI_FORCE_FULL="1"),
                                   after='echo "FULL_JOB leaked=${FAKE_FINGERPRINT:-}"')
         self.assertIn("FULL_JOB leaked=\n", output)
         self.assertEqual(self.ubuntu_fingerprint + "\n", self.recorded_fingerprint())
 
-    def test_skip_publishes_success_and_exits_before_work(self):
+    def test_skip_exits_without_publishing_the_required_status(self):
         for shell in ("sh", "bash"):
             with self.subTest(shell=shell):
                 output, args = self.run_skip(self.skip_env(), shell)
                 self.assertNotIn("FULL_JOB", output)
-                self.assertIn(f"https://api.github.com/repos/qoretechnologies/module-ncurses/statuses/{self.head}", args)
-                body = json.loads(args[args.index("-d") + 1])
-                self.assertEqual("success", body["state"])
-                self.assertEqual("module-ncurses", body["context"])
-                self.assertEqual("https://git.example.invalid/mirror/module-ncurses/-/pipelines/100", body["target_url"])
+                self.assertIsNone(args)
 
     def test_skip_requires_valid_matching_evidence(self):
         for patch in ({"QORE_TREE_TESTED_CHECKED": ""}, {"QORE_TREE_TESTED_IN": ""},
                       {"QORE_TREE_TESTED_IN": "0"}, {"QORE_TREE_TESTED_IN": "100\ninjected"},
                       {"QORE_TREE_TESTED_IN": "200"}, {"QORE_TREE_TESTED_SHA": "abc"},
                       {"QORE_TREE_TESTED_SHA": "g" * 40}, {"QORE_TREE_TESTED_TREE": ""},
-                      {"QORE_TREE_TESTED_TREE": "a" * 40}, {"GITHUB_ACCESS_TOKEN": ""},
+                      {"QORE_TREE_TESTED_TREE": "a" * 40},
                       {"CI_COMMIT_BRANCH": "feature"}, {"CI_PIPELINE_SOURCE": "web"},
                       {"CI_PIPELINE_SOURCE": "schedule"}, {"QORE_CI_FORCE_FULL": "1"}):
             with self.subTest(patch=patch):
@@ -508,10 +504,10 @@ class TreeTestedTest(unittest.TestCase):
         self.assertIn("FULL_JOB", output)
         self.assertIsNone(args)
 
-    def test_status_failure_runs_full(self):
-        output, args = self.run_skip(dict(self.skip_env(), STATUS_EXIT="22"))
-        self.assertIn("FULL_JOB", output)
-        self.assertIsNotNone(args)
+    def test_skip_does_not_require_status_credentials(self):
+        output, args = self.run_skip(dict(self.skip_env(), GITHUB_ACCESS_TOKEN=""))
+        self.assertNotIn("FULL_JOB", output)
+        self.assertIsNone(args)
 
 
 if __name__ == "__main__":
